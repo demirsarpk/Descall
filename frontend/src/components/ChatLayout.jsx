@@ -2716,6 +2716,7 @@ export default function ChatLayout({
           key={`${activeGroupCall?.activeGroupId || "none"}-${groups.call.minimized ? "mini" : "full"}`}
           isOpen={call?.isInCall || call?.isCalling || call?.isReceiving || activeGroupCall?.isInCall || false}
           onClose={activeGroupCall?.leaveCall || (() => {})}
+          leaveCall={activeGroupCall?.leaveCall || (() => {})}
           minimized={groups.call.minimized}
           onMinimize={() => setGroups(g => ({ ...g, call: { ...g.call, minimized: !g.call.minimized } }))}
           call={activeGroupCall}
