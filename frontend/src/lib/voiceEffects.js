@@ -265,15 +265,27 @@ class VoiceEffects {
   // Disconnect all nodes
   disconnectAll() {
     try {
-      if (this.inputGain) this.inputGain.disconnect();
-      if (this.outputGain) this.outputGain.disconnect();
-      if (this.biquadFilter) this.biquadFilter.disconnect();
-      if (this.delayNode) this.delayNode.disconnect();
-      if (this.convolver) this.convolver.disconnect();
-      if (this.compressor) this.compressor.disconnect();
-      if (this.noiseGate) this.noiseGate.disconnect();
-      if (this.analyser) this.analyser.disconnect();
-      if (this.sourceNode) this.sourceNode.disconnect();
+      // Safe disconnect - check if node exists and has a valid context
+      const safeDisconnect = (node) => {
+        if (!node) return;
+        try {
+          node.disconnect();
+        } catch (e) {
+          // Ignore "destination not connected" errors - they're harmless
+          if (!e.message?.includes('destination is not connected')) {
+            console.warn('[VoiceEffects] Disconnect warning:', e.message);
+          }
+        }
+      };
+      safeDisconnect(this.inputGain);
+      safeDisconnect(this.outputGain);
+      safeDisconnect(this.biquadFilter);
+      safeDisconnect(this.delayNode);
+      safeDisconnect(this.convolver);
+      safeDisconnect(this.compressor);
+      safeDisconnect(this.noiseGate);
+      safeDisconnect(this.analyser);
+      safeDisconnect(this.sourceNode);
     } catch (error) {
       console.error('[VoiceEffects] Error disconnecting nodes:', error);
     }

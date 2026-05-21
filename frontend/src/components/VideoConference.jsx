@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+sayfaimport { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, Grid, Maximize2, Users, Minimize2, Settings, Sparkles, Activity, Check, X } from "lucide-react";
 import RippleButton from "./ui/RippleButton";
@@ -474,11 +474,11 @@ export default function VideoConference({
       )}
 
       {/* Controls Bar */}
-      <div style={{
-        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16,
-        padding: '12px 24px', background: 'rgba(0,0,0,0.8)', zIndex: 1001,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{
+          display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12,
+          padding: '12px 24px', background: 'rgba(0,0,0,0.8)', zIndex: 1001,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <RippleButton className={`vc-btn${isMuted ? ' danger' : ''}`} onClick={toggleMute} style={{ background: isMuted ? '#f23f43' : 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
           </RippleButton>
