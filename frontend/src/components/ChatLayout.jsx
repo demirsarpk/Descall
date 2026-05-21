@@ -545,6 +545,7 @@ export default function ChatLayout({
     startRecording,
     stopRecording,
     cancelRecording,
+    resetRecording,
     formattedDuration,
   } = voiceRecorder;
 

@@ -1,16 +1,17 @@
-import { useState, useEffect, useRef, useCallback, memo, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, Grid, Maximize2, Users, Minimize2, Volume2, Headphones, ChevronDown, Settings, Sparkles, Activity, Check, X } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, Grid, Maximize2, Users, Minimize2, Settings, Sparkles, Activity, Check, X } from "lucide-react";
 import RippleButton from "./ui/RippleButton";
 import VoiceEffectsPanel from "./VoiceEffectsPanel";
 import VideoConferenceMobile from "./VideoConferenceMobile";
 
 /**
- * Discord/Google Meet tarzı video conference UI
- * - Grid view: Tüm katılımcılar eşit boyutta
- * - Focus view: Aktif konuşan/ekran paylaşan büyük, diğerleri altta thumbnail
- * - Tıklama ile büyütme/küçültme
- * - Ekran paylaşımı otomatik focus
+ * Modern Video Conference UI
+ * - Grid view: All participants equal size
+ * - Focus view: Active speaker/screen share large, others thumbnails
+ * - Minimize support via floating PiP button
+ * - Screen share quality settings
+ * - Audio device selection
  */
 export default function VideoConference({
   isOpen,
@@ -30,14 +31,13 @@ export default function VideoConference({
   stopScreenShare,
   leaveCall,
   callType,
-  dominantSpeaker,
   focusedParticipant,
   setFocusedParticipant,
+  dominantSpeaker,
   duration = 0,
   remoteStreams,
   screenQuality,
   setScreenQuality,
-  // Audio device selection props
   audioInputDevices = [],
   audioOutputDevices = [],
   selectedAudioInput = "",
@@ -54,338 +54,148 @@ export default function VideoConference({
   
   useEffect(() => {
     const checkMobile = () => {
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-                           window.innerWidth < 768;
-      setIsMobile(isMobileDevice);
+      setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
     };
-    
-    const debouncedCheckMobile = () => {
-      if (resizeTimeoutRef.current) {
-        clearTimeout(resizeTimeoutRef.current);
-      }
+    const debounced = () => {
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
       resizeTimeoutRef.current = setTimeout(checkMobile, 250);
     };
-    
     checkMobile();
-    window.addEventListener('resize', debouncedCheckMobile);
-    
+    window.addEventListener('resize', debounced);
     return () => {
-      window.removeEventListener('resize', debouncedCheckMobile);
-      if (resizeTimeoutRef.current) {
-        clearTimeout(resizeTimeoutRef.current);
-      }
+      window.removeEventListener('resize', debounced);
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
     };
   }, []);
-  
-  // DEBUG: Log participants data
-  console.log("[VideoConference] Participants raw:", JSON.stringify(safeParticipants, null, 2));
-  const [viewMode, setViewMode] = useState("grid"); // "grid" | "focus"
-  const [showControls, setShowControls] = useState(true);
-  const [fullscreenParticipant, setFullscreenParticipant] = useState(null); // null | 'local' | userId
+
+  const [viewMode, setViewMode] = useState("grid");
   const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [showVoiceEffects, setShowVoiceEffects] = useState(false);
   const [showScreenQuality, setShowScreenQuality] = useState(false);
-  const [localAudioInputs, setLocalAudioInputs] = useState([]);
-  const [localAudioOutputs, setLocalAudioOutputs] = useState([]);
   const [focusTarget, setFocusTarget] = useState(null);
   const screenQualityRef = useRef(null);
 
-  // Stable refs for video elements - prevents flickering
   const videoElementRefs = useRef(new Map());
   const screenVideoElementRefs = useRef(new Map());
   const streamAssignments = useRef(new Map());
   const screenStreamAssignments = useRef(new Map());
 
-  // Controls always visible - no auto-hide
-
-  // Stable screen stream handling - prevents flickering
-  // Use Map for multiple participant screen shares
-  const screenVideoRefs = useRef(new Map());
-  
-  // Cleanup refs when unmounting
+  // Stale refs cleanup on unmount
   useEffect(() => {
     return () => {
-      screenVideoRefs.current.forEach((video, id) => {
-        if (video) {
-          video.srcObject = null;
-        }
+      [videoElementRefs, screenVideoElementRefs].forEach(refMap => {
+        refMap.current.forEach((video) => { if (video) video.srcObject = null; });
+        refMap.current.clear();
       });
-      screenVideoRefs.current.clear();
     };
   }, []);
 
-  // Manual stream assignment function - async with proper sequencing
   const assignStreamToVideo = useCallback(async (participantId, stream) => {
     const video = videoElementRefs.current.get(participantId);
     if (video && video.srcObject !== stream) {
-      console.log(`[VideoConference] Assigning stream to ${participantId}`);
-      
-      // Stop current playback to prevent race condition
-      if (video.srcObject) {
-        video.pause();
-        video.currentTime = 0;
-      }
-      
-      // Assign new stream
+      if (video.srcObject) { video.pause(); video.currentTime = 0; }
       video.srcObject = stream;
       streamAssignments.current.set(participantId, stream);
-      
-      // Wait for stream to be ready before playing
       if (stream) {
-        try {
-          await video.play();
-        } catch (error) {
-          console.warn(`[VideoConference] Failed to play video for ${participantId}:`, error);
-        }
-      }
-    }
-  }, []);
-  
-  // Manual screen stream assignment function - async with proper sequencing
-  const assignScreenStreamToVideo = useCallback(async (participantId, screenStream) => {
-    const video = screenVideoElementRefs.current.get(participantId);
-    if (video && video.srcObject !== screenStream) {
-      console.log(`[VideoConference] Assigning screen stream to ${participantId}`);
-      
-      // Stop current playback to prevent race condition
-      if (video.srcObject) {
-        video.pause();
-        video.currentTime = 0;
-      }
-      
-      // Assign new stream
-      video.srcObject = screenStream;
-      screenStreamAssignments.current.set(participantId, screenStream);
-      
-      // Wait for stream to be ready before playing
-      if (screenStream) {
-        try {
-          await video.play();
-        } catch (error) {
-          console.warn(`[VideoConference] Failed to play screen video for ${participantId}:`, error);
-        }
+        try { await video.play(); } catch (e) { console.warn(`[VC] Video play error ${participantId}:`, e); }
       }
     }
   }, []);
 
-  // Cleanup participant when they leave
-  const cleanupParticipant = useCallback((participantId) => {
-    const video = videoElementRefs.current.get(participantId);
-    if (video) {
-      video.srcObject = null;
-      videoElementRefs.current.delete(participantId);
+  const assignScreenStreamToVideo = useCallback(async (pid, s) => {
+    const video = screenVideoElementRefs.current.get(pid);
+    if (video && video.srcObject !== s) {
+      if (video.srcObject) { video.pause(); video.currentTime = 0; }
+      video.srcObject = s;
+      screenStreamAssignments.current.set(pid, s);
+      if (s) { try { await video.play(); } catch (e) { console.warn(`[VC] Screen play error ${pid}:`, e); } }
     }
-    streamAssignments.current.delete(participantId);
-    
-    const screenVideo = screenVideoElementRefs.current.get(participantId);
-    if (screenVideo) {
-      screenVideo.srcObject = null;
-      screenVideoElementRefs.current.delete(participantId);
-    }
-    screenStreamAssignments.current.delete(participantId);
   }, []);
 
-  // Update streams for existing participants - optimized to prevent flicker
+  // Stream update effect with flicker prevention
   useEffect(() => {
-    const updateStreams = async () => {
-      // Only update if we have actual changes
-      const changedParticipants = safeParticipants.filter(p => {
-        const currentStream = streamAssignments.current.get(p.id);
-        const newStream = remoteStreamMap.get(p.id);
-        return currentStream !== newStream;
-      });
-      
-      if (changedParticipants.length === 0 && !screenStream) {
-        return; // No changes, skip update to prevent flicker
-      }
-      
-      console.log('[VideoConference] Updating streams for', changedParticipants.length, 'participants');
-      
-      // Process only changed participants
-      const streamPromises = changedParticipants.map(async (p) => {
-        const stream = remoteStreamMap.get(p.id);
-        await assignStreamToVideo(p.id, stream);
-      });
-      
-      // Handle local screen sharing preview (only if changed)
-      const currentLocalScreen = screenStreamAssignments.current.get('local');
-      if (screenStream && isScreenSharing && currentLocalScreen !== screenStream) {
+    const update = async () => {
+      const changed = safeParticipants.filter(p => streamAssignments.current.get(p.id) !== remoteStreamMap.get(p.id));
+      if (changed.length === 0 && !screenStream) return;
+      await Promise.allSettled(changed.map(p => assignStreamToVideo(p.id, remoteStreamMap.get(p.id))));
+      const curr = screenStreamAssignments.current.get('local');
+      if (screenStream && isScreenSharing && curr !== screenStream) {
         await assignScreenStreamToVideo('local', screenStream);
         await assignScreenStreamToVideo('preview', screenStream);
-        await assignScreenStreamToVideo('pip-local', screenStream);
-      } else if (!screenStream && currentLocalScreen) {
+      } else if (!screenStream && curr) {
         await assignScreenStreamToVideo('local', null);
         await assignScreenStreamToVideo('preview', null);
-        await assignScreenStreamToVideo('pip-local', null);
       }
-      
-      // Wait for all stream assignments to complete
-      await Promise.allSettled(streamPromises);
     };
-    
-    updateStreams().catch(error => {
-      console.error('[VideoConference] Error updating streams:', error);
-    });
+    update().catch(e => console.error('[VC] Stream update error:', e));
   }, [safeParticipants, remoteStreamMap, screenStream, isScreenSharing, assignStreamToVideo, assignScreenStreamToVideo]);
 
-  // Screen sharing quality handlers
+  // Screen quality handlers
   const handleStartScreenShare = useCallback(async () => {
-    if (startScreenShare) {
-      await startScreenShare(screenQuality);
-    }
+    if (startScreenShare) await startScreenShare(screenQuality);
   }, [startScreenShare, screenQuality]);
 
   const [applyingSettings, setApplyingSettings] = useState(false);
   const [settingsApplied, setSettingsApplied] = useState(false);
-  const [currentOperation, setCurrentOperation] = useState(null);
+  const [currentOp, setCurrentOp] = useState(null);
   const timersRef = useRef([]);
 
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      timersRef.current.forEach(timer => clearTimeout(timer));
-      timersRef.current = [];
-    };
-  }, []);
+  useEffect(() => () => { timersRef.current.forEach(t => clearTimeout(t)); timersRef.current = []; }, []);
 
   const handleResolutionChange = useCallback(async (resolution) => {
-    // Prevent concurrent operations
-    if (currentOperation || !setScreenQuality) return;
-    setCurrentOperation('resolution');
-    
-    try {
-      setApplyingSettings(true);
-      setSettingsApplied(false);
-      
-      setScreenQuality(prev => ({ ...prev, resolution }));
-      
-      // Show feedback animation with proper cleanup
-      const feedbackTimer1 = setTimeout(() => {
-        setSettingsApplied(true);
-        const feedbackTimer2 = setTimeout(() => setSettingsApplied(false), 2000);
-        timersRef.current.push(feedbackTimer2);
-      }, 300);
-      timersRef.current.push(feedbackTimer1);
-      
-      // If already screen sharing, restart with new quality immediately
-      if (isScreenSharing && stopScreenShare && startScreenShare) {
-        console.log('[VideoConference] Restarting screen share with new resolution:', resolution);
-        await stopScreenShare();
-        // Wait for cleanup and restart with new quality
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await startScreenShare({ resolution, fps: screenQuality.fps });
-        console.log('[VideoConference] Screen share restarted with new resolution');
-      }
-      
-      const clearTimer = setTimeout(() => setApplyingSettings(false), 500);
-      timersRef.current.push(clearTimer);
-    } catch (error) {
-      console.error('[VideoConference] Error changing resolution:', error);
-      setApplyingSettings(false);
-    } finally {
-      setTimeout(() => setCurrentOperation(null), 600);
+    if (currentOp || !setScreenQuality) return;
+    setCurrentOp('resolution');
+    setApplyingSettings(true);
+    setSettingsApplied(false);
+    setScreenQuality(prev => ({ ...prev, resolution }));
+    const t1 = setTimeout(() => { setSettingsApplied(true); timersRef.current.push(setTimeout(() => setSettingsApplied(false), 2000)); }, 300);
+    timersRef.current.push(t1);
+    if (isScreenSharing && stopScreenShare && startScreenShare) {
+      await stopScreenShare();
+      await new Promise(r => setTimeout(r, 300));
+      await startScreenShare({ resolution, fps: screenQuality.fps });
     }
-  }, [currentOperation, setScreenQuality, isScreenSharing, stopScreenShare, startScreenShare, screenQuality]);
+    timersRef.current.push(setTimeout(() => setApplyingSettings(false), 500));
+    setTimeout(() => setCurrentOp(null), 600);
+  }, [currentOp, setScreenQuality, isScreenSharing, stopScreenShare, startScreenShare, screenQuality]);
 
   const handleFpsChange = useCallback(async (fps) => {
-    // Prevent concurrent operations
-    if (currentOperation || !setScreenQuality) return;
-    setCurrentOperation('fps');
-    
-    try {
-      setApplyingSettings(true);
-      setSettingsApplied(false);
-      
-      setScreenQuality(prev => ({ ...prev, fps }));
-      
-      // Show feedback animation with proper cleanup
-      const feedbackTimer1 = setTimeout(() => {
-        setSettingsApplied(true);
-        const feedbackTimer2 = setTimeout(() => setSettingsApplied(false), 2000);
-        timersRef.current.push(feedbackTimer2);
-      }, 300);
-      timersRef.current.push(feedbackTimer1);
-      
-      // If already screen sharing, restart with new quality immediately
-      if (isScreenSharing && stopScreenShare && startScreenShare) {
-        console.log('[VideoConference] Restarting screen share with new FPS:', fps);
-        await stopScreenShare();
-        // Wait for cleanup and restart with new quality
-        await new Promise(resolve => setTimeout(resolve, 300));
-        await startScreenShare({ resolution: screenQuality.resolution, fps });
-        console.log('[VideoConference] Screen share restarted with new FPS');
-      }
-      
-      const clearTimer = setTimeout(() => setApplyingSettings(false), 500);
-      timersRef.current.push(clearTimer);
-    } catch (error) {
-      console.error('[VideoConference] Error changing FPS:', error);
-      setApplyingSettings(false);
-    } finally {
-      setTimeout(() => setCurrentOperation(null), 600);
+    if (currentOp || !setScreenQuality) return;
+    setCurrentOp('fps');
+    setApplyingSettings(true);
+    setSettingsApplied(false);
+    setScreenQuality(prev => ({ ...prev, fps }));
+    const t1 = setTimeout(() => { setSettingsApplied(true); timersRef.current.push(setTimeout(() => setSettingsApplied(false), 2000)); }, 300);
+    timersRef.current.push(t1);
+    if (isScreenSharing && stopScreenShare && startScreenShare) {
+      await stopScreenShare();
+      await new Promise(r => setTimeout(r, 300));
+      await startScreenShare({ resolution: screenQuality.resolution, fps });
     }
-  }, [currentOperation, setScreenQuality, isScreenSharing, stopScreenShare, startScreenShare, screenQuality]);
+    timersRef.current.push(setTimeout(() => setApplyingSettings(false), 500));
+    setTimeout(() => setCurrentOp(null), 600);
+  }, [currentOp, setScreenQuality, isScreenSharing, stopScreenShare, startScreenShare, screenQuality]);
 
-  // Enumerate audio devices
+  // Grid layout
+  const gridCols = useMemo(() => {
+    const c = safeParticipants.length + 1;
+    if (c <= 1) return 1;
+    if (c <= 4) return 2;
+    if (c <= 9) return 3;
+    return 4;
+  }, [safeParticipants.length]);
+
+  // Focus view calculations
+  const calculatedFocusTarget = dominantSpeaker?.id || (safeParticipants.length > 0 ? safeParticipants[0]?.id : 'local');
   useEffect(() => {
-    const getDevices = async () => {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const inputs = devices.filter(d => d.kind === 'audioinput');
-        const outputs = devices.filter(d => d.kind === 'audiooutput');
-        setLocalAudioInputs(inputs);
-        setLocalAudioOutputs(outputs);
-      } catch (err) {
-        console.error("[VideoConference] Failed to enumerate devices:", err);
-      }
-    };
-    
-    getDevices();
-  }, []);
-
-  // Grid layout calculation
-  const getGridCols = (count) => {
-    if (count <= 1) return 1;
-    if (count <= 4) return 2;
-    if (count <= 9) return 3;
-    return 4; // Max 16 (4x4) for 15 people limit
-  };
-
-  const getGridRows = (count, cols) => Math.ceil(count / cols);
-
-  // Calculate grid layout
-  const totalParticipants = safeParticipants.length + 1; // +1 for local
-  const gridCols = getGridCols(totalParticipants);
-  const gridRows = getGridRows(totalParticipants, gridCols);
-
-  // Focus view calculations - memoized to prevent flicker
-  const activeParticipants = useMemo(() => 
-    safeParticipants.filter(p => 
-      remoteStreamMap.has(p.id) || p.screenStream
-    ), 
-    [safeParticipants, remoteStreamMap]
-  );
-  
-  // Calculate focus target value (not a new variable, uses state)
-  const calculatedFocusTarget = dominantSpeaker?.id || 
-    (activeParticipants.length > 0 ? activeParticipants[0]?.id : 'local');
-  
-  // Update focus target based on dominant speaker or active participants
-  useEffect(() => {
-    if (calculatedFocusTarget !== focusTarget) {
-      setFocusTarget(calculatedFocusTarget);
-    }
+    if (calculatedFocusTarget !== focusTarget) setFocusTarget(calculatedFocusTarget);
   }, [calculatedFocusTarget, focusTarget]);
 
-  const focusParticipant = safeParticipants.find((p) => p.id === focusTarget);
+  const focusParticipant = safeParticipants.find(p => p.id === focusTarget);
   const focusStream = focusTarget ? remoteStreamMap.get(focusTarget) : null;
 
-  // Thumbnail participants (focus view)
-  const thumbnailParticipants = viewMode === "focus"
-    ? (activeParticipants || []).filter(p => p.id !== focusTarget)
-    : [];
+  const thumbnailParticipants = viewMode === "focus" ? safeParticipants.filter(p => p.id !== focusTarget) : [];
 
-  // Return mobile interface for mobile devices, desktop for others
   if (isMobile) {
     return (
       <VideoConferenceMobile
@@ -409,328 +219,227 @@ export default function VideoConference({
         screenQuality={screenQuality}
         setScreenQuality={setScreenQuality}
         remoteStreams={remoteStreams}
-        onProcessedStream={(stream) => {
-          // Handle processed stream for mobile
-        }}
       />
     );
   }
 
-  // Desktop interface
-  // Early return if not open - after all hooks
   if (!isOpen) return null;
+
+  // Minimized floating PiP mode
+  if (minimized) {
+    return (
+      <motion.div
+        className="video-conference-minimized"
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.8, opacity: 0 }}
+        onClick={onMinimize}
+        style={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          width: 240,
+          height: 160,
+          borderRadius: 12,
+          overflow: 'hidden',
+          cursor: 'pointer',
+          zIndex: 10000,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}
+      >
+        {isScreenSharing ? (
+          <video
+            ref={el => { if (el && screenStream) el.srcObject = screenStream; }}
+            autoPlay playsInline muted
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : isCameraOn && localStream ? (
+          <video
+            ref={el => { if (el && localStream) el.srcObject = localStream; }}
+            autoPlay playsInline muted
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+            <Users size={48} />
+          </div>
+        )}
+        <div style={{
+          position: 'absolute', bottom: 8, left: 8, right: 8,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: 'rgba(0,0,0,0.6)', padding: '4px 10px', borderRadius: 8, fontSize: 12, color: '#fff'
+        }}>
+          <span>{safeParticipants.length + 1} participants</span>
+          {duration > 0 && <span>{Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}</span>}
+        </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); leaveCall?.(); }}
+          style={{
+            position: 'absolute', top: 6, right: 6, width: 28, height: 28,
+            borderRadius: '50%', border: 'none', background: 'rgba(242,63,67,0.9)',
+            color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <X size={14} />
+        </button>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
-      className={`video-conference ${minimized ? 'minimized' : ''}`}
+      className="video-conference"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
       style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: '100vw',
-        height: '100vh',
-        zIndex: 1000,
-        backgroundColor: '#0f0f0f',
-        display: 'flex',
-        flexDirection: 'column',
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, width: '100vw',
+        height: '100vh', zIndex: 1000, backgroundColor: '#0f0f0f', display: 'flex', flexDirection: 'column',
       }}
     >
       {/* Header */}
-      <motion.div 
-        className={`vc-header`}
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        animate={{ y: showControls ? 0 : -20, opacity: showControls ? 1 : 0 }}
-      >
-        <div className="vc-title">
+      <div className="vc-header" style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '12px 20px', background: 'rgba(0,0,0,0.3)', zIndex: 10,
+      }}>
+        <div className="vc-title" style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
           <Users size={18} />
           <span>{safeParticipants.length + 1} participants</span>
         </div>
-        <div className="vc-view-toggle">
-          <button
-            className={viewMode === "grid" ? "active" : ""}
-            onClick={() => setViewMode("grid")}
-          >
+        <div className="vc-view-toggle" style={{ display: 'flex', gap: 8 }}>
+          <button className={viewMode === "grid" ? "active" : ""} onClick={() => setViewMode("grid")}
+            style={{ background: viewMode === "grid" ? 'rgba(255,255,255,0.2)' : 'transparent', border: 'none', color: '#fff', padding: 6, borderRadius: 6, cursor: 'pointer' }}>
             <Grid size={18} />
           </button>
-          <button
-            className={viewMode === "focus" ? "active" : ""}
-            onClick={() => setViewMode("focus")}
-          >
+          <button className={viewMode === "focus" ? "active" : ""} onClick={() => setViewMode("focus")}
+            style={{ background: viewMode === "focus" ? 'rgba(255,255,255,0.2)' : 'transparent', border: 'none', color: '#fff', padding: 6, borderRadius: 6, cursor: 'pointer' }}>
             <Maximize2 size={18} />
           </button>
           {onMinimize && (
-            <button onClick={onMinimize} title="Minimize">
+            <button onClick={onMinimize} title="Minimize"
+              style={{ background: 'transparent', border: 'none', color: '#fff', padding: 6, borderRadius: 6, cursor: 'pointer' }}>
               <Minimize2 size={18} />
             </button>
           )}
         </div>
-      </motion.div>
+      </div>
 
       {/* Main Video Area */}
-      <div className={`vc-main ${viewMode}`}>
+      <div className={`vc-main ${viewMode}`} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {viewMode === "grid" ? (
-          // Grid View
-          <div 
-            className="vc-grid"
-            style={{
-              gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-              gridTemplateRows: `repeat(${gridRows}, 1fr)`,
-            }}
-          >
-            {/* Local Video */}
-            <div 
-              className={`vc-video-cell ${focusedParticipant === 'local' ? 'focused' : ''}`}
-              onClick={() => setFocusedParticipant('local')}
-            >
-              {isCameraOn ? (
-                <video
-                  ref={(el) => {
-                    if (el && localStream) el.srcObject = localStream;
-                  }}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="vc-video"
-                  style={{ objectFit: 'cover', width: '100%', height: '100%' }}
-                />
+          <div className="vc-grid" style={{
+            display: 'grid', gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+            gap: 4, padding: 4, height: '100%',
+          }}>
+            {/* Local */}
+            <div className="vc-video-cell" style={{ position: 'relative', background: '#1a1a2e', borderRadius: 8, overflow: 'hidden', minHeight: 120 }}>
+              {isCameraOn && localStream ? (
+                <video ref={el => { if (el) el.srcObject = localStream; }}
+                  autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <div className="vc-avatar-placeholder">
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
                   <span>You</span>
                 </div>
               )}
-              <div className="vc-video-badge">
-                {isMuted ? <MicOff size={14} /> : <Mic size={14} />}
+              <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', borderRadius: 6, padding: '2px 6px', color: '#fff', fontSize: 11 }}>
+                {isMuted ? <MicOff size={12} /> : <Mic size={12} />} You
               </div>
             </div>
 
-            {/* Participant Videos */}
-            {safeParticipants.map((participant) => {
-              const stream = remoteStreamMap.get(participant.id);
-              const hasScreenShare = screenStream && participant.isScreenSharing;
-              
+            {/* Participants */}
+            {safeParticipants.map(p => {
+              const stream = remoteStreamMap.get(p.id);
+              const hasVideo = p.hasVideo || p.isScreenSharing || false;
               return (
-                <div 
-                  key={participant.id}
-                  className={`vc-video-cell ${focusedParticipant === participant.id ? 'focused' : ''} ${hasScreenShare ? 'has-screen-share' : ''}`}
-                  onClick={() => setFocusedParticipant(participant.id)}
-                >
-                  {hasScreenShare && <div className="vc-screen-indicator">Screen</div>}
-                  
-                  {stream && (p.hasVideo || p.isScreenSharing) ? (
-                    <video
-                      ref={(el) => {
-                        if (el) {
-                          videoElementRefs.current.set(participant.id, el);
-                          const currentStream = streamAssignments.current.get(participant.id);
-                          if (currentStream && el.srcObject !== currentStream) {
-                            el.srcObject = currentStream;
-                          }
-                        } else {
-                          videoElementRefs.current.delete(participant.id);
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      className="vc-video"
-                      style={{ objectFit: 'cover', width: '100%', height: '100%' }}
-                    />
+                <div key={p.id} className="vc-video-cell" style={{ position: 'relative', background: '#1a1a2e', borderRadius: 8, overflow: 'hidden', minHeight: 120 }}>
+                  {stream && hasVideo ? (
+                    <video ref={el => { if (el) { videoElementRefs.current.set(p.id, el); const s = streamAssignments.current.get(p.id); if (s && el.srcObject !== s) el.srcObject = s; } }}
+                      autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <div className="vc-avatar-placeholder">
-                      <span>{participant.username?.[0] || 'U'}</span>
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+                      <span>{p.username?.[0] || 'U'}</span>
                     </div>
                   )}
-                  
-                  <div className="vc-video-info">
-                    <span>{participant.username || 'User'}</span>
-                    {hasScreenShare && <Monitor size={14} />}
-                  </div>
-                  
-                  <div className="vc-video-badge">
-                    {/* Muted indicator would go here */}
+                  <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', borderRadius: 6, padding: '2px 6px', color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {p.isScreenSharing && <Monitor size={12} />}
+                    {p.username || 'User'}
                   </div>
                 </div>
               );
             })}
           </div>
         ) : (
-          // Focus View
           <>
-            {/* Main Focus Video */}
-            <div className="vc-focus-main">
+            {/* Focus Main */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 100, background: '#1a1a2e' }}>
               {focusTarget === 'local' ? (
                 isScreenSharing ? (
-                  <video
-                    ref={(el) => {
-                      if (el) {
-                        screenVideoElementRefs.current.set('local', el);
-                        const currentStream = screenStreamAssignments.current.get('local');
-                        if (currentStream && el.srcObject !== currentStream) {
-                          el.srcObject = currentStream;
-                        }
-                      } else {
-                        screenVideoElementRefs.current.delete('local');
-                      }
-                    }}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="vc-video"
-                  />
-                ) : isCameraOn ? (
-                  <video
-                    ref={(el) => {
-                      if (el && localStream) {
-                        if (el.srcObject !== localStream) {
-                          el.srcObject = localStream;
-                        }
-                        // Try to play but don't throw errors
-                        el.play().catch(() => {});
-                      }
-                    }}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="vc-video"
-                  />
+                  <video ref={el => { if (el) screenVideoElementRefs.current.set('local', el); }}
+                    autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : isCameraOn && localStream ? (
+                  <video ref={el => { if (el && el.srcObject !== localStream) el.srcObject = localStream; el?.play()?.catch(() => {}); }}
+                    autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : (
-                  <div className="vc-avatar-placeholder large">
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
                     <span>You</span>
                   </div>
                 )
               ) : focusParticipant ? (
-                <div className="vc-focus-participant">
-                  {screenStream && focusParticipant?.isScreenSharing ? (
-                    <video
-                      ref={(el) => {
-                        if (el) {
-                          screenVideoElementRefs.current.set(`focus-${focusParticipant.id}`, el);
-                          const currentStream = screenStreamAssignments.current.get(`focus-${focusParticipant.id}`);
-                          if (currentStream && el.srcObject !== currentStream) {
-                            el.srcObject = currentStream;
-                          } else if (screenStream && el.srcObject !== screenStream) {
-                            el.srcObject = screenStream;
-                            screenStreamAssignments.current.set(`focus-${focusParticipant.id}`, screenStream);
-                          }
-                        } else {
-                          screenVideoElementRefs.current.delete(`focus-${focusParticipant.id}`);
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      className="vc-video"
-                    />
+                <div style={{ width: '100%', height: '100%' }}>
+                  {focusParticipant.isScreenSharing ? (
+                    <video ref={el => { if (el) screenVideoElementRefs.current.set('focus-screen', el); }}
+                      autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : focusStream ? (
-                    <video
-                      ref={(el) => {
-                        if (el) {
-                          videoElementRefs.current.set(focusParticipant.id, el);
-                          const currentStream = streamAssignments.current.get(focusParticipant.id);
-                          if (currentStream && el.srcObject !== currentStream) {
-                            el.srcObject = currentStream;
-                          }
-                        } else {
-                          videoElementRefs.current.delete(focusParticipant.id);
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      className="vc-video"
-                    />
+                    <video ref={el => { if (el) { videoElementRefs.current.set(focusParticipant.id, el); const s = streamAssignments.current.get(focusParticipant.id); if (s && el.srcObject !== s) el.srcObject = s; } }}
+                      autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                   ) : (
-                    <div className="vc-avatar-placeholder large">
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
                       <span>{focusParticipant.username?.[0] || 'U'}</span>
                     </div>
                   )}
-                  <div className="vc-focus-info">
-                    <span>{focusParticipant.username || 'User'}</span>
-                    {focusParticipant.isScreenSharing && <Monitor size={16} />}
+                  <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.6)', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {focusParticipant.isScreenSharing && <Monitor size={14} />}
+                    {focusParticipant.username || 'User'}
                   </div>
                 </div>
               ) : (
-                <div className="vc-avatar-placeholder large">
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
                   <span>No participant</span>
-                </div>
-              )}
-              
-              {(focusTarget === 'local' ? isScreenSharing : focusParticipant?.isScreenSharing) && (
-                <div className="vc-focus-screen-badge">
-                  <Monitor size={16} />
-                  <span>Screen Sharing</span>
                 </div>
               )}
             </div>
 
-            {/* Thumbnail Row */}
-            <div className="vc-focus-thumbnails">
-              {/* Local thumbnail if not focus */}
+            {/* Thumbnails */}
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 100, display: 'flex', gap: 8, padding: 8, overflowX: 'auto', background: 'rgba(0,0,0,0.4)' }}>
               {focusTarget !== 'local' && (
-                <div 
-                  className={`vc-thumbnail ${focusedParticipant === 'local' ? 'focused' : ''}`}
-                  onClick={() => setFocusTarget('local')}
-                >
-                  {isCameraOn ? (
-                    <video
-                      ref={(el) => {
-                        if (el && localStream) el.srcObject = localStream;
-                      }}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="vc-thumbnail-video"
-                    />
+                <div onClick={() => setFocusTarget('local')} style={{ flex: '0 0 120px', height: '100%', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', position: 'relative', background: '#1a1a2e' }}>
+                  {isScreenSharing ? (
+                    <video ref={el => { if (el) screenVideoElementRefs.current.set('thumb-local', el); }}
+                      autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : isCameraOn && localStream ? (
+                    <video ref={el => { if (el && el.srcObject !== localStream) el.srcObject = localStream; }}
+                      autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <div className="vc-thumbnail-avatar">
-                      <span>You</span>
-                    </div>
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12 }}>You</div>
                   )}
-                  <div className="vc-thumbnail-label">You</div>
+                  <div style={{ position: 'absolute', bottom: 2, left: 4, color: '#fff', fontSize: 10, background: 'rgba(0,0,0,0.5)', padding: '1px 4px', borderRadius: 4 }}>You</div>
                 </div>
               )}
-
-              {/* Other participants thumbnails */}
-              {thumbnailParticipants.map((participant) => {
-                const stream = remoteStreamMap.get(participant.id);
-                return (
-                  <div 
-                    key={participant.id}
-                    className={`vc-thumbnail ${focusedParticipant === participant.id ? 'focused' : ''}`}
-                    onClick={() => setFocusTarget(participant.id)}
-                  >
-                    {stream ? (
-                      <video
-                        ref={(el) => {
-                          if (el) {
-                            videoElementRefs.current.set(participant.id, el);
-                            const currentStream = streamAssignments.current.get(participant.id);
-                            if (currentStream && el.srcObject !== currentStream) {
-                              el.srcObject = currentStream;
-                            }
-                          } else {
-                            videoElementRefs.current.delete(participant.id);
-                          }
-                        }}
-                        autoPlay
-                        playsInline
-                        className="vc-thumbnail-video"
-                      />
-                    ) : (
-                      <div className="vc-thumbnail-avatar">
-                        <span>{participant.username?.[0] || 'U'}</span>
-                      </div>
-                    )}
-                    <div className="vc-thumbnail-label">
-                      {participant.username || 'User'}
+              {thumbnailParticipants.map(p => (
+                <div key={p.id} onClick={() => setFocusTarget(p.id)} style={{ flex: '0 0 120px', height: '100%', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', position: 'relative', background: '#1a1a2e' }}>
+                  {remoteStreamMap.get(p.id) ? (
+                    <video ref={el => { if (el) { videoElementRefs.current.set(p.id, el); const s = streamAssignments.current.get(p.id); if (s && el.srcObject !== s) el.srcObject = s; } }}
+                      autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16 }}>
+                      {p.username?.[0] || 'U'}
                     </div>
-                  </div>
-                );
-              })}
+                  )}
+                  <div style={{ position: 'absolute', bottom: 2, left: 4, color: '#fff', fontSize: 10, background: 'rgba(0,0,0,0.5)', padding: '1px 4px', borderRadius: 4 }}>{p.username || 'User'}</div>
+                </div>
+              ))}
             </div>
           </>
         )}
@@ -738,367 +447,109 @@ export default function VideoConference({
 
       {/* Audio Settings Panel */}
       {showAudioSettings && (
-        <div className="audio-settings-panel" style={{
-          position: 'absolute',
-          bottom: '100px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: 'rgba(0, 0, 0, 0.9)',
-          padding: '20px',
-          borderRadius: '12px',
-          zIndex: 1002,
-          minWidth: '300px',
+        <div style={{
+          position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0,0,0,0.9)', padding: 20, borderRadius: 12, zIndex: 1002, minWidth: 300,
         }}>
-          <h4 style={{ color: '#fff', margin: '0 0 15px 0', fontSize: '14px' }}>Ses Cihazları</h4>
-          
-          {/* Audio Input Selection */}
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ color: '#aaa', fontSize: '12px', display: 'block', marginBottom: '8px' }}>
-              Mikrofon (Giriş)
-            </label>
-            <select
-              value={selectedAudioInput || ''}
-              onChange={(e) => onAudioInputChange?.(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                backgroundColor: '#333',
-                color: '#fff',
-                border: '1px solid #555',
-                borderRadius: '6px',
-                fontSize: '13px',
-              }}
-            >
+          <h4 style={{ color: '#fff', margin: '0 0 15px', fontSize: 14 }}>Ses Cihazları</h4>
+          <div style={{ marginBottom: 15 }}>
+            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>Mikrofon (Giriş)</label>
+            <select value={selectedAudioInput || ''} onChange={e => onAudioInputChange?.(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: 6, fontSize: 13 }}>
               <option value="">Varsayılan</option>
-              {(audioInputDevices || []).map((device) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Mikrofon ${device.deviceId.slice(0, 8)}...`}
-                </option>
-              ))}
+              {(audioInputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mikrofon ${d.deviceId.slice(0, 8)}...`}</option>)}
             </select>
           </div>
-          
-          {/* Audio Output Selection */}
-          <div>
-            <label style={{ color: '#aaa', fontSize: '12px', display: 'block', marginBottom: '8px' }}>
-              Hoparlör (Çıkış)
-            </label>
-            <select
-              value={selectedAudioOutput || ''}
-              onChange={(e) => onAudioOutputChange?.(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                backgroundColor: '#333',
-                color: '#fff',
-                border: '1px solid #555',
-                borderRadius: '6px',
-                fontSize: '13px',
-              }}
-            >
+          <div style={{ marginBottom: 15 }}>
+            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>Hoparlör (Çıkış)</label>
+            <select value={selectedAudioOutput || ''} onChange={e => onAudioOutputChange?.(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: 6, fontSize: 13 }}>
               <option value="">Varsayılan</option>
-              {(audioOutputDevices || []).map((device) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Hoparlör ${device.deviceId.slice(0, 8)}...`}
-                </option>
-              ))}
+              {(audioOutputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Hoparlör ${d.deviceId.slice(0, 8)}...`}</option>)}
             </select>
           </div>
-          
-          <button
-            onClick={() => setShowAudioSettings(false)}
-            style={{
-              marginTop: '15px',
-              width: '100%',
-              padding: '8px',
-              backgroundColor: '#444',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-            }}
-          >
-            Kapat
-          </button>
+          <button onClick={() => setShowAudioSettings(false)}
+            style={{ width: '100%', padding: 8, background: '#444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Kapat</button>
         </div>
       )}
 
-      {/* Controls */}
-      <motion.div 
-        className='vc-controls visible'
-        initial={{ y: 0, opacity: 1 }}
-        animate={{ y: 0, opacity: 1 }}
-        style={{
-          position: 'absolute',
-          bottom: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: '16px',
-          padding: '12px 24px',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          borderRadius: '12px',
-          zIndex: 1001,
-        }}
-      >
-        <div className='vc-controls-left' style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
-          <RippleButton
-            className={`vc-btn ${isMuted ? 'danger' : ''}`}
-            onClick={toggleMute}
-          >
+      {/* Controls Bar */}
+      <div style={{
+        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16,
+        padding: '12px 24px', background: 'rgba(0,0,0,0.8)', zIndex: 1001,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <RippleButton className={`vc-btn${isMuted ? ' danger' : ''}`} onClick={toggleMute} style={{ background: isMuted ? '#f23f43' : 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
           </RippleButton>
-
-          {/* Audio Device Settings */}
-          <button
-            className="quality-toggle-btn"
-            onClick={() => setShowAudioSettings(!showAudioSettings)}
-            title="Ses Cihazı Ayarları"
-          >
+          <button onClick={() => setShowAudioSettings(!showAudioSettings)}
+            style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', padding: 4 }}>
             <Settings size={14} />
           </button>
-
-          <RippleButton
-            className={`vc-btn ${!isCameraOn ? 'danger' : ''}`}
-            onClick={toggleCamera}
-            disabled={callType === "voice" && !isCameraOn}
-          >
+          <RippleButton className={`vc-btn${!isCameraOn ? ' danger' : ''}`} onClick={toggleCamera} disabled={callType === "voice" && !isCameraOn}
+            style={{ background: !isCameraOn ? '#f23f43' : 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isCameraOn ? <Video size={20} /> : <VideoOff size={20} />}
           </RippleButton>
-          
-          {/* Voice Effects Button */}
-          <RippleButton
-            className={`vc-btn ${showVoiceEffects ? 'active' : ''}`}
-            onClick={() => setShowVoiceEffects(!showVoiceEffects)}
-            title="Ses Efektleri"
-          >
+          <RippleButton className={`vc-btn${showVoiceEffects ? ' active' : ''}`} onClick={() => setShowVoiceEffects(!showVoiceEffects)}
+            style={{ background: showVoiceEffects ? 'rgba(102,120,255,0.4)' : 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Sparkles size={20} />
           </RippleButton>
-          
-          <RippleButton
-            className={`vc-btn ${isScreenSharing ? 'active' : ''}`}
-            onClick={() => isScreenSharing ? stopScreenShare() : handleStartScreenShare()}
-            title={isScreenSharing ? "Stop screen sharing" : "Start screen sharing"}
-          >
+          <RippleButton className={`vc-btn${isScreenSharing ? ' active' : ''}`} onClick={() => isScreenSharing ? stopScreenShare?.() : handleStartScreenShare()}
+            style={{ background: isScreenSharing ? 'rgba(102,120,255,0.4)' : 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Monitor size={20} />
           </RippleButton>
-          
           {!isScreenSharing && (
-            <button
-              className="quality-toggle-btn"
-              onClick={() => setShowScreenQuality(!showScreenQuality)}
-              title="Screen quality settings"
-            >
+            <button onClick={() => setShowScreenQuality(!showScreenQuality)}
+              style={{ background: 'transparent', border: 'none', color: '#aaa', cursor: 'pointer', padding: 4 }}>
               <Settings size={14} />
             </button>
           )}
         </div>
 
-        <div className="vc-controls-center">
-          {duration > 0 && (
-            <span className="vc-duration">
-              {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
-            </span>
-          )}
-        </div>
+        {duration > 0 && (
+          <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
+            {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
+          </span>
+        )}
 
-        <div className="vc-controls-right">
-          <RippleButton
-            className="vc-btn danger"
-            onClick={leaveCall}
-          >
-            <PhoneOff size={20} />
-          </RippleButton>
-        </div>
-      </motion.div>
+        <RippleButton className="vc-btn danger" onClick={leaveCall}
+          style={{ background: '#f23f43', border: 'none', color: '#fff', width: 56, height: 56, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <PhoneOff size={24} />
+        </RippleButton>
+      </div>
 
-      {/* Screen Quality Settings Panel */}
+      {/* Screen Quality Panel */}
       <AnimatePresence>
         {showScreenQuality && !isScreenSharing && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="screen-quality-panel advanced"
-            ref={screenQualityRef}
-          >
-            <div className="quality-header">
-              <Monitor size={18} />
-              <span>Advanced Screen Settings</span>
-              <button 
-                className="quality-close-btn"
-                onClick={() => setShowScreenQuality(false)}
-              >
-                <X size={14} />
-              </button>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+            style={{
+              position: 'absolute', bottom: 100, right: 20, background: 'rgba(0,0,0,0.9)',
+              padding: 16, borderRadius: 12, zIndex: 1002, minWidth: 280, maxHeight: 400, overflowY: 'auto',
+            }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>Screen Quality</span>
+              <button onClick={() => setShowScreenQuality(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}><X size={14} /></button>
             </div>
-            
-            {/* Screen Preview */}
-            <div className="quality-section">
-              <label className="quality-label">
-                <Monitor size={16} />
-                Screen Preview
-                <span className="quality-description">Your shared screen will appear here</span>
-              </label>
-              <div className="screen-preview-container">
-                {isScreenSharing && screenStream ? (
-                  <video
-                    ref={(el) => {
-                      if (el) {
-                        screenVideoElementRefs.current.set('preview', el);
-                        const currentStream = screenStreamAssignments.current.get('preview');
-                        if (currentStream && el.srcObject !== currentStream) {
-                          el.srcObject = currentStream;
-                        }
-                      } else {
-                        screenVideoElementRefs.current.delete('preview');
-                      }
-                    }}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="screen-preview-video"
-                  />
-                ) : (
-                  <div className="screen-preview-placeholder">
-                    <Monitor size={32} />
-                    <span>Start screen sharing to see preview</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Resolution Selector */}
-            <div className="quality-section">
-              <label className="quality-label">
-                <Maximize2 size={16} />
-                Resolution
-                <span className="quality-description">Select display resolution</span>
-              </label>
-              <div className="quality-options-grid">
-                {[
-                  { value: '480p', label: '480p', desc: '854×480', icon: '📱' },
-                  { value: '720p', label: '720p HD', desc: '1280×720', icon: '🎥' },
-                  { value: '1080p', label: '1080p FHD', desc: '1920×1080', icon: '📺' },
-                  { value: '1440p', label: '1440p QHD', desc: '2560×1440', icon: '🖥️' },
-                  { value: '2160p', label: '2160p 4K', desc: '3840×2160', icon: '🎬' },
-                  { value: 'custom', label: 'Custom', desc: 'Custom size', icon: '⚙️' }
-                ].map((res) => (
-                  <button
-                    key={res.value}
-                    className={`quality-option-card ${screenQuality?.resolution === res.value ? 'active' : ''} ${applyingSettings ? 'applying' : ''} ${settingsApplied && screenQuality?.resolution === res.value ? 'applied' : ''}`}
-                    onClick={() => handleResolutionChange(res.value)}
-                    disabled={applyingSettings}
-                  >
-                    <div className="quality-option-icon">{res.icon}</div>
-                    <div className="quality-option-content">
-                      <div className="quality-option-label">{res.label}</div>
-                      <div className="quality-option-desc">{res.desc}</div>
-                    </div>
-                    {screenQuality?.resolution === res.value && <Check size={16} />}
-                    {applyingSettings && screenQuality?.resolution === res.value && (
-                      <div className="quality-spinner">
-                        <div className="spinner-dot"></div>
-                      </div>
-                    )}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ color: '#aaa', fontSize: 11, marginBottom: 6, display: 'block' }}>Resolution</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+                {['480p','720p','1080p'].map(r => (
+                  <button key={r} onClick={() => handleResolutionChange(r)}
+                    style={{ background: screenQuality?.resolution === r ? 'rgba(102,120,255,0.3)' : 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', padding: '6px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
+                    {r}{screenQuality?.resolution === r && ' ✓'}
                   </button>
                 ))}
               </div>
             </div>
-            
-            {/* FPS Selector */}
-            <div className="quality-section">
-              <label className="quality-label">
-                <Activity size={16} />
-                Frame Rate (FPS)
-                <span className="quality-description">Select frame rate for smoothness</span>
-              </label>
-              <div className="quality-options-grid">
-                {[
-                  { value: 15, label: '15 FPS', desc: 'Low bandwidth', icon: '🐌' },
-                  { value: 24, label: '24 FPS', desc: 'Cinema standard', icon: '🎬' },
-                  { value: 30, label: '30 FPS', desc: 'Standard smooth', icon: '📹' },
-                  { value: 60, label: '60 FPS', desc: 'High quality', icon: '🎮' },
-                  { value: 120, label: '120 FPS', desc: 'Ultra smooth', icon: '⚡' },
-                  { value: 144, label: '144 FPS', desc: 'Gaming grade', icon: '🚀' }
-                ].map((fps) => (
-                  <button
-                    key={fps.value}
-                    className={`quality-option-card ${screenQuality?.fps === fps.value ? 'active' : ''} ${applyingSettings ? 'applying' : ''} ${settingsApplied && screenQuality?.fps === fps.value ? 'applied' : ''}`}
-                    onClick={() => handleFpsChange(fps.value)}
-                    disabled={applyingSettings}
-                  >
-                    <div className="quality-option-icon">{fps.icon}</div>
-                    <div className="quality-option-content">
-                      <div className="quality-option-label">{fps.label}</div>
-                      <div className="quality-option-desc">{fps.desc}</div>
-                    </div>
-                    {screenQuality?.fps === fps.value && <Check size={16} />}
-                    {applyingSettings && screenQuality?.fps === fps.value && (
-                      <div className="quality-spinner">
-                        <div className="spinner-dot"></div>
-                      </div>
-                    )}
+            <div>
+              <label style={{ color: '#aaa', fontSize: 11, marginBottom: 6, display: 'block' }}>FPS</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
+                {[15, 30, 60].map(f => (
+                  <button key={f} onClick={() => handleFpsChange(f)}
+                    style={{ background: screenQuality?.fps === f ? 'rgba(102,120,255,0.3)' : 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', padding: '6px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
+                    {f}FPS{screenQuality?.fps === f && ' ✓'}
                   </button>
                 ))}
-              </div>
-            </div>
-            
-            {/* Additional Settings */}
-            <div className="quality-section">
-              <label className="quality-label">
-                <Settings size={16} />
-                Additional Settings
-                <span className="quality-description">Optimize your sharing experience</span>
-              </label>
-              <div className="quality-toggles">
-                <div className="quality-toggle-item">
-                  <label className="toggle-label">
-                    <input type="checkbox" defaultChecked />
-                    <span className="toggle-slider"></span>
-                    <span className="toggle-text">Show cursor</span>
-                  </label>
-                </div>
-                <div className="quality-toggle-item">
-                  <label className="toggle-label">
-                    <input type="checkbox" defaultChecked />
-                    <span className="toggle-slider"></span>
-                    <span className="toggle-text">Optimize for motion</span>
-                  </label>
-                </div>
-                <div className="quality-toggle-item">
-                  <label className="toggle-label">
-                    <input type="checkbox" />
-                    <span className="toggle-slider"></span>
-                    <span className="toggle-text">Hardware acceleration</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            
-            {/* Performance Stats */}
-            <div className="quality-section">
-              <label className="quality-label">
-                <Activity size={16} />
-                Performance Impact
-                <span className="quality-description">Estimated resource usage</span>
-              </label>
-              <div className="quality-stats">
-                <div className="quality-stat">
-                  <span>Bandwidth</span>
-                  <span className="stat-value medium">5-15 Mbps</span>
-                </div>
-                <div className="quality-stat">
-                  <span>CPU Usage</span>
-                  <span className="stat-value low">Low</span>
-                </div>
-                <div className="quality-stat">
-                  <span>Quality</span>
-                  <span className="stat-value high">High</span>
-                </div>
               </div>
             </div>
           </motion.div>
@@ -1113,7 +564,11 @@ export default function VideoConference({
             onClose={() => setShowVoiceEffects(false)}
             localStream={localStream}
             onProcessedStream={(stream) => {
-              console.log('Voice effects stream processed');
+              // Apply processed stream to all peer connections
+              if (stream && call?.replaceTrack) {
+                const audioTrack = stream.getAudioTracks()[0];
+                if (audioTrack) call.replaceTrack(audioTrack);
+              }
             }}
           />
         )}

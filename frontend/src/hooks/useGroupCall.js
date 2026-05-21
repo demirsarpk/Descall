@@ -232,31 +232,34 @@ export function useGroupCall(socket) {
         };
       }
       
-      // Check if this is a screen share track (screen shares have no audio and are video)
-      const isScreenTrack = track.kind === "video" && track.label?.toLowerCase().includes("screen") || 
-                            (remoteStream.getVideoTracks().length > 0 && remoteStream.getAudioTracks().length === 0);
+      // Detect screen share track: video without audio or label containing "screen"
+      const isScreenTrack = track.kind === "video" && 
+        (track.label?.toLowerCase().includes("screen") || 
+         (remoteStream.getVideoTracks().length > 0 && remoteStream.getAudioTracks().length === 0));
+      
+      const hasVideoTrack = track.kind === "video" && !isScreenTrack;
       
       setParticipants((prev) => {
         const exists = prev.find((p) => p.id === userId);
         if (exists) {
-          console.log(`[GroupCall] Updating existing participant ${userId}, isScreen: ${isScreenTrack}`);
+          console.log(`[GroupCall] Updating existing participant ${userId}, isScreen: ${isScreenTrack}, hasVideo: ${hasVideoTrack}`);
           return prev.map((p) => p.id === userId ? { 
             ...p, 
             stream: remoteStream,
             screenStream: isScreenTrack ? remoteStream : p.screenStream,
-            hasVideo: e.track.kind === "video" ? true : p.hasVideo,
-            hasAudio: e.track.kind === "audio" ? true : p.hasAudio,
-            isScreenSharing: isScreenTrack ? true : p.isScreenSharing
+            hasVideo: hasVideoTrack || p.hasVideo,
+            hasAudio: track.kind === "audio" || p.hasAudio,
+            isScreenSharing: isScreenTrack ? true : (p.isScreenSharing || false)
           } : p);
         }
-        console.log(`[GroupCall] Adding new participant ${userId}, isScreen: ${isScreenTrack}`);
+        console.log(`[GroupCall] Adding new participant ${userId}, isScreen: ${isScreenTrack}, hasVideo: ${hasVideoTrack}`);
         return [...prev, { 
           id: userId, 
           stream: remoteStream, 
           screenStream: isScreenTrack ? remoteStream : null,
-          hasVideo: e.track.kind === "video", 
-          hasAudio: e.track.kind === "audio",
-          isScreenSharing: isScreenTrack,
+          hasVideo: hasVideoTrack, 
+          hasAudio: track.kind === "audio",
+          isScreenSharing: isScreenTrack || false,
           username: "Member" 
         }];
       });
@@ -1145,6 +1148,33 @@ export function useGroupCall(socket) {
     return `${m}:${sec}`;
   };
 
+  // Replace audio track for voice effects
+  const replaceTrack = useCallback((newTrack) => {
+    console.log("[GroupCall] Replacing audio track for all peers");
+    if (!localStreamRef.current || !newTrack) return;
+    
+    pcMapRef.current.forEach((peerData, userId) => {
+      try {
+        const sender = peerData.pc.getSenders().find(s => s.track?.kind === 'audio');
+        if (sender) {
+          sender.replaceTrack(newTrack);
+          console.log(`[GroupCall] Replaced audio track for ${userId}`);
+        }
+      } catch (err) {
+        console.error(`[GroupCall] Failed to replace track for ${userId}:`, err);
+      }
+    });
+
+    // Update local stream ref
+    const oldAudioTracks = localStreamRef.current.getAudioTracks();
+    if (oldAudioTracks.length > 0) {
+      localStreamRef.current.removeTrack(oldAudioTracks[0]);
+      oldAudioTracks[0].stop();
+    }
+    localStreamRef.current.addTrack(newTrack);
+    setLocalStream(localStreamRef.current);
+  }, []);
+
   // Change audio input device
   const setAudioInput = useCallback(async (deviceId) => {
     console.log("[GroupCall] Setting audio input:", deviceId);
@@ -1220,6 +1250,7 @@ export function useGroupCall(socket) {
     toggleCamera,
     startScreenShare,
     stopScreenShare,
+    replaceTrack,
     formatDuration,
     cleanup,
     // Audio device selection
