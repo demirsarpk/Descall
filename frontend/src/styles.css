@@ -66,17 +66,35 @@
   box-sizing: border-box;
 }
 
-/* ========== DISCORD FONT SYSTEM ========== */
-/* Body and UI text: gg sans (Discord font stack) */
-/* Code blocks: JetBrains Mono / Consolas monospace */
+/* ========== DISCORD-STYLE FONT SYSTEM ========== */
+/* Inter: closest open-source font to Discord's gg sans */
+/* Discord web uses: Whitney, "gg sans", Helvetica Neue, Helvetica, Arial, sans-serif */
 
 *, *::before, *::after {
-  font-family: "gg sans", "gg sans Normal", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  font-family: "Inter", "gg sans", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* Code blocks keep monospace - DO NOT override */
 code, pre, .code-block, .mono, .terminal, kbd, [class*="code"], [class*="mono"], [class*="terminal"] {
   font-family: "JetBrains Mono", "Consolas", "Courier New", monospace !important;
+  line-height: 1.5;
+}
+
+/* Discord-like weight system */
+strong, b, .font-bold, .font-semibold, h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.font-normal {
+  font-weight: 400;
 }
 
 html, body {
@@ -85,7 +103,7 @@ html, body {
 }
 
 body {
-  font-family: "gg sans", "gg sans Normal", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: "Inter", "gg sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
   background:
     radial-gradient(1200px 500px at 15% -10%, #2a317040 0%, transparent 60%),
     radial-gradient(1100px 500px at 90% -20%, #4f3ca432 0%, transparent 60%),
