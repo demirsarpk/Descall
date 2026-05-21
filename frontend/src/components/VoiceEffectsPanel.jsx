@@ -19,7 +19,9 @@ import {
   Building,
   Home,
   Music,
-  Zap
+  Zap,
+  Headphones,
+  VolumeX
 } from 'lucide-react';
 import './VoiceEffectsPanel.css';
 
@@ -55,15 +57,84 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
   const [visualizationData, setVisualizationData] = useState(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState(null);
+  const [sidetoneEnabled, setSidetoneEnabled] = useState(false);
+  const [sidetoneVolume, setSidetoneVolume] = useState(60);
   
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const processedStreamRef = useRef(null);
+  const sidetoneGainRef = useRef(null);
+  const sidetoneSourceRef = useRef(null);
+  const audioContextRef = useRef(null);
+
+  const stopSidetone = useCallback(() => {
+    if (sidetoneGainRef.current) {
+      try {
+        sidetoneGainRef.current.disconnect();
+      } catch (e) {}
+      sidetoneGainRef.current = null;
+    }
+    if (sidetoneSourceRef.current) {
+      try {
+        sidetoneSourceRef.current.disconnect();
+      } catch (e) {}
+      sidetoneSourceRef.current = null;
+    }
+    setSidetoneEnabled(false);
+  }, []);
+
+  const startSidetone = useCallback(async () => {
+    if (!processedStreamRef.current && !localStream) return;
+    
+    try {
+      // Stop previous sidetone
+      stopSidetone();
+
+      if (!audioContextRef.current) {
+        audioContextRef.current = voiceEffects.audioContext || new AudioContext();
+      }
+      const ctx = audioContextRef.current;
+
+      // Use processed stream if available, otherwise raw stream
+      const stream = processedStreamRef.current || localStream;
+      const source = ctx.createMediaStreamSource(stream);
+      
+      const gain = ctx.createGain();
+      gain.gain.value = sidetoneVolume / 100; // 0-1 volume
+      
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      
+      sidetoneSourceRef.current = source;
+      sidetoneGainRef.current = gain;
+      
+      setSidetoneEnabled(true);
+    } catch (err) {
+      console.error('[VoiceEffects] Sidetone error:', err);
+      setSidetoneEnabled(false);
+    }
+  }, [localStream, sidetoneVolume, stopSidetone]);
+
+  const toggleSidetone = useCallback(() => {
+    if (sidetoneEnabled) {
+      stopSidetone();
+    } else {
+      startSidetone();
+    }
+  }, [sidetoneEnabled, startSidetone, stopSidetone]);
+
+  const handleSidetoneVolumeChange = useCallback((e) => {
+    const vol = parseInt(e.target.value, 10);
+    setSidetoneVolume(vol);
+    if (sidetoneGainRef.current) {
+      sidetoneGainRef.current.gain.value = vol / 100;
+    }
+  }, []);
 
   // TDZ FIX: stopVoiceEffects MUST be defined before any useEffect that uses it
-  // This prevents "Cannot access before initialization" error
   const stopVoiceEffects = useCallback(() => {
     voiceEffects.stop();
+    stopSidetone();
     if (processedStreamRef.current) {
       processedStreamRef.current.getTracks().forEach(track => track.stop());
       processedStreamRef.current = null;
@@ -72,7 +143,7 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
       cancelAnimationFrame(animationRef.current);
     }
     setIsProcessing(false);
-  }, []);
+  }, [stopSidetone]);
 
   // Initialize voice effects with cancellation support
   useEffect(() => {
@@ -87,13 +158,11 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
       try {
         await voiceEffects.initialize();
         
-        // GUARD: Component still mounted?
         if (isCancelled) {
           voiceEffects.stop();
           return;
         }
         
-        // Check if initialization was successful
         if (voiceEffects.isInitialized) {
           setPresets(voiceEffects.getPresets());
           setCurrentPreset(voiceEffects.getCurrentPreset());
@@ -128,7 +197,6 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
     const process = async () => {
       if (!isOpen || !localStream || !isProcessing) return;
       
-      // GUARD: Voice effects must be initialized
       if (!voiceEffects.audioContext || voiceEffects.audioContext.state !== 'running') {
         console.log('[VoiceEffectsPanel] Waiting for initialization...');
         return;
@@ -168,74 +236,17 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
     return () => {
       isActive = false;
     };
-  }, [isOpen, localStream, isProcessing]);
+  }, [isOpen, localStream, isProcessing, onProcessedStream]);
 
-  const initializeVoiceEffects = async () => {
-    setIsInitializing(true);
-    setError(null);
-    
-    try {
-      const success = await voiceEffects.initialize();
-      if (success) {
-        setPresets(voiceEffects.getPresets());
-        setCurrentPreset(voiceEffects.getCurrentPreset());
-        setIsProcessing(true);
-        setRnnoiseEnabled(voiceEffects.isRNNoiseEnabled());
-      } else {
-        setError('Voice effects failed to start');
-      }
-    } catch (err) {
-      setError('Initialization error: ' + err.message);
-    } finally {
-      setIsInitializing(false);
+  // Auto-connect sidetone when stream changes
+  useEffect(() => {
+    if (sidetoneEnabled && (processedStreamRef.current || localStream)) {
+      startSidetone();
     }
-  };
-
-  const processStream = async () => {
-    if (!localStream) return;
-    
-    console.log('[VoiceEffectsPanel] processStream called, voiceEffects methods:', {
-      hasStart: typeof voiceEffects.start === 'function',
-      hasProcessStream: typeof voiceEffects.processStream === 'function',
-      isInitialized: voiceEffects.isInitialized,
-      hasAudioContext: !!voiceEffects.audioContext
-    });
-    
-    try {
-      // Stop previous processing
-      if (processedStreamRef.current) {
-        processedStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-      
-      console.log('[VoiceEffectsPanel] Calling voiceEffects.stop()');
-      voiceEffects.stop();
-      
-      // Start new processing - use processStream directly as fallback
-      console.log('[VoiceEffectsPanel] Starting stream processing...');
-      let processedStream;
-      
-      const processFn = voiceEffects.start || voiceEffects.processStream;
-        
-      if (typeof processFn === 'function') {
-        console.log('[VoiceEffectsPanel] Calling process method');
-        processedStream = await processFn.call(voiceEffects, localStream);
-      } else {
-        console.error('[VoiceEffectsPanel] Available methods:', Object.keys(voiceEffects));
-        throw new Error('No processing method available on voiceEffects');
-      }
-      
-      console.log('[VoiceEffectsPanel] Stream processed successfully');
-      processedStreamRef.current = processedStream;
-      
-      if (onProcessedStream) {
-        onProcessedStream(processedStream);
-      }
-    } catch (err) {
-      console.error('[VoiceEffectsPanel] Stream processing error:', err);
-      console.error('[VoiceEffectsPanel] Error stack:', err.stack);
-      setError('Ses işleme hatası: ' + err.message);
-    }
-  };
+    return () => {
+      stopSidetone();
+    };
+  }, [processedStreamRef.current, localStream, sidetoneEnabled, startSidetone, stopSidetone]);
 
   // Visualization
   useEffect(() => {
@@ -269,13 +280,11 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
 
     ctx.clearRect(0, 0, width, height);
 
-    // Draw frequency bars
     for (let i = 0; i < data.length; i++) {
       const barHeight = (data[i] / 255) * height * 0.8;
       const x = i * barWidth;
       const y = height - barHeight;
 
-      // Gradient
       const gradient = ctx.createLinearGradient(0, y, 0, height);
       gradient.addColorStop(0, '#8b5cf6');
       gradient.addColorStop(0.5, '#6366f1');
@@ -285,7 +294,6 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
       ctx.fillRect(x, y, barWidth - 1, barHeight);
     }
 
-    // Draw center line
     ctx.strokeStyle = 'rgba(139, 92, 246, 0.3)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -296,7 +304,6 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
 
   const handlePresetChange = async (presetId) => {
     try {
-      // Prevent clicking the same preset
       if (currentPreset === presetId) {
         console.log('[VoiceEffects] Preset already active:', presetId);
         return;
@@ -305,9 +312,14 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
       console.log('[VoiceEffects] Changing preset from', currentPreset, 'to', presetId);
       await voiceEffects.setPreset(presetId);
       setCurrentPreset(presetId);
+      
+      // Restart sidetone after preset change to hear new effect
+      if (sidetoneEnabled && processedStreamRef.current) {
+        stopSidetone();
+        setTimeout(() => startSidetone(), 100);
+      }
     } catch (err) {
       console.error('Preset change error:', err);
-      // Reset to none on error
       setCurrentPreset('none');
     }
   };
@@ -358,6 +370,46 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
               <span>Real-time Spectrum</span>
             </div>
           </div>
+
+          {/* Sidetone / Audio Monitoring - Kendini Duyma */}
+          <div className="rnnoise-section sidetone-section">
+            <div className="rnnoise-info">
+              <Headphones size={18} className={sidetoneEnabled ? 'active-icon' : ''} />
+              <div>
+                <span className="rnnoise-title">Ses Monitörü</span>
+                <span className="rnnoise-desc">Efektleri test etmek için kendi sesini duy</span>
+              </div>
+            </div>
+            <button 
+              className={`toggle-btn ${sidetoneEnabled ? 'active' : ''}`}
+              onClick={toggleSidetone}
+            >
+              {sidetoneEnabled ? <Headphones size={16} /> : <VolumeX size={16} />}
+              {sidetoneEnabled ? 'Açık' : 'Kapalı'}
+            </button>
+          </div>
+
+          {/* Sidetone Volume Slider */}
+          {sidetoneEnabled && (
+            <div className="sidetone-volume-section">
+              <div className="volume-slider-row">
+                <Volume2 size={14} className="volume-icon-low" />
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  value={sidetoneVolume}
+                  onChange={handleSidetoneVolumeChange}
+                  className="volume-slider"
+                />
+                <Volume2 size={18} className="volume-icon-high" />
+                <span className="volume-percent">{sidetoneVolume}%</span>
+              </div>
+              <p className="sidetone-hint">
+                ⚠ Yüksek ses kulaklığa zarar verebilir. Düşük ses seviyesinden başlayın.
+              </p>
+            </div>
+          )}
 
           {/* RNNoise Toggle */}
           <div className="rnnoise-section">
