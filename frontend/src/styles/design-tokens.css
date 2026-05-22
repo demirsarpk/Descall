@@ -1,0 +1,131 @@
+/* ============================================
+   DESCALL v2.0 — Complete Design Token System
+   Inspired by Discord's visual quality
+   ============================================ */
+
+:root {
+  color-scheme: dark;
+
+  /* 🎨 Core Palette */
+  --primary: #5865f2;
+  --primary-2: #4752c4;
+  --primary-3: #3b45a1;
+  --primary-glow: rgba(88, 101, 242, 0.35);
+  --primary-soft: rgba(88, 101, 242, 0.12);
+
+  --success: #23a55a;
+  --success-soft: rgba(35, 165, 90, 0.12);
+  --warning: #f0b232;
+  --warning-soft: rgba(240, 178, 50, 0.12);
+  --danger: #da373c;
+  --danger-soft: rgba(218, 55, 60, 0.12);
+
+  /* 🏗️ Surface Colors */
+  --surface-0: #111214;
+  --surface-1: #1e1f22;
+  --surface-2: #2b2d31;
+  --surface-3: #313338;
+  --surface-hover: #3c3f45;
+  --surface-active: #4e5058;
+
+  /* ⚪ Text Colors */
+  --text-0: #ffffff;
+  --text-1: #f2f3f5;
+  --text-2: #dbdee1;
+  --text-3: #b5bac1;
+  --text-muted: #949ba4;
+  --text-link: #00a8fc;
+
+  /* 🔲 Border */
+  --border-0: rgba(255, 255, 255, 0.0);
+  --border-1: rgba(255, 255, 255, 0.04);
+  --border-2: rgba(255, 255, 255, 0.08);
+  --border-3: rgba(255, 255, 255, 0.12);
+  --border-4: rgba(255, 255, 255, 0.20);
+
+  /* 🕳️ Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.56);
+  --shadow-glow-primary: 0 0 16px rgba(88, 101, 242, 0.24);
+
+  /* 📐 Spacing */
+  --space-0: 0px;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 16px;
+  --space-10: 20px;
+  --space-12: 24px;
+  --space-16: 32px;
+  --space-20: 40px;
+  --space-24: 48px;
+
+  /* 📏 Border Radius */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --radius-full: 9999px;
+
+  /* 🔠 Typography */
+  --font-ui: "Inter", "gg sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-code: "JetBrains Mono", "Consolas", "Courier New", monospace;
+  --font-heading: "Inter", "gg sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 20px;
+  --text-3xl: 24px;
+  --text-4xl: 32px;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-heavy: 800;
+
+  --line-tight: 1.2;
+  --line-normal: 1.4;
+  --line-relaxed: 1.6;
+
+  /* 📦 Sizing */
+  --nav-rail-width: 68px;
+  --sidebar-width: 298px;
+  --sidebar-collapsed: 0px;
+  --header-height: 48px;
+  --composer-height: 64px;
+
+  /* ✨ Transitions */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 100ms var(--ease-out);
+  --transition-normal: 150ms var(--ease-out);
+  --transition-slow: 250ms var(--ease-out);
+
+  /* 🔧 Legacy compatibility */
+  --bg: var(--surface-0);
+  --bg-soft: var(--surface-1);
+  --panel: var(--surface-1);
+  --panel-2: var(--surface-2);
+  --text: var(--text-1);
+  --muted: var(--text-muted);
+  --accent: var(--primary);
+  --accent-2: var(--primary-2);
+  --ok: var(--success);
+  --warn: var(--warning);
+  --danger: var(--danger);
+  --border: var(--border-2);
+  --shadow: var(--shadow-lg);
+  --glass-blur: 14px;
+}

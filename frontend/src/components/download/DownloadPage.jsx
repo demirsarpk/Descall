@@ -28,7 +28,7 @@ const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
 // Fallback download link for private repos (update this manually after each release)
-const FALLBACK_DOWNLOAD_URL = "https://github.com/demirrsarppkurtlarr/Descall/releases/download/v1.3.0/Descall-Setup-1.3.0.exe";
+const FALLBACK_DOWNLOAD_URL = "https://github.com/demirrsarppkurtlarr/Descall/releases/download/v2.0.0/Descall-Setup-2.0.0.exe";
 
 const features = [
   { icon: MessageCircle, title: "Real-time Chat", desc: "Instant messaging with typing indicators" },
