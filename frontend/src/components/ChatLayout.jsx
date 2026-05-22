@@ -230,6 +230,22 @@ function CallBar({ call, peerScreenSharing, onMinimize }) {
               className="call-minimize-btn" 
               onClick={() => setMinimized(true)}
               title="Minimize call"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: '36px',
+                minHeight: '36px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '8px',
+                color: '#fff',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                zIndex: 1000,
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
             >
               <Minimize2 size={20} />
             </button>

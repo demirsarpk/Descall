@@ -240,6 +240,12 @@ export function useGroupCall(socket) {
       const hasVideoTrack = track.kind === "video" && !isScreenTrack;
       
       setParticipants((prev) => {
+        // Exclude local user from participants list to prevent duplication
+        if (userId === myIdRef.current) {
+          console.log(`[GroupCall] Skipping local user ${userId} from participants list`);
+          return prev;
+        }
+        
         const exists = prev.find((p) => p.id === userId);
         if (exists) {
           console.log(`[GroupCall] Updating existing participant ${userId}, isScreen: ${isScreenTrack}, hasVideo: ${hasVideoTrack}`);

@@ -502,6 +502,11 @@ export function useCall(socket) {
     return `${m}:${sec}`;
   };
 
+  // Computed state properties for UI rendering
+  const isInCall = mode === "active";
+  const isCalling = mode === "outgoing";
+  const isReceiving = mode === "incoming";
+
   return {
     remoteAudioRef,
     remoteVideoRef,
@@ -515,6 +520,9 @@ export function useCall(socket) {
     screenSharing,
     duration,
     connectionQuality,
+    isInCall,
+    isCalling,
+    isReceiving,
     formatDuration,
     startCall,
     endCall,
