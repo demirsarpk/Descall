@@ -279,7 +279,31 @@
   }
 
   .main-panel .panel-header .header-group-actions {
-    display: none; /* Hide group actions on mobile header, show in menu instead */
+    display: flex; /* Always show group actions on mobile */
+    align-items: center;
+    gap: 4px;
+  }
+  .main-panel .panel-header .header-call-btns {
+    display: flex !important;
+    gap: 6px;
+  }
+  .main-panel .panel-header .header-call-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-height: 36px;
+    min-width: 36px;
+    border-radius: 8px;
+  }
+  .main-panel .panel-header .group-action-btn {
+    padding: 6px 8px;
+    min-height: 36px;
+    min-width: 36px;
+  }
+  .main-panel .panel-header .action-label {
+    display: none; /* Hide labels on mobile, show only icons */
+  }
+  .main-panel .panel-header .call-btn-label {
+    display: none;
   }
 
   .main-panel .messages-wrap {
