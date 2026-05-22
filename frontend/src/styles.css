@@ -1593,7 +1593,7 @@ body.electron-app .nav-rail {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
   backdrop-filter: blur(20px);
 }
 
@@ -1603,6 +1603,8 @@ body.electron-app .nav-rail {
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  position: relative;
+  z-index: 10001;
 }
 
 .call-fullscreen-header {
@@ -1639,10 +1641,20 @@ body.electron-app .nav-rail {
   cursor: pointer;
   color: white;
   transition: all 0.2s;
+  z-index: 100;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .call-minimize-btn:hover {
   background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.call-minimize-btn:active {
+  transform: scale(0.95);
 }
 
 .call-fullscreen-video {
@@ -1702,6 +1714,8 @@ body.electron-app .nav-rail {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  z-index: 10002;
 }
 
 .voice-visualizer {
@@ -1768,6 +1782,8 @@ body.electron-app .nav-rail {
   background: rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--border);
+  z-index: 10003;
+  position: relative;
 }
 
 .call-control-btn {

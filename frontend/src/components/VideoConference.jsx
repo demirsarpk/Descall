@@ -319,7 +319,21 @@ export default function VideoConference({
           </button>
           {onMinimize && (
             <button onClick={onMinimize} title="Minimize"
-              style={{ background: 'transparent', border: 'none', color: '#fff', padding: 6, borderRadius: 6, cursor: 'pointer' }}>
+              style={{ 
+                background: 'rgba(255, 255, 255, 0.1)', 
+                border: '1px solid rgba(255, 255, 255, 0.2)', 
+                color: '#fff', 
+                padding: 6, 
+                borderRadius: 6, 
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease',
+                zIndex: 20
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}>
               <Minimize2 size={18} />
             </button>
           )}

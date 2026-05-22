@@ -1552,7 +1552,9 @@ export default function ChatLayout({
                     onClick={() => { playClickSound(); setGroups(g => ({ ...g, active: null })); try { localStorage.removeItem("descall_active_group"); } catch {}; onOpenDm(friend); }}
                     whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 0.05)" }}
                     whileTap={{ scale: 0.98 }}
-                    transition={{ duration: 0.15 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
                   >
                     <Avatar name={friend.username} size={34} imageUrl={friend.avatarUrl} />
                     <div className="dm-item-body">
@@ -1639,8 +1641,8 @@ export default function ChatLayout({
                       whileHover={{ scale: 1.02, backgroundColor: "rgba(255, 255, 255, 0.05)" }}
                       whileTap={{ scale: 0.98 }}
                       transition={{ duration: 0.2, ease: "easeOut" }}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
                     >
                       <div className="dm-avatar">
                         {group.avatar_url ? (
