@@ -9,6 +9,7 @@
 @import './styles/app-layout.css';
 @import './styles/messages.css';
 @import './styles/voice-ui.css';
+@import './styles/settings.css';
 
 /* ============================================
    OLD CSS REMOVED — Using new modular system
