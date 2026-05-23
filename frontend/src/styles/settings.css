@@ -1,0 +1,393 @@
+/* ============================================
+   DESCALL v2.0 — COMPLETELY REBUILT SETTINGS PANEL
+   Discord-style settings interface
+   NO OLD LAYOUT REMNANTS
+   ============================================ */
+
+/* ─── Settings Overlay ─── */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.settings-panel {
+  width: 100%;
+  max-width: 800px;
+  height: 100vh;
+  max-height: 100vh;
+  background: var(--surface-0);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+}
+
+/* ─── Header ─── */
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-2);
+  background: var(--surface-1);
+  flex-shrink: 0;
+}
+
+.settings-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-0);
+  margin: 0;
+}
+
+/* ─── Content ─── */
+.settings-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.settings-sidebar {
+  width: 240px;
+  border-right: 1px solid var(--border-2);
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--surface-1);
+}
+
+.settings-nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.settings-nav-item:hover {
+  background: var(--surface-2);
+}
+
+.settings-nav-item.active {
+  background: var(--primary-soft);
+}
+
+.nav-icon {
+  color: var(--text-muted);
+}
+
+.settings-nav-item.active .nav-icon {
+  color: var(--primary);
+}
+
+.nav-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.nav-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.nav-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.nav-indicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  background: var(--primary);
+  border-radius: 0 2px 2px 0;
+}
+
+/* ─── Main Panel ─── */
+.settings-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background: var(--surface-0);
+}
+
+.settings-section-panel {
+  height: 100%;
+}
+
+.section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-0);
+  margin: 0;
+}
+
+.section-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ─── Profile Card ─── */
+.profile-card-large {
+  position: relative;
+  padding: 24px;
+  background: var(--surface-1);
+  border-radius: 12px;
+  border: 1px solid var(--border-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  border-radius: 12px 12px 0 0;
+}
+
+.profile-avatar-large {
+  position: relative;
+  margin-top: 30px;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.profile-username {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-0);
+  margin: 0;
+}
+
+.profile-discriminator {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* ─── Settings Groups ─── */
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.setting-input,
+.setting-select {
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-3);
+  border-radius: 8px;
+  color: var(--text-1);
+  font-size: 14px;
+  outline: none;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.setting-input:focus,
+.setting-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft);
+}
+
+.setting-slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  background: var(--surface-3);
+  border-radius: 2px;
+  outline: none;
+}
+
+.setting-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--primary);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* ─── Theme Options ─── */
+.theme-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 2px solid var(--border-3);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.theme-option:hover {
+  border-color: var(--border-4);
+}
+
+.theme-option.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.theme-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface-2);
+}
+
+.theme-preview.dark {
+  background: #111214;
+}
+
+.theme-preview.light {
+  background: #ffffff;
+}
+
+.theme-preview.midnight {
+  background: #0d0e10;
+}
+
+.theme-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* ─── Toggle Switch ─── */
+.setting-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: var(--surface-1);
+  border-radius: 8px;
+  border: 1px solid var(--border-2);
+}
+
+.toggle-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.toggle-switch {
+  width: 48px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  background: var(--surface-3);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toggle-switch.on {
+  background: var(--primary);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toggle-switch.on .toggle-thumb {
+  left: 26px;
+}
+
+/* ─── Footer ─── */
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-2);
+  background: var(--surface-1);
+  flex-shrink: 0;
+}
+
+/* ─── Placeholder ─── */
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  gap: 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.placeholder-icon {
+  opacity: 0.3;
+}

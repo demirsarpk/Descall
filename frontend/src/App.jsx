@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AuthView from "./components/AuthView";
-import ChatLayout from "./components/ChatLayout";
+import AppLayout from "./components/layout/AppLayout";
 import DownloadPage from "./components/download/DownloadPage";
 import { getMe, login, register } from "./api/auth";
 import { getMyGroups } from "./api/groups";
@@ -21,7 +21,8 @@ import audioManager, { initAudioManager } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
 import AdminPanel from "./components/admin/AdminPanel";
 import TitleBar from "./components/TitleBar";
-import "./styles.admin-new.css";
+import MessageList from "./components/chat/MessageList";
+import MessageComposer from "./components/chat/MessageComposer";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
@@ -605,47 +606,22 @@ export default function App() {
         {(me?.is_admin || me?.username === "admin") && adminOpen && (
           <AdminPanel socket={socketApi} onClose={() => setAdminOpen(false)} onAdminChanged={() => setAdminChanged(true)} />
         )}
-        <ChatLayout
+        
+        {/* NEW MODULAR LAYOUT SYSTEM */}
+        <AppLayout
           me={me}
-          refreshMe={refreshMe}
-          connectionLabel={connectionLabel}
-          reconnectState={reconnectState}
-          authError={authError}
-          myStatus={myStatus}
-          onlineUsers={onlineUsers}
-          friends={friends}
-          friendRequests={friendRequests}
-          notifications={notifications}
-          myGroups={myGroups}
-          setMyGroups={setMyGroups}
-          activeDmUser={activeDmUser}
-          dmMessages={dmMessages}
-          dmUnread={dmUnread}
-          dmByUserId={dmByUserId}
-          typingDmUser={typingDmUser}
-          onOpenDm={handleOpenDm}
-          onSendDm={handleSendDm}
-          onSendDmMedia={handleSendDmMedia}
-          onSendFriendRequest={handleSendFriendRequest}
-          onAcceptFriend={handleAcceptFriend}
-          onDeclineFriend={handleDeclineFriend}
-          onRemoveFriend={handleRemoveFriend}
-          onLogout={handleLogout}
-          onStatusChange={handleStatusChange}
-          friendNotice={friendNotice}
-          call={call}
-          onTypingDmStart={emitTypingDmStart}
-          onTypingDmStop={emitTypingDmStop}
-          loadOlderDm={loadOlderDm}
-          dmHasMore={dmHasMore}
-          loadingOlderDm={loadingOlderDm}
-          onNotificationRead={handleNotificationRead}
-          onNotificationReadAll={handleNotificationReadAll}
-          peerScreenSharing={peerScreenSharing}
-          groupCall={groupCall}
           socket={socketApi}
-          onClearDm={() => setActiveDmUser(null)}
-        />
+          onLogout={handleLogout}
+          activeDmUser={activeDmUser}
+          activeGroup={myGroups.find(g => g.id === activeDmUser?.groupId)}
+          groups={{ list: myGroups, active: { id: activeDmUser?.groupId } }}
+          dms={friends}
+          friends={friends}
+          onlineUsers={onlineUsers}
+        >
+          <MessageList messages={dmMessages} currentUser={me} />
+          <MessageComposer />
+        </AppLayout>
       </div>
   );
 }
