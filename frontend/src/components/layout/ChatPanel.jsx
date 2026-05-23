@@ -4,8 +4,8 @@ import {
   Phone, Video, MoreVertical, Users, 
   Settings, Bell, Search, Plus, MessageSquare
 } from "lucide-react";
-import { Avatar } from "../../ui/Avatar";
-import StatusBadge from "../../ui/StatusBadge";
+import { Avatar } from "../ui/Avatar";
+import StatusBadge from "../ui/StatusBadge";
 import MessageList from "../chat/MessageList";
 import MessageComposer from "../chat/MessageComposer";
 

@@ -3,8 +3,8 @@ import {
   X, Settings, Mic, Headphones, 
   Bell, User, LogOut, Moon, Sun
 } from "lucide-react";
-import { Avatar } from "../../ui/Avatar";
-import StatusBadge from "../../ui/StatusBadge";
+import { Avatar } from "../ui/Avatar";
+import StatusBadge from "../ui/StatusBadge";
 
 /**
  * COMPLETELY REBUILT USER PANEL
