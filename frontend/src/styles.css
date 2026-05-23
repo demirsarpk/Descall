@@ -1,22 +1,15 @@
 /* ============================================
-   DESCALL v2.0 — Complete Design System
-   ENTIRELY REPLACED — No old UI remnants remain
-   ============================================
-   This file is intentionally minimal.
-   All styles are in /styles/ modular files.
-   This file only provides legacy import compatibility.
+   DESCALL v2.0 — COMPLETELY REBUILT UI SYSTEM
+   Discord-inspired design
+   NO OLD UI REMNANTS — FULL REBUILD
    ============================================ */
 
 @import './styles/design-tokens.css';
 @import './styles/base.css';
-@import './styles/layout.css';
-@import './styles/components.css';
-@import './styles/voice-chat.css';
+@import './styles/app-layout.css';
+@import './styles/messages.css';
+@import './styles/voice-ui.css';
 
 /* ============================================
-   COMPATIBILITY — Only for existing component
-   classNames that cannot be changed.
-   ALL VISUALS are in modular files above.
+   OLD CSS REMOVED — Using new modular system
    ============================================ */
-
-/* Empty — all styles are modular now. */

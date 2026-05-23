@@ -1,40 +1,41 @@
 /* ============================================
-   DESCALL v2.0 — Complete Design Token System
-   Inspired by Discord's visual quality
+   DESCALL v2.0 — COMPLETELY REBUILT DESIGN TOKENS
+   Discord-inspired premium design system
+   NO OLD UI REMNANTS
    ============================================ */
 
 :root {
   color-scheme: dark;
 
-  /* 🎨 Core Palette */
-  --primary: #5865f2;
-  --primary-2: #4752c4;
-  --primary-3: #3b45a1;
+  /* 🎨 Core Palette — Discord-inspired */
+  --primary: #5865F2;
+  --primary-2: #4752C4;
+  --primary-3: #3B45A1;
   --primary-glow: rgba(88, 101, 242, 0.35);
   --primary-soft: rgba(88, 101, 242, 0.12);
 
-  --success: #23a55a;
+  --success: #23A55A;
   --success-soft: rgba(35, 165, 90, 0.12);
-  --warning: #f0b232;
+  --warning: #F0B232;
   --warning-soft: rgba(240, 178, 50, 0.12);
-  --danger: #da373c;
+  --danger: #DA373C;
   --danger-soft: rgba(218, 55, 60, 0.12);
 
-  /* 🏗️ Surface Colors */
+  /* 🏗️ Surface Colors — Premium dark gray theme */
   --surface-0: #111214;
-  --surface-1: #1e1f22;
-  --surface-2: #2b2d31;
+  --surface-1: #1E1F22;
+  --surface-2: #2B2D31;
   --surface-3: #313338;
-  --surface-hover: #3c3f45;
-  --surface-active: #4e5058;
+  --surface-hover: #3C3F45;
+  --surface-active: #4E5058;
 
   /* ⚪ Text Colors */
-  --text-0: #ffffff;
-  --text-1: #f2f3f5;
-  --text-2: #dbdee1;
-  --text-3: #b5bac1;
-  --text-muted: #949ba4;
-  --text-link: #00a8fc;
+  --text-0: #FFFFFF;
+  --text-1: #F2F3F5;
+  --text-2: #DBDEE1;
+  --text-3: #B5BAC1;
+  --text-muted: #949BA4;
+  --text-link: #00A8FC;
 
   /* 🔲 Border */
   --border-0: rgba(255, 255, 255, 0.0);
@@ -50,7 +51,7 @@
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.56);
   --shadow-glow-primary: 0 0 16px rgba(88, 101, 242, 0.24);
 
-  /* 📐 Spacing */
+  /* 📐 Spacing — Modern spacing scale */
   --space-0: 0px;
   --space-1: 2px;
   --space-2: 4px;
@@ -99,14 +100,14 @@
   --line-normal: 1.4;
   --line-relaxed: 1.6;
 
-  /* 📦 Sizing */
-  --nav-rail-width: 68px;
-  --sidebar-width: 298px;
+  /* 📦 Sizing — Discord-inspired dimensions */
+  --nav-rail-width: 72px;
+  --sidebar-width: 280px;
   --sidebar-collapsed: 0px;
-  --header-height: 48px;
+  --header-height: 52px;
   --composer-height: 64px;
 
-  /* ✨ Transitions */
+  /* ✨ Transitions — Smooth animations */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --transition-fast: 100ms var(--ease-out);
