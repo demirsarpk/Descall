@@ -3,7 +3,7 @@ import {
   MessageSquare, Users, Settings, Bell, 
   LogOut, User, Search, Plus, Mic, Phone
 } from "lucide-react";
-import { Avatar } from "../../ui/Avatar";
+import { Avatar } from "../ui/Avatar";
 
 /**
  * COMPLETELY REBUILT NAVIGATION RAIL
