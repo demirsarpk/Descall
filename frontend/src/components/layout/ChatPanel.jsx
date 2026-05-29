@@ -2,12 +2,14 @@ import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, Video, MoreVertical, Users,
-  Settings, Bell, Search, Plus, MessageSquare, X
+  Settings, Bell, Search, Plus, MessageSquare, X, ChevronDown, ChevronRight
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import MessageList from "../chat/MessageList";
 import MessageComposer from "../chat/MessageComposer";
+import { getToken } from "../../lib/storage";
+import { API_BASE_URL } from "../../config/api";
 
 export default function ChatPanel({
   activeView,
@@ -136,6 +138,9 @@ export default function ChatPanel({
 
       {/* Messages Area */}
       <div className="messages-container" ref={messagesRef}>
+        {/* Announcements Section */}
+        <AnnouncementsSection />
+
         {showSearch && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="chat-search-bar">
             <Search size={16} />
@@ -202,5 +207,70 @@ export default function ChatPanel({
       )}
     </AnimatePresence>
   </>
+  );
+}
+
+function AnnouncementsSection() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(true);
+
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        const token = getToken();
+        const res = await fetch(`${API_BASE_URL}/api/announcements`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setAnnouncements(Array.isArray(data.announcements) ? data.announcements : []);
+      } catch (err) {
+        console.error("Failed to load announcements:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnnouncements();
+  }, []);
+
+  return (
+    <div className="chat-announcements-section">
+      <button
+        className="announcements-header"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="announcements-title">📢 Announcements</span>
+        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="announcements-content"
+          >
+            {loading ? (
+              <div style={{ padding: "12px", color: "var(--text-muted)", fontSize: "13px" }}>Loading announcements...</div>
+            ) : announcements.length === 0 ? (
+              <div style={{ padding: "12px", color: "var(--text-muted)", fontSize: "13px" }}>No announcements</div>
+            ) : (
+              announcements.map((a) => (
+                <div key={a.id} className="announcement-item">
+                  <div className="announcement-title">{a.title}</div>
+                  <div className="announcement-content">{a.content}</div>
+                  <div className="announcement-meta">
+                    {a.author && <span className="announcement-author">By {a.author}</span>}
+                    {a.createdAt && <span className="announcement-date">{new Date(a.createdAt).toLocaleDateString()}</span>}
+                  </div>
+                </div>
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

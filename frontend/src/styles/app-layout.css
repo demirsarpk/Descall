@@ -1981,6 +1981,37 @@
 }
 
 /* ─── Announcements Section ─── */
+.chat-announcements-section {
+  margin-bottom: 16px;
+  padding: 0 16px;
+}
+
+.announcements-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.announcements-header:hover {
+  background: var(--surface-2);
+}
+
+.announcements-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+
+.announcements-content {
+  margin-top: 8px;
+}
+
 .announcement-item {
   padding: 12px;
   background: var(--surface-2);
