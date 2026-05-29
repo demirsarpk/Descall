@@ -79,25 +79,18 @@ export default function UserFeedbackButton({ socket, user }) {
           const url = data.url || data.fileUrl || data.path || (data[0] && data[0].url);
           
           if (url) {
-            console.log("[Feedback] Upload success, URL:", url);
             attachmentUrls.push(url);
           } else {
-            console.error("[Feedback] Upload response missing URL:", data);
           }
         } else {
           const errorText = await res.text();
-          console.error("[Feedback] Upload failed:", errorText);
           throw new Error(`Failed to upload ${file.name}: ${res.status}`);
         }
       }
       
-      console.log("[Feedback] Submitting with attachments:", attachmentUrls);
-      
       // Submit feedback
       const submitToken = localStorage.getItem("descall_token");
-      console.log("[FRONTEND] Submit token:", !!submitToken);
       
-      console.log("[FRONTEND] Using endpoint:", `${API_BASE_URL}/api/feedback/submit`);
       const res = await fetch(`${API_BASE_URL}/api/feedback/submit`, {
         method: "POST",
         headers: {
