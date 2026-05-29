@@ -20,7 +20,6 @@ export default function ChatPanel({
   activeGroup,
   sidebarCollapsed,
   onlineUsers,
-  onSendMessage,
   children
 }) {
   const messagesRef = useRef(null);
@@ -129,7 +128,7 @@ export default function ChatPanel({
       {/* Composer */}
       {(activeDmUser || activeGroup) && (
         <div className="composer-container">
-          <MessageComposer />
+          <MessageComposer onSend={onSendMessage} disabled={!activeDmUser && !activeGroup} />
         </div>
       )}
     </main>

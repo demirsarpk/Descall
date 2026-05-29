@@ -616,7 +616,7 @@ function getTimeAgo(date) {
         })}
       </nav>
 
-      <div className="admin-body custom-scroll">
+      <div className="admin-body">
         {tab === "overview" && (
           <section className="admin-section">
             <h2>Server stats</h2>

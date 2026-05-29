@@ -130,11 +130,9 @@ export default function UserFeedbackButton({ socket, user }) {
           setAttachments([]);
         }, 2000);
       } else {
-        console.error("[Feedback] Submit failed:", data);
         throw new Error(data.error || data.details || `HTTP ${res.status}: ${responseText.slice(0, 100)}`);
       }
     } catch (err) {
-      console.error("[Feedback] Failed to submit feedback:", err);
       alert("Failed to submit feedback: " + err.message);
     } finally {
       setIsSubmitting(false);
