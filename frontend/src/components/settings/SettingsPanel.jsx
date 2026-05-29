@@ -78,7 +78,7 @@ export default function SettingsPanel({
       {/* Tab Content */}
       <div className="settings-content custom-scroll">
         {activeTab === "profile" && (
-          <ProfileCustomization me={me} onUpdate={(data) => console.log("Profile updated:", data)} />
+          <ProfileCustomization me={me} onUpdate={(data) => {}} />
         )}
 
         {activeTab === "appearance" && (
