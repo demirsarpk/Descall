@@ -32,6 +32,7 @@ export default function ServerSidebar({
   });
 
   const filteredDms = useMemo(() => {
+    if (!Array.isArray(dms)) return [];
     if (!searchQuery) return dms;
     return dms.filter(dm => 
       dm.username?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -39,6 +40,7 @@ export default function ServerSidebar({
   }, [dms, searchQuery]);
 
   const filteredGroups = useMemo(() => {
+    if (!Array.isArray(groups)) return [];
     if (!searchQuery) return groups;
     return groups.filter(group => 
       group.name?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -128,6 +130,8 @@ export default function ServerSidebar({
 }
 
 function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect }) {
+  const safeDms = Array.isArray(dms) ? dms : [];
+  
   return (
     <div className="sidebar-section">
       <button 
@@ -147,7 +151,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="section-content"
           >
-            {dms.map((dm) => {
+            {safeDms.map((dm) => {
               const isOnline = onlineUsers?.some(u => u.id === dm.id);
               const isActive = activeDmUser?.id === dm.id;
 
@@ -184,6 +188,8 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
 }
 
 function GroupList({ groups, activeGroup, expanded, onToggle }) {
+  const safeGroups = Array.isArray(groups) ? groups : [];
+  
   return (
     <div className="sidebar-section">
       <button 
@@ -203,7 +209,7 @@ function GroupList({ groups, activeGroup, expanded, onToggle }) {
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="section-content"
           >
-            {groups.map((group) => {
+            {safeGroups.map((group) => {
               const isActive = activeGroup?.id === group.id;
 
               return (
@@ -237,12 +243,15 @@ function GroupList({ groups, activeGroup, expanded, onToggle }) {
 }
 
 function FriendsList({ friends, onlineUsers, expanded, onToggle }) {
-  const onlineFriends = friends?.filter(f => 
-    onlineUsers?.some(u => u.id === f.id)
-  ) || [];
-  const offlineFriends = friends?.filter(f => 
-    !onlineUsers?.some(u => u.id === f.id)
-  ) || [];
+  const safeFriends = Array.isArray(friends) ? friends : [];
+  const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
+  
+  const onlineFriends = safeFriends.filter(f => 
+    safeOnlineUsers.some(u => u.id === f.id)
+  );
+  const offlineFriends = safeFriends.filter(f => 
+    !safeOnlineUsers.some(u => u.id === f.id)
+  );
 
   return (
     <div className="sidebar-section">
