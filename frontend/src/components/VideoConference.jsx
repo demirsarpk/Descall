@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, Grid, Maximize2, Users, Minimize2, Settings, Sparkles, Activity, Check, X } from "lucide-react";
 import RippleButton from "./ui/RippleButton";
 import VoiceEffectsPanel from "./VoiceEffectsPanel";
-import VideoConferenceMobile from "./VideoConferenceMobile";
+// VideoConferenceMobile component was removed - using responsive design instead
 
 /**
  * Modern Video Conference UI
@@ -48,25 +48,6 @@ export default function VideoConference({
   const safeParticipants = Array.isArray(participants) ? participants : [];
   const remoteStreamMap = remoteStreams?.current instanceof Map ? remoteStreams.current : new Map();
   
-  // Mobile detection
-  const [isMobile, setIsMobile] = useState(false);
-  const resizeTimeoutRef = useRef(null);
-  
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768);
-    };
-    const debounced = () => {
-      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
-      resizeTimeoutRef.current = setTimeout(checkMobile, 250);
-    };
-    checkMobile();
-    window.addEventListener('resize', debounced);
-    return () => {
-      window.removeEventListener('resize', debounced);
-      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
-    };
-  }, []);
 
   const [viewMode, setViewMode] = useState("grid");
   const [showAudioSettings, setShowAudioSettings] = useState(false);
@@ -195,33 +176,6 @@ export default function VideoConference({
   const focusStream = focusTarget ? remoteStreamMap.get(focusTarget) : null;
 
   const thumbnailParticipants = viewMode === "focus" ? safeParticipants.filter(p => p.id !== focusTarget) : [];
-
-  if (isMobile) {
-    return (
-      <VideoConferenceMobile
-        isOpen={isOpen}
-        onClose={onClose}
-        minimized={minimized}
-        onMinimize={onMinimize}
-        call={call}
-        participants={participants}
-        localStream={localStream}
-        screenStream={screenStream}
-        isMuted={isMuted}
-        isCameraOn={isCameraOn}
-        isScreenSharing={isScreenSharing}
-        toggleMute={toggleMute}
-        toggleCamera={toggleCamera}
-        startScreenShare={startScreenShare}
-        stopScreenShare={stopScreenShare}
-        leaveCall={leaveCall}
-        callType={callType}
-        screenQuality={screenQuality}
-        setScreenQuality={setScreenQuality}
-        remoteStreams={remoteStreams}
-      />
-    );
-  }
 
   if (!isOpen) return null;
 
@@ -465,25 +419,25 @@ export default function VideoConference({
           position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)',
           background: 'rgba(0,0,0,0.9)', padding: 20, borderRadius: 12, zIndex: 1002, minWidth: 300,
         }}>
-          <h4 style={{ color: '#fff', margin: '0 0 15px', fontSize: 14 }}>Ses Cihazları</h4>
+          <h4 style={{ color: '#fff', margin: '0 0 15px', fontSize: 14 }}>Audio Devices</h4>
           <div style={{ marginBottom: 15 }}>
-            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>Mikrofon (Giriş)</label>
+            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>Microphone (Input)</label>
             <select value={selectedAudioInput || ''} onChange={e => onAudioInputChange?.(e.target.value)}
               style={{ width: '100%', padding: '8px 12px', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: 6, fontSize: 13 }}>
-              <option value="">Varsayılan</option>
-              {(audioInputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Mikrofon ${d.deviceId.slice(0, 8)}...`}</option>)}
+              <option value="">Default</option>
+              {(audioInputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${d.deviceId.slice(0, 8)}...`}</option>)}
             </select>
           </div>
           <div style={{ marginBottom: 15 }}>
-            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>Hoparlör (Çıkış)</label>
+            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>Speaker (Output)</label>
             <select value={selectedAudioOutput || ''} onChange={e => onAudioOutputChange?.(e.target.value)}
               style={{ width: '100%', padding: '8px 12px', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: 6, fontSize: 13 }}>
-              <option value="">Varsayılan</option>
-              {(audioOutputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Hoparlör ${d.deviceId.slice(0, 8)}...`}</option>)}
+              <option value="">Default</option>
+              {(audioOutputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0, 8)}...`}</option>)}
             </select>
           </div>
           <button onClick={() => setShowAudioSettings(false)}
-            style={{ width: '100%', padding: 8, background: '#444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Kapat</button>
+            style={{ width: '100%', padding: 8, background: '#444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Close</button>
         </div>
       )}
 

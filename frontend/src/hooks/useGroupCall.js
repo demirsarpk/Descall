@@ -70,8 +70,7 @@ export function useGroupCall(socket) {
         try {
           peerData.pc.close();
         } catch (error) {
-          console.warn('[GroupCall] Error closing peer connection:', error);
-        }
+            }
       });
       pcMapRef.current.clear();
       
@@ -89,7 +88,6 @@ export function useGroupCall(socket) {
       });
       remoteAudioRefs.current.clear();
       
-      console.log('[GroupCall] Cleanup completed');
     };
   }, []);
 
@@ -109,7 +107,6 @@ export function useGroupCall(socket) {
           setSelectedAudioOutput(outputs[0].deviceId);
         }
       } catch (err) {
-        console.error("[GroupCall] Failed to enumerate devices:", err);
       }
     };
     getDevices();
@@ -124,7 +121,6 @@ export function useGroupCall(socket) {
   }, [isInCall]);
 
   const cleanup = useCallback(() => {
-    console.log("[GroupCall] Cleanup");
     
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -197,7 +193,6 @@ export function useGroupCall(socket) {
     pc.ontrack = (e) => {
       const remoteStream = e.streams[0];
       const track = e.track;
-      console.log(`[GroupCall] Track from ${userId}:`, track.kind, "muted:", track.muted, "enabled:", track.enabled);
       
       remoteStreamsRef.current.set(userId, remoteStream);
       
@@ -214,19 +209,17 @@ export function useGroupCall(socket) {
           remoteAudioRefs.current.set(userId, audioEl);
         }
         audioEl.srcObject = remoteStream;
-        audioEl.play().catch((err) => console.error(`[GroupCall] Audio play error for ${userId}:`, err));
+        audioEl.play().catch((err) => {});
       }
       
       // Handle muted tracks
       if (track?.muted) {
-        console.log(`[GroupCall] Track muted from ${userId}, waiting for unmute...`);
         track.onunmute = () => {
-          console.log(`[GroupCall] Track unmuted from ${userId}:`, track.kind);
           if (track.kind === "audio") {
             const audioEl = remoteAudioRefs.current.get(userId);
             if (audioEl) {
               audioEl.srcObject = remoteStream;
-              audioEl.play().catch((err) => console.error(`[GroupCall] Audio play error after unmute for ${userId}:`, err));
+              audioEl.play().catch((err) => {});
             }
           }
         };
@@ -242,13 +235,11 @@ export function useGroupCall(socket) {
       setParticipants((prev) => {
         // Exclude local user from participants list to prevent duplication
         if (userId === myIdRef.current) {
-          console.log(`[GroupCall] Skipping local user ${userId} from participants list`);
           return prev;
         }
         
         const exists = prev.find((p) => p.id === userId);
         if (exists) {
-          console.log(`[GroupCall] Updating existing participant ${userId}, isScreen: ${isScreenTrack}, hasVideo: ${hasVideoTrack}`);
           return prev.map((p) => p.id === userId ? { 
             ...p, 
             stream: remoteStream,
@@ -258,7 +249,6 @@ export function useGroupCall(socket) {
             isScreenSharing: isScreenTrack ? true : (p.isScreenSharing || false)
           } : p);
         }
-        console.log(`[GroupCall] Adding new participant ${userId}, isScreen: ${isScreenTrack}, hasVideo: ${hasVideoTrack}`);
         return [...prev, { 
           id: userId, 
           stream: remoteStream, 
@@ -282,14 +272,10 @@ export function useGroupCall(socket) {
     };
 
     pc.onconnectionstatechange = () => {
-      console.log(`[GroupCall] Connection with ${userId}:`, pc.connectionState);
       if (pc.connectionState === "connected") {
-        console.log(`[GroupCall] Connected to ${userId}`);
       } else if (pc.connectionState === "disconnected") {
-        console.log(`[GroupCall] Disconnected from ${userId}, keeping participant for potential reconnection`);
         // Don't delete participant on disconnected - they might reconnect
       } else if (pc.connectionState === "failed") {
-        console.log(`[GroupCall] Connection failed with ${userId}, but keeping for retry`);
         // Don't immediately delete on failed - might recover
         // Only delete if no tracks are working
         const remoteStream = remoteStreamsRef.current.get(userId);
@@ -310,7 +296,6 @@ export function useGroupCall(socket) {
     const peerData = pcMapRef.current.get(userId);
     if (!peerData || !peerData.pendingIce?.length) return;
     
-    console.log(`[GroupCall] Flushing ${peerData.pendingIce.length} ICE candidates for ${userId}`);
     
     const failedCandidates = [];
     
@@ -318,7 +303,6 @@ export function useGroupCall(socket) {
       try {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (err) {
-        console.warn(`[GroupCall] Failed to add ICE candidate for ${userId}:`, err.message);
         failedCandidates.push(candidate);
       }
     }
@@ -336,8 +320,6 @@ export function useGroupCall(socket) {
     if (!groupId || !type || !socketRef.current) return;
     
     try {
-      console.log(`[GroupCall] Starting ${type} call in group ${groupId}`);
-      
       // OPTIMIZED: Low latency audio constraints to reduce 1-2 second delay
       const constraints = type === "video"
         ? { 
@@ -370,7 +352,6 @@ export function useGroupCall(socket) {
       // Ensure audio track is enabled for voice calls
       stream.getAudioTracks().forEach(track => {
         track.enabled = true;
-        console.log(`[GroupCall] Audio track enabled: ${track.kind}, enabled: ${track.enabled}`);
       });
       
       setIsInCall(true);
@@ -395,7 +376,6 @@ export function useGroupCall(socket) {
         
         setupPeerConnection(pc, stream, userId);
         
-        console.log(`[GroupCall] Set up peer connection for ${userId}, added ${stream.getTracks().length} tracks`);
       });
 
       // Emit start event
@@ -405,9 +385,16 @@ export function useGroupCall(socket) {
         memberIds,
       });
 
-      console.log("[GroupCall] Call started");
     } catch (err) {
-      console.error("[GroupCall] Start failed:", err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        alert('Microphone and camera permissions are required for calls. Please allow access in your browser settings.');
+      } else if (err.name === 'NotFoundError') {
+        alert('No microphone or camera found. Please connect a device and try again.');
+      } else if (err.name === 'NotReadableError') {
+        alert('Microphone or camera is already in use by another application.');
+      } else {
+        alert('Failed to start call. Please check your device permissions and try again.');
+      }
       cleanup();
     }
   }, [cleanup, setupPeerConnection]);
@@ -416,8 +403,6 @@ export function useGroupCall(socket) {
     if (!groupId || !fromUser?.id || !socketRef.current) return;
     
     try {
-      console.log(`[GroupCall] Accepting call from ${fromUser.id}`);
-      
       audioManager.stop("incomingCall");
 
       const constraints = type === "video"
@@ -431,7 +416,6 @@ export function useGroupCall(socket) {
       // Ensure audio track is enabled for voice calls
       stream.getAudioTracks().forEach(track => {
         track.enabled = true;
-        console.log(`[GroupCall] Audio track enabled on accept: ${track.kind}, enabled: ${track.enabled}`);
       });
       
       setIsInCall(true);
@@ -452,9 +436,16 @@ export function useGroupCall(socket) {
         toUserId: fromUser.id,
       });
 
-      console.log("[GroupCall] Call accepted, waiting for offer from initiator");
     } catch (err) {
-      console.error("[GroupCall] Accept failed:", err);
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        alert('Microphone and camera permissions are required for calls. Please allow access in your browser settings.');
+      } else if (err.name === 'NotFoundError') {
+        alert('No microphone or camera found. Please connect a device and try again.');
+      } else if (err.name === 'NotReadableError') {
+        alert('Microphone or camera is already in use by another application.');
+      } else {
+        alert('Failed to join call. Please check your device permissions and try again.');
+      }
       cleanup();
     }
   }, [cleanup]);
@@ -526,7 +517,6 @@ export function useGroupCall(socket) {
         setIsCameraOn(true);
         setCallType("video");
       } catch (err) {
-        console.error("[GroupCall] Camera error:", err);
       }
     }
   }, [isCameraOn]);
@@ -535,10 +525,8 @@ export function useGroupCall(socket) {
     try {
       // Use provided quality or fall back to current state
       const effectiveQuality = quality || screenQuality;
-      console.log("[GroupCall] Starting screen share with quality:", effectiveQuality);
       
       if (isScreenSharing) {
-        console.log("[GroupCall] Already screen sharing");
         return;
       }
       
@@ -555,7 +543,6 @@ export function useGroupCall(socket) {
       const { width, height } = resolutionMap[effectiveQuality.resolution] || resolutionMap['1080p'];
       const frameRate = effectiveQuality.fps || 30; // Support higher FPS now
       
-      console.log(`[GroupCall] Requesting screen share: ${width}x${height} @ ${frameRate}fps`);
       
       // OPTIMIZED: Get display media with performance constraints
       const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -617,10 +604,8 @@ export function useGroupCall(socket) {
         try {
           if (operation.type === 'replace') {
             await operation.sender.replaceTrack(operation.track);
-            console.log(`[GroupCall] Replaced camera track with screen track for ${operation.userId}`);
           } else if (operation.type === 'add') {
             operation.peerConnection.addTrack(operation.track, operation.stream);
-            console.log(`[GroupCall] Added screen track for ${operation.userId} (voice call, needs renegotiation)`);
             
             // Renegotiate - create new offer
             const offer = await operation.peerConnection.createOffer();
@@ -632,10 +617,8 @@ export function useGroupCall(socket) {
               offer: operation.peerConnection.localDescription,
               callType: "video", // Upgrade to video for screen share
             });
-            console.log(`[GroupCall] Renegotiation offer sent to ${operation.userId}`);
           }
         } catch (err) {
-          console.error(`[GroupCall] Failed to execute track operation for ${operation.userId}:`, err);
         }
       }
 
@@ -647,7 +630,6 @@ export function useGroupCall(socket) {
 
       // Handle screen share end
       screenTrack.onended = () => {
-        console.log("[GroupCall] Screen share ended");
         stopScreenShare();
       };
 
@@ -657,9 +639,7 @@ export function useGroupCall(socket) {
         socketRef.current.emit("group:screen:start", { groupId: activeGroupId });
       }
     } catch (err) {
-      console.error("[GroupCall] Screen share error:", err.name, err.message);
       if (err.name === 'NotAllowedError') {
-        console.log("[GroupCall] User denied screen share permission");
       }
     }
   }, [isScreenSharing, activeGroupId, screenQuality]);
@@ -765,7 +745,6 @@ export function useGroupCall(socket) {
         socket.emit("group:call:busy", { groupId, toUserId: fromUser.id });
         return;
       }
-      console.log(`[GroupCall] Incoming from ${fromUser.id}`);
       setIncomingCall({ groupId, fromUser, callType: type });
       audioManager.play("incomingCall", { loop: true });
     };
@@ -775,7 +754,6 @@ export function useGroupCall(socket) {
       
       const stream = localStreamRef.current;
       if (!stream) {
-        console.log("[GroupCall] No local stream for accept");
         return;
       }
 
@@ -797,9 +775,7 @@ export function useGroupCall(socket) {
           callType: callType || "voice",
         });
 
-        console.log(`[GroupCall] Offer sent to ${fromUserId} after accept`);
       } catch (err) {
-        console.error("[GroupCall] Accept handler error:", err);
       }
     };
 
@@ -809,13 +785,11 @@ export function useGroupCall(socket) {
       
       const stream = localStreamRef.current;
       if (!stream) {
-        console.log("[GroupCall] No local stream for participant joined");
         return;
       }
 
       // Check if we already have a connection with this user
       if (pcMapRef.current.has(fromUserId)) {
-        console.log(`[GroupCall] Already connected to ${fromUserId}`);
         return;
       }
 
@@ -837,9 +811,7 @@ export function useGroupCall(socket) {
           callType: callType || "voice",
         });
 
-        console.log(`[GroupCall] Offer sent to new participant ${fromUserId}`);
       } catch (err) {
-        console.error("[GroupCall] Participant joined error:", err);
       }
     };
 
@@ -848,20 +820,17 @@ export function useGroupCall(socket) {
       
       const peerData = pcMapRef.current.get(fromUserId);
       if (!peerData) {
-        console.log(`[GroupCall] No PC for ${fromUserId}`);
         return;
       }
 
       try {
         // Check if we already have a remote description (duplicate answer)
         if (peerData.pc.remoteDescription) {
-          console.log(`[GroupCall] Already have remote description for ${fromUserId}, ignoring duplicate answer`);
           return;
         }
         
         // Only set remote description if we're in the right state
         if (peerData.pc.signalingState === 'stable') {
-          console.log(`[GroupCall] Connection already stable for ${fromUserId}, answer not needed`);
           return;
         }
         
@@ -873,14 +842,7 @@ export function useGroupCall(socket) {
           track.enabled = true;
         });
         
-        console.log(`[GroupCall] Answer processed from ${fromUserId}`);
       } catch (err) {
-        // Only log error if it's not a state-related error we already handle
-        if (!err.message?.includes('Called in wrong state')) {
-          console.error("[GroupCall] Answer handler error:", err);
-        } else {
-          console.log(`[GroupCall] Answer ignored for ${fromUserId}: connection already established`);
-        }
       }
     };
 
@@ -889,11 +851,9 @@ export function useGroupCall(socket) {
       
       const peerData = pcMapRef.current.get(fromUserId);
       if (!peerData) {
-        console.log(`[GroupCall] No PC for ${fromUserId}, creating new one`);
         // If we don't have a PC yet, we need to wait for the stream
         const stream = localStreamRef.current;
         if (!stream) {
-          console.log("[GroupCall] No local stream, cannot create PC");
           return;
         }
         
@@ -938,9 +898,7 @@ export function useGroupCall(socket) {
           answer: peerData.pc.localDescription,
         });
         
-        console.log(`[GroupCall] Answer sent to ${fromUserId}`);
       } catch (err) {
-        console.error("[GroupCall] Offer handler error:", err);
       }
     };
 
@@ -966,12 +924,10 @@ export function useGroupCall(socket) {
         await peerData.pc.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (err) {
         // Non-fatal error - connection may still work
-        console.warn(`[GroupCall] ICE error for ${fromUserId}:`, err.message);
       }
     };
 
     const onLeft = ({ groupId, userId }) => {
-      console.log(`[GroupCall] ${userId} left call in group ${groupId}`);
       pcMapRef.current.delete(userId);
       remoteStreamsRef.current.delete(userId);
       const audioEl = remoteAudioRefs.current.get(userId);
@@ -1000,14 +956,12 @@ export function useGroupCall(socket) {
     };
 
     const onScreenStarted = ({ groupId, fromUserId }) => {
-      console.log(`[GroupCall] Screen share started by ${fromUserId}`);
       setParticipants((prev) => prev.map((p) => 
         p.id === fromUserId ? { ...p, isScreenSharing: true } : p
       ));
     };
 
     const onScreenStopped = ({ groupId, fromUserId }) => {
-      console.log(`[GroupCall] Screen share stopped by ${fromUserId}`);
       setParticipants((prev) => prev.map((p) => 
         p.id === fromUserId ? { ...p, isScreenSharing: false } : p
       ));
@@ -1015,7 +969,6 @@ export function useGroupCall(socket) {
 
     const onCallStarted = ({ groupId, fromUserId, fromUser, callType }) => {
       if (!fromUserId || fromUserId === myId) return;
-      console.log(`[GroupCall] Call started by ${fromUserId}, fromUser:`, JSON.stringify(fromUser, null, 2));
       
       // Add participant to list if not already there
       setParticipants((prev) => {
@@ -1028,7 +981,6 @@ export function useGroupCall(socket) {
             hasVideo: callType === "video",
             hasAudio: true,
           };
-          console.log("[GroupCall] Adding participant:", participant);
           return [...prev, participant];
         }
         return prev;
@@ -1037,10 +989,8 @@ export function useGroupCall(socket) {
 
     // Handle server telling us to join an existing call instead of starting new
     const onJoinExisting = async ({ groupId, initiatorId, callType: existingCallType, participants: existingParticipants }) => {
-      console.log(`[GroupCall] Server says join existing call in group ${groupId}`);
       
       if (isInCall) {
-        console.log("[GroupCall] Already in a call, ignoring join-existing");
         return;
       }
 
@@ -1098,9 +1048,7 @@ export function useGroupCall(socket) {
         // Notify server we're joining
         socket.emit("group:call:join", { groupId, callType: existingCallType });
 
-        console.log("[GroupCall] Joined existing call");
       } catch (err) {
-        console.error("[GroupCall] Join existing call failed:", err);
         cleanup();
       }
     };
@@ -1156,7 +1104,6 @@ export function useGroupCall(socket) {
 
   // Replace audio track for voice effects
   const replaceTrack = useCallback((newTrack) => {
-    console.log("[GroupCall] Replacing audio track for all peers");
     if (!localStreamRef.current || !newTrack) return;
     
     pcMapRef.current.forEach((peerData, userId) => {
@@ -1164,10 +1111,8 @@ export function useGroupCall(socket) {
         const sender = peerData.pc.getSenders().find(s => s.track?.kind === 'audio');
         if (sender) {
           sender.replaceTrack(newTrack);
-          console.log(`[GroupCall] Replaced audio track for ${userId}`);
         }
       } catch (err) {
-        console.error(`[GroupCall] Failed to replace track for ${userId}:`, err);
       }
     });
 
@@ -1183,7 +1128,6 @@ export function useGroupCall(socket) {
 
   // Change audio input device
   const setAudioInput = useCallback(async (deviceId) => {
-    console.log("[GroupCall] Setting audio input:", deviceId);
     setSelectedAudioInput(deviceId);
     if (localStreamRef.current) {
       try {
@@ -1197,7 +1141,6 @@ export function useGroupCall(socket) {
             const sender = peerData.pc.getSenders().find(s => s.track?.kind === 'audio');
             if (sender) {
               await sender.replaceTrack(newAudioTrack);
-              console.log("[GroupCall] Replaced audio track for peer");
             }
           });
           // Stop old audio tracks
@@ -1207,23 +1150,19 @@ export function useGroupCall(socket) {
           setLocalStream(localStreamRef.current);
         }
       } catch (err) {
-        console.error("[GroupCall] Failed to change audio input:", err);
       }
     }
   }, []);
 
   // Change audio output device
   const setAudioOutput = useCallback((deviceId) => {
-    console.log("[GroupCall] Setting audio output:", deviceId);
     setSelectedAudioOutput(deviceId);
     remoteAudioRefs.current.forEach(async (audioEl, userId) => {
       try {
         if (audioEl.setSinkId) {
           await audioEl.setSinkId(deviceId);
-          console.log(`[GroupCall] Set sink for ${userId} to ${deviceId}`);
         }
       } catch (err) {
-        console.error(`[GroupCall] Failed to set sink for ${userId}:`, err);
       }
     });
   }, []);
