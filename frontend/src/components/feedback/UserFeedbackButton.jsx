@@ -64,8 +64,6 @@ export default function UserFeedbackButton({ socket, user }) {
         const formData = new FormData();
         formData.append("file", file);
         
-        console.log("[Feedback] Uploading file:", file.name, "size:", file.size);
-        
         const res = await fetch("/api/media/upload", {
           method: "POST",
           body: formData,
@@ -74,11 +72,8 @@ export default function UserFeedbackButton({ socket, user }) {
           },
         });
         
-        console.log("[Feedback] Upload response status:", res.status);
-        
         if (res.ok) {
           const data = await res.json();
-          console.log("[Feedback] Upload response data:", data);
           
           // Handle different response formats
           const url = data.url || data.fileUrl || data.path || (data[0] && data[0].url);
