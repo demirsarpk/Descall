@@ -566,12 +566,19 @@ function getTimeAgo(date) {
   return (
     <motion.div
       className="admin-shell"
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
     >
-      <header className="admin-top">
+      <motion.div
+        className="admin-container"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+      >
+        <header className="admin-top">
         <div className="admin-header-content">
           <div className="admin-header-icon">
             <Shield size={32} />
@@ -1984,6 +1991,7 @@ function getTimeAgo(date) {
           </section>
         )}
       </div>
+      </motion.div>
     </motion.div>
   );
 }
