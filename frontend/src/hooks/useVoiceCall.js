@@ -158,7 +158,16 @@ export function useVoiceCall(socket) {
       await pc.setLocalDescription(answer);
       socket.emit("call:answer", { toUserId: peer.id, answer: pc.localDescription });
       setMode("active");
-    } catch {
+    } catch (err) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        alert('Microphone permission is required for voice calls. Please allow access in your browser settings.');
+      } else if (err.name === 'NotFoundError') {
+        alert('No microphone found. Please connect a device and try again.');
+      } else if (err.name === 'NotReadableError') {
+        alert('Microphone is already in use by another application.');
+      } else {
+        alert('Failed to join call. Please check your device permissions and try again.');
+      }
       cleanup();
     }
   }, [peer, socket, cleanup]);
@@ -189,7 +198,16 @@ export function useVoiceCall(socket) {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         socket.emit("call:offer", { toUserId: friend.id, offer: pc.localDescription });
-      } catch {
+      } catch (err) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          alert('Microphone permission is required for voice calls. Please allow access in your browser settings.');
+        } else if (err.name === 'NotFoundError') {
+          alert('No microphone found. Please connect a device and try again.');
+        } else if (err.name === 'NotReadableError') {
+          alert('Microphone is already in use by another application.');
+        } else {
+          alert('Failed to start call. Please check your device permissions and try again.');
+        }
         cleanup();
       }
     },
