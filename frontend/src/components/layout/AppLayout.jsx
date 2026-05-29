@@ -55,6 +55,15 @@ export default function AppLayout({
         friends={friends}
         onlineUsers={onlineUsers}
         socket={socket}
+        onDmSelect={(dm) => {
+          // DM selection handled by parent
+        }}
+        onGroupSelect={(group) => {
+          // Group selection handled by parent
+        }}
+        onFriendSelect={(friend) => {
+          // Friend selection handled by parent
+        }}
       />
 
       {/* Main Chat Panel - Center content area */}
@@ -64,6 +73,16 @@ export default function AppLayout({
         activeGroup={activeGroup}
         sidebarCollapsed={sidebarCollapsed}
         onlineUsers={onlineUsers}
+        onSendMessage={(message) => {
+          // Message sending handled by parent
+        }}
+        onVoiceCall={() => {
+          // Voice call handled by parent
+        }}
+        onVideoCall={() => {
+          // Video call handled by parent
+        }}
+        onSettings={() => setUserPanelOpen(true)}
       >
         {children}
       </ChatPanel>
@@ -74,6 +93,8 @@ export default function AppLayout({
           <UserPanel 
             me={me}
             onClose={() => setUserPanelOpen(false)}
+            onLogout={onLogout}
+            onSettings={() => {}}
           />
         )}
       </AnimatePresence>

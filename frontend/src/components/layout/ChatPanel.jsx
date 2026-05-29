@@ -20,6 +20,10 @@ export default function ChatPanel({
   activeGroup,
   sidebarCollapsed,
   onlineUsers,
+  onSendMessage,
+  onVoiceCall,
+  onVideoCall,
+  onSettings,
   children
 }) {
   const messagesRef = useRef(null);
@@ -88,23 +92,47 @@ export default function ChatPanel({
         </div>
 
         <div className="header-right">
-          <button className="icon-btn" title="Search">
+          <button 
+            className="icon-btn" 
+            title="Search"
+            onClick={() => {
+              alert('Search functionality coming soon');
+            }}
+          >
             <Search size={20} />
           </button>
-          <button className="icon-btn" title="Members">
+          <button 
+            className="icon-btn" 
+            title="Members"
+            onClick={() => {
+              alert('Members list coming soon');
+            }}
+          >
             <Users size={20} />
           </button>
           {(activeDmUser || activeGroup) && (
             <>
-              <button className="icon-btn" title="Voice Call">
+              <button 
+                className="icon-btn" 
+                title="Voice Call"
+                onClick={() => onVoiceCall?.()}
+              >
                 <Phone size={20} />
               </button>
-              <button className="icon-btn" title="Video Call">
+              <button 
+                className="icon-btn" 
+                title="Video Call"
+                onClick={() => onVideoCall?.()}
+              >
                 <Video size={20} />
               </button>
             </>
           )}
-          <button className="icon-btn" title="Settings">
+          <button 
+            className="icon-btn" 
+            title="Settings"
+            onClick={() => onSettings?.()}
+          >
             <Settings size={20} />
           </button>
         </div>
@@ -128,7 +156,10 @@ export default function ChatPanel({
       {/* Composer */}
       {(activeDmUser || activeGroup) && (
         <div className="composer-container">
-          <MessageComposer onSend={onSendMessage} disabled={!activeDmUser && !activeGroup} />
+          <MessageComposer 
+            onSend={onSendMessage} 
+            disabled={!activeDmUser && !activeGroup} 
+          />
         </div>
       )}
     </main>

@@ -22,7 +22,10 @@ export default function ServerSidebar({
   dms,
   friends,
   onlineUsers,
-  socket
+  socket,
+  onDmSelect,
+  onGroupSelect,
+  onFriendSelect
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
@@ -70,10 +73,24 @@ export default function ServerSidebar({
             {activeView === "calls" && "Calls"}
           </h2>
           <div className="sidebar-actions">
-            <button className="icon-btn" title="Search">
+            <button 
+              className="icon-btn" 
+              title="Search"
+              onClick={() => {
+                const searchInput = document.querySelector('.search-input');
+                searchInput?.focus();
+              }}
+            >
               <Search size={18} />
             </button>
-            <button className="icon-btn" title="Add">
+            <button 
+              className="icon-btn" 
+              title="Add"
+              onClick={() => {
+                // Placeholder for add functionality
+                alert('Add functionality coming soon');
+              }}
+            >
               <Plus size={18} />
             </button>
           </div>
@@ -100,9 +117,7 @@ export default function ServerSidebar({
               onlineUsers={onlineUsers}
               expanded={expandedSections.dms}
               onToggle={() => toggleSection("dms")}
-              onDmSelect={(dm) => {
-                // DM selection should be handled by parent via onDmSelect prop
-              }}
+              onDmSelect={onDmSelect}
             />
           )}
 
@@ -112,6 +127,7 @@ export default function ServerSidebar({
               activeGroup={activeGroup}
               expanded={expandedSections.groups}
               onToggle={() => toggleSection("groups")}
+              onGroupSelect={onGroupSelect}
             />
           )}
 
@@ -121,6 +137,7 @@ export default function ServerSidebar({
               onlineUsers={onlineUsers}
               expanded={expandedSections.friends}
               onToggle={() => toggleSection("friends")}
+              onFriendSelect={onFriendSelect}
             />
           )}
         </div>
@@ -187,7 +204,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
   );
 }
 
-function GroupList({ groups, activeGroup, expanded, onToggle }) {
+function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect }) {
   const safeGroups = Array.isArray(groups) ? groups : [];
   
   return (
@@ -216,6 +233,7 @@ function GroupList({ groups, activeGroup, expanded, onToggle }) {
                 <motion.button
                   key={group.id}
                   className={`group-item ${isActive ? "active" : ""}`}
+                  onClick={() => onGroupSelect?.(group)}
                   whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
@@ -242,7 +260,7 @@ function GroupList({ groups, activeGroup, expanded, onToggle }) {
   );
 }
 
-function FriendsList({ friends, onlineUsers, expanded, onToggle }) {
+function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect }) {
   const safeFriends = Array.isArray(friends) ? friends : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
   
@@ -303,6 +321,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle }) {
                   <motion.button
                     key={friend.id}
                     className="friend-item offline"
+                    onClick={() => onFriendSelect?.(friend)}
                     whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >

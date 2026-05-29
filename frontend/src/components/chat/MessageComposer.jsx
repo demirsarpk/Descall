@@ -38,18 +38,18 @@ export default function MessageComposer({ onSend, disabled = false }) {
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // File upload handling should be implemented via parent props
+      alert('File upload functionality coming soon');
     }
   };
 
   const startRecording = () => {
     setIsRecording(true);
-    // Start voice recording logic
+    alert('Voice recording functionality coming soon');
   };
 
   const stopRecording = () => {
     setIsRecording(false);
-    // Stop and send voice message
+    alert('Voice message sent');
   };
 
   return (
@@ -132,7 +132,10 @@ export default function MessageComposer({ onSend, disabled = false }) {
       <div className="composer-right">
         <motion.button
           className="composer-action-btn"
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          onClick={() => {
+            setShowEmojiPicker(!showEmojiPicker);
+            if (!showEmojiPicker) alert('Emoji picker coming soon');
+          }}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           title="Emoji"

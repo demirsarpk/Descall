@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { 
   X, Settings, Mic, Headphones, 
-  Bell, User, LogOut, Moon, Sun
+  Bell, User, LogOut, Moon, Sun, ChevronRight
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -11,7 +11,7 @@ import StatusBadge from "../ui/StatusBadge";
  * Discord-style right sidebar for user settings
  * No old layout remnants
  */
-export default function UserPanel({ me, onClose }) {
+export default function UserPanel({ me, onClose, onLogout, onSettings }) {
   return (
     <motion.aside
       initial={{ x: 320, opacity: 0 }}
@@ -139,5 +139,3 @@ export default function UserPanel({ me, onClose }) {
     </motion.aside>
   );
 }
-
-import { ChevronRight } from "lucide-react";
