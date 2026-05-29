@@ -1758,3 +1758,116 @@
   align-items: center;
   justify-content: center;
 }
+
+/* ─── Add Friend / Create Group Modal ─── */
+.add-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-modal {
+  width: 360px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-2);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+}
+
+.add-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.add-modal-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-0);
+  margin: 0;
+}
+
+.add-modal-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: var(--surface-1);
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.add-modal-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.add-modal-tab.active {
+  background: var(--surface-2);
+  color: var(--text-0);
+}
+
+.add-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.add-modal-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.add-modal-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  color: var(--text-0);
+  font-size: 14px;
+  outline: none;
+}
+
+.add-modal-input:focus {
+  border-color: var(--primary);
+}
+
+.add-modal-error {
+  padding: 10px 12px;
+  background: rgba(242, 63, 67, 0.1);
+  border: 1px solid rgba(242, 63, 67, 0.3);
+  border-radius: 8px;
+  color: #f23f43;
+  font-size: 13px;
+}
+
+.add-modal-success {
+  padding: 10px 12px;
+  background: rgba(35, 165, 90, 0.1);
+  border: 1px solid rgba(35, 165, 90, 0.3);
+  border-radius: 8px;
+  color: #23a55a;
+  font-size: 13px;
+}

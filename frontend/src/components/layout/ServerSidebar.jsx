@@ -1,19 +1,16 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Search, Plus, Settings, Hash, 
-  ChevronDown, ChevronRight, Bell, UserPlus
+import {
+  Search, Plus, Settings, Hash,
+  ChevronDown, ChevronRight, Bell, UserPlus, X, User, Users
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
+import { getToken } from "../../lib/storage";
+import { API_BASE_URL } from "../../config/api";
 
-/**
- * COMPLETELY REBUILT SERVER SIDEBAR
- * Discord-style channel/server list
- * No old layout remnants
- */
-export default function ServerSidebar({ 
-  collapsed, 
+export default function ServerSidebar({
+  collapsed,
   onToggleCollapse,
   activeView,
   activeDmUser,
@@ -33,6 +30,59 @@ export default function ServerSidebar({
     groups: true,
     friends: true
   });
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addTab, setAddTab] = useState("friend");
+  const [friendUsername, setFriendUsername] = useState("");
+  const [groupName, setGroupName] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState("");
+  const [addSuccess, setAddSuccess] = useState("");
+
+  const handleAddFriend = async () => {
+    if (!friendUsername.trim()) return;
+    setAddLoading(true);
+    setAddError("");
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/api/friends/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username: friendUsername.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send friend request");
+      setAddSuccess(`Friend request sent to ${friendUsername.trim()}`);
+      setFriendUsername("");
+      setTimeout(() => setAddSuccess(""), 3000);
+    } catch (err) {
+      setAddError(err.message);
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!groupName.trim()) return;
+    setAddLoading(true);
+    setAddError("");
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/api/groups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: groupName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create group");
+      setAddSuccess(`Group "${groupName.trim()}" created`);
+      setGroupName("");
+      setTimeout(() => setAddSuccess(""), 3000);
+    } catch (err) {
+      setAddError(err.message);
+    } finally {
+      setAddLoading(false);
+    }
+  };
 
   const filteredDms = useMemo(() => {
     if (!Array.isArray(dms)) return [];
@@ -83,12 +133,14 @@ export default function ServerSidebar({
             >
               <Search size={18} />
             </button>
-            <button 
-              className="icon-btn" 
+            <button
+              className="icon-btn"
               title="Add"
               onClick={() => {
-                // Placeholder for add functionality
-                alert('Add functionality coming soon');
+                setShowAddModal(true);
+                setAddTab(activeView === "groups" ? "group" : "friend");
+                setAddError("");
+                setAddSuccess("");
               }}
             >
               <Plus size={18} />
@@ -253,6 +305,65 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect }) {
                 </motion.button>
               );
             })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Friend / Create Group Modal */}
+      <AnimatePresence>
+        {showAddModal && (
+          <motion.div
+            className="add-modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowAddModal(false)}
+          >
+            <motion.div
+              className="add-modal"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="add-modal-header">
+                <h3>Create New</h3>
+                <button className="icon-btn" onClick={() => setShowAddModal(false)}><X size={18} /></button>
+              </div>
+
+              <div className="add-modal-tabs">
+                <button className={`add-modal-tab ${addTab === "friend" ? "active" : ""}`} onClick={() => { setAddTab("friend"); setAddError(""); setAddSuccess(""); }}>
+                  <User size={16} /> Add Friend
+                </button>
+                <button className={`add-modal-tab ${addTab === "group" ? "active" : ""}`} onClick={() => { setAddTab("group"); setAddError(""); setAddSuccess(""); }}>
+                  <Users size={16} /> Create Group
+                </button>
+              </div>
+
+              <div className="add-modal-body">
+                {addTab === "friend" && (
+                  <>
+                    <label className="add-modal-label">Enter a username to add</label>
+                    <input className="add-modal-input" value={friendUsername} onChange={(e) => setFriendUsername(e.target.value)} placeholder="e.g. johndoe" onKeyDown={(e) => e.key === "Enter" && handleAddFriend()} />
+                    <motion.button className="settings-action-btn" onClick={handleAddFriend} disabled={addLoading || !friendUsername.trim()} whileTap={{ scale: 0.97 }}>
+                      {addLoading ? "Sending..." : "Send Friend Request"}
+                    </motion.button>
+                  </>
+                )}
+                {addTab === "group" && (
+                  <>
+                    <label className="add-modal-label">Group name</label>
+                    <input className="add-modal-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="e.g. Gaming Squad" onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()} />
+                    <motion.button className="settings-action-btn" onClick={handleCreateGroup} disabled={addLoading || !groupName.trim()} whileTap={{ scale: 0.97 }}>
+                      {addLoading ? "Creating..." : "Create Group"}
+                    </motion.button>
+                  </>
+                )}
+                {addError && <div className="add-modal-error">{addError}</div>}
+                {addSuccess && <div className="add-modal-success">{addSuccess}</div>}
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
