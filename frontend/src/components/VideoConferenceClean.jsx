@@ -356,15 +356,16 @@ export default function VideoConference({
     remoteStreamMap.has(p.id) || p.screenStream
   );
   
-  const focusTarget = dominantSpeaker?.id || 
+  const computedFocusTarget = dominantSpeaker?.id || 
     (activeParticipants.length > 0 ? activeParticipants[0]?.id : 'local');
+  const effectiveFocusTarget = focusTarget || computedFocusTarget;
 
-  const focusParticipant = safeParticipants.find((p) => p.id === focusTarget);
-  const focusStream = focusTarget ? remoteStreamMap.get(focusTarget) : null;
+  const focusParticipant = safeParticipants.find((p) => p.id === effectiveFocusTarget);
+  const focusStream = effectiveFocusTarget ? remoteStreamMap.get(effectiveFocusTarget) : null;
 
   // Thumbnail participants (focus view)
   const thumbnailParticipants = viewMode === "focus"
-    ? (activeParticipants || []).filter(p => p.id !== focusTarget)
+    ? (activeParticipants || []).filter(p => p.id !== effectiveFocusTarget)
     : [];
 
   // Return mobile interface for mobile devices, desktop for others
@@ -390,7 +391,6 @@ export default function VideoConference({
         callType={callType}
         screenQuality={screenQuality}
         setScreenQuality={setScreenQuality}
-        localStream={localStream}
         onProcessedStream={(stream) => {
           // Handle processed stream for mobile
         }}
@@ -529,7 +529,7 @@ export default function VideoConference({
           <>
             {/* Main Focus Video */}
             <div className="vc-focus-main">
-              {focusTarget === 'local' ? (
+              {effectiveFocusTarget === 'local' ? (
                 isScreenSharing ? (
                   <video
                     ref={(el) => {
@@ -626,7 +626,7 @@ export default function VideoConference({
             {/* Thumbnail Row */}
             <div className="vc-focus-thumbnails">
               {/* Local thumbnail if not focus */}
-              {focusTarget !== 'local' && (
+              {effectiveFocusTarget !== 'local' && (
                 <div 
                   className={`vc-thumbnail ${focusedParticipant === 'local' ? 'focused' : ''}`}
                   onClick={() => setFocusTarget('local')}
@@ -718,7 +718,7 @@ export default function VideoConference({
           <RippleButton
             className={`vc-btn ${showVoiceEffects ? 'active' : ''}`}
             onClick={() => setShowVoiceEffects(!showVoiceEffects)}
-            title="Ses Efektleri"
+            title="Voice Effects"
           >
             <Sparkles size={20} />
           </RippleButton>
