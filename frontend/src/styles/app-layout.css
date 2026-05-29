@@ -814,6 +814,193 @@
   color: white;
 }
 
+/* ─── Profile Editor (UserPanel) ─── */
+.profile-editor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-top: 4px;
+}
+
+.profile-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  color: var(--text-0);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.profile-input:focus {
+  border-color: var(--primary);
+}
+
+.profile-input::placeholder {
+  color: var(--text-muted);
+}
+
+.profile-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  color: var(--text-0);
+  font-size: 14px;
+  outline: none;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+}
+
+.profile-textarea:focus {
+  border-color: var(--primary);
+}
+
+.char-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+  margin-top: -4px;
+}
+
+.profile-avatar-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.profile-avatar-row .profile-input {
+  flex: 1;
+}
+
+.profile-upload-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  color: var(--text-1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.profile-upload-btn:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.hidden {
+  display: none;
+}
+
+.profile-status-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface-0);
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-top: 2px;
+}
+
+/* ─── Device Selectors (UserPanel Voice tab) ─── */
+.device-section {
+  margin-bottom: 16px;
+}
+
+.device-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.device-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  color: var(--text-0);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.device-select:focus {
+  border-color: var(--primary);
+}
+
+.device-select option {
+  background: var(--surface-0);
+  color: var(--text-0);
+}
+
+/* Mic test bar */
+.mic-test {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-2);
+}
+
+.mic-test-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--surface-3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.mic-test-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #23a55a, #57f287);
+  border-radius: 4px;
+  transition: width 0.05s linear;
+}
+
+.mic-test-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-action-btn.small {
+  padding: 8px 14px;
+  font-size: 13px;
+  width: auto;
+}
+
+.settings-action-btn.secondary {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.settings-action-btn.secondary:hover {
+  background: var(--surface-3);
+}
+
 /* ─── Admin Menu ─── */
 .admin-menu-overlay {
   position: fixed;
@@ -1413,4 +1600,161 @@
 .admin-logout:hover {
   background: var(--danger);
   color: white;
+}
+
+/* ─── Emoji Picker ─── */
+.emoji-picker {
+  position: absolute;
+  bottom: 64px;
+  right: 16px;
+  width: 320px;
+  max-height: 360px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 500;
+}
+
+.emoji-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+
+.emoji-picker-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+
+.emoji-picker-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+}
+
+.emoji-category {
+  margin-bottom: 10px;
+}
+
+.emoji-category-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+}
+
+.emoji-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.1s;
+  line-height: 1;
+}
+
+.emoji-btn:hover {
+  background: var(--surface-2);
+}
+
+/* ─── Recording Bar ─── */
+.recording-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(242, 63, 67, 0.08);
+  border-radius: 20px;
+  flex: 1;
+}
+
+.recording-pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f23f43;
+  animation: recordingPulse 1.2s infinite;
+}
+
+@keyframes recordingPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+
+.recording-label {
+  font-size: 14px;
+  color: #f23f43;
+  font-weight: 500;
+}
+
+/* ─── Attachment Menu ─── */
+.attachment-menu {
+  position: absolute;
+  bottom: 64px;
+  left: 16px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  z-index: 500;
+  min-width: 180px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-0);
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.attachment-item:hover {
+  background: var(--surface-2);
+}
+
+.attachment-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
