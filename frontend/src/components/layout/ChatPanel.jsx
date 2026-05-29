@@ -59,9 +59,10 @@ export default function ChatPanel({
   };
 
   return (
-    <main className="main-panel">
-      {/* Header */}
-      <header className="panel-header">
+    <>
+      <main className="main-panel">
+        {/* Header */}
+        <header className="panel-header">
         <div className="header-left">
           {activeDmUser && (
             <div className="header-avatar">
@@ -160,36 +161,6 @@ export default function ChatPanel({
         )}
       </div>
 
-      {/* Members Panel */}
-      <AnimatePresence>
-        {showMembers && (
-          <motion.aside
-            className="members-panel"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 240, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <h4>Members</h4>
-            {activeGroup?.members?.map((m) => (
-              <div key={m.id} className="member-row">
-                <Avatar name={m.username} size={32} imageUrl={m.avatarUrl} />
-                <span>{m.username}</span>
-                <StatusBadge status={onlineUsers?.some((u) => u.id === m.id) ? "online" : "offline"} />
-              </div>
-            )) || (
-              activeDmUser && (
-                <div className="member-row">
-                  <Avatar name={activeDmUser.username} size={32} imageUrl={activeDmUser.avatarUrl} />
-                  <span>{activeDmUser.username}</span>
-                  <StatusBadge status={onlineUsers?.some((u) => u.id === activeDmUser.id) ? "online" : "offline"} />
-                </div>
-              )
-            )}
-          </motion.aside>
-        )}
-      </AnimatePresence>
-
       {/* Composer */}
       {(activeDmUser || activeGroup) && (
         <div className="composer-container">
@@ -200,5 +171,36 @@ export default function ChatPanel({
         </div>
       )}
     </main>
+
+    {/* Members Panel - Absolute positioned sidebar */}
+    <AnimatePresence>
+      {showMembers && (
+        <motion.aside
+          className="members-panel"
+          initial={{ width: 0, opacity: 0 }}
+          animate={{ width: 240, opacity: 1 }}
+          exit={{ width: 0, opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <h4>Members</h4>
+          {activeGroup?.members?.map((m) => (
+            <div key={m.id} className="member-row">
+              <Avatar name={m.username} size={32} imageUrl={m.avatarUrl} />
+              <span>{m.username}</span>
+              <StatusBadge status={onlineUsers?.some((u) => u.id === m.id) ? "online" : "offline"} />
+            </div>
+          )) || (
+            activeDmUser && (
+              <div className="member-row">
+                <Avatar name={activeDmUser.username} size={32} imageUrl={activeDmUser.avatarUrl} />
+                <span>{activeDmUser.username}</span>
+                <StatusBadge status={onlineUsers?.some((u) => u.id === activeDmUser.id) ? "online" : "offline"} />
+              </div>
+            )
+          )}
+        </motion.aside>
+      )}
+    </AnimatePresence>
+  </>
   );
 }

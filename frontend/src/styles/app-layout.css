@@ -1896,11 +1896,16 @@
 }
 
 .members-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 240px;
   background: var(--surface-1);
   border-left: 1px solid var(--border-2);
   padding: 16px;
   overflow-y: auto;
-  flex-shrink: 0;
+  z-index: 10;
 }
 
 .members-panel h4 {
@@ -1933,4 +1938,38 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ─── Announcements Section ─── */
+.announcement-item {
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border-left: 3px solid var(--primary);
+}
+
+.announcement-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-0);
+  margin-bottom: 4px;
+}
+
+.announcement-content {
+  font-size: 13px;
+  color: var(--text-1);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.announcement-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.announcement-author {
+  font-weight: 500;
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
@@ -162,8 +162,11 @@ export default function ServerSidebar({
 
         {/* Content */}
         <div className="sidebar-content">
+          {/* Announcements Section - Always visible */}
+          <AnnouncementsSection />
+
           {activeView === "dms" && (
-            <DMList 
+            <DMList
               dms={filteredDms}
               activeDmUser={activeDmUser}
               onlineUsers={onlineUsers}
@@ -174,7 +177,7 @@ export default function ServerSidebar({
           )}
 
           {activeView === "groups" && (
-            <GroupList 
+            <GroupList
               groups={filteredGroups}
               activeGroup={activeGroup}
               expanded={expandedSections.groups}
@@ -184,7 +187,7 @@ export default function ServerSidebar({
           )}
 
           {activeView === "friends" && (
-            <FriendsList 
+            <FriendsList
               friends={friends}
               onlineUsers={onlineUsers}
               expanded={expandedSections.friends}
@@ -437,8 +440,8 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect 
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <div className="friend-avatar">
-                      <Avatar 
-                        name={friend.username} 
+                      <Avatar
+                        name={friend.username}
                         size={32}
                         imageUrl={friend.avatarUrl}
                       />
@@ -448,6 +451,71 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect 
                   </motion.button>
                 ))}
               </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function AnnouncementsSection() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(true);
+
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        const token = getToken();
+        const res = await fetch(`${API_BASE_URL}/api/announcements`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setAnnouncements(Array.isArray(data.announcements) ? data.announcements : []);
+      } catch (err) {
+        console.error("Failed to load announcements:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnnouncements();
+  }, []);
+
+  return (
+    <div className="sidebar-section">
+      <button
+        className="section-header"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="section-title">📢 Announcements</span>
+        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="section-content"
+          >
+            {loading ? (
+              <div style={{ padding: "12px", color: "var(--text-muted)", fontSize: "13px" }}>Loading announcements...</div>
+            ) : announcements.length === 0 ? (
+              <div style={{ padding: "12px", color: "var(--text-muted)", fontSize: "13px" }}>No announcements</div>
+            ) : (
+              announcements.map((a) => (
+                <div key={a.id} className="announcement-item">
+                  <div className="announcement-title">{a.title}</div>
+                  <div className="announcement-content">{a.content}</div>
+                  <div className="announcement-meta">
+                    {a.author && <span className="announcement-author">By {a.author}</span>}
+                    {a.createdAt && <span className="announcement-date">{new Date(a.createdAt).toLocaleDateString()}</span>}
+                  </div>
+                </div>
+              ))
             )}
           </motion.div>
         )}
