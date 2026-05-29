@@ -105,15 +105,9 @@ export default function UserFeedbackButton({ socket, user }) {
         }),
       });
       
-      console.log("[Feedback] Response status:", res.status, res.statusText);
-      console.log("[Feedback] Response headers:", Object.fromEntries(res.headers.entries()));
-      
       const responseText = await res.text();
-      console.log("[Feedback] Raw response length:", responseText.length);
-      console.log("[Feedback] Raw response preview:", responseText.slice(0, 500));
       
       if (!responseText) {
-        console.error("[Feedback] EMPTY RESPONSE from server!");
         throw new Error("Server returned empty response");
       }
       
@@ -121,14 +115,10 @@ export default function UserFeedbackButton({ socket, user }) {
       try {
         data = JSON.parse(responseText);
       } catch (parseErr) {
-        console.error("[Feedback] JSON parse FAILED");
-        console.error("[Feedback] First 200 chars of response:", responseText.slice(0, 200));
-        console.error("[Feedback] Full response:", responseText);
         throw new Error(`Server returned invalid JSON: ${parseErr.message}`);
       }
       
       if (res.ok) {
-        console.log("[Feedback] Submit success:", data);
         setSubmitted(true);
         setTimeout(() => {
           setIsOpen(false);
