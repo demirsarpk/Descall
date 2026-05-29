@@ -57,7 +57,6 @@ export default function UserFeedbackButton({ socket, user }) {
     setIsSubmitting(true);
     
     try {
-      console.log("[FRONTEND] Entering try block");
       // Upload attachments first
       const attachmentUrls = [];
       // Use correct token key

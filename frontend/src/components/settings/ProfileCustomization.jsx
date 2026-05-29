@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { getToken } from "../../lib/storage";
 import { motion } from "framer-motion";
 import { 
   Camera, Palette, Type, Bell, Shield, Lock, Globe, 

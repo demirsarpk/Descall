@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getToken } from "../lib/storage";
 import { API_BASE_URL } from "../config/api";
 
 const STORAGE_KEY = "descall_profile_customization";
