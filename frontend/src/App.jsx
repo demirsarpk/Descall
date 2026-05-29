@@ -584,9 +584,6 @@ export default function App() {
 
   return (
     <div className="app-container">
-        {(me?.is_admin || me?.username === "admin") && !adminOpen && (
-          <button type="button" className="admin-fab" onClick={() => setAdminOpen(true)} title="Admin panel">Admin</button>
-        )}
         {(me?.is_admin || me?.username === "admin") && adminOpen && (
           <AdminPanel socket={socketApi} onClose={() => setAdminOpen(false)} onAdminChanged={() => setAdminChanged(true)} />
         )}
@@ -602,6 +599,8 @@ export default function App() {
           dms={friends}
           friends={friends}
           onlineUsers={onlineUsers}
+          onAdminClick={() => setAdminOpen(true)}
+          isAdmin={me?.is_admin || me?.username === "admin"}
         >
           <MessageList messages={dmMessages} currentUser={me} />
           <MessageComposer />

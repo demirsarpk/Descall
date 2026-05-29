@@ -8,7 +8,6 @@ import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
-import AdminMenu from "./AdminMenu";
 import { Avatar } from "../ui/Avatar";
 
 /**
@@ -79,16 +78,6 @@ export default function AppLayout({
         )}
       </AnimatePresence>
 
-      {/* Admin Menu - Completely rebuilt */}
-      <AnimatePresence>
-        {adminMenuOpen && (
-          <AdminMenu 
-            onClose={() => setAdminMenuOpen(false)}
-            onLogout={onLogout}
-            me={me}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

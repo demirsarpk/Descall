@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { 
   MessageSquare, Users, Settings, Bell, 
-  LogOut, User, Search, Plus, Mic, Phone
+  LogOut, User, Search, Plus, Mic, Phone, Shield
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 
@@ -15,7 +15,8 @@ export default function NavigationRail({
   onViewChange, 
   onAdminClick, 
   onUserClick,
-  me 
+  me,
+  isAdmin
 }) {
   const navItems = [
     { id: "chat", icon: MessageSquare, label: "Chats" },
@@ -68,15 +69,17 @@ export default function NavigationRail({
           />
         </motion.button>
 
-        <motion.button
-          className="rail-btn subtle"
-          onClick={onAdminClick}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title="Admin Menu"
-        >
-          <Settings size={24} strokeWidth={2} />
-        </motion.button>
+        {isAdmin && (
+          <motion.button
+            className="rail-btn admin-btn"
+            onClick={onAdminClick}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            title="Admin Panel"
+          >
+            <Shield size={24} strokeWidth={2} />
+          </motion.button>
+        )}
       </div>
     </nav>
   );
