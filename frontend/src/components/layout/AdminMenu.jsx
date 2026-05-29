@@ -209,13 +209,13 @@ function UsersSection() {
               <td>john_doe</td>
               <td><span className="badge online">Online</span></td>
               <td>Admin</td>
-              <td><button className="table-action">Edit</button></td>
+              <td><button className="table-action" onClick={() => alert('Edit user coming soon')}>Edit</button></td>
             </tr>
             <tr>
               <td>jane_smith</td>
               <td><span className="badge offline">Offline</span></td>
               <td>User</td>
-              <td><button className="table-action">Edit</button></td>
+              <td><button className="table-action" onClick={() => alert('Edit user coming soon')}>Edit</button></td>
             </tr>
           </tbody>
         </table>
@@ -301,5 +301,4 @@ function AppearanceSection() {
     </div>
   );
 }
-
 import { useState } from "react";

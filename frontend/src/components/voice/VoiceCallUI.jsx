@@ -224,7 +224,7 @@ export default function VoiceCallUI({
             </button>
 
             <div className="volume-control">
-              <button className="icon-btn">
+              <button className="icon-btn" onClick={() => setVolume(volume > 0 ? 0 : 100)}>
                 {volume > 0 ? <Volume2 size={20} /> : <VolumeX size={20} />}
               </button>
               <input
@@ -250,5 +250,3 @@ export default function VoiceCallUI({
     </motion.div>
   );
 }
-
-import { X } from "lucide-react";

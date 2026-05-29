@@ -102,7 +102,7 @@ export default function TitleBar() {
           onClick={handleMinimize}
           className="win-btn minimize"
           style={winBtnStyle}
-          title="Küçült"
+          title="Minimize"
         >
           <Minus size={16} strokeWidth={2} />
         </button>
@@ -112,7 +112,7 @@ export default function TitleBar() {
           onClick={handleMaximize}
           className="win-btn maximize"
           style={winBtnStyle}
-          title={isMaximized ? "Geri Yükle" : "Büyüt"}
+          title={isMaximized ? "Restore" : "Maximize"}
         >
           {isMaximized ? <Square size={12} strokeWidth={2} /> : <Square size={14} strokeWidth={2} />}
         </button>
@@ -125,7 +125,7 @@ export default function TitleBar() {
             ...winBtnStyle,
             width: '46px',
           }}
-          title="Kapat"
+          title="Close"
         >
           <X size={16} strokeWidth={2} />
         </button>

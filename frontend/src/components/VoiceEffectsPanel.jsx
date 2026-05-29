@@ -376,8 +376,8 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
             <div className="rnnoise-info">
               <Headphones size={18} className={sidetoneEnabled ? 'active-icon' : ''} />
               <div>
-                <span className="rnnoise-title">Ses Monitörü</span>
-                <span className="rnnoise-desc">Efektleri test etmek için kendi sesini duy</span>
+                <span className="rnnoise-title">Sidetone</span>
+                <span className="rnnoise-desc">Hear your own voice to test effects</span>
               </div>
             </div>
             <button 
@@ -385,7 +385,7 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
               onClick={toggleSidetone}
             >
               {sidetoneEnabled ? <Headphones size={16} /> : <VolumeX size={16} />}
-              {sidetoneEnabled ? 'Açık' : 'Kapalı'}
+              {sidetoneEnabled ? 'On' : 'Off'}
             </button>
           </div>
 
