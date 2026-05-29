@@ -99,7 +99,7 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
           setDownloadLinks({ windows: FALLBACK_DOWNLOAD_URL, mac: null, linux: null });
           setLatestRelease({ tag_name: 'v1.3.0' }); // Update version manually
         } else {
-          setReleaseError('Download coming soon! Setup file not available yet.');
+          setReleaseError('Release not found. Please check the GitHub repository.');
         }
         setLoading(false);
         return;
