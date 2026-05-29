@@ -11,8 +11,8 @@ import { API_BASE_URL } from "../../config/api";
 import { uploadFile } from "../../api/media";
 
 /**
- * Profil Özelleştirme Paneli (15+ özellik)
- * 
+ * Profile Customization Panel (15+ features)
+ *
  * 1. Avatar
  * 2. Display name
  * 3. Bio/About me
