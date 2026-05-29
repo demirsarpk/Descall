@@ -20,6 +20,7 @@ export default function ChatPanel({
   activeGroup,
   sidebarCollapsed,
   onlineUsers,
+  onSendMessage,
   children
 }) {
   const messagesRef = useRef(null);

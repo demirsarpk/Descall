@@ -10,7 +10,7 @@ import {
  * Discord-style message input
  * No old layout remnants
  */
-export default function MessageComposer() {
+export default function MessageComposer({ onSend, disabled = false }) {
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -23,9 +23,8 @@ export default function MessageComposer() {
   }, []);
 
   const handleSend = () => {
-    if (!message.trim()) return;
-    // Message sending is handled by parent component via props
-    // This is a placeholder - the actual implementation should receive onSend prop
+    if (!message.trim() || disabled) return;
+    onSend?.(message.trim());
     setMessage("");
   };
 
