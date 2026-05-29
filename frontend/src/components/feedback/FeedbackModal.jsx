@@ -121,7 +121,6 @@ export default function FeedbackModal({ isOpen, onClose }) {
         handleClose();
       }, 2000);
     } catch (err) {
-      console.error("[Feedback] Submit error:", err);
       setError(err.message || "Failed to submit feedback");
     } finally {
       setIsSubmitting(false);
