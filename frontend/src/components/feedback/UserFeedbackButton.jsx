@@ -59,9 +59,6 @@ export default function UserFeedbackButton({ socket, user }) {
     try {
       // Upload attachments first
       const attachmentUrls = [];
-      // Use correct token key
-      const token = localStorage.getItem("descall_token");
-      console.log("[FRONTEND] Using token from 'descall_token':", !!token);
       
       for (const file of attachments) {
         const formData = new FormData();
