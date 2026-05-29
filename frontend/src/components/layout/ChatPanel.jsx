@@ -19,6 +19,7 @@ export default function ChatPanel({
   activeDmUser,
   activeGroup,
   sidebarCollapsed,
+  onlineUsers,
   children
 }) {
   const messagesRef = useRef(null);
@@ -45,7 +46,7 @@ export default function ChatPanel({
 
   const getSubtitle = () => {
     if (activeDmUser) {
-      const isOnline = true; // Would check onlineUsers
+      const isOnline = onlineUsers?.some(u => u.id === activeDmUser.id);
       return isOnline ? "Online" : "Offline";
     }
     if (activeGroup) {

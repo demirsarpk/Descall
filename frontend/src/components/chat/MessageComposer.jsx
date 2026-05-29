@@ -24,8 +24,8 @@ export default function MessageComposer() {
 
   const handleSend = () => {
     if (!message.trim()) return;
-    // Send message logic here
-    console.log("Sending message:", message);
+    // Message sending is handled by parent component via props
+    // This is a placeholder - the actual implementation should receive onSend prop
     setMessage("");
   };
 
@@ -39,8 +39,7 @@ export default function MessageComposer() {
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Handle file upload
-      console.log("File selected:", file);
+      // File upload handling should be implemented via parent props
     }
   };
 

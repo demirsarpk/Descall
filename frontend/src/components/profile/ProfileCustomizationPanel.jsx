@@ -109,10 +109,8 @@ export default function ProfileCustomizationPanel({
           await refreshMe();
         }
       } else {
-        console.error("Avatar upload failed:", data.error);
       }
     } catch (err) {
-      console.error("Avatar upload error:", err);
     } finally {
       setUploading(false);
     }
@@ -138,10 +136,8 @@ export default function ProfileCustomizationPanel({
       if (response.ok) {
         updateProfile({ bannerUrl: data.bannerUrl });
       } else {
-        console.error("Banner upload failed:", data.error);
       }
     } catch (err) {
-      console.error("Banner upload error:", err);
     } finally {
       setUploading(false);
     }

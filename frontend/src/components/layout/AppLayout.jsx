@@ -64,6 +64,7 @@ export default function AppLayout({
         activeDmUser={activeDmUser}
         activeGroup={activeGroup}
         sidebarCollapsed={sidebarCollapsed}
+        onlineUsers={onlineUsers}
       >
         {children}
       </ChatPanel>

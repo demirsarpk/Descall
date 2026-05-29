@@ -3,7 +3,7 @@
  * Captures all frontend errors and sends them to admin logs
  */
 
-import { getCurrentUser } from './auth';
+import { getToken } from '../lib/storage';
 
 // Error buffer to prevent duplicate errors
 const errorBuffer = new Map();
@@ -142,7 +142,7 @@ async function sendToBackend(errorData) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('descall_token') || ''}`
+        'Authorization': `Bearer ${getToken() || ''}`
       },
       body: JSON.stringify({
         message: errorData.message,

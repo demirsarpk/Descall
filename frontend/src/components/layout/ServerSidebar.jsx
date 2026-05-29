@@ -98,6 +98,9 @@ export default function ServerSidebar({
               onlineUsers={onlineUsers}
               expanded={expandedSections.dms}
               onToggle={() => toggleSection("dms")}
+              onDmSelect={(dm) => {
+                // DM selection should be handled by parent via onDmSelect prop
+              }}
             />
           )}
 
@@ -124,7 +127,7 @@ export default function ServerSidebar({
   );
 }
 
-function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle }) {
+function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect }) {
   return (
     <div className="sidebar-section">
       <button 
@@ -151,6 +154,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle }) {
                 <motion.button
                   key={dm.id}
                   className={`dm-item ${isActive ? "active" : ""}`}
+                  onClick={() => onDmSelect?.(dm)}
                   whileHover={{ x: 4 }}
                   transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 >

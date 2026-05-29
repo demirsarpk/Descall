@@ -94,7 +94,6 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
     try {
       const response = await fetch(GITHUB_API);
       if (response.status === 404) {
-        console.log('No release found or repo is private');
         // Try fallback URL for private repos
         if (FALLBACK_DOWNLOAD_URL) {
           setDownloadLinks({ windows: FALLBACK_DOWNLOAD_URL, mac: null, linux: null });
@@ -128,7 +127,6 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
       
       setDownloadLinks(links);
     } catch (error) {
-      console.error('Failed to fetch release:', error);
       setReleaseError('Download coming soon! Check back later.');
     } finally {
       setLoading(false);
@@ -492,8 +490,6 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
                 setUsername('');
                 setPassword('');
               } catch (err) {
-                // Error is handled by authError prop
-                console.error('Login/Register failed:', err);
               }
             }}>
               <div className="form-group">

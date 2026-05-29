@@ -10,11 +10,6 @@ export async function httpRequest(path, options = {}) {
   const url = `${API_BASE_URL}${path}`;
   const bodyText = options.body || '{}';
   
-  console.log(`[HTTP] ${options.method || 'GET'} ${url}`);
-  console.log(`[HTTP] API_BASE_URL:`, API_BASE_URL);
-  console.log(`[HTTP] Full URL:`, url);
-  console.log(`[HTTP] Body:`, bodyText.slice(0, 200));
-  console.log(`[HTTP] Is Electron:`, !!window.electronAPI);
 
   try {
     const response = await fetch(url, {
@@ -29,11 +24,9 @@ export async function httpRequest(path, options = {}) {
     try {
       body = await response.json();
     } catch (parseError) {
-      console.error(`[HTTP] Failed to parse response:`, parseError);
       body = { error: "Invalid response from server" };
     }
 
-    console.log(`[HTTP] Response ${response.status}:`, body);
 
     if (!response.ok) {
       if (
@@ -49,8 +42,6 @@ export async function httpRequest(path, options = {}) {
 
     return body;
   } catch (networkError) {
-    console.error(`[HTTP] Network error:`, networkError);
-    console.error(`[HTTP] Failed URL:`, url);
     throw new Error(networkError.message || "Network error - check your connection");
   }
 }

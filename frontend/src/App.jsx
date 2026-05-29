@@ -95,15 +95,12 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        console.log("[App] Fetching me from /auth/me...");
-        const { user } = await getMe(token);
-        console.log("[App] Fetched me:", user);
+              const { user } = await getMe(token);
         if (!cancelled) {
           setUser(user);
           setMe(user);
         }
-      } catch {
-        console.error("[App] Failed to fetch me");
+      } catch (err) {
         if (!cancelled) {
           clearToken();
           clearUser();
@@ -136,13 +133,11 @@ export default function App() {
     if (!socketApi) return;
     
     const handleUserUpdated = (data) => {
-      console.log("[App] User updated event:", data);
       const token = getToken();
       if (!token) return;
       (async () => {
         try {
           const { user } = await getMe(token);
-          console.log("[App] Refreshed me after user:updated:", user);
           setMe(user);
           setUser(user);
         } catch {
@@ -158,13 +153,11 @@ export default function App() {
   // Refresh me when admin panel closes with changes
   useEffect(() => {
     if (!adminChanged) return;
-    console.log("[App] Admin changed, refreshing me...");
     const token = getToken();
     if (!token) return;
     (async () => {
       try {
         const { user } = await getMe(token);
-        console.log("[App] Refreshed me:", user);
         setMe(user);
         setUser(user);
       } catch {
@@ -181,12 +174,10 @@ export default function App() {
     if (!token) return;
     try {
       const { user } = await getMe(token);
-      console.log("[App] Refreshed me:", user);
       setMe(user);
       setUser(user);
       return user;
     } catch (err) {
-      console.error("[App] Failed to refresh me:", err);
     }
   }, []);
 
@@ -436,15 +427,12 @@ export default function App() {
       setAuthLoading(true);
       setAuthError("");
       await verifyBackendEndpoint();
-      console.log("[Login] Attempting login for:", payload.username);
       const data = await login(payload);
-      console.log("[Login] Success, token received:", !!data.token);
       transportFallbackStepRef.current = 0;
       setToken(data.token);
       setUser(data.user);
       setMe(data.user);
     } catch (error) {
-      console.error("[Login] Failed:", error.message);
       setAuthError(error.message);
     } finally {
       setAuthLoading(false);
@@ -477,20 +465,16 @@ export default function App() {
     setMyGroups([]);
   };
 
-  // Gruplari cek
   const fetchGroups = useCallback(async () => {
     try {
       const raw = await getMyGroups();
       const groups = normalizeGroups(raw);
-      console.log("[App] Fetched groups:", groups.length || 0);
       setMyGroups(groups);
     } catch (err) {
-      console.error("[App] Failed to fetch groups:", err);
       setMyGroups([]);
     }
   }, []);
 
-  // Login oldugunda gruplari cek
   useEffect(() => {
     if (me?.id) {
       fetchGroups();
@@ -499,7 +483,7 @@ export default function App() {
 
   const handleOpenDm = (friend) => {
     if (!friend || !friend.id) {
-      // DM'yi kapat (null friend)
+      // Close DM (null friend)
       setActiveDmUser(null);
       socketRef.current?.emit("dm:set_active", { withUserId: null });
       return;

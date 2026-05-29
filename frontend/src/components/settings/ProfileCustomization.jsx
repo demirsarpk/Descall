@@ -160,7 +160,6 @@ export default function ProfileCustomization({ me, onUpdate }) {
 
       await onUpdate?.(profile);
     } catch (err) {
-      console.error("Failed to save profile:", err);
       alert("Failed to save profile. Please try again.");
     } finally {
       setIsSaving(false);
@@ -174,7 +173,6 @@ export default function ProfileCustomization({ me, onUpdate }) {
         const result = await uploadFile(file);
         handleChange("avatarUrl", result.url);
       } catch (err) {
-        console.error("Failed to upload avatar:", err);
         alert("Failed to upload avatar. Please try again.");
       }
     }
@@ -187,7 +185,6 @@ export default function ProfileCustomization({ me, onUpdate }) {
         const result = await uploadFile(file);
         handleChange("bannerUrl", result.url);
       } catch (err) {
-        console.error("Failed to upload banner:", err);
         alert("Failed to upload banner. Please try again.");
       }
     }

@@ -114,36 +114,30 @@ export function useCall(socket) {
     pc.ontrack = (e) => {
       const remoteStream = e.streams[0];
       const track = e.track;
-      console.log("[WebRTC] ontrack received:", track?.kind, "muted:", track?.muted, "enabled:", track?.enabled, "id:", track?.id);
-      console.log("[WebRTC] Remote stream tracks:", remoteStream?.getTracks().map(t => `${t.kind}(enabled:${t.enabled},muted:${t.muted},state:${t.readyState})`));
       
       // Store remote stream for later use
       if (track.kind === "audio" && remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = remoteStream;
         remoteAudioRef.current.muted = false; // Ensure not muted
-        remoteAudioRef.current.play().catch((err) => console.error("[WebRTC] Audio play error:", err));
-        console.log("[WebRTC] Audio stream attached to remoteAudioRef");
+        remoteAudioRef.current.play().catch((err) => {});
       }
       
       if (track.kind === "video" && remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
-        remoteVideoRef.current.play().catch((err) => console.error("[WebRTC] Video play error:", err));
-        console.log("[WebRTC] Video stream attached to remoteVideoRef");
+        remoteVideoRef.current.play().catch((err) => {});
       }
       
       // Handle muted tracks - wait for unmute
       if (track?.muted) {
-        console.log("[WebRTC] Track is initially muted, waiting for unmute...");
         track.onunmute = () => {
-          console.log("[WebRTC] Track unmuted:", track.kind);
           if (track.kind === "video" && remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = remoteStream;
-            remoteVideoRef.current.play().catch((err) => console.error("[WebRTC] Video play error after unmute:", err));
+            remoteVideoRef.current.play().catch((err) => {});
           }
           if (track.kind === "audio" && remoteAudioRef.current) {
             remoteAudioRef.current.srcObject = remoteStream;
             remoteAudioRef.current.muted = false;
-            remoteAudioRef.current.play().catch((err) => console.error("[WebRTC] Audio play error after unmute:", err));
+            remoteAudioRef.current.play().catch((err) => {});
           }
         };
       }
@@ -152,11 +146,11 @@ export function useCall(socket) {
       if (remoteAudioRef.current && !remoteAudioRef.current.srcObject) {
         remoteAudioRef.current.srcObject = remoteStream;
         remoteAudioRef.current.muted = false;
-        remoteAudioRef.current.play().catch((err) => console.error("[WebRTC] Audio play error (fallback):", err));
+        remoteAudioRef.current.play().catch((err) => {});
       }
       if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
         remoteVideoRef.current.srcObject = remoteStream;
-        remoteVideoRef.current.play().catch((err) => console.error("[WebRTC] Video play error (fallback):", err));
+        remoteVideoRef.current.play().catch((err) => {});
       }
     };
 
@@ -355,7 +349,6 @@ export function useCall(socket) {
 
   const toggleCamera = useCallback(async () => {
     const pc = pcRef.current;
-    console.log("[Camera] Toggle called, pc exists:", !!pc, "cameraOn:", cameraOn);
     if (!pc) return;
 
     if (cameraOn) {
@@ -363,7 +356,6 @@ export function useCall(socket) {
       const videoTrack = localStreamRef.current?.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = false;
-        console.log("[Camera] Video track disabled");
       }
       if (localVideoRef.current) localVideoRef.current.style.display = "none";
       setCameraOn(false);
@@ -375,7 +367,6 @@ export function useCall(socket) {
         if (videoTrack) {
           // Re-enable existing track
           videoTrack.enabled = true;
-          console.log("[Camera] Video track re-enabled");
         } else {
           // Get new video stream
           const videoStream = await navigator.mediaDevices.getUserMedia({
@@ -390,20 +381,18 @@ export function useCall(socket) {
           
           // Add to peer connection - use transceiver to ensure it's sent
           const sender = pc.addTrack(videoTrack, localStreamRef.current);
-          console.log("[Camera] Track added to peer connection, sender:", !!sender);
         }
         
         if (localVideoRef.current) {
           localVideoRef.current.style.display = "block";
           localVideoRef.current.srcObject = localStreamRef.current;
-          localVideoRef.current.play().catch((e) => console.error("[Camera] Local play error:", e));
+          localVideoRef.current.play().catch((e) => {});
         }
         setCameraOn(true);
         setCallType("video");
         
         // Trigger renegotiation for new track
         if (pc.signalingState === "stable") {
-          console.log("[Camera] Triggering renegotiation...");
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           if (peerRef.current?.id && socket?.connected) {
@@ -415,35 +404,29 @@ export function useCall(socket) {
           }
         }
       } catch (err) { 
-        console.error("[Camera] Error:", err); 
       }
     }
   }, [cameraOn, socket]);
 
   const startScreenShare = useCallback(async () => {
     const pc = pcRef.current;
-    console.log("[Screen] Start called, pc exists:", !!pc, "screenSharing:", screenSharing);
     if (!pc || screenSharing) return;
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: { cursor: "always", width: 1920, height: 1080 },
         audio: false,
       });
-      console.log("[Screen] Got screen stream, tracks:", screenStream.getTracks().length);
 
       const screenTrack = screenStream.getVideoTracks()[0];
-      console.log("[Screen] Screen track:", screenTrack?.label, "enabled:", screenTrack?.enabled);
       
       // Add screen track - this triggers onnegotiationneeded
       const screenSender = pc.addTrack(screenTrack, screenStream);
-      console.log("[Screen] Track added, sender:", !!screenSender);
       screenSenderRef.current = screenSender;
       screenStreamRef.current = screenStream;
 
-      // Manuel renegotiation fallback (eğer onnegotiationneeded çalışmazsa)
+      // Manual renegotiation fallback
       setTimeout(async () => {
         if (pc.signalingState === "stable" && peerRef.current?.id && socket?.connected) {
-          console.log("[Screen] Manual renegotiation...");
           try {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
@@ -453,18 +436,16 @@ export function useCall(socket) {
               callType: "screen",
             });
           } catch (err) {
-            console.error("[Screen] Manual renegotiation failed:", err);
           }
         }
       }, 500);
 
       if (screenVideoRef.current) {
         screenVideoRef.current.srcObject = screenStream;
-        screenVideoRef.current.play().catch((e) => console.error("[Screen] Local play error:", e));
+        screenVideoRef.current.play().catch((e) => {});
       }
 
       screenTrack.onended = () => {
-        console.log("[Screen] Track ended by user");
         stopScreenShare();
       };
 
@@ -473,7 +454,6 @@ export function useCall(socket) {
         socket.emit("screen:share-start", { toUserId: peer.id });
       }
     } catch (err) {
-      console.error("[Screen] Error:", err);
     }
   }, [screenSharing, peer, socket]);
 
