@@ -566,33 +566,54 @@ function getTimeAgo(date) {
   return (
     <motion.div
       className="admin-shell"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ type: "spring", damping: 25, stiffness: 300 }}
     >
       <header className="admin-top">
-        <div>
-          <h1>Administration</h1>
-          <p className="admin-sub">Live moderation · backend-enforced · username === admin</p>
+        <div className="admin-header-content">
+          <div className="admin-header-icon">
+            <Shield size={32} />
+          </div>
+          <div>
+            <h1>Admin Panel</h1>
+            <p className="admin-sub">System administration & moderation</p>
+          </div>
         </div>
         <RippleButton type="button" className="admin-close" onClick={onClose}>
-          Close
+          <X size={20} />
         </RippleButton>
       </header>
 
-      {err && <div className="admin-error">{err}</div>}
+      {err && (
+        <motion.div 
+          className="admin-error"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <AlertTriangle size={16} />
+          {err}
+        </motion.div>
+      )}
 
       <nav className="admin-tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`admin-tab ${tab === t.id ? "active" : ""}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <motion.button
+              key={t.id}
+              type="button"
+              className={`admin-tab ${tab === t.id ? "active" : ""}`}
+              onClick={() => setTab(t.id)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Icon size={16} />
+              {t.label}
+            </motion.button>
+          );
+        })}
       </nav>
 
       <div className="admin-body custom-scroll">

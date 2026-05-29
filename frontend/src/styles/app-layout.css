@@ -99,6 +99,17 @@
   opacity: 1;
 }
 
+.rail-btn.admin-btn {
+  background: linear-gradient(135deg, #f23f43, #ff6b6b);
+  color: white;
+  box-shadow: 0 4px 12px rgba(242, 63, 67, 0.3);
+}
+
+.rail-btn.admin-btn:hover {
+  background: linear-gradient(135deg, #ff5252, #ff8585);
+  box-shadow: 0 6px 16px rgba(242, 63, 67, 0.4);
+}
+
 /* ─── Sidebar (Secondary) ─── */
 .sidebar-secondary {
   background: var(--surface-1);
