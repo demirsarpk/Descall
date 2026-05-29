@@ -43,7 +43,7 @@ export default function ChatPanel({
     if (activeGroup) return activeGroup.name;
     if (activeView === "chat") return "Chats";
     if (activeView === "dms") return "Direct Messages";
-    if (activeView === "groups") return "Servers";
+    if (activeView === "groups") return "Groups";
     if (activeView === "calls") return "Calls";
     return "Descall";
   };

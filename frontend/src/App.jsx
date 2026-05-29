@@ -601,6 +601,22 @@ export default function App() {
           onlineUsers={onlineUsers}
           onAdminClick={() => setAdminOpen(true)}
           isAdmin={me?.is_admin || me?.username === "admin"}
+          onDmSelect={(dm) => setActiveDmUser(dm)}
+          onGroupSelect={(group) => setActiveDmUser({ ...group, groupId: group.id })}
+          onSendMessage={(msg) => {
+            if (!activeDmUser || !socketApi) return;
+            socketApi.emit("dm:send", { toUserId: activeDmUser.id, content: msg });
+          }}
+          onVoiceCall={() => {
+            if (activeDmUser && call?.startCall) {
+              call.startCall(activeDmUser.id, "voice");
+            }
+          }}
+          onVideoCall={() => {
+            if (activeDmUser && call?.startCall) {
+              call.startCall(activeDmUser.id, "video");
+            }
+          }}
         >
           <MessageList messages={dmMessages} currentUser={me} />
           <MessageComposer />

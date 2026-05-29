@@ -25,11 +25,17 @@ export default function AppLayout({
   groups,
   dms,
   friends,
-  onlineUsers
+  onlineUsers,
+  onDmSelect,
+  onGroupSelect,
+  onSendMessage,
+  onVoiceCall,
+  onVideoCall,
+  onAdminClick,
+  isAdmin
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeView, setActiveView] = useState("chat"); // chat | dms | groups
-  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [activeView, setActiveView] = useState("chat");
   const [userPanelOpen, setUserPanelOpen] = useState(false);
 
   return (
@@ -38,9 +44,10 @@ export default function AppLayout({
       <NavigationRail 
         activeView={activeView}
         onViewChange={setActiveView}
-        onAdminClick={() => setAdminMenuOpen(!adminMenuOpen)}
+        onAdminClick={onAdminClick}
         onUserClick={() => setUserPanelOpen(!userPanelOpen)}
         me={me}
+        isAdmin={isAdmin}
       />
 
       {/* Server/Channel Sidebar - Secondary sidebar */}
@@ -55,15 +62,9 @@ export default function AppLayout({
         friends={friends}
         onlineUsers={onlineUsers}
         socket={socket}
-        onDmSelect={(dm) => {
-          // DM selection handled by parent
-        }}
-        onGroupSelect={(group) => {
-          // Group selection handled by parent
-        }}
-        onFriendSelect={(friend) => {
-          // Friend selection handled by parent
-        }}
+        onDmSelect={onDmSelect}
+        onGroupSelect={onGroupSelect}
+        onFriendSelect={onDmSelect}
       />
 
       {/* Main Chat Panel - Center content area */}
@@ -73,15 +74,9 @@ export default function AppLayout({
         activeGroup={activeGroup}
         sidebarCollapsed={sidebarCollapsed}
         onlineUsers={onlineUsers}
-        onSendMessage={(message) => {
-          // Message sending handled by parent
-        }}
-        onVoiceCall={() => {
-          // Voice call handled by parent
-        }}
-        onVideoCall={() => {
-          // Video call handled by parent
-        }}
+        onSendMessage={onSendMessage}
+        onVoiceCall={onVoiceCall}
+        onVideoCall={onVideoCall}
         onSettings={() => setUserPanelOpen(true)}
       >
         {children}

@@ -155,7 +155,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
         className="section-header"
         onClick={onToggle}
       >
-        <span className="section-title">Direct Messages</span>
+        <span className="section-title">Chats</span>
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
 
@@ -213,7 +213,7 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect }) {
         className="section-header"
         onClick={onToggle}
       >
-        <span className="section-title">Servers</span>
+        <span className="section-title">Groups</span>
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
 

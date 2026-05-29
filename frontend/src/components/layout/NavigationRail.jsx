@@ -20,7 +20,6 @@ export default function NavigationRail({
 }) {
   const navItems = [
     { id: "chat", icon: MessageSquare, label: "Chats" },
-    { id: "dms", icon: Users, label: "Direct Messages" },
     { id: "groups", icon: Users, label: "Groups" },
     { id: "calls", icon: Phone, label: "Calls" },
   ];
