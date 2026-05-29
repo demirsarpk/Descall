@@ -15,10 +15,10 @@ import { Avatar } from "../ui/Avatar";
  * Discord-inspired grid system
  * No old layout remnants
  */
-export default function AppLayout({ 
-  children, 
-  me, 
-  socket, 
+export default function AppLayout({
+  children,
+  me,
+  socket,
   onLogout,
   activeDmUser,
   activeGroup,
@@ -38,14 +38,26 @@ export default function AppLayout({
   const [activeView, setActiveView] = useState("chat");
   const [userPanelOpen, setUserPanelOpen] = useState(false);
 
+  const handleAddClick = () => {
+    setActiveView(activeView === "groups" ? "groups" : "dms");
+  };
+
+  const handleVoiceClick = () => {
+    if (activeDmUser && onVoiceCall) {
+      onVoiceCall();
+    }
+  };
+
   return (
     <div className="app-root">
       {/* Navigation Rail - Leftmost vertical bar */}
-      <NavigationRail 
+      <NavigationRail
         activeView={activeView}
         onViewChange={setActiveView}
         onAdminClick={onAdminClick}
         onUserClick={() => setUserPanelOpen(!userPanelOpen)}
+        onAddClick={handleAddClick}
+        onVoiceClick={handleVoiceClick}
         me={me}
         isAdmin={isAdmin}
       />

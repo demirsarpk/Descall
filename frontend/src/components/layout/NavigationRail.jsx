@@ -1,20 +1,17 @@
 import { motion } from "framer-motion";
-import { 
-  MessageSquare, Users, Settings, Bell, 
+import {
+  MessageSquare, Users, Settings, Bell,
   LogOut, User, Search, Plus, Mic, Phone, Shield
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 
-/**
- * COMPLETELY REBUILT NAVIGATION RAIL
- * Discord-style left vertical navigation
- * No old layout remnants
- */
-export default function NavigationRail({ 
-  activeView, 
-  onViewChange, 
-  onAdminClick, 
+export default function NavigationRail({
+  activeView,
+  onViewChange,
+  onAdminClick,
   onUserClick,
+  onAddClick,
+  onVoiceClick,
   me,
   isAdmin
 }) {
@@ -36,7 +33,7 @@ export default function NavigationRail({
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.id;
-          
+
           return (
             <motion.button
               key={item.id}
@@ -56,13 +53,33 @@ export default function NavigationRail({
       <div className="nav-rail-bottom">
         <motion.button
           className="rail-btn"
+          onClick={onAddClick}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title="Add New"
+        >
+          <Plus size={24} strokeWidth={2} />
+        </motion.button>
+
+        <motion.button
+          className="rail-btn"
+          onClick={onVoiceClick}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title="Voice Chat"
+        >
+          <Mic size={24} strokeWidth={2} />
+        </motion.button>
+
+        <motion.button
+          className="rail-btn"
           onClick={onUserClick}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           title="User Settings"
         >
-          <Avatar 
-            name={me?.username || "User"} 
+          <Avatar
+            name={me?.username || "User"}
             size={32}
             imageUrl={me?.avatarUrl}
           />
