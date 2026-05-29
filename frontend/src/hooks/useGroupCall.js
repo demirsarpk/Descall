@@ -504,7 +504,6 @@ export function useGroupCall(socket) {
             try {
               peerData.pc.addTrack(videoTrack, localStreamRef.current);
             } catch (err) {
-              console.error(`[GroupCall] Failed to add video for ${userId}:`, err);
             }
           });
         }
@@ -679,7 +678,6 @@ export function useGroupCall(socket) {
             }
           }
         } catch (err) {
-          console.error(`[GroupCall] Failed to prepare stop operation for ${userId}:`, err);
         }
       }
     }
@@ -689,10 +687,8 @@ export function useGroupCall(socket) {
       try {
         if (operation.type === 'replace') {
           await operation.sender.replaceTrack(operation.track);
-          console.log(`[GroupCall] Replaced screen track with camera track for ${operation.userId}`);
         } else if (operation.type === 'remove') {
           operation.peerConnection.removeTrack(operation.sender);
-          console.log(`[GroupCall] Removed screen track for ${operation.userId} (voice call)`);
           
           // Renegotiate back to audio-only
           const offer = await operation.peerConnection.createOffer();

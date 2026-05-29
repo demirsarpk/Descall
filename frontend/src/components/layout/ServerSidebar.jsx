@@ -144,6 +144,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
             className="section-content"
           >
             {dms.map((dm) => {
@@ -155,8 +156,8 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
                   key={dm.id}
                   className={`dm-item ${isActive ? "active" : ""}`}
                   onClick={() => onDmSelect?.(dm)}
-                  whileHover={{ x: 4 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
                   <div className="dm-avatar">
                     <Avatar 
@@ -199,6 +200,7 @@ function GroupList({ groups, activeGroup, expanded, onToggle }) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
             className="section-content"
           >
             {groups.map((group) => {
@@ -208,8 +210,8 @@ function GroupList({ groups, activeGroup, expanded, onToggle }) {
                 <motion.button
                   key={group.id}
                   className={`group-item ${isActive ? "active" : ""}`}
-                  whileHover={{ x: 4 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
                   <div className="group-icon">
                     {group.icon ? (
@@ -258,6 +260,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle }) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
             className="section-content"
           >
             {onlineFriends.length > 0 && (
@@ -267,7 +270,8 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle }) {
                   <motion.button
                     key={friend.id}
                     className="friend-item"
-                    whileHover={{ x: 4 }}
+                    whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <div className="friend-avatar">
                       <Avatar 
@@ -290,7 +294,8 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle }) {
                   <motion.button
                     key={friend.id}
                     className="friend-item offline"
-                    whileHover={{ x: 4 }}
+                    whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <div className="friend-avatar">
                       <Avatar 
