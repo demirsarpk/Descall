@@ -1,10 +1,10 @@
 import { useState, useRef } from "react";
 import { getToken } from "../../lib/storage";
 import { motion } from "framer-motion";
-import { 
-  Camera, Palette, Type, Bell, Shield, Lock, Globe, 
-  Clock, Moon, Sun, Volume2, Keyboard, UserX, 
-  Download, Mail, Smartphone, Eye, EyeOff 
+import {
+  Camera, Palette, Type, Bell, Shield, Lock, Globe,
+  Clock, Moon, Sun, Volume2, Keyboard, UserX,
+  Download, Mail, Smartphone, Eye, EyeOff, AlertCircle
 } from "lucide-react";
 import RippleButton from "../ui/RippleButton";
 import { API_BASE_URL } from "../../config/api";
@@ -37,6 +37,7 @@ import { uploadFile } from "../../api/media";
 export default function ProfileCustomization({ me, onUpdate }) {
   const [activeTab, setActiveTab] = useState("profile");
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
   const fileInputRef = useRef(null);
   const bannerInputRef = useRef(null);
 
@@ -161,7 +162,8 @@ export default function ProfileCustomization({ me, onUpdate }) {
 
       await onUpdate?.(profile);
     } catch (err) {
-      alert("Failed to save profile. Please try again.");
+      setError("Failed to save profile. Please try again.");
+      setTimeout(() => setError(""), 5000);
     } finally {
       setIsSaving(false);
     }
@@ -174,7 +176,8 @@ export default function ProfileCustomization({ me, onUpdate }) {
         const result = await uploadFile(file);
         handleChange("avatarUrl", result.url);
       } catch (err) {
-        alert("Failed to upload avatar. Please try again.");
+        setError("Failed to upload avatar. Please try again.");
+        setTimeout(() => setError(""), 5000);
       }
     }
   };
@@ -186,7 +189,8 @@ export default function ProfileCustomization({ me, onUpdate }) {
         const result = await uploadFile(file);
         handleChange("bannerUrl", result.url);
       } catch (err) {
-        alert("Failed to upload banner. Please try again.");
+        setError("Failed to upload banner. Please try again.");
+        setTimeout(() => setError(""), 5000);
       }
     }
   };
@@ -201,6 +205,21 @@ export default function ProfileCustomization({ me, onUpdate }) {
 
   return (
     <div className="profile-customization">
+      {/* Error Display */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="pc-error-banner"
+          >
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
       <aside className="pc-sidebar">
         {tabs.map(tab => (

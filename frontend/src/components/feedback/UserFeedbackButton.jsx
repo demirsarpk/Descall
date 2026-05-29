@@ -1,9 +1,9 @@
 import { useState, useRef } from "react";
 import { getToken } from "../../lib/storage";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  MessageSquare, X, Send, Image, AlertTriangle, 
-  Star, CheckCircle, Flag, Loader2, Paperclip
+import {
+  MessageSquare, X, Send, Image, AlertTriangle,
+  Star, CheckCircle, Flag, Loader2, Paperclip, AlertCircle
 } from "lucide-react";
 import RippleButton from "../ui/RippleButton";
 import { API_BASE_URL } from "../../config/api";
@@ -32,12 +32,14 @@ export default function UserFeedbackButton({ socket, user }) {
   const [attachments, setAttachments] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
   const fileInputRef = useRef(null);
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
     if (attachments.length + files.length > 5) {
-      alert("Maximum 5 attachments allowed");
+      setError("Maximum 5 attachments allowed");
+      setTimeout(() => setError(""), 3000);
       return;
     }
     setAttachments(prev => [...prev, ...files].slice(0, 5));
@@ -133,7 +135,8 @@ export default function UserFeedbackButton({ socket, user }) {
         throw new Error(data.error || data.details || `HTTP ${res.status}: ${responseText.slice(0, 100)}`);
       }
     } catch (err) {
-      alert("Failed to submit feedback: " + err.message);
+      setError("Failed to submit feedback: " + err.message);
+      setTimeout(() => setError(""), 5000);
     } finally {
       setIsSubmitting(false);
     }
@@ -169,8 +172,23 @@ export default function UserFeedbackButton({ socket, user }) {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              onClick={e => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
+              {/* Error Display */}
+              <AnimatePresence>
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="feedback-error-banner"
+                  >
+                    <AlertCircle size={16} />
+                    <span>{error}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {submitted ? (
                 <div className="feedback-success">
                   <motion.div

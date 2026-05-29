@@ -84,11 +84,15 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
   const [newFeedbackCount, setNewFeedbackCount] = useState(0);
   const [feedbackCategories, setFeedbackCategories] = useState([]);
   const [feedbackPriority, setFeedbackPriority] = useState("all");
-  
+
   // Announcements States
   const [announcements, setAnnouncements] = useState([]);
   const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", priority: "normal", color: "#6678ff" });
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+
+  // Success/Error Messages
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   
   // Moderation States
   const [bannedWords, setBannedWords] = useState([]);
@@ -579,6 +583,32 @@ function getTimeAgo(date) {
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
       >
         <header className="admin-top">
+          {/* Success/Error Messages */}
+          <AnimatePresence>
+            {successMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="admin-success-banner"
+              >
+                <CheckCircle size={16} />
+                <span>{successMessage}</span>
+              </motion.div>
+            )}
+            {errorMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="admin-error-banner"
+              >
+                <AlertCircle size={16} />
+                <span>{errorMessage}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
         <div className="admin-header-content">
           <div className="admin-header-icon">
             <Shield size={32} />
@@ -1756,7 +1786,8 @@ function getTimeAgo(date) {
                   onClick={() =>
                     act(async () => {
                       await adminFetch("/cache/clear", { method: "POST" });
-                      alert("Cache cleared successfully");
+                      setSuccessMessage("Cache cleared successfully");
+                      setTimeout(() => setSuccessMessage(""), 3000);
                     })
                   }
                 >
@@ -1772,7 +1803,8 @@ function getTimeAgo(date) {
                   onClick={() =>
                     act(async () => {
                       await adminFetch("/logs/archive", { method: "POST" });
-                      alert("Old logs archived successfully");
+                      setSuccessMessage("Old logs archived successfully");
+                      setTimeout(() => setSuccessMessage(""), 3000);
                     })
                   }
                 >
@@ -1788,7 +1820,8 @@ function getTimeAgo(date) {
                   onClick={() =>
                     act(async () => {
                       const d = await adminFetch("/backup", { method: "POST" });
-                      alert("Backup created: " + d.backupId);
+                      setSuccessMessage("Backup created: " + d.backupId);
+                      setTimeout(() => setSuccessMessage(""), 5000);
                     })
                   }
                 >

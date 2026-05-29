@@ -200,6 +200,34 @@
   color: var(--text-muted);
 }
 
+/* ─── Profile Customization Error Banner ─── */
+.pc-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(242, 63, 67, 0.15);
+  border: 1px solid rgba(242, 63, 67, 0.3);
+  border-radius: 8px;
+  color: #f23f43;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* ─── Feedback Error Banner ─── */
+.feedback-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(242, 63, 67, 0.15);
+  border: 1px solid rgba(242, 63, 67, 0.3);
+  border-radius: 6px;
+  color: #f23f43;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
 /* ─── Settings Groups ─── */
 .settings-group {
   display: flex;
