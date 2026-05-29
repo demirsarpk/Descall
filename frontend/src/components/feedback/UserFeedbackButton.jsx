@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { getToken } from "../../lib/storage";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MessageSquare, X, Send, Image, AlertTriangle, 
@@ -47,16 +48,9 @@ export default function UserFeedbackButton({ socket, user }) {
   };
 
   const handleSubmit = async () => {
-    console.log("[FRONTEND] ========== handleSubmit START ==========");
-    console.log("[FRONTEND] Message:", message?.slice(0, 50));
-    console.log("[FRONTEND] Category:", category);
-    console.log("[FRONTEND] Priority:", priority);
-    const token = localStorage.getItem("descall_token");
-    console.log("[FRONTEND] Token key 'descall_token':", !!token);
-    console.log("[FRONTEND] Token key 'token':", !!localStorage.getItem("token"));
+    const token = getToken();
     
     if (!message.trim()) {
-      console.log("[FRONTEND] REJECTED: Empty message");
       return;
     }
     

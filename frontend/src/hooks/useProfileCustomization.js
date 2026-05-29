@@ -101,7 +101,7 @@ export function useProfileCustomization() {
     // Also update backend if avatarUrl or bannerUrl is included
     if (updates.avatarUrl || updates.bannerUrl) {
       try {
-        const token = localStorage.getItem("descall_token");
+        const token = getToken();
         if (!token) return;
 
         const response = await fetch(`${API_BASE_URL}/api/user/profile`, {

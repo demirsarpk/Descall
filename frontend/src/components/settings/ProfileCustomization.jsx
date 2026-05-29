@@ -92,7 +92,7 @@ export default function ProfileCustomization({ me, onUpdate }) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const token = localStorage.getItem("descall_token");
+      const token = getToken();
       
       // Update profile
       await fetch(`${API_BASE_URL}/api/user/profile`, {

@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { getToken } from "../../lib/storage";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Palette,
@@ -90,7 +91,7 @@ export default function ProfileCustomizationPanel({
     
     try {
       setUploading(true);
-      const token = localStorage.getItem("descall_token");
+      const token = getToken();
       const formData = new FormData();
       formData.append("avatar", file);
       
@@ -121,7 +122,7 @@ export default function ProfileCustomizationPanel({
     
     try {
       setUploading(true);
-      const token = localStorage.getItem("descall_token");
+      const token = getToken();
       const formData = new FormData();
       formData.append("banner", file);
       
