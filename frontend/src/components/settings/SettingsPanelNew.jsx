@@ -301,26 +301,87 @@ function SoundSection({ settings, setSettings }) {
 }
 
 function PrivacySection() {
+  const [settings, setSettings] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("descall_privacy_settings") || "{}"); }
+    catch { return {}; }
+  });
+  const persist = (key, value) => {
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    localStorage.setItem("descall_privacy_settings", JSON.stringify(next));
+  };
+
   return (
     <div className="section-content">
       <h3 className="section-title">Privacy & Safety</h3>
       <p className="section-desc">Configure your privacy settings</p>
-      <div className="placeholder-content">
-        <Lock size={48} className="placeholder-icon" />
-        <p>Privacy settings coming soon</p>
+      <div className="settings-group">
+        <h4 className="group-title">Direct Messages</h4>
+        <label className="settings-row check">
+          <input type="checkbox" checked={settings.allowDms !== false} onChange={(e) => persist("allowDms", e.target.checked)} />
+          <span>Allow direct messages from friends</span>
+        </label>
+        <label className="settings-row check">
+          <input type="checkbox" checked={settings.allowDmsFromEveryone === true} onChange={(e) => persist("allowDmsFromEveryone", e.target.checked)} />
+          <span>Allow direct messages from everyone</span>
+        </label>
+      </div>
+      <div className="settings-group">
+        <h4 className="group-title">Profile Visibility</h4>
+        <label className="settings-row check">
+          <input type="checkbox" checked={settings.showOnlineStatus !== false} onChange={(e) => persist("showOnlineStatus", e.target.checked)} />
+          <span>Show online status</span>
+        </label>
+        <label className="settings-row check">
+          <input type="checkbox" checked={settings.showActivity !== false} onChange={(e) => persist("showActivity", e.target.checked)} />
+          <span>Show activity status</span>
+        </label>
+      </div>
+      <div className="settings-group">
+        <h4 className="group-title">Friend Requests</h4>
+        <label className="settings-row check">
+          <input type="checkbox" checked={settings.allowFriendRequests !== false} onChange={(e) => persist("allowFriendRequests", e.target.checked)} />
+          <span>Allow friend requests</span>
+        </label>
       </div>
     </div>
   );
 }
 
 function AdvancedSection() {
+  const [devMode, setDevMode] = useState(() => localStorage.getItem("descall_dev_mode") === "true");
+  const [reduceMotion, setReduceMotion] = useState(() => localStorage.getItem("descall_reduce_motion") === "true");
+  const [hardwareAccel, setHardwareAccel] = useState(() => localStorage.getItem("descall_hw_accel") !== "false");
+
   return (
     <div className="section-content">
       <h3 className="section-title">Advanced</h3>
       <p className="section-desc">Developer and advanced options</p>
-      <div className="placeholder-content">
-        <Shield size={48} className="placeholder-icon" />
-        <p>Advanced settings coming soon</p>
+      <div className="settings-group">
+        <h4 className="group-title">Developer</h4>
+        <label className="settings-row check">
+          <input type="checkbox" checked={devMode} onChange={(e) => { setDevMode(e.target.checked); localStorage.setItem("descall_dev_mode", String(e.target.checked)); }} />
+          <span>Developer Mode (shows IDs and debug info)</span>
+        </label>
+      </div>
+      <div className="settings-group">
+        <h4 className="group-title">Performance</h4>
+        <label className="settings-row check">
+          <input type="checkbox" checked={reduceMotion} onChange={(e) => { setReduceMotion(e.target.checked); localStorage.setItem("descall_reduce_motion", String(e.target.checked)); }} />
+          <span>Reduce motion (disable animations)</span>
+        </label>
+        <label className="settings-row check">
+          <input type="checkbox" checked={hardwareAccel} onChange={(e) => { setHardwareAccel(e.target.checked); localStorage.setItem("descall_hw_accel", String(e.target.checked)); }} />
+          <span>Hardware acceleration</span>
+        </label>
+      </div>
+      <div className="settings-group">
+        <h4 className="group-title">Data</h4>
+        <motion.button className="settings-action-btn secondary" whileTap={{ scale: 0.97 }} onClick={() => {
+          if (window.confirm("Clear all local settings?")) { localStorage.clear(); window.location.reload(); }
+        }}>
+          Clear All Local Data
+        </motion.button>
       </div>
     </div>
   );

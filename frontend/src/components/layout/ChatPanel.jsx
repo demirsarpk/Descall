@@ -1,25 +1,21 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Phone, Video, MoreVertical, Users, 
-  Settings, Bell, Search, Plus, MessageSquare
+import {
+  Phone, Video, MoreVertical, Users,
+  Settings, Bell, Search, Plus, MessageSquare, X
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import MessageList from "../chat/MessageList";
 import MessageComposer from "../chat/MessageComposer";
 
-/**
- * COMPLETELY REBUILT CHAT PANEL
- * Discord-style main chat area
- * No old layout remnants
- */
-export default function ChatPanel({ 
+export default function ChatPanel({
   activeView,
   activeDmUser,
   activeGroup,
   sidebarCollapsed,
   onlineUsers,
+  messages = [],
   onSendMessage,
   onVoiceCall,
   onVideoCall,
@@ -27,6 +23,9 @@ export default function ChatPanel({
   children
 }) {
   const messagesRef = useRef(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showMembers, setShowMembers] = useState(false);
 
   const scrollToBottom = () => {
     if (messagesRef.current) {
@@ -92,21 +91,17 @@ export default function ChatPanel({
         </div>
 
         <div className="header-right">
-          <button 
-            className="icon-btn" 
+          <button
+            className={`icon-btn ${showSearch ? "active" : ""}`}
             title="Search"
-            onClick={() => {
-              alert('Search functionality coming soon');
-            }}
+            onClick={() => { setShowSearch(!showSearch); setShowMembers(false); }}
           >
             <Search size={20} />
           </button>
-          <button 
-            className="icon-btn" 
+          <button
+            className={`icon-btn ${showMembers ? "active" : ""}`}
             title="Members"
-            onClick={() => {
-              alert('Members list coming soon');
-            }}
+            onClick={() => { setShowMembers(!showMembers); setShowSearch(false); }}
           >
             <Users size={20} />
           </button>
@@ -140,6 +135,18 @@ export default function ChatPanel({
 
       {/* Messages Area */}
       <div className="messages-container" ref={messagesRef}>
+        {showSearch && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="chat-search-bar">
+            <Search size={16} />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search messages..."
+              autoFocus
+            />
+            <button className="icon-btn" onClick={() => { setShowSearch(false); setSearchQuery(""); }}><X size={16} /></button>
+          </motion.div>
+        )}
         {children || (
           <div className="empty-state">
             <div className="empty-icon">
@@ -153,12 +160,42 @@ export default function ChatPanel({
         )}
       </div>
 
+      {/* Members Panel */}
+      <AnimatePresence>
+        {showMembers && (
+          <motion.aside
+            className="members-panel"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 240, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <h4>Members</h4>
+            {activeGroup?.members?.map((m) => (
+              <div key={m.id} className="member-row">
+                <Avatar name={m.username} size={32} imageUrl={m.avatarUrl} />
+                <span>{m.username}</span>
+                <StatusBadge status={onlineUsers?.some((u) => u.id === m.id) ? "online" : "offline"} />
+              </div>
+            )) || (
+              activeDmUser && (
+                <div className="member-row">
+                  <Avatar name={activeDmUser.username} size={32} imageUrl={activeDmUser.avatarUrl} />
+                  <span>{activeDmUser.username}</span>
+                  <StatusBadge status={onlineUsers?.some((u) => u.id === activeDmUser.id) ? "online" : "offline"} />
+                </div>
+              )
+            )}
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
       {/* Composer */}
       {(activeDmUser || activeGroup) && (
         <div className="composer-container">
-          <MessageComposer 
-            onSend={onSendMessage} 
-            disabled={!activeDmUser && !activeGroup} 
+          <MessageComposer
+            onSend={onSendMessage}
+            disabled={!activeDmUser && !activeGroup}
           />
         </div>
       )}

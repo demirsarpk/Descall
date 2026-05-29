@@ -1871,3 +1871,66 @@
   color: #23a55a;
   font-size: 13px;
 }
+
+/* ─── ChatPanel Search & Members ─── */
+.chat-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-2);
+}
+
+.chat-search-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-0);
+  font-size: 14px;
+  outline: none;
+}
+
+.chat-search-bar input::placeholder {
+  color: var(--text-muted);
+}
+
+.members-panel {
+  background: var(--surface-1);
+  border-left: 1px solid var(--border-2);
+  padding: 16px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.members-panel h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 0 0 12px 0;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  transition: background 0.15s;
+}
+
+.member-row:hover {
+  background: var(--surface-2);
+}
+
+.member-row span {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

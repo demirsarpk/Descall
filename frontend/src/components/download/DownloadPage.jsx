@@ -127,7 +127,7 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
       
       setDownloadLinks(links);
     } catch (error) {
-      setReleaseError('Download coming soon! Check back later.');
+      setReleaseError('Unable to fetch release. Please try again later.');
     } finally {
       setLoading(false);
     }
