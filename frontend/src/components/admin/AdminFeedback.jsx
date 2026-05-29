@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Bell, X, Image, Paperclip, Send, CheckCircle, AlertTriangle, 
+import {
+  Bell, X, Image, Paperclip, Send, CheckCircle, AlertTriangle,
   Clock, User, MessageSquare, Filter, Search, Download, Eye,
   Reply, Trash2, Star, Flag, Check, ChevronDown, MoreHorizontal,
   RefreshCw, Archive, Mail, MailOpen, Paperclip as PaperclipIcon,
-  Maximize2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight
+  Maximize2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, AlertCircle
 } from "lucide-react";
 import { adminFetch } from "../../api/adminHttp";
 import RippleButton from "../ui/RippleButton";
@@ -37,6 +37,7 @@ export default function AdminFeedback({ socket }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState(null);
+  const [error, setError] = useState("");
   const [replyText, setReplyText] = useState("");
   const [filter, setFilter] = useState({ category: "all", priority: "all", status: "all" });
   const [searchQ, setSearchQ] = useState("");
@@ -82,7 +83,8 @@ export default function AdminFeedback({ socket }) {
       console.log("[AdminFeedback] Loaded", d.feedbacks?.length || 0, "feedbacks");
     } catch (e) {
       console.error("[AdminFeedback] Failed to load feedbacks:", e);
-      alert("Failed to load feedbacks: " + e.message);
+      setError("Failed to load feedbacks: " + e.message);
+      setTimeout(() => setError(""), 5000);
     } finally {
       setLoading(false);
     }
@@ -203,6 +205,21 @@ export default function AdminFeedback({ socket }) {
 
   return (
     <div className="admin-feedback-container">
+      {/* Error Display */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="admin-feedback-error-banner"
+          >
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Stats Cards */}
       <div className="admin-stats-grid">
         <motion.div className="admin-stat-card" whileHover={{ scale: 1.02 }}>
