@@ -4,7 +4,7 @@ import AuthView from "./components/AuthView";
 import AppLayout from "./components/layout/AppLayout";
 import DownloadPage from "./components/download/DownloadPage";
 import { getMe, login, register } from "./api/auth";
-import { getMyGroups } from "./api/groups";
+import { getMyGroups, getGroupMessages } from "./api/groups";
 import { createSocket } from "./socket";
 import { API_BASE_URL } from "./config/api";
 import { useCall } from "./hooks/useCall";
@@ -62,6 +62,7 @@ export default function App() {
   const [adminChanged, setAdminChanged] = useState(false);
   const [peerScreenSharing, setPeerScreenSharing] = useState(false);
   const [myGroups, setMyGroups] = useState([]);
+  const [groupMessagesById, setGroupMessagesById] = useState({});
 
   const socketRef = useRef(null);
   const activeDmRef = useRef(null);
@@ -90,8 +91,12 @@ export default function App() {
   }, [activeDmUser?.id]);
 
   const dmMessages = useMemo(
-    () => (activeDmUser ? dmByUserId[activeDmUser.id] ?? [] : []),
-    [activeDmUser, dmByUserId],
+    () => {
+      if (activeGroup) return groupMessagesById[activeGroup.id] ?? [];
+      if (activeDmUser) return dmByUserId[activeDmUser.id] ?? [];
+      return [];
+    },
+    [activeDmUser, activeGroup, dmByUserId, groupMessagesById],
   );
 
   useEffect(() => {
@@ -276,7 +281,10 @@ export default function App() {
       if (payload?.user) { setUser(payload.user); }
       // Request friend list and groups on connection
       socket.emit("friend:list");
-      getMyGroups().then(setMyGroups).catch(console.error);
+      getMyGroups().then((raw) => {
+        const groups = normalizeGroups(raw);
+        setMyGroups(groups);
+      }).catch(console.error);
     });
 
     socket.on("sync:state", (state) => {
@@ -385,6 +393,28 @@ export default function App() {
           });
         }
       }
+    });
+
+    // Group messages listener
+    socket.on("group:message", ({ groupId, message }) => {
+      if (!groupId || !message) return;
+      const normalized = {
+        id: message.id,
+        from: {
+          id: message.sender?.id || message.sender_id,
+          username: message.sender?.username || "Unknown",
+          avatarUrl: message.sender?.avatar_url,
+        },
+        text: message.content || "",
+        timestamp: message.created_at || new Date().toISOString(),
+        mediaUrl: message.media_url,
+        mediaType: message.media_type,
+      };
+      setGroupMessagesById((prev) => {
+        const cur = prev[groupId] ?? [];
+        if (cur.some((m) => m.id === normalized.id)) return prev;
+        return { ...prev, [groupId]: [...cur, normalized] };
+      });
     });
 
     socket.on("dm:message:update", ({ msgId, convWith, deliveredAt } = {}) => {
@@ -498,6 +528,29 @@ export default function App() {
       setMyGroups([]);
     }
   }, []);
+
+  // Fetch group messages when activeGroup changes
+  useEffect(() => {
+    if (!activeGroup?.id || groupMessagesById[activeGroup.id]) return;
+    getGroupMessages(activeGroup.id)
+      .then((res) => {
+        const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
+        const normalized = msgs.map((m) => ({
+          id: m.id,
+          from: {
+            id: m.sender?.id || m.sender_id,
+            username: m.sender?.username || "Unknown",
+            avatarUrl: m.sender?.avatar_url,
+          },
+          text: m.content || "",
+          timestamp: m.created_at || new Date().toISOString(),
+          mediaUrl: m.media_url,
+          mediaType: m.media_type,
+        }));
+        setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
+      })
+      .catch((err) => console.error("[App] fetch group messages error:", err));
+  }, [activeGroup?.id]);
 
   useEffect(() => {
     if (me?.id) {
@@ -652,6 +705,19 @@ export default function App() {
               }));
               socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: msg });
             } else if (activeGroup) {
+              // Optimistic group message
+              const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+              const optimistic = {
+                id: tempId,
+                from: { id: me?.id, username: me?.username, avatarUrl: me?.avatar_url },
+                text: msg,
+                timestamp: new Date().toISOString(),
+                sending: true,
+              };
+              setGroupMessagesById((prev) => ({
+                ...prev,
+                [activeGroup.id]: [...(prev[activeGroup.id] ?? []), optimistic],
+              }));
               socketRef.current?.emit("group:message", { groupId: activeGroup.id, content: msg });
             }
           }}
