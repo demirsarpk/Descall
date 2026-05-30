@@ -621,12 +621,12 @@ export default function App() {
           }}
           onVoiceCall={() => {
             if (activeDmUser && call?.startCall) {
-              call.startCall(activeDmUser.id, "voice");
+              call.startCall(activeDmUser, "voice");
             }
           }}
           onVideoCall={() => {
             if (activeDmUser && call?.startCall) {
-              call.startCall(activeDmUser.id, "video");
+              call.startCall(activeDmUser, "video");
             }
           }}
           onGroupVoiceCall={() => {
