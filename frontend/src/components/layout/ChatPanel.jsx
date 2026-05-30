@@ -21,6 +21,8 @@ export default function ChatPanel({
   onSendMessage,
   onVoiceCall,
   onVideoCall,
+  onGroupVoiceCall,
+  onGroupVideoCall,
   onSettings,
   children
 }) {
@@ -113,14 +115,14 @@ export default function ChatPanel({
               <button 
                 className="icon-btn" 
                 title="Voice Call"
-                onClick={() => onVoiceCall?.()}
+                onClick={() => activeGroup ? onGroupVoiceCall?.() : onVoiceCall?.()}
               >
                 <Phone size={20} />
               </button>
               <button 
                 className="icon-btn" 
                 title="Video Call"
-                onClick={() => onVideoCall?.()}
+                onClick={() => activeGroup ? onGroupVideoCall?.() : onVideoCall?.()}
               >
                 <Video size={20} />
               </button>

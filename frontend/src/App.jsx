@@ -50,6 +50,7 @@ export default function App() {
   const [dmUnread, setDmUnread] = useState({});
   const [notifications, setNotifications] = useState([]);
   const [activeDmUser, setActiveDmUser] = useState(null);
+  const [activeGroup, setActiveGroup] = useState(null);
   const [friendNotice, setFriendNotice] = useState("");
   const [socketApi, setSocketApi] = useState(null);
   const [typingDmUser, setTypingDmUser] = useState(null);
@@ -594,18 +595,28 @@ export default function App() {
           socket={socketApi}
           onLogout={handleLogout}
           activeDmUser={activeDmUser}
-          activeGroup={myGroups.find(g => g.id === activeDmUser?.groupId)}
-          groups={{ list: myGroups, active: { id: activeDmUser?.groupId } }}
+          activeGroup={activeGroup}
+          groups={myGroups}
           dms={friends}
           friends={friends}
           onlineUsers={onlineUsers}
           onAdminClick={() => setAdminOpen(true)}
           isAdmin={me?.is_admin || me?.username === "admin"}
-          onDmSelect={(dm) => setActiveDmUser(dm)}
-          onGroupSelect={(group) => setActiveDmUser({ ...group, groupId: group.id })}
+          onDmSelect={(dm) => {
+            setActiveDmUser(dm);
+            setActiveGroup(null);
+          }}
+          onGroupSelect={(group) => {
+            setActiveDmUser(null);
+            setActiveGroup(group);
+          }}
           onSendMessage={(msg) => {
-            if (!activeDmUser || !socketApi) return;
-            socketApi.emit("dm:send", { toUserId: activeDmUser.id, content: msg });
+            if (!socketApi) return;
+            if (activeDmUser) {
+              socketApi.emit("dm:send", { toUserId: activeDmUser.id, content: msg });
+            } else if (activeGroup) {
+              socketApi.emit("group:message", { groupId: activeGroup.id, content: msg });
+            }
           }}
           onVoiceCall={() => {
             if (activeDmUser && call?.startCall) {
@@ -617,9 +628,18 @@ export default function App() {
               call.startCall(activeDmUser.id, "video");
             }
           }}
+          onGroupVoiceCall={() => {
+            if (activeGroup && groupCall?.startGroupCall) {
+              groupCall.startGroupCall(activeGroup.id, "voice");
+            }
+          }}
+          onGroupVideoCall={() => {
+            if (activeGroup && groupCall?.startGroupCall) {
+              groupCall.startGroupCall(activeGroup.id, "video");
+            }
+          }}
         >
           <MessageList messages={dmMessages} currentUser={me} />
-          <MessageComposer />
         </AppLayout>
       </div>
   );

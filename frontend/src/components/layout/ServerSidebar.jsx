@@ -193,6 +193,65 @@ export default function ServerSidebar({
             />
           )}
         </div>
+
+        {/* Add Friend / Create Group Modal - Moved to main component scope */}
+        <AnimatePresence>
+          {showAddModal && (
+            <motion.div
+              className="add-modal-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAddModal(false)}
+            >
+              <motion.div
+                className="add-modal"
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="add-modal-header">
+                  <h3>Create New</h3>
+                  <button className="icon-btn" onClick={() => setShowAddModal(false)}><X size={18} /></button>
+                </div>
+
+                <div className="add-modal-tabs">
+                  <button className={`add-modal-tab ${addTab === "friend" ? "active" : ""}`} onClick={() => { setAddTab("friend"); setAddError(""); setAddSuccess(""); }}>
+                    <User size={16} /> Add Friend
+                  </button>
+                  <button className={`add-modal-tab ${addTab === "group" ? "active" : ""}`} onClick={() => { setAddTab("group"); setAddError(""); setAddSuccess(""); }}>
+                    <Users size={16} /> Create Group
+                  </button>
+                </div>
+
+                <div className="add-modal-body">
+                  {addTab === "friend" && (
+                    <>
+                      <label className="add-modal-label">Enter a username to add</label>
+                      <input className="add-modal-input" value={friendUsername} onChange={(e) => setFriendUsername(e.target.value)} placeholder="e.g. johndoe" onKeyDown={(e) => e.key === "Enter" && handleAddFriend()} />
+                      <motion.button className="settings-action-btn" onClick={handleAddFriend} disabled={addLoading || !friendUsername.trim()} whileTap={{ scale: 0.97 }}>
+                        {addLoading ? "Sending..." : "Send Friend Request"}
+                      </motion.button>
+                    </>
+                  )}
+                  {addTab === "group" && (
+                    <>
+                      <label className="add-modal-label">Group name</label>
+                      <input className="add-modal-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="e.g. Gaming Squad" onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()} />
+                      <motion.button className="settings-action-btn" onClick={handleCreateGroup} disabled={addLoading || !groupName.trim()} whileTap={{ scale: 0.97 }}>
+                        {addLoading ? "Creating..." : "Create Group"}
+                      </motion.button>
+                    </>
+                  )}
+                  {addError && <div className="add-modal-error">{addError}</div>}
+                  {addSuccess && <div className="add-modal-success">{addSuccess}</div>}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </aside>
   );
@@ -309,64 +368,6 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect }) {
         )}
       </AnimatePresence>
 
-      {/* Add Friend / Create Group Modal */}
-      <AnimatePresence>
-        {showAddModal && (
-          <motion.div
-            className="add-modal-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowAddModal(false)}
-          >
-            <motion.div
-              className="add-modal"
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="add-modal-header">
-                <h3>Create New</h3>
-                <button className="icon-btn" onClick={() => setShowAddModal(false)}><X size={18} /></button>
-              </div>
-
-              <div className="add-modal-tabs">
-                <button className={`add-modal-tab ${addTab === "friend" ? "active" : ""}`} onClick={() => { setAddTab("friend"); setAddError(""); setAddSuccess(""); }}>
-                  <User size={16} /> Add Friend
-                </button>
-                <button className={`add-modal-tab ${addTab === "group" ? "active" : ""}`} onClick={() => { setAddTab("group"); setAddError(""); setAddSuccess(""); }}>
-                  <Users size={16} /> Create Group
-                </button>
-              </div>
-
-              <div className="add-modal-body">
-                {addTab === "friend" && (
-                  <>
-                    <label className="add-modal-label">Enter a username to add</label>
-                    <input className="add-modal-input" value={friendUsername} onChange={(e) => setFriendUsername(e.target.value)} placeholder="e.g. johndoe" onKeyDown={(e) => e.key === "Enter" && handleAddFriend()} />
-                    <motion.button className="settings-action-btn" onClick={handleAddFriend} disabled={addLoading || !friendUsername.trim()} whileTap={{ scale: 0.97 }}>
-                      {addLoading ? "Sending..." : "Send Friend Request"}
-                    </motion.button>
-                  </>
-                )}
-                {addTab === "group" && (
-                  <>
-                    <label className="add-modal-label">Group name</label>
-                    <input className="add-modal-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="e.g. Gaming Squad" onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()} />
-                    <motion.button className="settings-action-btn" onClick={handleCreateGroup} disabled={addLoading || !groupName.trim()} whileTap={{ scale: 0.97 }}>
-                      {addLoading ? "Creating..." : "Create Group"}
-                    </motion.button>
-                  </>
-                )}
-                {addError && <div className="add-modal-error">{addError}</div>}
-                {addSuccess && <div className="add-modal-success">{addSuccess}</div>}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -408,6 +409,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect 
                   <motion.button
                     key={friend.id}
                     className="friend-item"
+                    onClick={() => onFriendSelect?.(friend)}
                     whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >

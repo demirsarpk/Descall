@@ -31,6 +31,8 @@ export default function AppLayout({
   onSendMessage,
   onVoiceCall,
   onVideoCall,
+  onGroupVoiceCall,
+  onGroupVideoCall,
   onAdminClick,
   isAdmin
 }) {
@@ -45,6 +47,8 @@ export default function AppLayout({
   const handleVoiceClick = () => {
     if (activeDmUser && onVoiceCall) {
       onVoiceCall();
+    } else if (activeGroup && onGroupVoiceCall) {
+      onGroupVoiceCall();
     }
   };
 
@@ -89,6 +93,8 @@ export default function AppLayout({
         onSendMessage={onSendMessage}
         onVoiceCall={onVoiceCall}
         onVideoCall={onVideoCall}
+        onGroupVoiceCall={onGroupVoiceCall}
+        onGroupVideoCall={onGroupVideoCall}
         onSettings={() => setUserPanelOpen(true)}
       >
         {children}
