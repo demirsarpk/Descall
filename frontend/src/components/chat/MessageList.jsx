@@ -141,16 +141,9 @@ function MessageBubble({ message, isOwn, isCompact }) {
         </div>
       )}
       
-      {!isCompact && (
+      {!isCompact && isOwn && (
         <div className="message-footer">
-          <span className="message-time">
-            {formatTimestamp(message.timestamp)}
-          </span>
-          {isOwn && (
-            <span className="message-status">
-              ✓✓
-            </span>
-          )}
+          <span className="message-status">✓✓</span>
         </div>
       )}
     </motion.div>
