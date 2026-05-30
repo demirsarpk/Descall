@@ -161,6 +161,7 @@ export default function ChatPanel({
               {activeView === "dms" && <MessageSquare size={64} />}
               {activeView === "groups" && <Users size={64} />}
               {activeView === "chat" && <MessageSquare size={64} />}
+              {activeView === "calls" && <Phone size={64} />}
             </div>
             <h2>Welcome to Descall</h2>
             <p>Select a conversation to start chatting</p>
