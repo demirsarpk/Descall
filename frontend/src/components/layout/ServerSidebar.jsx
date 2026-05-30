@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
-  ChevronDown, ChevronRight, Bell, UserPlus, X, User, Users
+  ChevronDown, ChevronRight, Bell, UserPlus, X, User, Users, Megaphone
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -45,6 +45,30 @@ export default function ServerSidebar({
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState("");
   const [addSuccess, setAddSuccess] = useState("");
+  const [showAnnouncements, setShowAnnouncements] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+
+  useEffect(() => {
+    if (showAnnouncements && announcements.length === 0) {
+      const fetchAnnouncements = async () => {
+        setAnnouncementsLoading(true);
+        try {
+          const token = getToken();
+          const res = await fetch(`${API_BASE_URL}/api/announcements`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          setAnnouncements(Array.isArray(data.announcements) ? data.announcements : []);
+        } catch (err) {
+          console.error("Failed to load announcements:", err);
+        } finally {
+          setAnnouncementsLoading(false);
+        }
+      };
+      fetchAnnouncements();
+    }
+  }, [showAnnouncements]);
 
   const handleAddFriend = async () => {
     if (!friendUsername.trim()) return;
@@ -140,6 +164,13 @@ export default function ServerSidebar({
               }}
             >
               <Search size={18} />
+            </button>
+            <button
+              className="icon-btn"
+              title="Announcements"
+              onClick={() => setShowAnnouncements(!showAnnouncements)}
+            >
+              <Megaphone size={18} />
             </button>
             <button
               className="icon-btn"
@@ -255,6 +286,52 @@ export default function ServerSidebar({
                   )}
                   {addError && <div className="add-modal-error">{addError}</div>}
                   {addSuccess && <div className="add-modal-success">{addSuccess}</div>}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Announcements Modal */}
+        <AnimatePresence>
+          {showAnnouncements && (
+            <motion.div
+              className="add-modal-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAnnouncements(false)}
+            >
+              <motion.div
+                className="add-modal"
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="add-modal-header">
+                  <h3>📢 Announcements</h3>
+                  <button className="icon-btn" onClick={() => setShowAnnouncements(false)}><X size={18} /></button>
+                </div>
+
+                <div className="announcements-modal-content">
+                  {announcementsLoading ? (
+                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>Loading announcements...</div>
+                  ) : announcements.length === 0 ? (
+                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>No announcements</div>
+                  ) : (
+                    announcements.map((a) => (
+                      <div key={a.id} className="announcement-item">
+                        <div className="announcement-title">{a.title}</div>
+                        <div className="announcement-content">{a.content}</div>
+                        <div className="announcement-meta">
+                          {a.author && <span className="announcement-author">By {a.author}</span>}
+                          {a.createdAt && <span className="announcement-date">{new Date(a.createdAt).toLocaleDateString()}</span>}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </motion.div>
             </motion.div>

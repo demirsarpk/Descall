@@ -612,11 +612,10 @@ export default function App() {
             setActiveGroup(group);
           }}
           onSendMessage={(msg) => {
-            if (!socketApi) return;
             if (activeDmUser) {
-              socketApi.emit("dm:send", { toUserId: activeDmUser.id, content: msg });
+              socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: msg });
             } else if (activeGroup) {
-              socketApi.emit("group:message", { groupId: activeGroup.id, content: msg });
+              socketRef.current?.emit("group:message", { groupId: activeGroup.id, content: msg });
             }
           }}
           onVoiceCall={() => {
