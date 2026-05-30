@@ -45,7 +45,9 @@ export default function AppLayout({
   const [addTab, setAddTab] = useState("friend");
 
   const handleAddClick = () => {
-    setAddTab(activeView === "groups" ? "group" : "friend");
+    if (activeView === "groups") setAddTab("group");
+    else if (activeView === "friends") setAddTab("friend");
+    else setAddTab("friend");
     setShowAddModal(true);
   };
 

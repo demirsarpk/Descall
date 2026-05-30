@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import {
-  MessageSquare, Users, Settings, Bell,
-  LogOut, User, Search, Plus, Mic, Phone, Shield
+  MessageSquare, Users, Settings,
+  UserPlus, Phone, Shield, Plus
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 
@@ -18,6 +18,7 @@ export default function NavigationRail({
   const navItems = [
     { id: "chat", icon: MessageSquare, label: "Chats" },
     { id: "groups", icon: Users, label: "Groups" },
+    { id: "friends", icon: UserPlus, label: "Friends" },
     { id: "calls", icon: Phone, label: "Calls" },
   ];
 
@@ -63,26 +64,12 @@ export default function NavigationRail({
 
         <motion.button
           className="rail-btn"
-          onClick={onVoiceClick}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title="Voice Chat"
-        >
-          <Mic size={24} strokeWidth={2} />
-        </motion.button>
-
-        <motion.button
-          className="rail-btn"
           onClick={onUserClick}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           title="User Settings"
         >
-          <Avatar
-            name={me?.username || "User"}
-            size={32}
-            imageUrl={me?.avatarUrl}
-          />
+          <Settings size={24} strokeWidth={2} />
         </motion.button>
 
         {isAdmin && (
@@ -96,6 +83,20 @@ export default function NavigationRail({
             <Shield size={24} strokeWidth={2} />
           </motion.button>
         )}
+
+        <motion.button
+          className="rail-btn rail-avatar-btn"
+          onClick={onUserClick}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title={me?.username || "User"}
+        >
+          <Avatar
+            name={me?.username || "User"}
+            size={32}
+            imageUrl={me?.avatarUrl}
+          />
+        </motion.button>
       </div>
     </nav>
   );

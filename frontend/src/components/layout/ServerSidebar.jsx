@@ -237,7 +237,7 @@ export default function ServerSidebar({
 
         {/* Content */}
         <div className="sidebar-content">
-          {(activeView === "dms" || activeView === "chat") && (
+          {(activeView === "chat" || activeView === "dms") && (
             <DMList
               dms={filteredDms}
               activeDmUser={activeDmUser}
@@ -248,7 +248,7 @@ export default function ServerSidebar({
             />
           )}
 
-          {(activeView === "groups" || activeView === "chat") && (
+          {activeView === "groups" && (
             <GroupList
               groups={filteredGroups}
               activeGroup={activeGroup}
@@ -258,7 +258,7 @@ export default function ServerSidebar({
             />
           )}
 
-          {(activeView === "friends" || activeView === "chat") && (
+          {activeView === "friends" && (
             <FriendsList
               friends={friends}
               onlineUsers={onlineUsers}
