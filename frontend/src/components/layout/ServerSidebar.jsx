@@ -109,9 +109,12 @@ export default function ServerSidebar({
     if (!groupName.trim()) return;
     setAddLoading(true);
     setAddError("");
+    setAddSuccess("");
     try {
       const token = getToken();
-      const res = await fetch(`${API_BASE_URL}/api/groups/create`, {
+      const url = `${API_BASE_URL}/api/groups/create`;
+      console.log("[CreateGroup] POST", url, { name: groupName.trim(), memberIds: selectedGroupMembers.map(m => m.id) });
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ 
@@ -120,7 +123,8 @@ export default function ServerSidebar({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create group");
+      console.log("[CreateGroup] Response", res.status, data);
+      if (!res.ok) throw new Error(data.error || data.details || `Failed to create group (status ${res.status})`);
       setAddSuccess(`Group "${groupName.trim()}" created`);
       setGroupName("");
       setSelectedGroupMembers([]);
@@ -130,7 +134,8 @@ export default function ServerSidebar({
       // Trigger groups refresh via callback
       onRefreshGroups?.();
     } catch (err) {
-      setAddError(err.message);
+      console.error("[CreateGroup] Error:", err);
+      setAddError(err.message || "Network error. Is backend deployed?");
     } finally {
       setAddLoading(false);
     }
@@ -232,7 +237,7 @@ export default function ServerSidebar({
 
         {/* Content */}
         <div className="sidebar-content">
-          {activeView === "dms" && (
+          {(activeView === "dms" || activeView === "chat") && (
             <DMList
               dms={filteredDms}
               activeDmUser={activeDmUser}
@@ -243,7 +248,7 @@ export default function ServerSidebar({
             />
           )}
 
-          {activeView === "groups" && (
+          {(activeView === "groups" || activeView === "chat") && (
             <GroupList
               groups={filteredGroups}
               activeGroup={activeGroup}
@@ -253,7 +258,7 @@ export default function ServerSidebar({
             />
           )}
 
-          {activeView === "friends" && (
+          {(activeView === "friends" || activeView === "chat") && (
             <FriendsList
               friends={friends}
               onlineUsers={onlineUsers}
