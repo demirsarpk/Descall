@@ -310,7 +310,7 @@ export default function UserPanel({ me, onClose, onLogout }) {
                 <input className="profile-input" value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} placeholder="https://..." />
 
                 {profileError && (
-                  <div className="profile-error-banner" style={{ color: "var(--accent-red)", fontSize: "0.9rem", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                  <div className="profile-error-banner" style={{ color: "var(--danger)", fontSize: "0.9rem", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                     <AlertTriangle size={16} />
                     <span>{profileError}</span>
                   </div>

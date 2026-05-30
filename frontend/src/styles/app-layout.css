@@ -47,7 +47,7 @@
 
 .call-duration {
   font-size: 0.85rem;
-  color: var(--accent-blue);
+  color: var(--primary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -72,30 +72,32 @@
 }
 
 .call-btn:hover {
-  background: var(--surface-4);
+  background: var(--surface-hover);
 }
 
 .call-btn.active {
-  background: var(--accent-blue);
+  background: var(--primary);
   color: white;
 }
 
 .call-btn.success {
-  background: var(--accent-green);
+  background: var(--success);
   color: white;
 }
 
 .call-btn.success:hover {
-  background: var(--accent-green-dark, #059669);
+  background: var(--success);
+  filter: brightness(1.1);
 }
 
 .call-btn.danger {
-  background: var(--accent-red);
+  background: var(--danger);
   color: white;
 }
 
 .call-btn.danger:hover {
-  background: var(--accent-red-dark, #dc2626);
+  background: var(--danger);
+  filter: brightness(1.1);
 }
 
 /* ─── App Root Grid System ─── */
