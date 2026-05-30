@@ -685,6 +685,7 @@ export default function App() {
           onGroupSelect={(group) => {
             setActiveDmUser(null);
             setActiveGroup(group);
+            socketRef.current?.emit("group:join", group.id);
           }}
           friendNotice={friendNotice}
           onRefreshGroups={fetchGroups}
@@ -733,12 +734,14 @@ export default function App() {
           }}
           onGroupVoiceCall={() => {
             if (activeGroup && groupCall?.startGroupCall) {
-              groupCall.startGroupCall(activeGroup.id, "voice");
+              const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
+              groupCall.startGroupCall(activeGroup.id, "voice", memberIds);
             }
           }}
           onGroupVideoCall={() => {
             if (activeGroup && groupCall?.startGroupCall) {
-              groupCall.startGroupCall(activeGroup.id, "video");
+              const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
+              groupCall.startGroupCall(activeGroup.id, "video", memberIds);
             }
           }}
         >
