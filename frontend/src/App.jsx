@@ -83,6 +83,12 @@ export default function App() {
     setTypingDmUser(null);
   }, [activeDmUser?.id]);
 
+  useEffect(() => {
+    if (activeDmUser && socketRef.current) {
+      socketRef.current.emit("dm:history", { withUserId: activeDmUser.id });
+    }
+  }, [activeDmUser?.id]);
+
   const dmMessages = useMemo(
     () => (activeDmUser ? dmByUserId[activeDmUser.id] ?? [] : []),
     [activeDmUser, dmByUserId],
@@ -614,6 +620,7 @@ export default function App() {
             setActiveDmUser(null);
             setActiveGroup(group);
           }}
+          friendNotice={friendNotice}
           onRefreshGroups={fetchGroups}
           onSendMessage={(msg) => {
             if (activeDmUser) {

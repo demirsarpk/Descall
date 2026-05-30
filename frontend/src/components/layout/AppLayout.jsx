@@ -35,7 +35,8 @@ export default function AppLayout({
   onGroupVideoCall,
   onAdminClick,
   isAdmin,
-  onRefreshGroups
+  onRefreshGroups,
+  friendNotice
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
@@ -100,6 +101,7 @@ export default function AppLayout({
         activeGroup={activeGroup}
         sidebarCollapsed={sidebarCollapsed}
         onlineUsers={onlineUsers}
+        friendNotice={friendNotice}
         onSendMessage={onSendMessage}
         onVoiceCall={onVoiceCall}
         onVideoCall={onVideoCall}

@@ -440,11 +440,12 @@ function registerSocketHandlers(io) {
       }
       rateLimitDm.set(myId, now);
       socket.data.activeDmPeer = toUserId;
+      const messageId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const arr = dmHistory.get(convKey(myId, toUserId)) || [];
       arr.push({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        from: myId,
-        to: toUserId,
+        id: messageId,
+        from: { id: myId, username: me.username },
+        to: { id: toUserId },
         text: text || "",
         mediaUrl,
         mediaType,
@@ -458,7 +459,9 @@ function registerSocketHandlers(io) {
       const unreadMap = ensureDmUnreadMap(toUserId);
       unreadMap.set(myId, (unreadMap.get(myId) || 0) + 1);
       emitToUser(io, toUserId, "dm:message", {
-        from: myId,
+        id: messageId,
+        convWith: myId,
+        from: { id: myId, username: me.username },
         text,
         mediaUrl,
         mediaType,
@@ -487,7 +490,6 @@ function registerSocketHandlers(io) {
 
     socket.on("dm:mark_read", ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
-      if (!friends.get(myId)?.has(withUserId)) return;
       const key = convKey(myId, withUserId);
       const arr = dmHistory.get(key);
       const at = new Date().toISOString();
@@ -506,9 +508,6 @@ function registerSocketHandlers(io) {
 
     socket.on("dm:history", ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
-      if (!friends.get(myId)?.has(withUserId)) {
-        return socket.emit("dm:history", { withUserId, messages: [] });
-      }
       const key = convKey(myId, withUserId);
       const all = dmHistory.get(key) || [];
       socket.emit("dm:history", {

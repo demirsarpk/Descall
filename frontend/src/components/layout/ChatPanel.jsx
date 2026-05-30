@@ -18,6 +18,7 @@ export default function ChatPanel({
   sidebarCollapsed,
   onlineUsers,
   messages = [],
+  friendNotice,
   onSendMessage,
   onVoiceCall,
   onVideoCall,
@@ -137,6 +138,29 @@ export default function ChatPanel({
           </button>
         </div>
       </header>
+
+      {/* Friend Notice Banner */}
+      <AnimatePresence>
+        {friendNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="friend-notice-banner"
+            style={{
+              padding: "10px 16px",
+              backgroundColor: "var(--primary-soft)",
+              color: "var(--primary)",
+              fontSize: "13px",
+              fontWeight: 500,
+              textAlign: "center",
+              borderBottom: "1px solid var(--border)"
+            }}
+          >
+            {friendNotice}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Messages Area */}
       <div className="messages-container" ref={messagesRef}>

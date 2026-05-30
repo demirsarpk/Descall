@@ -52,6 +52,24 @@ export default function ServerSidebar({
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
 
   useEffect(() => {
+    if (!socket) return;
+    const onFriendError = ({ message }) => {
+      setAddError(message || "Friend action failed.");
+      setTimeout(() => setAddError(""), 4000);
+    };
+    const onFriendSent = ({ to } = {}) => {
+      setAddSuccess(to ? `Request sent to ${to}` : "Request sent.");
+      setTimeout(() => setAddSuccess(""), 3000);
+    };
+    socket.on("friend:error", onFriendError);
+    socket.on("friend:request:sent", onFriendSent);
+    return () => {
+      socket.off("friend:error", onFriendError);
+      socket.off("friend:request:sent", onFriendSent);
+    };
+  }, [socket]);
+
+  useEffect(() => {
     if (showAnnouncements && announcements.length === 0) {
       const fetchAnnouncements = async () => {
         setAnnouncementsLoading(true);
@@ -76,11 +94,10 @@ export default function ServerSidebar({
     if (!friendUsername.trim()) return;
     setAddLoading(true);
     setAddError("");
+    setAddSuccess("");
     try {
       socket?.emit("friend:request", { toUsername: friendUsername.trim() });
-      setAddSuccess(`Friend request sent to ${friendUsername.trim()}`);
       setFriendUsername("");
-      setTimeout(() => setAddSuccess(""), 3000);
     } catch (err) {
       setAddError("Failed to send friend request");
     } finally {
