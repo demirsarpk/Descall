@@ -307,7 +307,7 @@ export default function CallOverlay({ call, groupCall }) {
                   justifyContent: "center",
                 }}
               >
-                <UsersIcon size={72} />
+                <Users size={72} color="white" />
               </div>
             )}
             <span style={{ fontSize: 28, fontWeight: 700, color: "#fff" }}>{title}</span>
