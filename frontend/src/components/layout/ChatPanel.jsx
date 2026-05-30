@@ -155,7 +155,7 @@ export default function ChatPanel({
             <button className="icon-btn" onClick={() => { setShowSearch(false); setSearchQuery(""); }}><X size={16} /></button>
           </motion.div>
         )}
-        {children || (
+        {(activeDmUser || activeGroup) ? children : (
           <div className="empty-state">
             <div className="empty-icon">
               {activeView === "dms" && <MessageSquare size={64} />}
