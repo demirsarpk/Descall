@@ -268,6 +268,9 @@ export default function App() {
     socket.on("connected", (payload) => {
       // Don't override me from socket connected, use the me from /auth/me which has is_admin
       if (payload?.user) { setUser(payload.user); }
+      // Request friend list and groups on connection
+      socket.emit("friend:list");
+      getMyGroups().then(setMyGroups).catch(console.error);
     });
 
     socket.on("sync:state", (state) => {
@@ -611,6 +614,7 @@ export default function App() {
             setActiveDmUser(null);
             setActiveGroup(group);
           }}
+          onRefreshGroups={fetchGroups}
           onSendMessage={(msg) => {
             if (activeDmUser) {
               socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: msg });

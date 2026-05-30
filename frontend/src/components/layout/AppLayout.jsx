@@ -34,7 +34,8 @@ export default function AppLayout({
   onGroupVoiceCall,
   onGroupVideoCall,
   onAdminClick,
-  isAdmin
+  isAdmin,
+  onRefreshGroups
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
@@ -89,6 +90,7 @@ export default function AppLayout({
         addTab={addTab}
         setAddTab={setAddTab}
         onFriendSelect={onDmSelect}
+        onRefreshGroups={onRefreshGroups}
       />
 
       {/* Main Chat Panel - Center content area */}

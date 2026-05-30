@@ -26,7 +26,8 @@ export default function ServerSidebar({
   showAddModal: showAddModalProp,
   setShowAddModal: setShowAddModalProp,
   addTab: addTabProp,
-  setAddTab: setAddTabProp
+  setAddTab: setAddTabProp,
+  onRefreshGroups
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
@@ -76,19 +77,12 @@ export default function ServerSidebar({
     setAddLoading(true);
     setAddError("");
     try {
-      const token = getToken();
-      const res = await fetch(`${API_BASE_URL}/api/friends/request`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ username: friendUsername.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send friend request");
+      socket?.emit("friend:request", { toUsername: friendUsername.trim() });
       setAddSuccess(`Friend request sent to ${friendUsername.trim()}`);
       setFriendUsername("");
       setTimeout(() => setAddSuccess(""), 3000);
     } catch (err) {
-      setAddError(err.message);
+      setAddError("Failed to send friend request");
     } finally {
       setAddLoading(false);
     }
@@ -114,6 +108,10 @@ export default function ServerSidebar({
       setGroupName("");
       setSelectedGroupMembers([]);
       setTimeout(() => setAddSuccess(""), 3000);
+      // Close modal and trigger groups refresh
+      setShowAddModal(false);
+      // Trigger groups refresh via callback
+      onRefreshGroups?.();
     } catch (err) {
       setAddError(err.message);
     } finally {
