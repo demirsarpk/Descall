@@ -357,7 +357,17 @@ export default function App() {
     socket.on("dm:message", (message) => {
       const convWith = message?.convWith;
       if (!convWith) return;
-      setDmByUserId((prev) => ({ ...prev, [convWith]: [...(prev[convWith] ?? []), message] }));
+      setDmByUserId((prev) => {
+        const cur = prev[convWith] ?? [];
+        // Replace any temp/sending message from same sender with same text
+        const isSelf = message.from?.id === me?.id;
+        const replaced = isSelf
+          ? cur.map((m) => (m.sending && m.text === message.text ? message : m))
+          : cur;
+        const alreadyExists = replaced.some((m) => m.id === message.id);
+        if (alreadyExists) return { ...prev, [convWith]: replaced };
+        return { ...prev, [convWith]: [...replaced, message] };
+      });
       // Only notify for messages from others (not self)
       const currentUserId = me?.id;
       const isFromOther = message.from?.id && message.from.id !== currentUserId;
@@ -624,6 +634,19 @@ export default function App() {
           onRefreshGroups={fetchGroups}
           onSendMessage={(msg) => {
             if (activeDmUser) {
+              const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+              const optimisticMessage = {
+                id: tempId,
+                from: { id: me?.id, username: me?.username },
+                to: { id: activeDmUser.id },
+                text: msg,
+                timestamp: new Date().toISOString(),
+                sending: true,
+              };
+              setDmByUserId((prev) => ({
+                ...prev,
+                [activeDmUser.id]: [...(prev[activeDmUser.id] ?? []), optimisticMessage],
+              }));
               socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: msg });
             } else if (activeGroup) {
               socketRef.current?.emit("group:message", { groupId: activeGroup.id, content: msg });

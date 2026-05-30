@@ -458,9 +458,8 @@ function registerSocketHandlers(io) {
       dmHistory.set(convKey(myId, toUserId), arr);
       const unreadMap = ensureDmUnreadMap(toUserId);
       unreadMap.set(myId, (unreadMap.get(myId) || 0) + 1);
-      emitToUser(io, toUserId, "dm:message", {
+      const messagePayload = {
         id: messageId,
-        convWith: myId,
         from: { id: myId, username: me.username },
         text,
         mediaUrl,
@@ -469,8 +468,9 @@ function registerSocketHandlers(io) {
         size,
         originalName,
         timestamp: new Date().toISOString(),
-      });
-      socket.emit("dm:sent", { to: toUserId });
+      };
+      emitToUser(io, toUserId, "dm:message", { ...messagePayload, convWith: myId });
+      socket.emit("dm:message", { ...messagePayload, convWith: toUserId });
     });
 
     socket.on("dm:delivered", ({ msgId, fromUserId } = {}) => {
