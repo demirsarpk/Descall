@@ -1,0 +1,54 @@
+/* VideoConferenceMobile styles */
+.vc-mobile-overlay {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  background: var(--surface-0);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.vc-mobile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-1);
+}
+
+.vc-mobile-title {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.vc-mobile-close {
+  background: none;
+  border: none;
+  color: var(--text-1);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.vc-mobile-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.vc-mobile-participant {
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+.vc-mobile-controls {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+  border-top: 1px solid var(--border-1);
+}
