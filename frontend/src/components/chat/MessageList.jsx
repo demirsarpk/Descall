@@ -31,17 +31,17 @@ export default function MessageList({ messages, currentUser }) {
       const timeDiff = prevMsg ? new Date(msg.timestamp) - new Date(prevMsg.timestamp) : Infinity;
       const isCompact = isSameSender && timeDiff < 5 * 60 * 1000; // 5 minutes
 
-      if (!isCompact) {
+      if (isCompact && currentGroup) {
+        currentGroup.messages.push(msg);
+      } else {
         if (currentGroup) {
           grouped.push(currentGroup);
         }
         currentGroup = {
           user: msg.from,
           messages: [msg],
-          isCompact: false
+          isCompact: false,
         };
-      } else {
-        currentGroup.messages.push(msg);
       }
     });
 
@@ -109,9 +109,9 @@ function MessageBubble({ message, isOwn, isCompact }) {
       transition={{ duration: 0.2 }}
       className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""}`}
     >
-      {message.content && (
+      {message.text && (
         <div className="message-text">
-          {message.content}
+          {message.text}
         </div>
       )}
       

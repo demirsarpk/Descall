@@ -14,7 +14,7 @@ export function Avatar({ name = "?", size = 36, imageUrl, onClick }) {
   return (
     <motion.div
       className="ui-avatar"
-      style={{ width: size, height: size, background: imageUrl ? "transparent" : bg, borderRadius: '50%', overflow: 'hidden' }}
+      style={{ width: size, height: size, background: imageUrl ? "transparent" : bg, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={onClick}
       whileHover={{ scale: onClick ? 1.06 : 1 }}
       role={onClick ? "button" : undefined}
