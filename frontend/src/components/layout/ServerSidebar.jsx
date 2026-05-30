@@ -112,7 +112,7 @@ export default function ServerSidebar({
     setAddSuccess("");
     try {
       const token = getToken();
-      const url = `${API_BASE_URL}/api/groups/create`;
+      const url = `${API_BASE_URL}/groups/create`;
       console.log("[CreateGroup] POST", url, { name: groupName.trim(), memberIds: selectedGroupMembers.map(m => m.id) });
       const res = await fetch(url, {
         method: "POST",
@@ -160,10 +160,14 @@ export default function ServerSidebar({
     );
   }, [dms, searchQuery]);
 
+  useEffect(() => {
+    console.log("[ServerSidebar] groups prop:", groups);
+  }, [groups]);
+
   const filteredGroups = useMemo(() => {
     if (!Array.isArray(groups)) return [];
     if (!searchQuery) return groups;
-    return groups.filter(group => 
+    return groups.filter(group =>
       group.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [groups, searchQuery]);

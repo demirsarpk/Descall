@@ -489,9 +489,12 @@ export default function App() {
   const fetchGroups = useCallback(async () => {
     try {
       const raw = await getMyGroups();
+      console.log("[App] getMyGroups raw:", raw);
       const groups = normalizeGroups(raw);
+      console.log("[App] normalized groups:", groups);
       setMyGroups(groups);
     } catch (err) {
+      console.error("[App] fetchGroups error:", err);
       setMyGroups([]);
     }
   }, []);
