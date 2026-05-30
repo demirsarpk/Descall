@@ -23,6 +23,7 @@ import AdminPanel from "./components/admin/AdminPanel";
 import TitleBar from "./components/TitleBar";
 import MessageList from "./components/chat/MessageList";
 import MessageComposer from "./components/chat/MessageComposer";
+import CallOverlay from "./components/CallOverlay";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
@@ -641,6 +642,7 @@ export default function App() {
         >
           <MessageList messages={dmMessages} currentUser={me} />
         </AppLayout>
+        <CallOverlay call={call} groupCall={groupCall} />
       </div>
   );
 }

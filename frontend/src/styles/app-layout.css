@@ -4,6 +4,100 @@
    NO OLD LAYOUT REMNANTS
    ============================================ */
 
+/* ─── Call Overlay ─── */
+.call-overlay {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: 16px;
+  padding: 16px 24px;
+  box-shadow: var(--shadow-elevation-high);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.call-overlay-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.call-peer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.call-peer-name {
+  font-weight: 600;
+  color: var(--text-1);
+  font-size: 1rem;
+}
+
+.call-status {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.call-duration {
+  font-size: 0.85rem;
+  color: var(--accent-blue);
+  font-variant-numeric: tabular-nums;
+}
+
+.call-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.call-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-3);
+  color: var(--text-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.call-btn:hover {
+  background: var(--surface-4);
+}
+
+.call-btn.active {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.call-btn.success {
+  background: var(--accent-green);
+  color: white;
+}
+
+.call-btn.success:hover {
+  background: var(--accent-green-dark, #059669);
+}
+
+.call-btn.danger {
+  background: var(--accent-red);
+  color: white;
+}
+
+.call-btn.danger:hover {
+  background: var(--accent-red-dark, #dc2626);
+}
+
 /* ─── App Root Grid System ─── */
 .app-root {
   display: grid;
