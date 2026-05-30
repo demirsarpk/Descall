@@ -22,7 +22,11 @@ export default function ServerSidebar({
   socket,
   onDmSelect,
   onGroupSelect,
-  onFriendSelect
+  onFriendSelect,
+  showAddModal: showAddModalProp,
+  setShowAddModal: setShowAddModalProp,
+  addTab: addTabProp,
+  setAddTab: setAddTabProp
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
@@ -30,8 +34,12 @@ export default function ServerSidebar({
     groups: true,
     friends: true
   });
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addTab, setAddTab] = useState("friend");
+  const [internalShowAddModal, setInternalShowAddModal] = useState(false);
+  const [internalAddTab, setInternalAddTab] = useState("friend");
+  const showAddModal = showAddModalProp ?? internalShowAddModal;
+  const setShowAddModal = setShowAddModalProp ?? setInternalShowAddModal;
+  const addTab = addTabProp ?? internalAddTab;
+  const setAddTab = setAddTabProp ?? setInternalAddTab;
   const [friendUsername, setFriendUsername] = useState("");
   const [groupName, setGroupName] = useState("");
   const [addLoading, setAddLoading] = useState(false);

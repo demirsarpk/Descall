@@ -39,9 +39,13 @@ export default function AppLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
   const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addTab, setAddTab] = useState("friend");
 
   const handleAddClick = () => {
     setActiveView(activeView === "groups" ? "groups" : "dms");
+    setAddTab(activeView === "groups" ? "group" : "friend");
+    setShowAddModal(true);
   };
 
   const handleVoiceClick = () => {
@@ -80,6 +84,10 @@ export default function AppLayout({
         socket={socket}
         onDmSelect={onDmSelect}
         onGroupSelect={onGroupSelect}
+        showAddModal={showAddModal}
+        setShowAddModal={setShowAddModal}
+        addTab={addTab}
+        setAddTab={setAddTab}
         onFriendSelect={onDmSelect}
       />
 
