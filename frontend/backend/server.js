@@ -19,6 +19,7 @@ const adminRoutes = require("./routes/admin");
 const mediaRoutes = require("./routes/media");
 const groupRoutes = require("./routes/groups");
 const reactionRoutes = require("./routes/reactions");
+const friendsRoutes = require("./routes/friends");
 
 // Inline feedback - no external file needed
 const { requireAuth } = require("./middleware/auth");
@@ -89,6 +90,7 @@ app.use("/admin", adminRoutes);
 app.use("/media", mediaRoutes);
 app.use("/groups", groupRoutes);
 app.use("/reactions", reactionRoutes);
+app.use("/friends", friendsRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)

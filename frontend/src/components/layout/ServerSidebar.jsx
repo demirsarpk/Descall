@@ -48,6 +48,7 @@ export default function ServerSidebar({
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
 
   useEffect(() => {
     if (showAnnouncements && announcements.length === 0) {
@@ -99,21 +100,36 @@ export default function ServerSidebar({
     setAddError("");
     try {
       const token = getToken();
-      const res = await fetch(`${API_BASE_URL}/api/groups`, {
+      const res = await fetch(`${API_BASE_URL}/api/groups/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name: groupName.trim() }),
+        body: JSON.stringify({ 
+          name: groupName.trim(),
+          memberIds: selectedGroupMembers.map(m => m.id)
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create group");
       setAddSuccess(`Group "${groupName.trim()}" created`);
       setGroupName("");
+      setSelectedGroupMembers([]);
       setTimeout(() => setAddSuccess(""), 3000);
     } catch (err) {
       setAddError(err.message);
     } finally {
       setAddLoading(false);
     }
+  };
+
+  const toggleGroupMember = (friend) => {
+    setSelectedGroupMembers(prev => {
+      const exists = prev.find(m => m.id === friend.id);
+      if (exists) {
+        return prev.filter(m => m.id !== friend.id);
+      } else {
+        return [...prev, friend];
+      }
+    });
   };
 
   const filteredDms = useMemo(() => {
@@ -279,6 +295,41 @@ export default function ServerSidebar({
                     <>
                       <label className="add-modal-label">Group name</label>
                       <input className="add-modal-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="e.g. Gaming Squad" onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()} />
+                      
+                      <label className="add-modal-label" style={{ marginTop: 12 }}>Add members (optional)</label>
+                      <div className="group-members-select" style={{ maxHeight: 150, overflowY: "auto", marginBottom: 12 }}>
+                        {Array.isArray(friends) && friends.length > 0 ? (
+                          friends.map(friend => {
+                            const isSelected = selectedGroupMembers.find(m => m.id === friend.id);
+                            return (
+                              <div
+                                key={friend.id}
+                                className={`group-member-option ${isSelected ? "selected" : ""}`}
+                                onClick={() => toggleGroupMember(friend)}
+                                style={{
+                                  padding: 8,
+                                  borderRadius: 6,
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  backgroundColor: isSelected ? "var(--primary-soft)" : "var(--surface-2)",
+                                  marginBottom: 4
+                                }}
+                              >
+                                <Avatar user={friend} size={24} />
+                                <span style={{ fontSize: 13 }}>{friend.username}</span>
+                                {isSelected && <span style={{ marginLeft: "auto", color: "var(--primary)" }}>✓</span>}
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div style={{ padding: 8, color: "var(--text-muted)", fontSize: 12 }}>
+                            No friends to add. Add friends first.
+                          </div>
+                        )}
+                      </div>
+                      
                       <motion.button className="settings-action-btn" onClick={handleCreateGroup} disabled={addLoading || !groupName.trim()} whileTap={{ scale: 0.97 }}>
                         {addLoading ? "Creating..." : "Create Group"}
                       </motion.button>
