@@ -25,6 +25,9 @@ export function useCall(socket) {
   const [screenSharing, setScreenSharing] = useState(false);
   const [duration, setDuration] = useState(0);
   const [connectionQuality, setConnectionQuality] = useState("unknown");
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
+  const [screenStream, setScreenStream] = useState(null);
 
   const pcRef = useRef(null);
   const modeRef = useRef(mode);
@@ -62,6 +65,9 @@ export function useCall(socket) {
       screenStreamRef.current.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
     }
+    setLocalStream(null);
+    setRemoteStream(null);
+    setScreenStream(null);
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
@@ -112,18 +118,19 @@ export function useCall(socket) {
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
     pc.ontrack = (e) => {
-      const remoteStream = e.streams[0];
+      const rs = e.streams[0];
+      setRemoteStream(rs);
       const track = e.track;
       
       // Store remote stream for later use
       if (track.kind === "audio" && remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStream;
+        remoteAudioRef.current.srcObject = rs;
         remoteAudioRef.current.muted = false; // Ensure not muted
         remoteAudioRef.current.play().catch((err) => {});
       }
-      
+
       if (track.kind === "video" && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
+        remoteVideoRef.current.srcObject = rs;
         remoteVideoRef.current.play().catch((err) => {});
       }
       
@@ -131,11 +138,11 @@ export function useCall(socket) {
       if (track?.muted) {
         track.onunmute = () => {
           if (track.kind === "video" && remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStream;
+            remoteVideoRef.current.srcObject = rs;
             remoteVideoRef.current.play().catch((err) => {});
           }
           if (track.kind === "audio" && remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = remoteStream;
+            remoteAudioRef.current.srcObject = rs;
             remoteAudioRef.current.muted = false;
             remoteAudioRef.current.play().catch((err) => {});
           }
@@ -144,12 +151,12 @@ export function useCall(socket) {
       
       // Also attach combined stream to both refs for safety
       if (remoteAudioRef.current && !remoteAudioRef.current.srcObject) {
-        remoteAudioRef.current.srcObject = remoteStream;
+        remoteAudioRef.current.srcObject = rs;
         remoteAudioRef.current.muted = false;
         remoteAudioRef.current.play().catch((err) => {});
       }
       if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
-        remoteVideoRef.current.srcObject = remoteStream;
+        remoteVideoRef.current.srcObject = rs;
         remoteVideoRef.current.play().catch((err) => {});
       }
     };
@@ -273,6 +280,7 @@ export function useCall(socket) {
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
+      setLocalStream(stream);
       setPeer(friend);
       setCallType(type);
       setMode("outgoing");
@@ -306,6 +314,7 @@ export function useCall(socket) {
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
+      setLocalStream(stream);
       setCallType(type);
       setCameraOn(type === "video");
 
@@ -423,6 +432,7 @@ export function useCall(socket) {
       const screenSender = pc.addTrack(screenTrack, screenStream);
       screenSenderRef.current = screenSender;
       screenStreamRef.current = screenStream;
+      setScreenStream(screenStream);
 
       // Manual renegotiation fallback
       setTimeout(async () => {
@@ -470,6 +480,7 @@ export function useCall(socket) {
       screenStreamRef.current = null;
     }
     if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
+    setScreenStream(null);
     setScreenSharing(false);
     if (peer?.id && socket?.connected) {
       socket.emit("screen:share-stop", { toUserId: peer.id });
@@ -500,6 +511,9 @@ export function useCall(socket) {
     screenSharing,
     duration,
     connectionQuality,
+    localStream,
+    remoteStream,
+    screenStream,
     isInCall,
     isCalling,
     isReceiving,

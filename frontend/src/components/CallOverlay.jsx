@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor,
@@ -18,10 +18,7 @@ export default function CallOverlay({ call, groupCall }) {
   const [minimized, setMinimized] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
-
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
-  const screenVideoRef = useRef(null);
+  const [screenExpanded, setScreenExpanded] = useState(false);
 
   const isDmActive = call?.mode !== null && call?.mode !== undefined;
   const isGroupActive = groupCall?.isInCall;
@@ -32,30 +29,9 @@ export default function CallOverlay({ call, groupCall }) {
       setMinimized(false);
       setShowParticipants(false);
       setShowChat(false);
+      setScreenExpanded(false);
     }
   }, [active]);
-
-  // Attach streams to video elements
-  useEffect(() => {
-    const localStream = isDmActive ? call?.localStream : groupCall?.localStream;
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [isDmActive ? call?.localStream : groupCall?.localStream]);
-
-  useEffect(() => {
-    const remoteStream = isDmActive ? call?.remoteStream : null;
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [isDmActive ? call?.remoteStream : null]);
-
-  useEffect(() => {
-    const screenStream = isDmActive ? call?.screenStream : groupCall?.screenStream;
-    if (screenVideoRef.current && screenStream) {
-      screenVideoRef.current.srcObject = screenStream;
-    }
-  }, [isDmActive ? call?.screenStream : groupCall?.screenStream]);
 
   if (!active) return null;
 
@@ -260,25 +236,50 @@ export default function CallOverlay({ call, groupCall }) {
           alignItems: "center",
           justifyContent: "center",
           padding: 80,
+          overflow: "hidden",
         }}
       >
-        {/* Screen share takes full area */}
+        {/* Screen share takes full area - clickable to toggle size */}
         {hasScreenShare ? (
-          <video
-            ref={screenVideoRef}
-            autoPlay
-            playsInline
+          <div
+            onClick={() => setScreenExpanded(!screenExpanded)}
             style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              borderRadius: 12,
+              position: screenExpanded ? "fixed" : "relative",
+              inset: screenExpanded ? 0 : undefined,
+              zIndex: screenExpanded ? 50 : 1,
+              width: screenExpanded ? "100%" : "85%",
+              height: screenExpanded ? "100%" : "85%",
+              cursor: "pointer",
+              transition: "all 0.3s ease",
+              borderRadius: screenExpanded ? 0 : 12,
+              overflow: "hidden",
               background: "#000",
             }}
-          />
+          >
+            <video
+              ref={call?.screenVideoRef}
+              autoPlay
+              playsInline
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            />
+            {!screenExpanded && (
+              <div style={{
+                position: "absolute",
+                bottom: 8,
+                left: 8,
+                background: "rgba(0,0,0,0.6)",
+                color: "#fff",
+                fontSize: 12,
+                padding: "4px 10px",
+                borderRadius: 6,
+              }}>
+                Click to expand
+              </div>
+            )}
+          </div>
         ) : hasRemoteVideo ? (
           <video
-            ref={remoteVideoRef}
+            ref={call?.remoteVideoRef}
             autoPlay
             playsInline
             style={{
@@ -306,7 +307,7 @@ export default function CallOverlay({ call, groupCall }) {
                   justifyContent: "center",
                 }}
               >
-                <Users size={72} color="white" />
+                <UsersIcon size={72} />
               </div>
             )}
             <span style={{ fontSize: 28, fontWeight: 700, color: "#fff" }}>{title}</span>
@@ -332,11 +333,12 @@ export default function CallOverlay({ call, groupCall }) {
             background: "#1e1f23",
             border: "1px solid rgba(255,255,255,0.08)",
             boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+            zIndex: 5,
           }}
         >
           {hasLocalVideo ? (
             <video
-              ref={localVideoRef}
+              ref={call?.localVideoRef}
               autoPlay
               playsInline
               muted
