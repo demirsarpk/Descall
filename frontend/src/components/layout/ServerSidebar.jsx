@@ -187,7 +187,7 @@ export default function ServerSidebar({
           <h2 className="sidebar-title">
             {activeView === "chat" && "Chats"}
             {activeView === "dms" && "Direct Messages"}
-            {activeView === "groups" && "Servers"}
+            {activeView === "groups" && "Groups"}
             {activeView === "calls" && "Calls"}
           </h2>
           <div className="sidebar-actions">
@@ -493,33 +493,39 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect }) {
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="section-content"
           >
-            {safeGroups.map((group) => {
-              const isActive = activeGroup?.id === group.id;
+            {safeGroups.length === 0 ? (
+              <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
+                No groups yet
+              </div>
+            ) : (
+              safeGroups.map((group) => {
+                const isActive = activeGroup?.id === group.id;
 
-              return (
-                <motion.button
-                  key={group.id}
-                  className={`group-item ${isActive ? "active" : ""}`}
-                  onClick={() => onGroupSelect?.(group)}
-                  whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                >
-                  <div className="group-icon">
-                    {group.icon ? (
-                      <img src={group.icon} alt={group.name} />
-                    ) : (
-                      <span>{group.name?.charAt(0)?.toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div className="group-info">
-                    <span className="group-name">{group.name}</span>
-                    <span className="group-members">
-                      {group.memberCount || 0} members
-                    </span>
-                  </div>
-                </motion.button>
-              );
-            })}
+                return (
+                  <motion.button
+                    key={group.id}
+                    className={`group-item ${isActive ? "active" : ""}`}
+                    onClick={() => onGroupSelect?.(group)}
+                    whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  >
+                    <div className="group-icon" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", fontWeight: 700, fontSize: 14 }}>
+                      {group.icon ? (
+                        <img src={group.icon} alt={group.name} style={{ width: "100%", height: "100%", borderRadius: 10, objectFit: "cover" }} />
+                      ) : (
+                        <span>{group.name?.charAt(0)?.toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div className="group-info">
+                      <span className="group-name">{group.name}</span>
+                      <span className="group-members">
+                        {group.memberCount || 0} members
+                      </span>
+                    </div>
+                  </motion.button>
+                );
+              })
+            )}
           </motion.div>
         )}
       </AnimatePresence>
