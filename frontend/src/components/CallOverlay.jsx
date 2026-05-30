@@ -155,7 +155,7 @@ export default function CallOverlay({ call, groupCall }) {
   /* ---------- Fullscreen Meet-style overlay ---------- */
   const hasRemoteVideo = callType === "video" && isDm && call?.remoteStream;
   const hasLocalVideo = cameraOn && (isDm ? call?.localStream : groupCall?.localStream);
-  const hasScreenShare = screenSharing && (isDm ? call?.screenStream : groupCall?.screenStream);
+  const hasScreenShare = screenSharing;
 
   return (
     <motion.div

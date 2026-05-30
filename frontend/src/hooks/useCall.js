@@ -44,6 +44,8 @@ export function useCall(socket) {
   const peerRef = useRef(null);
   const timerRef = useRef(null);
   const screenSenderRef = useRef(null);
+  const screenSharingRef = useRef(false);
+  const stopScreenShareRef = useRef(null);
 
   useEffect(() => { peerRef.current = peer; }, [peer]);
 
@@ -74,6 +76,7 @@ export function useCall(socket) {
     if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
     pendingIceRef.current = [];
     screenSenderRef.current = null;
+    screenSharingRef.current = false;
     setMode(null);
     setCallType(null);
     setPeer(null);
@@ -417,9 +420,14 @@ export function useCall(socket) {
     }
   }, [cameraOn, socket]);
 
+  // Keep stopScreenShareRef always pointing to latest stopScreenShare
+  useEffect(() => {
+    stopScreenShareRef.current = stopScreenShare;
+  });
+
   const startScreenShare = useCallback(async () => {
     const pc = pcRef.current;
-    if (!pc || screenSharing) return;
+    if (!pc || screenSharingRef.current) return;
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: { cursor: "always", width: 1920, height: 1080 },
@@ -433,6 +441,7 @@ export function useCall(socket) {
       screenSenderRef.current = screenSender;
       screenStreamRef.current = screenStream;
       setScreenStream(screenStream);
+      screenSharingRef.current = true;
 
       // Manual renegotiation fallback
       setTimeout(async () => {
@@ -456,23 +465,23 @@ export function useCall(socket) {
       }
 
       screenTrack.onended = () => {
-        stopScreenShare();
+        if (stopScreenShareRef.current) stopScreenShareRef.current();
       };
 
       setScreenSharing(true);
-      if (peer?.id && socket?.connected) {
-        socket.emit("screen:share-start", { toUserId: peer.id });
+      if (peerRef.current?.id && socket?.connected) {
+        socket.emit("screen:share-start", { toUserId: peerRef.current.id });
       }
     } catch (err) {
     }
-  }, [screenSharing, peer, socket]);
+  }, [socket]);
 
   const stopScreenShare = useCallback(() => {
     const pc = pcRef.current;
-    if (!pc || !screenSharing) return;
+    if (!pc || !screenSharingRef.current) return;
 
     if (screenSenderRef.current) {
-      pc.removeTrack(screenSenderRef.current);
+      try { pc.removeTrack(screenSenderRef.current); } catch {}
       screenSenderRef.current = null;
     }
     if (screenStreamRef.current) {
@@ -480,12 +489,13 @@ export function useCall(socket) {
       screenStreamRef.current = null;
     }
     if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
+    screenSharingRef.current = false;
     setScreenStream(null);
     setScreenSharing(false);
-    if (peer?.id && socket?.connected) {
-      socket.emit("screen:share-stop", { toUserId: peer.id });
+    if (peerRef.current?.id && socket?.connected) {
+      socket.emit("screen:share-stop", { toUserId: peerRef.current.id });
     }
-  }, [screenSharing, peer, socket]);
+  }, [socket]);
 
   const formatDuration = (s) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
