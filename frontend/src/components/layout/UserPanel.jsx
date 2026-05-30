@@ -33,6 +33,7 @@ export default function UserPanel({ me, onClose, onLogout }) {
   const [bannerUrl, setBannerUrl] = useState(me?.bannerUrl || "");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState("");
   const fileInputRef = useRef(null);
 
   /* ── Appearance ── */
@@ -125,6 +126,7 @@ export default function UserPanel({ me, onClose, onLogout }) {
   /* Profile save */
   const handleSaveProfile = async () => {
     setSavingProfile(true);
+    setProfileError("");
     try {
       const token = getToken();
       const res = await fetch(`${API_BASE_URL}/api/user/profile`, {
@@ -135,7 +137,14 @@ export default function UserPanel({ me, onClose, onLogout }) {
       if (res.ok) {
         setProfileSaved(true);
         setTimeout(() => setProfileSaved(false), 2000);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setProfileError(data.error || "Failed to save profile");
+        setTimeout(() => setProfileError(""), 3000);
       }
+    } catch (err) {
+      setProfileError("Network error while saving profile");
+      setTimeout(() => setProfileError(""), 3000);
     } finally {
       setSavingProfile(false);
     }
@@ -300,6 +309,12 @@ export default function UserPanel({ me, onClose, onLogout }) {
                 </label>
                 <input className="profile-input" value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} placeholder="https://..." />
 
+                {profileError && (
+                  <div className="profile-error-banner" style={{ color: "var(--accent-red)", fontSize: "0.9rem", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                    <AlertTriangle size={16} />
+                    <span>{profileError}</span>
+                  </div>
+                )}
                 <motion.button className="settings-action-btn" onClick={handleSaveProfile} disabled={savingProfile} whileTap={{ scale: 0.98 }}>
                   {profileSaved ? <><Check size={16} /> Saved</> : savingProfile ? "Saving..." : "Save Changes"}
                 </motion.button>
