@@ -86,7 +86,7 @@ export default function CallOverlay({ call, groupCall, me }) {
       : callType === "video"
       ? "Video call"
       : "Voice call"
-    : `${groupCall.participants?.length || 0} participants`;
+    : `${(groupCall.participants?.filter((p) => p.id !== me?.id).length ?? 0) + 1} participants`;
 
   /* ---------- Minimized widget ---------- */
   if (minimized) {

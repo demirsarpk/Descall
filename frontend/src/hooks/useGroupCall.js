@@ -443,6 +443,16 @@ export function useGroupCall(socket) {
         localVideoRef.current.play().catch(() => {});
       }
 
+      // Register the initiator in participants with correct username immediately
+      // — before WebRTC ontrack fires (which would fall back to 'Member')
+      setParticipants([{
+        id: fromUser.id,
+        username: fromUser.username || fromUser.displayName || "Member",
+        avatarUrl: fromUser.avatar_url || fromUser.avatarUrl,
+        hasVideo: type === "video",
+        hasAudio: true,
+      }]);
+
       // Send accept signal - initiator will then send offer
       socketRef.current.emit("group:call:accept", {
         groupId,
