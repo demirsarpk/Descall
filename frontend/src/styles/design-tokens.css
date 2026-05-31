@@ -4,7 +4,8 @@
    NO OLD UI REMNANTS
    ============================================ */
 
-:root {
+:root,
+[data-theme="dark"] {
   color-scheme: dark;
 
   /* 🎨 Core Palette — Discord-inspired */
@@ -129,4 +130,43 @@
   --border: var(--border-2);
   --shadow: var(--shadow-lg);
   --glass-blur: 14px;
+}
+
+/* ─── Light Theme ─── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --surface-0: #F2F3F5;
+  --surface-1: #FFFFFF;
+  --surface-2: #E3E5E8;
+  --surface-3: #D4D7DC;
+  --surface-hover: #C4C9D0;
+  --surface-active: #B5BAC1;
+
+  --text-0: #060607;
+  --text-1: #2E3338;
+  --text-2: #4E5058;
+  --text-3: #6D6F78;
+  --text-muted: #80848E;
+  --text-link: #006CE7;
+
+  --border-0: rgba(0, 0, 0, 0.0);
+  --border-1: rgba(0, 0, 0, 0.04);
+  --border-2: rgba(0, 0, 0, 0.08);
+  --border-3: rgba(0, 0, 0, 0.12);
+  --border-4: rgba(0, 0, 0, 0.20);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.24);
+
+  --bg: var(--surface-0);
+  --bg-soft: var(--surface-1);
+  --panel: var(--surface-1);
+  --panel-2: var(--surface-2);
+  --text: var(--text-1);
+  --muted: var(--text-muted);
+  --border: var(--border-2);
+  --shadow: var(--shadow-lg);
 }

@@ -183,4 +183,14 @@ CREATE INDEX IF NOT EXISTS idx_notifications_unread  ON notifications(user_id, r
 
 ALTER TABLE notifications DISABLE ROW LEVEL SECURITY;
 
+-- ─── 11. ANNOUNCEMENTS — add rich fields ─────────────────────
+
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS emoji   TEXT    DEFAULT '📢';
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS pinned  BOOLEAN DEFAULT FALSE;
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target  TEXT    DEFAULT 'all';  -- 'all' | 'online' | 'admins'
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS author  TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_announcements_pinned ON announcements(pinned DESC);
+CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(is_active);
+
 -- ─── DONE ─────────────────────────────────────────────────────

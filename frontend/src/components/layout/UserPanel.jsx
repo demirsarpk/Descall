@@ -39,7 +39,11 @@ export default function UserPanel({ me, onClose, onLogout }) {
 
   /* ── Appearance ── */
   const [darkMode, setDarkMode] = useState(stored.darkMode !== false);
-  const [compactMode, setCompactMode] = useState(stored.compactMode === true);
+
+  /* Apply theme to document on mount and whenever it changes */
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
 
   /* ── Notifications ── */
   const [msgNotifications, setMsgNotifications] = useState(stored.msgNotifications !== false);
@@ -64,12 +68,12 @@ export default function UserPanel({ me, onClose, onLogout }) {
   /* Persist any setting change */
   useEffect(() => {
     saveSettings({
-      darkMode, compactMode,
+      darkMode,
       msgNotifications, callNotifications,
       msgSounds, callSounds,
       selectedAudioIn, selectedAudioOut, selectedVideoIn,
     });
-  }, [darkMode, compactMode, msgNotifications, callNotifications, msgSounds, callSounds, selectedAudioIn, selectedAudioOut, selectedVideoIn]);
+  }, [darkMode, msgNotifications, callNotifications, msgSounds, callSounds, selectedAudioIn, selectedAudioOut, selectedVideoIn]);
 
   /* Load media devices */
   const refreshDevices = useCallback(async () => {
@@ -392,10 +396,6 @@ export default function UserPanel({ me, onClose, onLogout }) {
               <div className="toggle-row">
                 <span><Moon size={16} style={{ marginRight: 8, verticalAlign: "middle" }} /> Dark Mode</span>
                 <Toggle value={darkMode} onChange={setDarkMode} />
-              </div>
-              <div className="toggle-row">
-                <span><MonitorSpeaker size={16} style={{ marginRight: 8, verticalAlign: "middle" }} /> Compact Mode</span>
-                <Toggle value={compactMode} onChange={setCompactMode} />
               </div>
             </motion.div>
           )}

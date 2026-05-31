@@ -369,8 +369,9 @@ app.get("/api/announcements", async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("announcements")
-      .select("id, title, content, created_at, priority, color")
+      .select("id, title, content, created_at, priority, color, emoji, pinned, target, author")
       .eq("is_active", true)
+      .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
     
     if (error) return res.status(500).json({ success: false, error: error.message });
@@ -396,16 +397,24 @@ app.post("/api/admin/announcements", requireAuth, async (req, res) => {
       return res.status(403).json({ success: false, error: "Not authorized" });
     }
     
-    const { title, content, priority = "normal", color = "#6678ff" } = req.body;
+    const { title, content, priority = "normal", color = "#5865F2", emoji = "📢", pinned = false, target = "all" } = req.body;
     
+    if (!title?.trim() || !content?.trim()) {
+      return res.status(400).json({ success: false, error: "Title and content are required" });
+    }
+
     const { data, error } = await supabase
       .from("announcements")
       .insert({
-        title,
-        content,
+        title: title.trim(),
+        content: content.trim(),
         created_by: req.user.id,
+        author: requester.username,
         priority,
         color,
+        emoji,
+        pinned,
+        target,
       })
       .select()
       .single();
@@ -416,6 +425,41 @@ app.post("/api/admin/announcements", requireAuth, async (req, res) => {
     const io = req.app.get("io");
     io.emit("announcement:new", data);
     
+    return res.json({ success: true, announcement: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Toggle pin on announcement - PATCH /api/admin/announcements/:id
+app.patch("/api/admin/announcements/:id", requireAuth, async (req, res) => {
+  try {
+    const { data: requester } = await supabase
+      .from("users")
+      .select("username, is_admin")
+      .eq("id", req.user.id)
+      .single();
+    
+    const isAdmin = requester?.is_admin || req.user.username === "admin";
+    if (!isAdmin) return res.status(403).json({ success: false, error: "Not authorized" });
+
+    const { pinned } = req.body;
+    if (typeof pinned !== "boolean") {
+      return res.status(400).json({ success: false, error: "pinned must be a boolean" });
+    }
+
+    const { data, error } = await supabase
+      .from("announcements")
+      .update({ pinned })
+      .eq("id", req.params.id)
+      .select()
+      .single();
+    
+    if (error) return res.status(500).json({ success: false, error: error.message });
+
+    const io = req.app.get("io");
+    io.emit("announcement:updated", data);
+
     return res.json({ success: true, announcement: data });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });

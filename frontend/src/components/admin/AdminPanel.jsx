@@ -87,8 +87,13 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
 
   // Announcements States
   const [announcements, setAnnouncements] = useState([]);
-  const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", priority: "normal", color: "#6678ff" });
-  const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
+  const [announcementDraft, setAnnouncementDraft] = useState({
+    title: "", content: "", priority: "normal", color: "#5865F2",
+    pinned: false, target: "all", emoji: "📢",
+  });
+  const [showComposePanel, setShowComposePanel] = useState(false);
+  const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
+  const [announcementError, setAnnouncementError] = useState("");
 
   // Success/Error Messages
   const [successMessage, setSuccessMessage] = useState("");
@@ -1415,130 +1420,343 @@ function getTimeAgo(date) {
         )}
 
         {tab === "announcements" && (
-          <section className="admin-section">
-            <h2>Announcements</h2>
-            <p className="muted">Create and manage system-wide announcements</p>
-            
-            <div className="admin-toolbar">
-              <RippleButton 
-                type="button" 
-                onClick={() => setShowAnnouncementForm(!showAnnouncementForm)}
-                className="admin-btn-green"
-              >
-                {showAnnouncementForm ? "Cancel" : "New Announcement"}
-              </RippleButton>
-              <RippleButton 
-                type="button" 
-                onClick={() => act(loadAnnouncements)} 
-                disabled={busy}
-              >
-                Refresh
-              </RippleButton>
-            </div>
-
-            {showAnnouncementForm && (
-              <div className="admin-form">
-                <input
-                  className="admin-input"
-                  placeholder="Announcement title"
-                  value={newAnnouncement.title}
-                  onChange={(e) => setNewAnnouncement({...newAnnouncement, title: e.target.value})}
-                />
-                <textarea
-                  className="admin-input"
-                  placeholder="Announcement content"
-                  value={newAnnouncement.content}
-                  onChange={(e) => setNewAnnouncement({...newAnnouncement, content: e.target.value})}
-                  rows={4}
-                />
-                <div className="admin-row">
-                  <select
-                    className="admin-input"
-                    value={newAnnouncement.priority}
-                    onChange={(e) => setNewAnnouncement({...newAnnouncement, priority: e.target.value})}
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="important">Important</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                  <input
-                    type="color"
-                    className="admin-input"
-                    value={newAnnouncement.color}
-                    onChange={(e) => setNewAnnouncement({...newAnnouncement, color: e.target.value})}
-                    style={{ width: "60px" }}
-                  />
-                </div>
-                <RippleButton 
-                  type="button" 
-                  onClick={async () => {
-                    try {
-                      const token = localStorage.getItem("descall_token");
-                      const res = await fetch(`${API_BASE_URL}/api/admin/announcements`, {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          Authorization: `Bearer ${token}`,
-                        },
-                        body: JSON.stringify(newAnnouncement),
-                      });
-                      if (res.ok) {
-                        setNewAnnouncement({ title: "", content: "", priority: "normal", color: "#6678ff" });
-                        setShowAnnouncementForm(false);
-                        await loadAnnouncements();
-                      }
-                    } catch (e) {
-                      console.error("Failed to create announcement:", e);
-                    }
-                  }}
-                  disabled={busy || !newAnnouncement.title || !newAnnouncement.content}
-                  className="admin-btn-green"
+          <section className="admin-section admin-section-full">
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
+                  <Megaphone size={22} style={{ color: "#5865F2" }} /> Announcements
+                </h2>
+                <p className="muted" style={{ marginTop: 4 }}>Broadcast messages to all users in real-time</p>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <RippleButton type="button" onClick={() => act(loadAnnouncements)} disabled={busy} style={{ minWidth: 90 }}>
+                  <RefreshCw size={14} /> Refresh
+                </RippleButton>
+                <RippleButton
+                  type="button"
+                  className={showComposePanel ? "admin-btn-red" : "admin-btn-green"}
+                  onClick={() => { setShowComposePanel((v) => !v); setAnnouncementError(""); }}
                 >
-                  Create Announcement
+                  {showComposePanel ? <><X size={14} /> Cancel</> : <><Send size={14} /> Compose</>}
                 </RippleButton>
               </div>
-            )}
+            </div>
 
-            <div className="admin-list">
-              {announcements.map((a) => (
-                <motion.div 
-                  key={a.id} 
-                  className="admin-card"
-                  initial={{ opacity: 0, y: 10 }}
+            {/* Compose Panel */}
+            <AnimatePresence>
+              {showComposePanel && (
+                <motion.div
+                  key="compose"
+                  initial={{ opacity: 0, y: -12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  style={{ borderLeft: `4px solid ${a.color}` }}
+                  exit={{ opacity: 0, y: -12 }}
+                  transition={{ duration: 0.2 }}
+                  style={{
+                    background: "var(--surface-2)",
+                    border: `1px solid ${announcementDraft.color}44`,
+                    borderRadius: 14,
+                    padding: 24,
+                    marginBottom: 28,
+                    boxShadow: `0 0 0 1px ${announcementDraft.color}22, 0 8px 32px rgba(0,0,0,0.3)`,
+                  }}
                 >
-                  <div className="admin-row">
-                    <h4>{a.title}</h4>
-                    <span className={`priority-badge ${a.priority}`}>{a.priority}</span>
+                  <h3 style={{ margin: "0 0 20px", fontSize: 15, fontWeight: 700, color: "var(--text-0)", display: "flex", alignItems: "center", gap: 8 }}>
+                    <Edit3 size={16} style={{ color: announcementDraft.color }} /> New Announcement
+                  </h3>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                    {/* Emoji picker quick-select */}
+                    <div>
+                      <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Icon</label>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {["📢", "🚨", "✅", "⚠️", "🔔", "🎉", "🔧", "📌"].map((em) => (
+                          <button
+                            key={em}
+                            type="button"
+                            onClick={() => setAnnouncementDraft((d) => ({ ...d, emoji: em }))}
+                            style={{
+                              width: 36, height: 36, borderRadius: 8, border: "none", cursor: "pointer", fontSize: 18,
+                              background: announcementDraft.emoji === em ? announcementDraft.color + "33" : "var(--surface-3)",
+                              outline: announcementDraft.emoji === em ? `2px solid ${announcementDraft.color}` : "none",
+                              transition: "all 0.15s",
+                            }}
+                          >{em}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Priority + Color + Target */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Priority</label>
+                          <select
+                            className="admin-input"
+                            value={announcementDraft.priority}
+                            onChange={(e) => {
+                              const colors = { normal: "#5865F2", important: "#F0B232", urgent: "#DA373C" };
+                              setAnnouncementDraft((d) => ({ ...d, priority: e.target.value, color: colors[e.target.value] }));
+                            }}
+                            style={{ width: "100%" }}
+                          >
+                            <option value="normal">🔵 Normal</option>
+                            <option value="important">🟡 Important</option>
+                            <option value="urgent">🔴 Urgent</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Color</label>
+                          <input
+                            type="color"
+                            value={announcementDraft.color}
+                            onChange={(e) => setAnnouncementDraft((d) => ({ ...d, color: e.target.value }))}
+                            style={{ width: 44, height: 38, border: "none", borderRadius: 8, cursor: "pointer", padding: 2, background: "transparent" }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Target Audience</label>
+                        <select
+                          className="admin-input"
+                          value={announcementDraft.target}
+                          onChange={(e) => setAnnouncementDraft((d) => ({ ...d, target: e.target.value }))}
+                          style={{ width: "100%" }}
+                        >
+                          <option value="all">👥 All Users</option>
+                          <option value="online">🟢 Online Users</option>
+                          <option value="admins">🛡️ Admins Only</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
-                  <p>{a.content}</p>
-                  <div className="admin-row">
-                    <span className="muted">{new Date(a.created_at).toLocaleString()}</span>
-                    <RippleButton 
-                      type="button" 
+
+                  {/* Title */}
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Title</label>
+                    <input
+                      className="admin-input"
+                      placeholder="Announcement title..."
+                      value={announcementDraft.title}
+                      onChange={(e) => setAnnouncementDraft((d) => ({ ...d, title: e.target.value }))}
+                      maxLength={100}
+                      style={{ width: "100%", fontSize: 15, fontWeight: 600 }}
+                    />
+                  </div>
+
+                  {/* Content */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Message</label>
+                    <textarea
+                      className="admin-input"
+                      placeholder="Write your announcement content..."
+                      value={announcementDraft.content}
+                      onChange={(e) => setAnnouncementDraft((d) => ({ ...d, content: e.target.value }))}
+                      rows={4}
+                      maxLength={1000}
+                      style={{ width: "100%", resize: "vertical", lineHeight: 1.6 }}
+                    />
+                    <div style={{ textAlign: "right", fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                      {announcementDraft.content.length}/1000
+                    </div>
+                  </div>
+
+                  {/* Pin toggle */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                    <button
+                      type="button"
+                      onClick={() => setAnnouncementDraft((d) => ({ ...d, pinned: !d.pinned }))}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 7, padding: "7px 14px",
+                        borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                        background: announcementDraft.pinned ? announcementDraft.color + "22" : "var(--surface-3)",
+                        color: announcementDraft.pinned ? announcementDraft.color : "var(--text-2)",
+                        outline: announcementDraft.pinned ? `1.5px solid ${announcementDraft.color}` : "none",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <Flag size={13} /> {announcementDraft.pinned ? "Pinned" : "Pin to top"}
+                    </button>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Pinned announcements appear at the top of the list</span>
+                  </div>
+
+                  {/* Live Preview */}
+                  {(announcementDraft.title || announcementDraft.content) && (
+                    <div style={{ marginBottom: 20 }}>
+                      <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 8 }}>Preview</label>
+                      <div style={{
+                        background: "var(--surface-1)", borderRadius: 12, padding: "14px 16px",
+                        borderLeft: `4px solid ${announcementDraft.color}`,
+                        border: `1px solid ${announcementDraft.color}33`,
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          <span style={{ fontSize: 18 }}>{announcementDraft.emoji}</span>
+                          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-0)" }}>{announcementDraft.title || "Untitled"}</span>
+                          {announcementDraft.pinned && <Flag size={12} style={{ color: announcementDraft.color }} />}
+                          <span style={{
+                            marginLeft: "auto", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
+                            padding: "2px 8px", borderRadius: 4,
+                            background: announcementDraft.priority === "urgent" ? "#DA373C22" : announcementDraft.priority === "important" ? "#F0B23222" : "#5865F222",
+                            color: announcementDraft.priority === "urgent" ? "#DA373C" : announcementDraft.priority === "important" ? "#F0B232" : "#5865F2",
+                          }}>{announcementDraft.priority}</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{announcementDraft.content || "No message yet."}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {announcementError && (
+                    <div style={{ background: "#DA373C22", border: "1px solid #DA373C44", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#DA373C", display: "flex", alignItems: "center", gap: 8 }}>
+                      <AlertCircle size={14} /> {announcementError}
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                    <RippleButton type="button" onClick={() => setShowComposePanel(false)}>Cancel</RippleButton>
+                    <RippleButton
+                      type="button"
+                      className="admin-btn-green"
+                      disabled={announcementSubmitting || !announcementDraft.title.trim() || !announcementDraft.content.trim()}
                       onClick={async () => {
+                        setAnnouncementSubmitting(true);
+                        setAnnouncementError("");
                         try {
                           const token = localStorage.getItem("descall_token");
-                          const res = await fetch(`${API_BASE_URL}/api/admin/announcements/${a.id}`, {
-                            method: "DELETE",
-                            headers: { Authorization: `Bearer ${token}` },
+                          const res = await fetch(`${API_BASE_URL}/api/admin/announcements`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                            body: JSON.stringify(announcementDraft),
                           });
-                          if (res.ok) {
-                            await loadAnnouncements();
+                          if (!res.ok) {
+                            const body = await res.json().catch(() => ({}));
+                            throw new Error(body.error || `Server error ${res.status}`);
                           }
+                          setAnnouncementDraft({ title: "", content: "", priority: "normal", color: "#5865F2", pinned: false, target: "all", emoji: "📢" });
+                          setShowComposePanel(false);
+                          await loadAnnouncements();
                         } catch (e) {
-                          console.error("Failed to delete announcement:", e);
+                          setAnnouncementError(e.message);
+                        } finally {
+                          setAnnouncementSubmitting(false);
                         }
                       }}
-                      className="admin-btn-red"
                     >
-                      Delete
+                      {announcementSubmitting ? "Sending..." : <><Send size={14} /> Publish</>}
                     </RippleButton>
                   </div>
                 </motion.div>
-              ))}
-            </div>
+              )}
+            </AnimatePresence>
+
+            {/* Announcements list */}
+            {announcements.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
+                <Megaphone size={44} style={{ opacity: 0.3, marginBottom: 14 }} />
+                <p style={{ margin: 0, fontSize: 15 }}>No announcements yet</p>
+                <p style={{ margin: "6px 0 0", fontSize: 13 }}>Compose one above to broadcast to your users.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {[...announcements]
+                  .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || new Date(b.created_at) - new Date(a.created_at))
+                  .map((a) => (
+                    <motion.div
+                      key={a.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      style={{
+                        background: "var(--surface-2)",
+                        borderRadius: 12,
+                        padding: "16px 18px",
+                        borderLeft: `4px solid ${a.color || "#5865F2"}`,
+                        border: `1px solid ${(a.color || "#5865F2")}22`,
+                        position: "relative",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                        <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0, marginTop: 2 }}>{a.emoji || "📢"}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                            <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-0)" }}>{a.title}</span>
+                            {a.pinned && (
+                              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: a.color || "#5865F2", fontWeight: 600 }}>
+                                <Flag size={11} /> Pinned
+                              </span>
+                            )}
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
+                              padding: "2px 8px", borderRadius: 4,
+                              background: a.priority === "urgent" ? "#DA373C22" : a.priority === "important" ? "#F0B23222" : "#5865F222",
+                              color: a.priority === "urgent" ? "#DA373C" : a.priority === "important" ? "#F0B232" : "#5865F2",
+                            }}>{a.priority}</span>
+                            {a.target && a.target !== "all" && (
+                              <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", background: "var(--surface-3)", padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                {a.target}
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{a.content}</p>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "var(--text-muted)" }}>
+                            {a.author && <span>By <strong style={{ color: "var(--text-3)" }}>{a.author}</strong></span>}
+                            <span>·</span>
+                            <span>{new Date(a.created_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</span>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            title={a.pinned ? "Unpin" : "Pin"}
+                            onClick={async () => {
+                              try {
+                                const token = localStorage.getItem("descall_token");
+                                await fetch(`${API_BASE_URL}/api/admin/announcements/${a.id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ pinned: !a.pinned }),
+                                });
+                                await loadAnnouncements();
+                              } catch (e) { console.error("Pin toggle failed:", e); }
+                            }}
+                            style={{
+                              background: a.pinned ? (a.color || "#5865F2") + "22" : "var(--surface-3)",
+                              border: "none", borderRadius: 7, width: 32, height: 32,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              cursor: "pointer", color: a.pinned ? (a.color || "#5865F2") : "var(--text-muted)",
+                              transition: "all 0.15s",
+                            }}
+                          >
+                            <Flag size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete"
+                            onClick={async () => {
+                              try {
+                                const token = localStorage.getItem("descall_token");
+                                const res = await fetch(`${API_BASE_URL}/api/admin/announcements/${a.id}`, {
+                                  method: "DELETE",
+                                  headers: { Authorization: `Bearer ${token}` },
+                                });
+                                if (res.ok) await loadAnnouncements();
+                              } catch (e) { console.error("Failed to delete announcement:", e); }
+                            }}
+                            style={{
+                              background: "var(--surface-3)", border: "none", borderRadius: 7, width: 32, height: 32,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              cursor: "pointer", color: "var(--text-muted)", transition: "all 0.15s",
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "#DA373C22"; e.currentTarget.style.color = "#DA373C"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-3)"; e.currentTarget.style.color = "var(--text-muted)"; }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+              </div>
+            )}
           </section>
         )}
 
