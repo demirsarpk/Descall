@@ -1035,6 +1035,30 @@ export function useGroupCall(socket) {
       ));
     };
 
+    const onParticipants = ({ groupId, participants: enrichedList, callType: existingCallType }) => {
+      if (!enrichedList?.length) return;
+      setParticipants((prev) => {
+        const updated = prev.map((p) => {
+          const match = enrichedList.find((e) => e.id === p.id);
+          if (!match) return p;
+          return { ...p, username: match.username || p.username, avatarUrl: match.avatar_url || p.avatarUrl };
+        });
+        // Add any participants the server knows about that aren't in state yet
+        enrichedList.forEach((e) => {
+          if (!updated.find((p) => p.id === e.id) && e.id !== myId) {
+            updated.push({
+              id: e.id,
+              username: e.username || "Member",
+              avatarUrl: e.avatar_url || null,
+              hasVideo: existingCallType === "video",
+              hasAudio: true,
+            });
+          }
+        });
+        return updated;
+      });
+    };
+
     const onCallStarted = ({ groupId, fromUserId, fromUser, callType }) => {
       if (!fromUserId || fromUserId === myId) return;
       setParticipants((prev) => {
@@ -1130,6 +1154,7 @@ export function useGroupCall(socket) {
     socket.on("group:call:summary", onCallSummary);
     socket.on("group:call:active-banner", onActiveBanner);
     socket.on("group:call:left", onParticipantLeft);
+    socket.on("group:call:participants", onParticipants);
 
     return () => {
       socket.off("group:call:incoming", onIncoming);
@@ -1148,6 +1173,7 @@ export function useGroupCall(socket) {
       socket.off("group:call:join-existing", onJoinExisting);
       socket.off("group:call:summary", onCallSummary);
       socket.off("group:call:active-banner", onActiveBanner);
+      socket.off("group:call:participants", onParticipants);
     };
   }, [socket, activeGroupId, isInCall, callType, cleanup, setupPeerConnection]);
 

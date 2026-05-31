@@ -283,10 +283,19 @@ function registerGroupHandlers(io, socket, state) {
       },
     });
 
-    // Send the list of current participants to the joining user
+    // Send enriched participant list to the joining user
+    const otherParticipantIds = Array.from(activeCall.participants).filter(id => id !== myId);
+    const enrichedParticipants = otherParticipantIds.map((id) => {
+      const presenceEntry = state.presence?.get(id);
+      return {
+        id,
+        username: presenceEntry?.username || "Member",
+        avatar_url: presenceEntry?.avatar_url || null,
+      };
+    });
     socket.emit("group:call:participants", {
       groupId,
-      participants: Array.from(activeCall.participants).filter(id => id !== myId),
+      participants: enrichedParticipants,
       callType: activeCall.callType,
     });
   });
