@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
@@ -491,7 +491,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename }) {
       style={{
         position: "absolute",
         right: 0,
-        top: "calc(100% + 4px)",
+        top: "calc(100% + 2px)",
         zIndex: 200,
         background: "var(--surface-2)",
         border: "1px solid var(--border-3)",
@@ -680,6 +680,18 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect, onG
   const [confirmLeave, setConfirmLeave] = useState(null);   // group object
   const [confirmRename, setConfirmRename] = useState(null); // group object
   const [actionError, setActionError] = useState("");
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handleOutsideClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [openMenuId]);
 
   const handleLeave = async (group) => {
     try {
@@ -756,8 +768,8 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect, onG
                   return (
                     <div
                       key={group.id}
+                      ref={openMenuId === group.id ? menuRef : null}
                       style={{ position: "relative" }}
-                      onMouseLeave={() => setOpenMenuId(null)}
                     >
                       <motion.button
                         className={`group-item ${isActive ? "active" : ""}`}
