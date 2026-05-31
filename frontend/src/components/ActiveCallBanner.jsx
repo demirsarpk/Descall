@@ -58,13 +58,13 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
-          Devam eden {isVideo ? "görüntülü" : "sesli"} arama
+          Ongoing {isVideo ? "video" : "voice"} call
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 1 }}>
           <Users size={11} color="#b5bac1" />
           <span style={{ fontSize: 12, color: "#b5bac1" }}>
-            {banner.participantCount} katılımcı
-            {banner.initiatorUsername ? ` · ${banner.initiatorUsername} başlattı` : ""}
+            {banner.participantCount} participant{banner.participantCount !== 1 ? "s" : ""}
+            {banner.initiatorUsername ? ` · Started by ${banner.initiatorUsername}` : ""}
           </span>
         </div>
       </div>
@@ -90,7 +90,7 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
         }}
       >
         <LogIn size={14} />
-        Katıl
+        Join
       </motion.button>
     </motion.div>
   );

@@ -66,7 +66,7 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
           {/* Info */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, color: "#b5bac1", marginBottom: 2 }}>
-              {incomingCall.callType === "video" ? "Görüntülü arama" : "Sesli arama"}
+              {incomingCall.callType === "video" ? "Video call" : "Voice call"}
             </div>
             <div
               style={{
@@ -78,11 +78,11 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
                 textOverflow: "ellipsis",
               }}
             >
-              {incomingCall.fromUser?.username || "Biri"} arıyor
+              {incomingCall.fromUser?.username || "Someone"} is calling
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
               <Users size={12} color="#b5bac1" />
-              <span style={{ fontSize: 12, color: "#b5bac1" }}>Grup araması</span>
+              <span style={{ fontSize: 12, color: "#b5bac1" }}>Group call</span>
             </div>
           </div>
 
@@ -104,7 +104,7 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
                 color: "#fff",
                 cursor: "pointer",
               }}
-              title="Reddet"
+              title="Decline"
             >
               <PhoneOff size={20} />
             </motion.button>
@@ -124,7 +124,7 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
                 color: "#fff",
                 cursor: "pointer",
               }}
-              title="Kabul et"
+              title="Accept"
             >
               <Phone size={20} />
             </motion.button>

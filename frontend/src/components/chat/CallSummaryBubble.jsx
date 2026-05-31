@@ -13,13 +13,13 @@ export default function CallSummaryBubble({ summary }) {
 
   const durationLabel =
     mins > 0
-      ? `${mins} dk.${secs > 0 ? ` ${secs} sn.` : ""}`
+      ? `${mins}m${secs > 0 ? ` ${secs}s` : ""}`
       : secs > 0
-      ? `${secs} sn.`
-      : "< 1 sn.";
+      ? `${secs}s`
+      : "< 1s";
 
   const timeLabel = summary.endedAt
-    ? new Date(summary.endedAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(summary.endedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
     : "";
 
   return (
@@ -66,7 +66,7 @@ export default function CallSummaryBubble({ summary }) {
         {/* Text block */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 4 }}>
-            {isVideo ? "Görüntülü arama" : "Sesli arama"}
+            {isVideo ? "Video call" : "Voice call"}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -76,13 +76,13 @@ export default function CallSummaryBubble({ summary }) {
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <Users size={11} color="#b5bac1" />
               <span style={{ fontSize: 12, color: "#b5bac1" }}>
-                {summary.participantCount} kişi katıldı
+                {summary.participantCount} participant{summary.participantCount !== 1 ? "s" : ""} joined
               </span>
             </div>
           </div>
           {summary.initiatorUsername && (
             <div style={{ fontSize: 11, color: "#72767d", marginTop: 3 }}>
-              {summary.initiatorUsername} başlattı
+              Started by {summary.initiatorUsername}
             </div>
           )}
         </div>
