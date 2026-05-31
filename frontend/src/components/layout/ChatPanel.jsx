@@ -211,22 +211,21 @@ export default function ChatPanel({
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <h4>Members</h4>
-          {activeGroup?.members?.map((m) => (
+          <div className="members-panel-header">
+            <h4>Members</h4>
+            <button className="icon-btn" onClick={() => setShowMembers(false)} title="Close">
+              <X size={16} />
+            </button>
+          </div>
+          {(activeGroup?.members?.length > 0 ? activeGroup.members : activeDmUser ? [activeDmUser] : []).map((m) => (
             <div key={m.id} className="member-row">
-              <Avatar name={m.username} size={32} imageUrl={m.avatarUrl} />
-              <span>{m.username}</span>
-              <StatusBadge status={onlineUsers?.some((u) => u.id === m.id) ? "online" : "offline"} />
-            </div>
-          )) || (
-            activeDmUser && (
-              <div className="member-row">
-                <Avatar name={activeDmUser.username} size={32} imageUrl={activeDmUser.avatarUrl} />
-                <span>{activeDmUser.username}</span>
-                <StatusBadge status={onlineUsers?.some((u) => u.id === activeDmUser.id) ? "online" : "offline"} />
+              <div className="member-avatar-wrap">
+                <Avatar name={m.username} size={32} imageUrl={m.avatarUrl} />
+                <StatusBadge status={onlineUsers?.some((u) => u.id === m.id) ? "online" : "offline"} />
               </div>
-            )
-          )}
+              <span className="member-name">{m.username}</span>
+            </div>
+          ))}
         </motion.aside>
       )}
     </AnimatePresence>

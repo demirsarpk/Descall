@@ -2044,13 +2044,20 @@
   z-index: 10;
 }
 
+.members-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
 .members-panel h4 {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  margin: 0 0 12px 0;
+  margin: 0;
 }
 
 .member-row {
@@ -2067,7 +2074,17 @@
   background: var(--surface-2);
 }
 
-.member-row span {
+.member-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.member-name {
   flex: 1;
   font-size: 14px;
   color: var(--text-0);
