@@ -708,26 +708,35 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     ? (isDm ? call?.screenStream : groupCall?.screenStream)
     : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null);
 
-  const attachStream = (el, stream) => {
+  const attachStream = useCallback((el, stream) => {
     if (!el || !stream) return;
-    // Always reassign — the stream object reference may be the same but the
-    // underlying track may have just unmuted (was black before). Forcing
-    // srcObject reassignment + play() ensures the browser re-evaluates.
-    el.srcObject = stream;
-    el.play().catch(() => {});
-  };
+    // Only reassign srcObject when the stream reference actually changes —
+    // reassigning the same stream causes the browser to reload the video
+    // element producing a black flash on every React render.
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+    // If any video track is still muted (ICE not yet connected), register
+    // onunmute to call play() without touching srcObject (no reload = no flash).
+    const videoTracks = stream.getVideoTracks();
+    const playWhenReady = () => el.play().catch(() => {});
+    if (videoTracks.some((t) => t.muted || t.readyState !== "live")) {
+      videoTracks.forEach((t) => { t.onunmute = playWhenReady; });
+    } else {
+      el.play().catch(() => {});
+    }
+  }, []);
 
-  // Re-attach whenever screenStream changes OR on every render pass
-  // (covers track.onunmute triggering a React state update with same stream ref)
+  // Only re-attach when the stream reference changes (new peer / new share)
   useEffect(() => {
     attachStream(normalVideoRef.current, screenStream);
-  });
+  }, [screenStream, attachStream]);
 
   // Callback ref for expanded video — fires immediately when the element mounts
-  const expandedVideoCallbackRef = (el) => {
+  const expandedVideoCallbackRef = useCallback((el) => {
     expandedVideoRef.current = el;
     if (el) attachStream(el, screenStream);
-  };
+  }, [screenStream, attachStream]);
 
   const sharerLabel = activeSharer
     ? (activeSharer.isLocal ? "Your Screen" : `${activeSharer.username}'s Screen`)
