@@ -34,6 +34,27 @@ function registerGroupHandlers(io, socket, state) {
     }
   });
 
+  // Bulk rejoin all group rooms at once (used on connect / reconnect)
+  // Restores active-banner state without requiring a page reload
+  socket.on("groups:rejoin", (groupIds) => {
+    if (!Array.isArray(groupIds)) return;
+    groupIds.forEach((groupId) => {
+      if (!groupId) return;
+      socket.join(`group:${groupId}`);
+      const activeCall = state.activeGroupCalls.get(groupId);
+      if (activeCall && activeCall.participants.size > 0) {
+        socket.emit("group:call:active-banner", {
+          groupId,
+          initiatorId: activeCall.initiatorId,
+          initiatorUsername: activeCall.initiatorUsername,
+          callType: activeCall.callType,
+          participantCount: activeCall.participants.size,
+          participants: Array.from(activeCall.participants),
+        });
+      }
+    });
+  });
+
   // Leave group room
   socket.on("group:leave", (groupId) => {
     if (!groupId) return;

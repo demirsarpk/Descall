@@ -68,6 +68,7 @@ export default function App() {
   const socketRef = useRef(null);
   const activeDmRef = useRef(null);
   const myIdRef = useRef(null);
+  const myGroupsRef = useRef([]);
   const transportFallbackStepRef = useRef(0);
   const prevOnlineUsersRef = useRef([]);
   const call = useCall(socketApi);
@@ -80,6 +81,10 @@ export default function App() {
   useEffect(() => {
     activeDmRef.current = activeDmUser;
   }, [activeDmUser]);
+
+  useEffect(() => {
+    myGroupsRef.current = myGroups;
+  }, [myGroups]);
 
   useEffect(() => {
     setTypingDmUser(null);
@@ -230,14 +235,19 @@ export default function App() {
     socketRef.current = socket;
     setSocketApi(socket);
 
+    const rejoinGroups = () => {
+      const ids = myGroupsRef.current.map((g) => g.id).filter(Boolean);
+      if (ids.length > 0) socket.emit("groups:rejoin", ids);
+    };
+
     socket.on("connect", () => {
       setIsConnected(true);
       setReconnectState("connected");
       transportFallbackStepRef.current = 0;
       setAuthError("");
       emitDmActive(socket, activeDmRef.current?.id ?? null);
-      // Request friend list on connect/reconnect
       socket.emit("friend:list");
+      rejoinGroups();
     });
 
     socket.on("disconnect", (reason) => {
@@ -254,6 +264,7 @@ export default function App() {
       setReconnectState("connected");
       setAuthError("");
       emitDmActive(socket, activeDmRef.current?.id ?? null);
+      rejoinGroups();
     });
 
     socket.io.on("reconnect_failed", () => {
@@ -856,7 +867,7 @@ export default function App() {
         <GroupCallIncomingModal
           incomingCall={groupCall?.incomingCall}
           onAccept={(groupId, callType, fromUser) => groupCall?.acceptGroupCall(groupId, callType, fromUser)}
-          onDecline={(groupId, fromUserId) => groupCall?.declineCall(groupId, fromUserId)}
+          onDecline={(groupId, fromUserId, fromUser, callType) => groupCall?.declineCall(groupId, fromUserId, fromUser, callType)}
         />
       </div>
   );

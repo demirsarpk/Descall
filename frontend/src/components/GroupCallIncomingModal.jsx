@@ -11,7 +11,7 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
   // Auto-dismiss after 30s without interaction
   useEffect(() => {
     if (!incomingCall) return;
-    const timer = setTimeout(() => onDecline?.(incomingCall.groupId, incomingCall.fromUser?.id), 30_000);
+    const timer = setTimeout(() => onDecline?.(incomingCall.groupId, incomingCall.fromUser?.id, incomingCall.fromUser, incomingCall.callType), 30_000);
     return () => clearTimeout(timer);
   }, [incomingCall, onDecline]);
 
@@ -91,7 +91,7 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => onDecline?.(incomingCall.groupId, incomingCall.fromUser?.id)}
+              onClick={() => onDecline?.(incomingCall.groupId, incomingCall.fromUser?.id, incomingCall.fromUser, incomingCall.callType)}
               style={{
                 width: 46,
                 height: 46,

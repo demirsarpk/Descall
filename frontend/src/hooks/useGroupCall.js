@@ -472,12 +472,21 @@ export function useGroupCall(socket) {
     }
   }, [cleanup]);
 
-  const declineCall = useCallback((groupId, fromUserId) => {
+  const declineCall = useCallback((groupId, fromUserId, fromUser, callType) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit("group:call:decline", { groupId, toUserId: fromUserId });
     }
-    setIncomingCall(null);
     audioManager.stop("incomingCall");
+    setIncomingCall(null);
+    // Keep the ongoing call banner visible so the user can join later
+    setActiveCallBanner((prev) => prev ?? {
+      groupId,
+      initiatorId: fromUserId,
+      initiatorUsername: fromUser?.username || "Unknown",
+      callType: callType || "voice",
+      participantCount: 1,
+      participants: fromUserId ? [fromUserId] : [],
+    });
   }, []);
 
   const leaveCall = useCallback(() => {
@@ -984,14 +993,28 @@ export function useGroupCall(socket) {
       });
     };
 
-    const onDeclined = ({ groupId, fromUserId }) => {
+    const onDeclined = ({ groupId, fromUserId, fromUser }) => {
       const peerData = pcMapRef.current.get(fromUserId);
-      if (peerData?.pc) {
-        peerData.pc.close();
-      }
+      if (peerData?.pc) peerData.pc.close();
       pcMapRef.current.delete(fromUserId);
       remoteStreamsRef.current.delete(fromUserId);
       setParticipants((prev) => prev.filter((p) => p.id !== fromUserId));
+    };
+
+    // Called when this client (non-initiator) declines an incoming call —
+    // the call is still active on the server so we show the ongoing banner
+    const onIncomingDeclined = ({ groupId, fromUser, callType: type }) => {
+      audioManager.stop("incomingCall");
+      setIncomingCall(null);
+      // Show the active call banner so the user can join later
+      setActiveCallBanner((prev) => prev ?? {
+        groupId,
+        initiatorId: fromUser?.id,
+        initiatorUsername: fromUser?.username || "Unknown",
+        callType: type,
+        participantCount: 1,
+        participants: fromUser?.id ? [fromUser.id] : [],
+      });
     };
 
     const onScreenStarted = ({ groupId, fromUserId }) => {
