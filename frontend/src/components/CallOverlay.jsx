@@ -192,10 +192,10 @@ export default function CallOverlay({ call, groupCall, me }) {
     ? (call?.peer ? [{ id: call.peer.id, username: call.peer.username, avatarUrl: call.peer.avatarUrl, stream: call.remoteStream, hasVideo: callType === "video" && !!call.remoteStream }] : [])
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
 
-  // All screen sharers: remote peers sharing + local if sharing
+  // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
   const remoteScreenSharers = isDm
     ? []
-    : (groupCall?.participants ?? []).filter((p) => p.isScreenSharing);
+    : (groupCall?.participants ?? []).filter((p) => p.isScreenSharing && p.id !== localId);
   const localUsername = me?.username || me?.displayName || "You";
 
   const allScreenSharers = [
