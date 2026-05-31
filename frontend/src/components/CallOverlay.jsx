@@ -706,7 +706,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
   // Derive the stream to display for the active sharer
   const screenStream = activeSharer?.isLocal
     ? (isDm ? call?.screenStream : groupCall?.screenStream)
-    : (groupCall?.remoteStreams?.current?.get(activeSharer?.id) ?? null);
+    : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null);
 
   // Attach stream to both video elements whenever it changes
   useEffect(() => {
