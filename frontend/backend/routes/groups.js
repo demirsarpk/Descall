@@ -441,15 +441,33 @@ router.post("/:groupId/leave", requireAuth, async (req, res) => {
       .single();
     
     if (group?.created_by === userId) {
-      return res.status(400).json({ error: "Creator cannot leave, delete group instead" });
+      // Find remaining members (excluding the creator)
+      const { data: remaining } = await supabase
+        .from("group_members")
+        .select("user_id, joined_at")
+        .eq("group_id", groupId)
+        .neq("user_id", userId)
+        .order("joined_at", { ascending: true })
+        .limit(1);
+
+      if (!remaining || remaining.length === 0) {
+        // No other members — delete the group entirely
+        await supabase.from("group_members").delete().eq("group_id", groupId);
+        await supabase.from("groups").delete().eq("id", groupId);
+        return res.json({ message: "Left group", deleted: true });
+      }
+
+      // Transfer ownership to the earliest-joined remaining member
+      const newOwner = remaining[0].user_id;
+      await supabase.from("groups").update({ created_by: newOwner }).eq("id", groupId);
     }
-    
+
     await supabase
       .from("group_members")
       .delete()
       .eq("group_id", groupId)
       .eq("user_id", userId);
-    
+
     res.json({ message: "Left group" });
   } catch (err) {
     console.error("[Groups] Leave error:", err);
