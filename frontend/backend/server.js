@@ -84,13 +84,21 @@ app.post("/api/test", (req, res) => {
   });
 });
 
-// Register main routes
+// Register main routes (both with and without /api prefix)
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
 app.use("/media", mediaRoutes);
 app.use("/groups", groupRoutes);
 app.use("/reactions", reactionRoutes);
 app.use("/friends", friendsRoutes);
+
+// /api/* aliases — frontend calls mix /api/... and /... so support both
+app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/media", mediaRoutes);
+app.use("/api/groups", groupRoutes);
+app.use("/api/reactions", reactionRoutes);
+app.use("/api/friends", friendsRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)
