@@ -99,21 +99,19 @@ export default function App() {
   const dmMessages = useMemo(() => {
     if (activeGroup) {
       const msgs = groupMessagesById[activeGroup.id] ?? [];
-      const summaries = (groupCall?.callSummaries?.[activeGroup.id] ?? []).map((s) => ({
-        ...s,
-        timestamp: s.endedAt ?? new Date().toISOString(),
-      }));
+      // call_summary items are already persisted to DB and loaded into msgs —
+      // do NOT merge in-memory callSummaries to avoid duplicates.
+      // Only inject the live active-call banner (not yet in DB).
       const banner = groupCall?.activeCallBanner;
       const activeBannerItem = (banner?.groupId === activeGroup.id && banner?.startTime)
         ? [{ ...banner, id: `active-call-${banner.groupId}`, type: "active_call", timestamp: new Date(banner.startTime).toISOString() }]
         : [];
-      const merged = [...msgs, ...summaries, ...activeBannerItem];
-      if (summaries.length === 0 && activeBannerItem.length === 0) return msgs;
+      const merged = activeBannerItem.length > 0 ? [...msgs, ...activeBannerItem] : msgs;
       return merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     }
     if (activeDmUser) return dmByUserId[activeDmUser.id] ?? [];
     return [];
-  }, [activeDmUser, activeGroup, dmByUserId, groupMessagesById, groupCall?.callSummaries, groupCall?.activeCallBanner]);
+  }, [activeDmUser, activeGroup, dmByUserId, groupMessagesById, groupCall?.activeCallBanner]);
 
   useEffect(() => {
     const token = getToken();
@@ -499,6 +497,21 @@ export default function App() {
 
     socket.on("system:kick", () => { clearToken(); clearUser(); setMe(null); socket.disconnect(); });
     socket.on("system:maintenance", () => { clearToken(); clearUser(); setMe(null); socket.disconnect(); });
+
+    socket.on("group:call:summary", ({ groupId, summary } = {}) => {
+      if (!groupId || !summary) return;
+      const item = {
+        ...summary,
+        id: summary.id || `call-summary-${Date.now()}`,
+        timestamp: summary.endedAt ?? new Date().toISOString(),
+        type: "call_summary",
+      };
+      setGroupMessagesById((prev) => {
+        const cur = prev[groupId] ?? [];
+        if (cur.some((m) => m.id === item.id)) return prev;
+        return { ...prev, [groupId]: [...cur, item] };
+      });
+    });
 
     socket.on("screen:share-start", ({ fromUserId } = {}) => {
       if (fromUserId === activeDmRef.current?.id) setPeerScreenSharing(true);
