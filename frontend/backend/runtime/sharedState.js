@@ -35,6 +35,7 @@ const userLastLoginAt = new Map();
 const userSessionStartMs = new Map();
 const userOnlineAccumMs = new Map();
 const rateLimitDm = new Map();
+const activeGroupCalls = new Map(); // groupId -> { initiatorId, initiatorUsername, callType, participants: Set, allParticipants: Set, startTime, dbCallId }
 // Enhanced Error Logging
 const errorLogs = [];
 const archivedErrorLogs = [];
@@ -141,6 +142,7 @@ module.exports = {
   userSessionStartMs,
   userOnlineAccumMs,
   rateLimitDm,
+  activeGroupCalls,
   serverErrorLog,
   appendErrorLog,
   MAX_AUDIT,

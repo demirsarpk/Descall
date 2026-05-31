@@ -3,17 +3,14 @@
  * Simple, reliable, works with 2-15 people
  */
 
-const { appendErrorLog } = require("../runtime/sharedState");
+const { appendErrorLog, activeGroupCalls } = require("../runtime/sharedState");
 const supabase = require("../db/supabase");
 
 function registerGroupHandlers(io, socket, state) {
   const myId = socket.user?.id;
   if (!myId) return;
 
-  // Track active group calls: groupId -> { initiatorId, initiatorUsername, callType, participants: Set(userIds), allParticipants: Set(userIds), startTime: Date }
-  if (!state.activeGroupCalls) {
-    state.activeGroupCalls = new Map();
-  }
+  // activeGroupCalls is imported from sharedState — shared across all socket connections
 
   // Join group room
   socket.on("group:join", (groupId) => {
@@ -21,7 +18,7 @@ function registerGroupHandlers(io, socket, state) {
     socket.join(`group:${groupId}`);
 
     // Notify user if there's an active call in this group
-    const activeCall = state.activeGroupCalls.get(groupId);
+    const activeCall = activeGroupCalls.get(groupId);
     if (activeCall && activeCall.participants.size > 0) {
       socket.emit("group:call:active-banner", {
         groupId,
@@ -41,7 +38,7 @@ function registerGroupHandlers(io, socket, state) {
     groupIds.forEach((groupId) => {
       if (!groupId) return;
       socket.join(`group:${groupId}`);
-      const activeCall = state.activeGroupCalls.get(groupId);
+      const activeCall = activeGroupCalls.get(groupId);
       if (activeCall && activeCall.participants.size > 0) {
         socket.emit("group:call:active-banner", {
           groupId,
@@ -114,7 +111,7 @@ function registerGroupHandlers(io, socket, state) {
   socket.on("group:call:check", ({ groupId }) => {
     if (!groupId) return;
     
-    const activeCall = state.activeGroupCalls.get(groupId);
+    const activeCall = activeGroupCalls.get(groupId);
     if (activeCall) {
       // There's an active call, notify the user to join instead
       socket.emit("group:call:active", {
@@ -137,7 +134,7 @@ function registerGroupHandlers(io, socket, state) {
     }
 
     // Check if there's already an active call in this group
-    const existingCall = state.activeGroupCalls.get(groupId);
+    const existingCall = activeGroupCalls.get(groupId);
     if (existingCall) {
       console.log(`[GroupCall] ${myId} trying to start call but existing call found in group ${groupId}`);
       // Notify user to join existing call instead
@@ -163,7 +160,7 @@ function registerGroupHandlers(io, socket, state) {
         if (error) console.error("[GroupCall] DB insert error:", error.message);
         else {
           dbCallId = data.id;
-          const call = state.activeGroupCalls.get(groupId);
+          const call = activeGroupCalls.get(groupId);
           if (call) call.dbCallId = dbCallId;
           // Insert initiator as first participant
           supabase.from("group_call_participants").insert({ call_id: dbCallId, user_id: myId }).then(() => {});
@@ -171,7 +168,7 @@ function registerGroupHandlers(io, socket, state) {
       });
 
     // Track this call as active
-    state.activeGroupCalls.set(groupId, {
+    activeGroupCalls.set(groupId, {
       initiatorId: myId,
       initiatorUsername: socket.user.username,
       callType,
@@ -225,7 +222,7 @@ function registerGroupHandlers(io, socket, state) {
     }
 
     // Add participant to active call tracking
-    const activeCall = state.activeGroupCalls.get(groupId);
+    const activeCall = activeGroupCalls.get(groupId);
     if (activeCall) {
       activeCall.participants.add(myId);
       activeCall.allParticipants.add(myId);
@@ -263,7 +260,7 @@ function registerGroupHandlers(io, socket, state) {
   socket.on("group:call:join", ({ groupId, callType }) => {
     if (!groupId) return;
 
-    const activeCall = state.activeGroupCalls.get(groupId);
+    const activeCall = activeGroupCalls.get(groupId);
     if (!activeCall) {
       socket.emit("group:call:error", { groupId, message: "No active call in this group" });
       return;
@@ -350,7 +347,7 @@ function registerGroupHandlers(io, socket, state) {
   socket.on("group:call:leave", ({ groupId }) => {
     if (!groupId) return;
 
-    const activeCall = state.activeGroupCalls.get(groupId);
+    const activeCall = activeGroupCalls.get(groupId);
     if (activeCall) {
       activeCall.participants.delete(myId);
 
@@ -378,7 +375,7 @@ function registerGroupHandlers(io, socket, state) {
           endedAt,
         };
 
-        state.activeGroupCalls.delete(groupId);
+        activeGroupCalls.delete(groupId);
 
         // Persist call end to DB
         if (activeCall.dbCallId) {
@@ -431,7 +428,7 @@ function registerGroupHandlers(io, socket, state) {
   socket.on("group:call:end", ({ groupId }) => {
     if (!groupId) return;
 
-    const activeCall = state.activeGroupCalls.get(groupId);
+    const activeCall = activeGroupCalls.get(groupId);
     const durationSeconds = activeCall ? Math.floor((Date.now() - activeCall.startTime) / 1000) : 0;
     const summary = activeCall ? {
       id: `call-summary-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -446,7 +443,7 @@ function registerGroupHandlers(io, socket, state) {
     } : null;
 
     const dbCallId = activeCall?.dbCallId;
-    state.activeGroupCalls.delete(groupId);
+    activeGroupCalls.delete(groupId);
 
     if (summary && dbCallId) {
       const endedAt = summary.endedAt;
@@ -479,7 +476,7 @@ function registerGroupHandlers(io, socket, state) {
   socket.on("group:screen:start", ({ groupId }) => {
     if (!groupId) return;
 
-    const activeCall = state.activeGroupCalls.get(groupId);
+    const activeCall = activeGroupCalls.get(groupId);
     const dbCallId = activeCall?.dbCallId ?? null;
 
     supabase.from("screen_share_sessions")
