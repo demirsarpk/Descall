@@ -186,10 +186,11 @@ export default function CallOverlay({ call, groupCall, me }) {
   /* ---------- Fullscreen Meet-style overlay ---------- */
   const hasLocalVideo = cameraOn && (isDm ? call?.localStream : groupCall?.localStream);
 
-  // Build unified participant list including local user and remote peers
+  // Build unified participant list — remote only (local is rendered as a dedicated tile)
+  const localId = me?.id;
   const remoteParticipants = isDm
     ? (call?.peer ? [{ id: call.peer.id, username: call.peer.username, avatarUrl: call.peer.avatarUrl, stream: call.remoteStream, hasVideo: callType === "video" && !!call.remoteStream }] : [])
-    : (groupCall?.participants ?? []);
+    : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
 
   // All screen sharers: remote peers sharing + local if sharing
   const remoteScreenSharers = isDm
@@ -693,14 +694,32 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
    ───────────────────────────────────────────────────────────────── */
 function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl }) {
   const [selectedSharerIndex, setSelectedSharerIndex] = useState(0);
-  const [viewerCount] = useState(0); // Could be wired to backend later
+  const [viewerCount] = useState(0);
+  // Keep refs to both the normal and expanded video elements so we can set srcObject on each
+  const normalVideoRef = useRef(null);
+  const expandedVideoRef = useRef(null);
 
   // Clamp index if sharers list shrinks
   const safeIndex = Math.min(selectedSharerIndex, allScreenSharers.length - 1);
   const activeSharer = allScreenSharers[safeIndex] ?? allScreenSharers[0];
-  const screenRef = activeSharer?.isLocal
-    ? (isDm ? call?.screenVideoRef : groupCall?.screenVideoRef)
-    : null; // Remote sharer screen ref would come from groupCall.remoteStreams
+
+  // Derive the stream to display for the active sharer
+  const screenStream = activeSharer?.isLocal
+    ? (isDm ? call?.screenStream : groupCall?.screenStream)
+    : (groupCall?.remoteStreams?.current?.get(activeSharer?.id) ?? null);
+
+  // Attach stream to both video elements whenever it changes
+  useEffect(() => {
+    const attach = (el) => {
+      if (!el || !screenStream) return;
+      if (el.srcObject !== screenStream) {
+        el.srcObject = screenStream;
+        el.play().catch(() => {});
+      }
+    };
+    attach(normalVideoRef.current);
+    attach(expandedVideoRef.current);
+  }, [screenStream, screenExpanded]);
 
   const sharerLabel = activeSharer
     ? (activeSharer.isLocal ? "Your Screen" : `${activeSharer.username}'s Screen`)
@@ -728,9 +747,10 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
         onClick={() => setScreenExpanded((v) => !v)}
       >
         <video
-          ref={screenRef}
+          ref={normalVideoRef}
           autoPlay
           playsInline
+          muted={activeSharer?.isLocal}
           style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
         />
 
@@ -792,9 +812,10 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             onClick={() => setScreenExpanded(false)}
           >
             <video
-              ref={screenRef}
+              ref={expandedVideoRef}
               autoPlay
               playsInline
+              muted={activeSharer?.isLocal}
               style={{ width: "100%", height: "100%", objectFit: "contain" }}
             />
             <div style={{ position: "absolute", top: 16, left: 16, display: "flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,0.7)", borderRadius: 8, padding: "6px 14px" }}>
