@@ -99,21 +99,48 @@ export default function MessageComposer({ onSend, disabled = false }) {
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
+      const recorder = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        const url = URL.createObjectURL(blob);
-        onSend?.(`[Voice Message](${url})`);
+      recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        setUploading(true);
+        try {
+          const formData = new FormData();
+          formData.append("file", blob, `voice-${Date.now()}.webm`);
+          const res = await fetch(`${API_BASE_URL}/api/media/upload`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${getToken()}` },
+            body: formData,
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Voice upload failed");
+          onSend?.({
+            type: "media",
+            mediaUrl: data.url,
+            mediaType: "audio",
+            originalName: data.originalName,
+            size: data.size,
+          });
+        } catch (err) {
+          setUploadError(err.message);
+          setTimeout(() => setUploadError(""), 4000);
+        } finally {
+          setUploading(false);
+        }
       };
       recorder.start();
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
       setRecordingTime(0);
       timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
-    } catch (err) { console.error("Recording failed:", err); }
+    } catch (err) {
+      console.error("Recording failed:", err);
+      setUploadError("Microphone access denied.");
+      setTimeout(() => setUploadError(""), 4000);
+    }
   }, [onSend]);
 
   const stopRecording = useCallback(() => {

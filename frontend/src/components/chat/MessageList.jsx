@@ -143,7 +143,16 @@ function MessageBubble({ message, isOwn, isCompact }) {
               className="message-video"
               style={{ maxWidth: 400, borderRadius: 8, display: "block" }}
             />
-          ) : (message.mediaType === "document" || message.mediaType === "file" || message.mediaType === "audio") ? (
+          ) : message.mediaType === "audio" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <audio
+                controls
+                src={message.mediaUrl}
+                style={{ maxWidth: 320, borderRadius: 8, display: "block", height: 40 }}
+              />
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Voice Message</span>
+            </div>
+          ) : (message.mediaType === "document" || message.mediaType === "file") ? (
             <a
               href={message.mediaUrl}
               target="_blank"
@@ -182,7 +191,13 @@ function MessageBubble({ message, isOwn, isCompact }) {
       
       {!isCompact && isOwn && (
         <div className="message-footer">
-          <span className="message-status">✓✓</span>
+          <span
+            className="message-status"
+            title={message.sending ? "Sending…" : message.deliveredAt ? "Delivered" : "Sent"}
+            style={{ opacity: message.sending ? 0.4 : 1 }}
+          >
+            {message.deliveredAt ? "✓✓" : "✓"}
+          </span>
         </div>
       )}
     </motion.div>

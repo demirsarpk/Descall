@@ -42,7 +42,7 @@ function registerGroupHandlers(io, socket, state) {
   });
 
   // Group message — persist to DB then broadcast
-  socket.on("group:message", async ({ groupId, content, mediaUrl, mediaType }) => {
+  socket.on("group:message", async ({ groupId, tempId, content, mediaUrl, mediaType }) => {
     if (!groupId || (!content?.trim() && !mediaUrl)) {
       appendErrorLog("group:message", "Missing required parameters", { groupId, hasContent: !!content, hasMedia: !!mediaUrl }, myId, socket.user?.username);
       return;
@@ -81,7 +81,10 @@ function registerGroupHandlers(io, socket, state) {
       },
     };
 
-    io.to(`group:${groupId}`).emit("group:message", { groupId, message });
+    // Broadcast to all group members except sender
+    socket.to(`group:${groupId}`).emit("group:message", { groupId, message });
+    // Echo back to sender with tempId for optimistic message replacement
+    socket.emit("group:message", { groupId, message, tempId });
   });
 
   // ========== GROUP CALL ==========

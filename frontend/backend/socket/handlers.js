@@ -423,7 +423,7 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("dm:send", async ({ toUserId, text, mediaUrl, mediaType, mimeType, size, originalName } = {}) => {
+    socket.on("dm:send", async ({ toUserId, tempId, text, mediaUrl, mediaType, mimeType, size, originalName } = {}) => {
       if (bannedUserIds.has(myId)) {
         appendErrorLog("dm:send", "User is banned", { toUserId }, myId, me.username);
         return socket.emit("dm:error", { message: "You are banned." });
@@ -470,7 +470,8 @@ function registerSocketHandlers(io) {
         timestamp: new Date().toISOString(),
       };
       emitToUser(io, toUserId, "dm:message", { ...messagePayload, convWith: myId });
-      socket.emit("dm:message", { ...messagePayload, convWith: toUserId });
+      // Echo back to sender with tempId so client can replace the optimistic message
+      socket.emit("dm:message", { ...messagePayload, tempId, convWith: toUserId });
     });
 
     socket.on("dm:delivered", ({ msgId, fromUserId } = {}) => {

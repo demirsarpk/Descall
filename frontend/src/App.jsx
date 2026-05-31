@@ -376,14 +376,17 @@ export default function App() {
       if (!convWith) return;
       setDmByUserId((prev) => {
         const cur = prev[convWith] ?? [];
-        // Replace any temp/sending message from same sender with same text
         const isSelf = message.from?.id === me?.id;
-        const replaced = isSelf
-          ? cur.map((m) => (m.sending && m.text === message.text ? message : m))
-          : cur;
-        const alreadyExists = replaced.some((m) => m.id === message.id);
-        if (alreadyExists) return { ...prev, [convWith]: replaced };
-        return { ...prev, [convWith]: [...replaced, message] };
+        // Replace optimistic (sending) message by tempId echo, or dedupe by real id
+        if (isSelf && message.tempId) {
+          const hasTemp = cur.some((m) => m.id === message.tempId);
+          if (hasTemp) {
+            return { ...prev, [convWith]: cur.map((m) => m.id === message.tempId ? { ...message, sending: false } : m) };
+          }
+        }
+        const alreadyExists = cur.some((m) => m.id === message.id);
+        if (alreadyExists) return prev;
+        return { ...prev, [convWith]: [...cur, message] };
       });
       // Only notify for messages from others (not self)
       const currentUserId = me?.id;
@@ -411,7 +414,7 @@ export default function App() {
     });
 
     // Group messages listener
-    socket.on("group:message", ({ groupId, message }) => {
+    socket.on("group:message", ({ groupId, message, tempId }) => {
       if (!groupId || !message) return;
       const normalized = {
         id: message.id,
@@ -429,6 +432,10 @@ export default function App() {
       };
       setGroupMessagesById((prev) => {
         const cur = prev[groupId] ?? [];
+        // Replace optimistic message by tempId, or dedupe by real id
+        if (tempId && cur.some((m) => m.id === tempId)) {
+          return { ...prev, [groupId]: cur.map((m) => m.id === tempId ? { ...normalized, sending: false } : m) };
+        }
         if (cur.some((m) => m.id === normalized.id)) return prev;
         return { ...prev, [groupId]: [...cur, normalized] };
       });
@@ -745,6 +752,7 @@ export default function App() {
               if (isMediaObject) {
                 socketRef.current?.emit("dm:send", {
                   toUserId: activeDmUser.id,
+                  tempId,
                   text: "",
                   mediaUrl: msg.mediaUrl,
                   mediaType: msg.mediaType,
@@ -753,7 +761,7 @@ export default function App() {
                   originalName: msg.originalName,
                 });
               } else {
-                socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: msg });
+                socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, tempId, text: msg });
               }
             } else if (activeGroup) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -775,12 +783,13 @@ export default function App() {
               if (isMediaObject) {
                 socketRef.current?.emit("group:message", {
                   groupId: activeGroup.id,
+                  tempId,
                   content: "",
                   mediaUrl: msg.mediaUrl,
                   mediaType: msg.mediaType,
                 });
               } else {
-                socketRef.current?.emit("group:message", { groupId: activeGroup.id, content: msg });
+                socketRef.current?.emit("group:message", { groupId: activeGroup.id, tempId, content: msg });
               }
             }
           }}
