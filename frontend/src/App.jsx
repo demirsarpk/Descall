@@ -833,11 +833,10 @@ export default function App() {
           }}
           onGroupVoiceCall={() => {
             if (!activeGroup || !groupCall) return;
+            if (groupCall.isInCall && groupCall.activeGroupId === activeGroup.id) return;
             const banner = groupCall.activeCallBanner;
             if (banner?.groupId === activeGroup.id) {
-              // Active call exists — join it instead of starting a new one
-              const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
-              groupCall.startGroupCall(activeGroup.id, banner.callType, memberIds);
+              groupCall.joinActiveCall(banner);
             } else {
               const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
               groupCall.startGroupCall(activeGroup.id, "voice", memberIds);
@@ -845,10 +844,10 @@ export default function App() {
           }}
           onGroupVideoCall={() => {
             if (!activeGroup || !groupCall) return;
+            if (groupCall.isInCall && groupCall.activeGroupId === activeGroup.id) return;
             const banner = groupCall.activeCallBanner;
             if (banner?.groupId === activeGroup.id) {
-              const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
-              groupCall.startGroupCall(activeGroup.id, banner.callType, memberIds);
+              groupCall.joinActiveCall(banner);
             } else {
               const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
               groupCall.startGroupCall(activeGroup.id, "video", memberIds);
