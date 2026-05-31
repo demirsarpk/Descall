@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor,
-  Minus, Maximize2, Users, MessageSquare, Hand, MoreVertical
+  Minus, Maximize2, Users, MessageSquare, Hand, MoreVertical, Check
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
 
@@ -19,6 +19,21 @@ export default function CallOverlay({ call, groupCall }) {
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [screenExpanded, setScreenExpanded] = useState(false);
+  const [handRaised, setHandRaised] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [copiedInfo, setCopiedInfo] = useState(false);
+  const moreMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const handleClickOutside = (e) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showMoreMenu]);
 
   const isDmActive = call?.mode !== null && call?.mode !== undefined;
   const isGroupActive = groupCall?.isInCall;
@@ -420,13 +435,109 @@ export default function CallOverlay({ call, groupCall }) {
               <Monitor size={22} />
             </CircleBtn>
 
-            <CircleBtn color="#3c4043" title="Raise hand">
+            <motion.button
+              onClick={() => setHandRaised((v) => !v)}
+              title={handRaised ? "Lower hand" : "Raise hand"}
+              animate={handRaised ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+              transition={handRaised ? { repeat: Infinity, duration: 1.6, ease: "easeInOut" } : {}}
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: "50%",
+                background: handRaised ? "#f0a500" : "#3c4043",
+                border: handRaised ? "2px solid #ffc107" : "2px solid transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+                cursor: "pointer",
+                flexShrink: 0,
+                boxShadow: handRaised ? "0 0 16px rgba(240,165,0,0.5)" : "none",
+              }}
+            >
               <Hand size={22} />
-            </CircleBtn>
+            </motion.button>
 
-            <CircleBtn color="#3c4043" title="More options">
-              <MoreVertical size={22} />
-            </CircleBtn>
+            <div ref={moreMenuRef} style={{ position: "relative" }}>
+              <CircleBtn
+                color={showMoreMenu ? "rgba(255,255,255,0.15)" : "#3c4043"}
+                title="More options"
+                onClick={() => setShowMoreMenu((v) => !v)}
+              >
+                <MoreVertical size={22} />
+              </CircleBtn>
+
+              <AnimatePresence>
+                {showMoreMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                    transition={{ duration: 0.14 }}
+                    style={{
+                      position: "absolute",
+                      bottom: "calc(100% + 10px)",
+                      right: 0,
+                      background: "#2b2d33",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 12,
+                      minWidth: 210,
+                      zIndex: 100,
+                      overflow: "hidden",
+                      boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+                    }}
+                  >
+                    <MoreMenuItem
+                      icon={cameraOn ? <VideoOff size={16} /> : <Video size={16} />}
+                      label={cameraOn ? "Turn off camera" : "Turn on camera"}
+                      onClick={() => {
+                        isDm ? call.toggleCamera?.() : groupCall.toggleCamera?.();
+                        setShowMoreMenu(false);
+                      }}
+                    />
+                    <MoreMenuItem
+                      icon={muted ? <Mic size={16} /> : <MicOff size={16} />}
+                      label={muted ? "Unmute" : "Mute microphone"}
+                      onClick={() => {
+                        isDm ? call.toggleMute?.() : groupCall.toggleMute?.();
+                        setShowMoreMenu(false);
+                      }}
+                    />
+                    <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
+                    <MoreMenuItem
+                      icon={<Users size={16} />}
+                      label="Show participants"
+                      onClick={() => {
+                        setShowParticipants((v) => !v);
+                        setShowMoreMenu(false);
+                      }}
+                    />
+                    <MoreMenuItem
+                      icon={copiedInfo ? <Check size={16} color="#3ba55d" /> : <MessageSquare size={16} />}
+                      label={copiedInfo ? "Copied!" : "Copy call info"}
+                      onClick={() => {
+                        const info = isDm
+                          ? `Call with ${peer?.username}`
+                          : `Group call · ${groupCall.participants?.length ?? 0} participants`;
+                        navigator.clipboard?.writeText(info).catch(() => {});
+                        setCopiedInfo(true);
+                        setTimeout(() => setCopiedInfo(false), 2000);
+                      }}
+                    />
+                    <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
+                    <MoreMenuItem
+                      icon={<PhoneOff size={16} color="#ed4245" />}
+                      label="Leave call"
+                      danger
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        isDm ? call.endCall?.(peer?.id) : groupCall.leaveCall?.();
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             <CircleBtn color="#ed4245" size={56} onClick={() => (isDm ? call.endCall(peer?.id) : groupCall.leaveCall())} title="End call">
               <PhoneOff size={24} />
@@ -556,5 +667,33 @@ function PersonRow({ name, avatarUrl, isHost }) {
         {isHost && <span style={{ fontSize: 11, color: "#b5bac1" }}>Host</span>}
       </div>
     </div>
+  );
+}
+
+function MoreMenuItem({ icon, label, onClick, danger }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 16px",
+        background: "none",
+        border: "none",
+        color: danger ? "#ed4245" : "#e3e5e8",
+        fontSize: 14,
+        fontWeight: 500,
+        cursor: "pointer",
+        textAlign: "left",
+        transition: "background 0.12s",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = danger ? "rgba(237,66,69,0.12)" : "rgba(255,255,255,0.07)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+    >
+      <span style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{icon}</span>
+      {label}
+    </button>
   );
 }
