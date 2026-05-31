@@ -822,14 +822,14 @@ export default function App() {
             }
           }}
           onVoiceCall={() => {
-            if (activeDmUser && call?.startCall) {
-              call.startCall(activeDmUser, "voice");
-            }
+            if (groupCall?.isInCall) return;
+            if (groupCall?.activeCallBanner) { groupCall.joinActiveCall(groupCall.activeCallBanner); return; }
+            if (activeDmUser && call?.startCall) call.startCall(activeDmUser, "voice");
           }}
           onVideoCall={() => {
-            if (activeDmUser && call?.startCall) {
-              call.startCall(activeDmUser, "video");
-            }
+            if (groupCall?.isInCall) return;
+            if (groupCall?.activeCallBanner) { groupCall.joinActiveCall(groupCall.activeCallBanner); return; }
+            if (activeDmUser && call?.startCall) call.startCall(activeDmUser, "video");
           }}
           onGroupVoiceCall={() => {
             if (!activeGroup || !groupCall) return;
