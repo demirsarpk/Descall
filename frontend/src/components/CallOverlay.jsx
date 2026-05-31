@@ -710,16 +710,18 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
 
   const attachStream = (el, stream) => {
     if (!el || !stream) return;
-    if (el.srcObject !== stream) {
-      el.srcObject = stream;
-      el.play().catch(() => {});
-    }
+    // Always reassign — the stream object reference may be the same but the
+    // underlying track may have just unmuted (was black before). Forcing
+    // srcObject reassignment + play() ensures the browser re-evaluates.
+    el.srcObject = stream;
+    el.play().catch(() => {});
   };
 
-  // Attach stream to normal video whenever stream changes
+  // Re-attach whenever screenStream changes OR on every render pass
+  // (covers track.onunmute triggering a React state update with same stream ref)
   useEffect(() => {
     attachStream(normalVideoRef.current, screenStream);
-  }, [screenStream]);
+  });
 
   // Callback ref for expanded video — fires immediately when the element mounts
   const expandedVideoCallbackRef = (el) => {

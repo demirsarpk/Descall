@@ -232,50 +232,60 @@ export function useGroupCall(socket) {
 
       if (isScreenTrack) {
         // Dedicated screen share stream — store separately on the participant
-        setParticipants((prev) => {
-          if (userId === myIdRef.current) return prev;
-          const exists = prev.find((p) => p.id === userId);
-          if (exists) {
-            return prev.map((p) => p.id === userId
-              ? { ...p, screenStream: incomingStream, isScreenSharing: true }
-              : p
-            );
-          }
-          return [...prev, {
-            id: userId,
-            stream: null,
-            screenStream: incomingStream,
-            hasVideo: false,
-            hasAudio: false,
-            isScreenSharing: true,
-            username: "Member",
-          }];
-        });
+        const applyScreenStream = () => {
+          setParticipants((prev) => {
+            if (userId === myIdRef.current) return prev;
+            const exists = prev.find((p) => p.id === userId);
+            if (exists) {
+              return prev.map((p) => p.id === userId
+                ? { ...p, screenStream: incomingStream, isScreenSharing: true }
+                : p
+              );
+            }
+            return [...prev, {
+              id: userId,
+              stream: null,
+              screenStream: incomingStream,
+              hasVideo: false,
+              hasAudio: false,
+              isScreenSharing: true,
+              username: "Member",
+            }];
+          });
+        };
+        applyScreenStream();
+        // Track may be muted until ICE/DTLS completes — re-apply on unmute
+        // so the video element gets re-attached and stops showing black.
+        track.onunmute = applyScreenStream;
         return; // don't fall through to camera logic
       }
 
       if (track.kind === "video") {
         // Camera video track
         remoteStreamsRef.current.set(userId, incomingStream);
-        setParticipants((prev) => {
-          if (userId === myIdRef.current) return prev;
-          const exists = prev.find((p) => p.id === userId);
-          if (exists) {
-            return prev.map((p) => p.id === userId
-              ? { ...p, stream: incomingStream, hasVideo: true }
-              : p
-            );
-          }
-          return [...prev, {
-            id: userId,
-            stream: incomingStream,
-            screenStream: null,
-            hasVideo: true,
-            hasAudio: false,
-            isScreenSharing: false,
-            username: "Member",
-          }];
-        });
+        const applyCameraStream = () => {
+          setParticipants((prev) => {
+            if (userId === myIdRef.current) return prev;
+            const exists = prev.find((p) => p.id === userId);
+            if (exists) {
+              return prev.map((p) => p.id === userId
+                ? { ...p, stream: incomingStream, hasVideo: true }
+                : p
+              );
+            }
+            return [...prev, {
+              id: userId,
+              stream: incomingStream,
+              screenStream: null,
+              hasVideo: true,
+              hasAudio: false,
+              isScreenSharing: false,
+              username: "Member",
+            }];
+          });
+        };
+        applyCameraStream();
+        track.onunmute = applyCameraStream;
       }
 
       // For audio-only participants, ensure they appear in the list
