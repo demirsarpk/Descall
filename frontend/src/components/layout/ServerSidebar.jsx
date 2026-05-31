@@ -27,7 +27,10 @@ export default function ServerSidebar({
   setShowAddModal: setShowAddModalProp,
   addTab: addTabProp,
   setAddTab: setAddTabProp,
-  onRefreshGroups
+  onRefreshGroups,
+  friendRequests,
+  onAcceptFriend,
+  onDeclineFriend,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
@@ -263,6 +266,9 @@ export default function ServerSidebar({
               expanded={expandedSections.friends}
               onToggle={() => toggleSection("friends")}
               onFriendSelect={onFriendSelect}
+              friendRequests={friendRequests}
+              onAcceptFriend={onAcceptFriend}
+              onDeclineFriend={onDeclineFriend}
             />
           )}
         </div>
@@ -532,24 +538,34 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect }) {
   );
 }
 
-function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect }) {
+function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend }) {
   const safeFriends = Array.isArray(friends) ? friends : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
-  
-  const onlineFriends = safeFriends.filter(f => 
+  const pendingRequests = Array.isArray(friendRequests) ? friendRequests : [];
+
+  const onlineFriends = safeFriends.filter(f =>
     safeOnlineUsers.some(u => u.id === f.id)
   );
-  const offlineFriends = safeFriends.filter(f => 
+  const offlineFriends = safeFriends.filter(f =>
     !safeOnlineUsers.some(u => u.id === f.id)
   );
 
   return (
     <div className="sidebar-section">
-      <button 
+      <button
         className="section-header"
         onClick={onToggle}
+        style={{ position: "relative" }}
       >
         <span className="section-title">Friends</span>
+        {pendingRequests.length > 0 && (
+          <span style={{
+            background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 700,
+            borderRadius: 10, padding: "1px 6px", minWidth: 16, textAlign: "center", lineHeight: "16px",
+          }}>
+            {pendingRequests.length}
+          </span>
+        )}
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
 
@@ -562,6 +578,57 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect 
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="section-content"
           >
+            {pendingRequests.length > 0 && (
+              <div className="friend-category">
+                <span className="category-label" style={{ color: "var(--warning)" }}>
+                  Pending — {pendingRequests.length}
+                </span>
+                {pendingRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "6px 8px", borderRadius: 8,
+                      background: "var(--surface-2)", marginBottom: 4,
+                    }}
+                  >
+                    <div className="friend-avatar" style={{ flexShrink: 0 }}>
+                      <Avatar name={req.username} size={32} imageUrl={req.avatarUrl} />
+                    </div>
+                    <span className="friend-name" style={{ flex: 1, fontSize: 13 }}>{req.username}</span>
+                    <button
+                      title="Accept"
+                      onClick={() => onAcceptFriend?.(req.id)}
+                      style={{
+                        width: 26, height: 26, borderRadius: 6, border: "none",
+                        background: "var(--success-soft)", color: "var(--success)",
+                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        flexShrink: 0, transition: "background 0.15s",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--success)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "var(--success-soft)"}
+                    >
+                      <UserPlus size={13} />
+                    </button>
+                    <button
+                      title="Decline"
+                      onClick={() => onDeclineFriend?.(req.id)}
+                      style={{
+                        width: 26, height: 26, borderRadius: 6, border: "none",
+                        background: "var(--danger-soft)", color: "var(--danger)",
+                        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        flexShrink: 0, transition: "background 0.15s",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--danger)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "var(--danger-soft)"}
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {onlineFriends.length > 0 && (
               <div className="friend-category">
                 <span className="category-label">Online — {onlineFriends.length}</span>

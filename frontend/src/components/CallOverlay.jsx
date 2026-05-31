@@ -16,7 +16,7 @@ import { Avatar } from "./ui/Avatar";
  */
 const PULSE_STYLE = `@keyframes callTilePulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`;
 
-export default function CallOverlay({ call, groupCall }) {
+export default function CallOverlay({ call, groupCall, me }) {
   const [minimized, setMinimized] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -181,8 +181,10 @@ export default function CallOverlay({ call, groupCall }) {
   const remoteScreenSharers = isDm
     ? []
     : (groupCall?.participants ?? []).filter((p) => p.isScreenSharing);
+  const localUsername = me?.username || me?.displayName || "You";
+
   const allScreenSharers = [
-    ...(screenSharing ? [{ id: "local", username: "You", isLocal: true }] : []),
+    ...(screenSharing ? [{ id: "local", username: localUsername, isLocal: true }] : []),
     ...remoteScreenSharers.map((p) => ({ id: p.id, username: p.username, isLocal: false })),
   ];
   const anyScreenShare = allScreenSharers.length > 0;
@@ -251,6 +253,8 @@ export default function CallOverlay({ call, groupCall }) {
             remoteParticipants={remoteParticipants}
             hasLocalVideo={hasLocalVideo}
             cameraOn={cameraOn}
+            localUsername={localUsername}
+            localAvatarUrl={me?.avatar_url || me?.avatarUrl || null}
           />
         ) : (
           <ParticipantGrid
@@ -266,6 +270,8 @@ export default function CallOverlay({ call, groupCall }) {
             title={title}
             subtitle={subtitle}
             formattedDuration={formattedDuration}
+            localUsername={localUsername}
+            localAvatarUrl={me?.avatar_url || me?.avatarUrl || null}
           />
         )}
       </div>
@@ -551,7 +557,7 @@ function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, 
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#3ba55d", flexShrink: 0, animation: "callTilePulse 1.2s infinite" }} />
         )}
         <span style={{ fontSize: small ? 11 : 13, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {isLocal ? "You" : username}
+          {username}
         </span>
       </div>
     </div>
@@ -561,10 +567,10 @@ function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, 
 /* ─────────────────────────────────────────────────────────────────
    ParticipantGrid — adaptive grid layout when no screen share
    ───────────────────────────────────────────────────────────────── */
-function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration }) {
+function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localAvatarUrl }) {
   // Include self as first tile
   const allTiles = [
-    { id: "local", username: "You", isLocal: true, hasVideo: hasLocalVideo, avatarUrl: null },
+    { id: "local", username: localUsername, isLocal: true, hasVideo: hasLocalVideo, avatarUrl: localAvatarUrl },
     ...remoteParticipants.map((p) => ({
       id: p.id,
       username: p.username,
@@ -616,7 +622,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
 /* ─────────────────────────────────────────────────────────────────
    ScreenShareLayout — selected screen large on top, strip below
    ───────────────────────────────────────────────────────────────── */
-function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn }) {
+function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl }) {
   const [selectedSharerIndex, setSelectedSharerIndex] = useState(0);
   const [viewerCount] = useState(0); // Could be wired to backend later
 
@@ -633,7 +639,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
 
   // Strip tiles: all participants + local self
   const stripTiles = [
-    { id: "local", username: "You", isLocal: true, hasVideo: hasLocalVideo },
+    { id: "local", username: localUsername, isLocal: true, hasVideo: hasLocalVideo, avatarUrl: localAvatarUrl },
     ...remoteParticipants.map((p) => ({ id: p.id, username: p.username, avatarUrl: p.avatarUrl, isLocal: false, hasVideo: p.hasVideo || p.isCameraOn })),
   ];
 

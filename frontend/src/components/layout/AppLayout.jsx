@@ -40,6 +40,9 @@ export default function AppLayout({
   activeCallBanner,
   onJoinActiveCall,
   onDismissActiveBanner,
+  friendRequests,
+  onAcceptFriend,
+  onDeclineFriend,
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
@@ -96,6 +99,9 @@ export default function AppLayout({
         setAddTab={setAddTab}
         onFriendSelect={onDmSelect}
         onRefreshGroups={onRefreshGroups}
+        friendRequests={friendRequests}
+        onAcceptFriend={onAcceptFriend}
+        onDeclineFriend={onDeclineFriend}
       />
 
       {/* Main Chat Panel - Center content area */}

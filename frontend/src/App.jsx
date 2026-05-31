@@ -600,10 +600,12 @@ export default function App() {
 
   const handleAcceptFriend = (fromUserId) => {
     socketRef.current?.emit("friend:accept", { fromUserId });
+    setFriendRequests((prev) => prev.filter((r) => r.id !== fromUserId));
   };
 
   const handleDeclineFriend = (fromUserId) => {
     socketRef.current?.emit("friend:decline", { fromUserId });
+    setFriendRequests((prev) => prev.filter((r) => r.id !== fromUserId));
   };
 
   const handleRemoveFriend = (friendId) => {
@@ -695,6 +697,9 @@ export default function App() {
           }}
           friendNotice={friendNotice}
           onRefreshGroups={fetchGroups}
+          friendRequests={friendRequests}
+          onAcceptFriend={handleAcceptFriend}
+          onDeclineFriend={handleDeclineFriend}
           onSendMessage={(msg) => {
             if (activeDmUser) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -772,7 +777,7 @@ export default function App() {
         >
           <MessageList messages={dmMessages} currentUser={me} />
         </AppLayout>
-        <CallOverlay call={call} groupCall={groupCall} />
+        <CallOverlay call={call} groupCall={groupCall} me={me} />
         <GroupCallIncomingModal
           incomingCall={groupCall?.incomingCall}
           onAccept={(groupId, callType, fromUser) => groupCall?.acceptGroupCall(groupId, callType, fromUser)}
