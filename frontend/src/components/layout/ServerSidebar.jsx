@@ -113,7 +113,6 @@ export default function ServerSidebar({
     try {
       const token = getToken();
       const url = `${API_BASE_URL}/groups/create`;
-      console.log("[CreateGroup] POST", url, { name: groupName.trim(), memberIds: selectedGroupMembers.map(m => m.id) });
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -123,7 +122,6 @@ export default function ServerSidebar({
         }),
       });
       const data = await res.json();
-      console.log("[CreateGroup] Response", res.status, data);
       if (!res.ok) throw new Error(data.error || data.details || `Failed to create group (status ${res.status})`);
       setAddSuccess(`Group "${groupName.trim()}" created`);
       setGroupName("");
@@ -134,7 +132,6 @@ export default function ServerSidebar({
       // Trigger groups refresh via callback
       onRefreshGroups?.();
     } catch (err) {
-      console.error("[CreateGroup] Error:", err);
       setAddError(err.message || "Network error. Is backend deployed?");
     } finally {
       setAddLoading(false);

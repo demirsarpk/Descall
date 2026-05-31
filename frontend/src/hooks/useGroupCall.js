@@ -653,32 +653,33 @@ export function useGroupCall(socket) {
     const trackOperations = [];
     
     // Prepare track restoration operations
-    if (screenSenderRef.current) {
-      for (const [userId, peerData] of pcMapRef.current.entries()) {
-        try {
-          if (cameraTrack) {
-            // Has camera - replace screen with camera
+    for (const [userId, peerData] of pcMapRef.current.entries()) {
+      try {
+        const senders = peerData.pc.getSenders();
+        if (cameraTrack) {
+          // Has camera - find the current video sender for this peer and replace with camera
+          const videoSender = senders.find(s => s.track?.kind === 'video');
+          if (videoSender) {
             trackOperations.push({
               type: 'replace',
               userId,
-              sender: screenSenderRef.current,
+              sender: videoSender,
               track: cameraTrack
             });
-          } else {
-            // Voice-only call - remove screen track and renegotiate
-            const senders = peerData.pc.getSenders();
-            const screenSender = senders.find(s => s.track?.label?.toLowerCase().includes("screen"));
-            if (screenSender) {
-              trackOperations.push({
-                type: 'remove',
-                userId,
-                peerConnection: peerData.pc,
-                sender: screenSender
-              });
-            }
           }
-        } catch (err) {
+        } else {
+          // Voice-only call - remove screen track sender and renegotiate
+          const screenSender = senders.find(s => s.track?.kind === 'video');
+          if (screenSender) {
+            trackOperations.push({
+              type: 'remove',
+              userId,
+              peerConnection: peerData.pc,
+              sender: screenSender
+            });
+          }
         }
+      } catch (err) {
       }
     }
     
@@ -727,7 +728,7 @@ export function useGroupCall(socket) {
     if (socketRef.current?.connected) {
       socketRef.current.emit("group:screen:stop", { groupId: activeGroupId });
     }
-  }, [activeGroupId]);
+  }, [activeGroupId, isScreenSharing]);
 
   useEffect(() => {
     if (!socket) return;
@@ -903,16 +904,15 @@ export function useGroupCall(socket) {
       
       const peerData = pcMapRef.current.get(fromUserId);
       
-      if (!peerData || !peerData.pc.remoteDescription) {
-        if (!peerData) {
-          // Store ICE candidate for later when peer connection is created
-          const newPeerData = { pc: null, pendingIce: [candidate] };
-          pcMapRef.current.set(fromUserId, newPeerData);
-        } else {
-          // Queue ICE candidate until remote description is set
+      if (!peerData || !peerData.pc || !peerData.pc.remoteDescription) {
+        // Queue ICE candidate until both a real peer connection and remote
+        // description are available — do NOT create a stub entry with pc=null
+        if (peerData && peerData.pc) {
           if (!peerData.pendingIce) peerData.pendingIce = [];
           peerData.pendingIce.push(candidate);
         }
+        // If peerData doesn't exist yet, the candidate arrives before the offer;
+        // flushIce is called from the offer handler once the PC is set up.
         return;
       }
 
@@ -1125,28 +1125,33 @@ export function useGroupCall(socket) {
   // Change audio input device
   const setAudioInput = useCallback(async (deviceId) => {
     setSelectedAudioInput(deviceId);
-    if (localStreamRef.current) {
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          audio: { deviceId: { exact: deviceId } },
-          video: localStreamRef.current.getVideoTracks().length > 0
-        });
-        const newAudioTrack = newStream.getAudioTracks()[0];
-        if (newAudioTrack) {
-          pcMapRef.current.forEach(async (peerData) => {
-            const sender = peerData.pc.getSenders().find(s => s.track?.kind === 'audio');
-            if (sender) {
-              await sender.replaceTrack(newAudioTrack);
-            }
-          });
-          // Stop old audio tracks
-          localStreamRef.current.getAudioTracks().forEach(t => t.stop());
-          // Add new audio track to local stream
-          localStreamRef.current.addTrack(newAudioTrack);
-          setLocalStream(localStreamRef.current);
-        }
-      } catch (err) {
-      }
+    if (!localStreamRef.current) return;
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: deviceId } },
+        video: false,
+      });
+      const newAudioTrack = newStream.getAudioTracks()[0];
+      if (!newAudioTrack) return;
+
+      // Stop and remove old audio tracks from the local stream first
+      const oldAudioTracks = localStreamRef.current.getAudioTracks();
+      oldAudioTracks.forEach((t) => {
+        t.stop();
+        localStreamRef.current.removeTrack(t);
+      });
+      localStreamRef.current.addTrack(newAudioTrack);
+
+      // Replace the track on all active peer senders
+      const replacePromises = [];
+      pcMapRef.current.forEach((peerData) => {
+        const sender = peerData.pc?.getSenders().find(s => s.track?.kind === 'audio');
+        if (sender) replacePromises.push(sender.replaceTrack(newAudioTrack));
+      });
+      await Promise.all(replacePromises);
+
+      setLocalStream(localStreamRef.current);
+    } catch (err) {
     }
   }, []);
 

@@ -257,7 +257,7 @@ export default function CallOverlay({ call, groupCall }) {
             }}
           >
             <video
-              ref={call?.screenVideoRef}
+              ref={isDm ? call?.screenVideoRef : groupCall?.screenVideoRef}
               autoPlay
               playsInline
               style={{ width: "100%", height: "100%", objectFit: "contain" }}
@@ -338,7 +338,7 @@ export default function CallOverlay({ call, groupCall }) {
         >
           {hasLocalVideo ? (
             <video
-              ref={call?.localVideoRef}
+              ref={isDm ? call?.localVideoRef : groupCall?.localVideoRef}
               autoPlay
               playsInline
               muted
