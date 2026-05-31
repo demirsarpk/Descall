@@ -157,9 +157,6 @@ export default function ServerSidebar({
     );
   }, [dms, searchQuery]);
 
-  useEffect(() => {
-    console.log("[ServerSidebar] groups prop:", groups);
-  }, [groups]);
 
   const filteredGroups = useMemo(() => {
     if (!Array.isArray(groups)) return [];
@@ -445,7 +442,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
                   key={dm.id}
                   className={`dm-item ${isActive ? "active" : ""}`}
                   onClick={() => onDmSelect?.(dm)}
-                  whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
+                  whileHover={{ scale: 1.01 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
                   <div className="dm-avatar">
@@ -507,7 +504,7 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect }) {
                     key={group.id}
                     className={`group-item ${isActive ? "active" : ""}`}
                     onClick={() => onGroupSelect?.(group)}
-                    whileHover={{ scale: 1.02, backgroundColor: "var(--surface-2)" }}
+                    whileHover={{ scale: 1.01 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <div className="group-icon" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", fontWeight: 700, fontSize: 14 }}>
