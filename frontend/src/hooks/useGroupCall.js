@@ -242,6 +242,7 @@ export function useGroupCall(socket) {
                 : p
               );
             }
+            const storedUser = pcMapRef.current.get(userId)?.fromUser;
             return [...prev, {
               id: userId,
               stream: null,
@@ -249,7 +250,8 @@ export function useGroupCall(socket) {
               hasVideo: false,
               hasAudio: false,
               isScreenSharing: true,
-              username: "Member",
+              username: storedUser?.username || storedUser?.displayName || "Member",
+              avatarUrl: storedUser?.avatar_url || null,
             }];
           });
         };
@@ -273,6 +275,7 @@ export function useGroupCall(socket) {
                 : p
               );
             }
+            const storedUser = pcMapRef.current.get(userId)?.fromUser;
             return [...prev, {
               id: userId,
               stream: incomingStream,
@@ -280,7 +283,8 @@ export function useGroupCall(socket) {
               hasVideo: true,
               hasAudio: false,
               isScreenSharing: false,
-              username: "Member",
+              username: storedUser?.username || storedUser?.displayName || "Member",
+              avatarUrl: storedUser?.avatar_url || null,
             }];
           });
         };
@@ -295,6 +299,7 @@ export function useGroupCall(socket) {
           if (prev.find((p) => p.id === userId)) {
             return prev.map((p) => p.id === userId ? { ...p, hasAudio: true } : p);
           }
+          const storedUser = pcMapRef.current.get(userId)?.fromUser;
           return [...prev, {
             id: userId,
             stream: incomingStream,
@@ -302,7 +307,8 @@ export function useGroupCall(socket) {
             hasVideo: false,
             hasAudio: true,
             isScreenSharing: false,
-            username: "Member",
+            username: storedUser?.username || storedUser?.displayName || "Member",
+            avatarUrl: storedUser?.avatar_url || null,
           }];
         });
       }
@@ -791,7 +797,8 @@ export function useGroupCall(socket) {
 
       try {
         const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-        const peerData = { pc, pendingIce: [] };
+        // Store fromUser so ontrack's new-entry fallback can use the real username
+        const peerData = { pc, pendingIce: [], fromUser };
         pcMapRef.current.set(fromUserId, peerData);
         
         setupPeerConnection(pc, stream, fromUserId, groupId);
@@ -829,7 +836,8 @@ export function useGroupCall(socket) {
 
       try {
         const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-        const peerData = { pc, pendingIce: [] };
+        // Store fromUser so ontrack's new-entry fallback can use the real username
+        const peerData = { pc, pendingIce: [], fromUser };
         pcMapRef.current.set(fromUserId, peerData);
 
         setupPeerConnection(pc, stream, fromUserId, groupId);
