@@ -4,13 +4,14 @@ import { FileText, Download } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import CallSummaryBubble from "./CallSummaryBubble";
+import ActiveCallBanner from "../ActiveCallBanner";
 
 /**
  * COMPLETELY REBUILT MESSAGE LIST
  * Discord-style message display
  * No old layout remnants
  */
-export default function MessageList({ messages, currentUser }) {
+export default function MessageList({ messages, currentUser, onJoinActiveCall, onDismissActiveBanner }) {
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -28,10 +29,15 @@ export default function MessageList({ messages, currentUser }) {
     let currentGroup = null;
 
     msgs.forEach((msg, index) => {
-      // Call summary bubbles break grouping — render standalone
+      // Call summary and active call bubbles break grouping — render standalone
       if (msg.type === "call_summary") {
         if (currentGroup) { grouped.push(currentGroup); currentGroup = null; }
         grouped.push({ isSummary: true, summary: msg, id: msg.id });
+        return;
+      }
+      if (msg.type === "active_call") {
+        if (currentGroup) { grouped.push(currentGroup); currentGroup = null; }
+        grouped.push({ isActiveBanner: true, banner: msg, id: msg.id });
         return;
       }
 
@@ -59,6 +65,16 @@ export default function MessageList({ messages, currentUser }) {
       {groupedMessages.map((group, groupIndex) => {
         if (group.isSummary) {
           return <CallSummaryBubble key={group.id || `summary-${groupIndex}`} summary={group.summary} />;
+        }
+        if (group.isActiveBanner) {
+          return (
+            <ActiveCallBanner
+              key={group.id || `active-call-${groupIndex}`}
+              banner={group.banner}
+              onJoin={onJoinActiveCall}
+              onDismiss={onDismissActiveBanner}
+            />
+          );
         }
 
         const isOwn = group.user?.id === currentUser?.id;

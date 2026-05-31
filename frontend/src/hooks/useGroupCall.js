@@ -399,6 +399,7 @@ export function useGroupCall(socket) {
         callType: type,
         participantCount: 1,
         participants: [myIdRef.current],
+        startTime: Date.now(),
       });
 
     } catch (err) {
@@ -1025,8 +1026,8 @@ export function useGroupCall(socket) {
       }));
     };
 
-    const onActiveBanner = ({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants }) => {
-      setActiveCallBanner({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants });
+    const onActiveBanner = ({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants, startTime }) => {
+      setActiveCallBanner({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants, startTime: startTime ?? Date.now() });
     };
 
     const onParticipantLeft = ({ groupId, userId }) => {
@@ -1280,6 +1281,44 @@ export function useGroupCall(socket) {
 
   const dismissActiveBanner = useCallback(() => setActiveCallBanner(null), []);
 
+  const joinActiveCall = useCallback(async (banner) => {
+    if (!banner?.groupId || !socketRef.current || isInCall) return;
+    const { groupId, callType: type, participants: existingParticipants = [] } = banner;
+    try {
+      const constraints = type === "video"
+        ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
+        : { audio: true, video: false };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      stream.getAudioTracks().forEach((t) => { t.enabled = true; });
+      setIsInCall(true);
+      setIsInitiator(false);
+      setCallType(type);
+      setActiveGroupId(groupId);
+      setIsCameraOn(type === "video");
+      if (localVideoRef.current && type === "video") {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.play().catch(() => {});
+      }
+      const myId = myIdRef.current;
+      existingParticipants.forEach((userId) => {
+        if (userId === myId) return;
+        setParticipants((prev) => {
+          if (prev.find((p) => p.id === userId)) return prev;
+          return [...prev, { id: userId, username: "Member", hasVideo: type === "video", hasAudio: true }];
+        });
+        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        pcMapRef.current.set(userId, { pc, pendingIce: [] });
+        setupPeerConnection(pc, stream, userId, groupId);
+      });
+      socketRef.current.emit("group:join", groupId);
+      socketRef.current.emit("group:call:join", { groupId, callType: type });
+    } catch (err) {
+      cleanup();
+    }
+  }, [isInCall, cleanup, setupPeerConnection]);
+
   return {
     isInCall,
     isInitiator,
@@ -1305,6 +1344,7 @@ export function useGroupCall(socket) {
     setScreenVideo,
     startGroupCall,
     acceptGroupCall,
+    joinActiveCall,
     declineCall,
     leaveCall,
     toggleMute,

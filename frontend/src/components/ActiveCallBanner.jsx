@@ -11,7 +11,8 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
 
   useEffect(() => {
     if (!banner) { setElapsed(0); return; }
-    setElapsed(0);
+    const base = banner.startTime ? Math.floor((Date.now() - banner.startTime) / 1000) : 0;
+    setElapsed(Math.max(0, base));
     const t = setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => clearInterval(t);
   }, [banner?.groupId]);

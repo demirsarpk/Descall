@@ -27,6 +27,7 @@ function registerGroupHandlers(io, socket, state) {
         callType: activeCall.callType,
         participantCount: activeCall.participants.size,
         participants: Array.from(activeCall.participants),
+        startTime: activeCall.startTime,
       });
     }
   });
@@ -47,6 +48,7 @@ function registerGroupHandlers(io, socket, state) {
           callType: activeCall.callType,
           participantCount: activeCall.participants.size,
           participants: Array.from(activeCall.participants),
+          startTime: activeCall.startTime,
         });
       }
     });

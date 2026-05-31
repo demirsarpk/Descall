@@ -103,15 +103,17 @@ export default function App() {
         ...s,
         timestamp: s.endedAt ?? new Date().toISOString(),
       }));
-      if (summaries.length === 0) return msgs;
-      // Merge summaries into message list by timestamp
-      return [...msgs, ...summaries].sort(
-        (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
-      );
+      const banner = groupCall?.activeCallBanner;
+      const activeBannerItem = (banner?.groupId === activeGroup.id && banner?.startTime)
+        ? [{ ...banner, id: `active-call-${banner.groupId}`, type: "active_call", timestamp: new Date(banner.startTime).toISOString() }]
+        : [];
+      const merged = [...msgs, ...summaries, ...activeBannerItem];
+      if (summaries.length === 0 && activeBannerItem.length === 0) return msgs;
+      return merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     }
     if (activeDmUser) return dmByUserId[activeDmUser.id] ?? [];
     return [];
-  }, [activeDmUser, activeGroup, dmByUserId, groupMessagesById, groupCall?.callSummaries]);
+  }, [activeDmUser, activeGroup, dmByUserId, groupMessagesById, groupCall?.callSummaries, groupCall?.activeCallBanner]);
 
   useEffect(() => {
     const token = getToken();
@@ -855,13 +857,19 @@ export default function App() {
           activeCallBanner={groupCall?.activeCallBanner}
           onJoinActiveCall={() => {
             if (!activeGroup || !groupCall?.activeCallBanner) return;
-            const banner = groupCall.activeCallBanner;
-            const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
-            groupCall.startGroupCall(banner.groupId, banner.callType, memberIds);
+            groupCall.joinActiveCall(groupCall.activeCallBanner);
           }}
           onDismissActiveBanner={groupCall?.dismissActiveBanner}
         >
-          <MessageList messages={dmMessages} currentUser={me} />
+          <MessageList
+            messages={dmMessages}
+            currentUser={me}
+            onJoinActiveCall={() => {
+              if (!activeGroup || !groupCall?.activeCallBanner) return;
+              groupCall.joinActiveCall(groupCall.activeCallBanner);
+            }}
+            onDismissActiveBanner={groupCall?.dismissActiveBanner}
+          />
         </AppLayout>
         <CallOverlay call={call} groupCall={groupCall} me={me} />
         <GroupCallIncomingModal
