@@ -80,7 +80,7 @@ export default function ChatPanel({
                 size={40}
                 imageUrl={activeDmUser.avatarUrl}
               />
-              <StatusBadge status="online" />
+              <StatusBadge status={onlineUsers?.some(u => u.id === activeDmUser.id) ? "online" : "offline"} />
             </div>
           )}
           {activeGroup && (

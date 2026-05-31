@@ -4,15 +4,19 @@
  * No old layout remnants
  */
 export default function StatusBadge({ status = "offline" }) {
+  if (!status || status === "offline") return null;
+
   const statusColors = {
     online: "#23a55a",
     idle: "#f0b232",
     dnd: "#f23f43",
-    offline: "#80848e"
   };
 
+  const color = statusColors[status];
+  if (!color) return null;
+
   return (
-    <span 
+    <span
       className="status-badge"
       style={{
         position: "absolute",
@@ -20,10 +24,10 @@ export default function StatusBadge({ status = "offline" }) {
         right: 0,
         width: 14,
         height: 14,
-        backgroundColor: statusColors[status] || statusColors.offline,
+        backgroundColor: color,
         borderRadius: "50%",
         border: "3px solid var(--surface-0)",
-        flexShrink: 0
+        flexShrink: 0,
       }}
       title={status}
     />
