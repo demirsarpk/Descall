@@ -708,18 +708,24 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     ? (isDm ? call?.screenStream : groupCall?.screenStream)
     : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null);
 
-  // Attach stream to both video elements whenever it changes
+  const attachStream = (el, stream) => {
+    if (!el || !stream) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+      el.play().catch(() => {});
+    }
+  };
+
+  // Attach stream to normal video whenever stream changes
   useEffect(() => {
-    const attach = (el) => {
-      if (!el || !screenStream) return;
-      if (el.srcObject !== screenStream) {
-        el.srcObject = screenStream;
-        el.play().catch(() => {});
-      }
-    };
-    attach(normalVideoRef.current);
-    attach(expandedVideoRef.current);
-  }, [screenStream, screenExpanded]);
+    attachStream(normalVideoRef.current, screenStream);
+  }, [screenStream]);
+
+  // Callback ref for expanded video — fires immediately when the element mounts
+  const expandedVideoCallbackRef = (el) => {
+    expandedVideoRef.current = el;
+    if (el) attachStream(el, screenStream);
+  };
 
   const sharerLabel = activeSharer
     ? (activeSharer.isLocal ? "Your Screen" : `${activeSharer.username}'s Screen`)
@@ -809,10 +815,10 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
               background: "#000",
               cursor: "pointer",
             }}
-            onClick={() => setScreenExpanded(false)}
+            onClick={(e) => { e.stopPropagation(); setScreenExpanded(false); }}
           >
             <video
-              ref={expandedVideoRef}
+              ref={expandedVideoCallbackRef}
               autoPlay
               playsInline
               muted={activeSharer?.isLocal}

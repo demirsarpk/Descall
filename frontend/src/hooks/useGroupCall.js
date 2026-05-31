@@ -193,13 +193,21 @@ export function useGroupCall(socket) {
     });
 
     pc.ontrack = (e) => {
-      const remoteStream = e.streams[0];
       const track = e.track;
-      
-      remoteStreamsRef.current.set(userId, remoteStream);
-      
-      // Create audio element for this user if it doesn't exist
+      // e.streams[0] is the stream the sender associated with this track
+      const incomingStream = e.streams[0];
+      if (!incomingStream) return;
+
+      // Screen share detection: video track whose stream carries no audio,
+      // OR whose label explicitly mentions the screen/display surface
+      const isScreenTrack = track.kind === "video" &&
+        (track.label?.toLowerCase().includes("screen") ||
+         track.label?.toLowerCase().includes("display") ||
+         incomingStream.getAudioTracks().length === 0);
+
       if (track.kind === "audio") {
+        // Audio always belongs to the main participant stream
+        remoteStreamsRef.current.set(userId, incomingStream);
         let audioEl = remoteAudioRefs.current.get(userId);
         if (!audioEl) {
           audioEl = document.createElement("audio");
@@ -210,57 +218,80 @@ export function useGroupCall(socket) {
           document.body.appendChild(audioEl);
           remoteAudioRefs.current.set(userId, audioEl);
         }
-        audioEl.srcObject = remoteStream;
-        audioEl.play().catch((err) => {});
-      }
-      
-      // Handle muted tracks
-      if (track?.muted) {
+        audioEl.srcObject = incomingStream;
+        audioEl.play().catch(() => {});
         track.onunmute = () => {
-          if (track.kind === "audio") {
-            const audioEl = remoteAudioRefs.current.get(userId);
-            if (audioEl) {
-              audioEl.srcObject = remoteStream;
-              audioEl.play().catch((err) => {});
-            }
-          }
+          audioEl.srcObject = incomingStream;
+          audioEl.play().catch(() => {});
         };
       }
-      
-      // Detect screen share track: video without audio or label containing "screen"
-      const isScreenTrack = track.kind === "video" && 
-        (track.label?.toLowerCase().includes("screen") || 
-         (remoteStream.getVideoTracks().length > 0 && remoteStream.getAudioTracks().length === 0));
-      
-      const hasVideoTrack = track.kind === "video" && !isScreenTrack;
-      
-      setParticipants((prev) => {
-        // Exclude local user from participants list to prevent duplication
-        if (userId === myIdRef.current) {
-          return prev;
-        }
-        
-        const exists = prev.find((p) => p.id === userId);
-        if (exists) {
-          return prev.map((p) => p.id === userId ? { 
-            ...p, 
-            stream: remoteStream,
-            screenStream: isScreenTrack ? remoteStream : p.screenStream,
-            hasVideo: hasVideoTrack || p.hasVideo,
-            hasAudio: track.kind === "audio" || p.hasAudio,
-            isScreenSharing: isScreenTrack ? true : (p.isScreenSharing || false)
-          } : p);
-        }
-        return [...prev, { 
-          id: userId, 
-          stream: remoteStream, 
-          screenStream: isScreenTrack ? remoteStream : null,
-          hasVideo: hasVideoTrack, 
-          hasAudio: track.kind === "audio",
-          isScreenSharing: isScreenTrack || false,
-          username: "Member" 
-        }];
-      });
+
+      if (isScreenTrack) {
+        // Dedicated screen share stream — store separately on the participant
+        setParticipants((prev) => {
+          if (userId === myIdRef.current) return prev;
+          const exists = prev.find((p) => p.id === userId);
+          if (exists) {
+            return prev.map((p) => p.id === userId
+              ? { ...p, screenStream: incomingStream, isScreenSharing: true }
+              : p
+            );
+          }
+          return [...prev, {
+            id: userId,
+            stream: null,
+            screenStream: incomingStream,
+            hasVideo: false,
+            hasAudio: false,
+            isScreenSharing: true,
+            username: "Member",
+          }];
+        });
+        return; // don't fall through to camera logic
+      }
+
+      if (track.kind === "video") {
+        // Camera video track
+        remoteStreamsRef.current.set(userId, incomingStream);
+        setParticipants((prev) => {
+          if (userId === myIdRef.current) return prev;
+          const exists = prev.find((p) => p.id === userId);
+          if (exists) {
+            return prev.map((p) => p.id === userId
+              ? { ...p, stream: incomingStream, hasVideo: true }
+              : p
+            );
+          }
+          return [...prev, {
+            id: userId,
+            stream: incomingStream,
+            screenStream: null,
+            hasVideo: true,
+            hasAudio: false,
+            isScreenSharing: false,
+            username: "Member",
+          }];
+        });
+      }
+
+      // For audio-only participants, ensure they appear in the list
+      if (track.kind === "audio") {
+        setParticipants((prev) => {
+          if (userId === myIdRef.current) return prev;
+          if (prev.find((p) => p.id === userId)) {
+            return prev.map((p) => p.id === userId ? { ...p, hasAudio: true } : p);
+          }
+          return [...prev, {
+            id: userId,
+            stream: incomingStream,
+            screenStream: null,
+            hasVideo: false,
+            hasAudio: true,
+            isScreenSharing: false,
+            username: "Member",
+          }];
+        });
+      }
     };
 
     pc.onicecandidate = (e) => {
@@ -611,59 +642,25 @@ export function useGroupCall(socket) {
       screenStreamRef.current = stream;
       setScreenStream(stream);
       
-      // OPTIMIZED: Batch track operations to prevent flicker
-      const trackOperations = [];
-      
-      // Replace camera track with screen track or add if no video exists
+      // Always addTrack with the dedicated screen stream for every peer.
+      // replaceTrack does NOT fire ontrack on the remote side — the remote
+      // peer would never learn about the screen stream and shows black.
       for (const [userId, peerData] of pcMapRef.current.entries()) {
         try {
-          const senders = peerData.pc.getSenders();
-          const videoSender = senders.find(s => s.track?.kind === 'video');
-          
-          if (videoSender) {
-            // Video call - replace camera with screen
-            trackOperations.push({
-              type: 'replace',
-              userId,
-              sender: videoSender,
-              track: screenTrack
-            });
-            screenSenderRef.current = videoSender;
-          } else {
-            // Voice-only call - need to add track and renegotiate
-            trackOperations.push({
-              type: 'add',
-              userId,
-              peerConnection: peerData.pc,
-              track: screenTrack,
-              stream
-            });
-          }
+          const sender = peerData.pc.addTrack(screenTrack, stream);
+          // Store per-peer so stopScreenShare can removeTrack precisely
+          peerData.screenSender = sender;
+
+          const offer = await peerData.pc.createOffer();
+          await peerData.pc.setLocalDescription(offer);
+          socketRef.current.emit("group:call:offer", {
+            groupId: activeGroupId,
+            toUserId: userId,
+            offer: peerData.pc.localDescription,
+            callType: callType || "voice",
+          });
         } catch (err) {
-          console.error(`[GroupCall] Failed to prepare track operation for ${userId}:`, err);
-        }
-      }
-      
-      // Execute all track operations in sequence to prevent flicker
-      for (const operation of trackOperations) {
-        try {
-          if (operation.type === 'replace') {
-            await operation.sender.replaceTrack(operation.track);
-          } else if (operation.type === 'add') {
-            operation.peerConnection.addTrack(operation.track, operation.stream);
-            
-            // Renegotiate - create new offer
-            const offer = await operation.peerConnection.createOffer();
-            await operation.peerConnection.setLocalDescription(offer);
-            
-            socketRef.current.emit("group:call:offer", {
-              groupId: activeGroupId,
-              toUserId: operation.userId,
-              offer: operation.peerConnection.localDescription,
-              callType: "video", // Upgrade to video for screen share
-            });
-          }
-        } catch (err) {
+          console.error(`[GroupCall] Screen share addTrack failed for ${userId}:`, err);
         }
       }
 
@@ -695,62 +692,24 @@ export function useGroupCall(socket) {
     const hadCamera = localStreamRef.current?.getVideoTracks().length > 0;
     const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
     
-    // OPTIMIZED: Batch track operations to prevent flicker
-    const trackOperations = [];
-    
-    // Prepare track restoration operations
+    // Remove the dedicated screen sender from every peer and renegotiate
     for (const [userId, peerData] of pcMapRef.current.entries()) {
       try {
-        const senders = peerData.pc.getSenders();
-        if (cameraTrack) {
-          // Has camera - find the current video sender for this peer and replace with camera
-          const videoSender = senders.find(s => s.track?.kind === 'video');
-          if (videoSender) {
-            trackOperations.push({
-              type: 'replace',
-              userId,
-              sender: videoSender,
-              track: cameraTrack
-            });
-          }
-        } else {
-          // Voice-only call - remove screen track sender and renegotiate
-          const screenSender = senders.find(s => s.track?.kind === 'video');
-          if (screenSender) {
-            trackOperations.push({
-              type: 'remove',
-              userId,
-              peerConnection: peerData.pc,
-              sender: screenSender
-            });
-          }
-        }
+        const screenSender = peerData.screenSender;
+        if (!screenSender) continue;
+        peerData.pc.removeTrack(screenSender);
+        delete peerData.screenSender;
+
+        const offer = await peerData.pc.createOffer();
+        await peerData.pc.setLocalDescription(offer);
+        socketRef.current.emit("group:call:offer", {
+          groupId: activeGroupId,
+          toUserId: userId,
+          offer: peerData.pc.localDescription,
+          callType: callType || "voice",
+        });
       } catch (err) {
-      }
-    }
-    
-    // Execute all track operations in sequence to prevent flicker
-    for (const operation of trackOperations) {
-      try {
-        if (operation.type === 'replace') {
-          await operation.sender.replaceTrack(operation.track);
-        } else if (operation.type === 'remove') {
-          operation.peerConnection.removeTrack(operation.sender);
-          
-          // Renegotiate back to audio-only
-          const offer = await operation.peerConnection.createOffer();
-          await operation.peerConnection.setLocalDescription(offer);
-          
-          socketRef.current.emit("group:call:offer", {
-            groupId: activeGroupId,
-            toUserId: operation.userId,
-            offer: operation.peerConnection.localDescription,
-            callType: "voice",
-          });
-          console.log(`[GroupCall] Renegotiation offer (back to voice) sent to ${operation.userId}`);
-        }
-      } catch (err) {
-        console.error(`[GroupCall] Failed to execute stop operation for ${operation.userId}:`, err);
+        console.error(`[GroupCall] Screen share removeTrack failed for ${userId}:`, err);
       }
     }
     
@@ -1070,8 +1029,8 @@ export function useGroupCall(socket) {
     };
 
     const onScreenStopped = ({ groupId, fromUserId }) => {
-      setParticipants((prev) => prev.map((p) => 
-        p.id === fromUserId ? { ...p, isScreenSharing: false } : p
+      setParticipants((prev) => prev.map((p) =>
+        p.id === fromUserId ? { ...p, isScreenSharing: false, screenStream: null } : p
       ));
     };
 
