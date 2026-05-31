@@ -194,15 +194,19 @@ export function useGroupCall(socket) {
 
     pc.ontrack = (e) => {
       const track = e.track;
-      // e.streams[0] is the stream the sender associated with this track
-      const incomingStream = e.streams[0];
-      if (!incomingStream) return;
+      // e.streams[0] may be undefined or empty during renegotiation — fall back to wrapping the track.
+      const rawStream = e.streams?.[0];
+      const incomingStream = (rawStream && rawStream.getTracks().length > 0)
+        ? rawStream
+        : new MediaStream([track]);
 
       // Screen share detection: video track whose stream carries no audio,
       // OR whose label explicitly mentions the screen/display surface
       const isScreenTrack = track.kind === "video" &&
         (track.label?.toLowerCase().includes("screen") ||
          track.label?.toLowerCase().includes("display") ||
+         track.label?.toLowerCase().includes("window") ||
+         track.label?.toLowerCase().includes("tab") ||
          incomingStream.getAudioTracks().length === 0);
 
       if (track.kind === "audio") {
@@ -844,13 +848,10 @@ export function useGroupCall(socket) {
       }
 
       try {
-        // Check if we already have a remote description (duplicate answer)
-        if (peerData.pc.remoteDescription) {
-          return;
-        }
-        
-        // Only set remote description if we're in the right state
-        if (peerData.pc.signalingState === 'stable') {
+        // Only accept the answer when we're waiting for one (have-local-offer).
+        // This correctly handles both initial setup and subsequent renegotiations
+        // (screen share, camera toggle, etc.) without blocking any of them.
+        if (peerData.pc.signalingState !== 'have-local-offer') {
           return;
         }
         
