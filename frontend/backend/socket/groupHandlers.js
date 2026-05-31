@@ -291,6 +291,7 @@ function registerGroupHandlers(io, socket, state) {
         id,
         username: presenceEntry?.username || "Member",
         avatar_url: presenceEntry?.avatar_url || null,
+        isScreenSharing: screenShareSessions.has(`${groupId}:${id}`),
       };
     });
     socket.emit("group:call:participants", {

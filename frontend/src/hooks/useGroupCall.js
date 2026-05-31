@@ -821,10 +821,17 @@ export function useGroupCall(socket) {
         const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
         const peerData = { pc, pendingIce: [] };
         pcMapRef.current.set(fromUserId, peerData);
-        
+
         setupPeerConnection(pc, stream, fromUserId, groupId);
 
-        // Create and send offer to the new participant
+        // If we're currently screen sharing, add the screen track to this new peer
+        // so they see the screen share immediately without needing a separate event.
+        const screenTrack = screenStreamRef.current?.getVideoTracks()[0];
+        if (screenTrack && screenTrack.readyState === "live") {
+          const sender = pc.addTrack(screenTrack, screenStreamRef.current);
+          peerData.screenSender = sender;
+        }
+
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
@@ -1041,7 +1048,7 @@ export function useGroupCall(socket) {
         const updated = prev.map((p) => {
           const match = enrichedList.find((e) => e.id === p.id);
           if (!match) return p;
-          return { ...p, username: match.username || p.username, avatarUrl: match.avatar_url || p.avatarUrl };
+          return { ...p, username: match.username || p.username, avatarUrl: match.avatar_url || p.avatarUrl, isScreenSharing: match.isScreenSharing ?? p.isScreenSharing };
         });
         // Add any participants the server knows about that aren't in state yet
         enrichedList.forEach((e) => {
@@ -1052,6 +1059,7 @@ export function useGroupCall(socket) {
               avatarUrl: e.avatar_url || null,
               hasVideo: existingCallType === "video",
               hasAudio: true,
+              isScreenSharing: e.isScreenSharing || false,
             });
           }
         });
