@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { FileText, Download } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import CallSummaryBubble from "./CallSummaryBubble";
@@ -128,26 +129,54 @@ function MessageBubble({ message, isOwn, isCompact }) {
               style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, display: "block" }}
             />
           ) : message.mediaType === "image" ? (
-            <img 
-              src={message.mediaUrl} 
-              alt="Attachment" 
+            <img
+              src={message.mediaUrl}
+              alt={message.originalName || "Image"}
               className="message-image"
+              style={{ maxWidth: 400, maxHeight: 300, borderRadius: 8, display: "block", cursor: "pointer" }}
+              onClick={() => window.open(message.mediaUrl, "_blank")}
             />
           ) : message.mediaType === "video" ? (
-            <video 
-              src={message.mediaUrl} 
-              controls 
+            <video
+              src={message.mediaUrl}
+              controls
               className="message-video"
+              style={{ maxWidth: 400, borderRadius: 8, display: "block" }}
             />
-          ) : (
-            <a 
-              href={message.mediaUrl} 
-              download 
-              className="message-file"
+          ) : (message.mediaType === "document" || message.mediaType === "file" || message.mediaType === "audio") ? (
+            <a
+              href={message.mediaUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={message.originalName || true}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 14px", borderRadius: 10,
+                background: "var(--surface-3)", border: "1px solid var(--border-2)",
+                textDecoration: "none", maxWidth: 320, cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-active)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface-3)"}
             >
-              📎 Attachment
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <FileText size={18} style={{ color: "var(--primary)" }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-0)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {message.originalName || "File"}
+                </div>
+                {message.size && (
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                    {message.size < 1024 * 1024
+                      ? `${Math.round(message.size / 1024)} KB`
+                      : `${(message.size / (1024 * 1024)).toFixed(1)} MB`}
+                  </div>
+                )}
+              </div>
+              <Download size={16} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
             </a>
-          )}
+          ) : null}
         </div>
       )}
       

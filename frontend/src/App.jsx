@@ -424,6 +424,8 @@ export default function App() {
         timestamp: message.created_at || new Date().toISOString(),
         mediaUrl: message.media_url,
         mediaType: message.media_type,
+        originalName: message.original_name,
+        size: message.file_size,
       };
       setGroupMessagesById((prev) => {
         const cur = prev[groupId] ?? [];
@@ -558,6 +560,8 @@ export default function App() {
           timestamp: m.created_at || new Date().toISOString(),
           mediaUrl: m.media_url,
           mediaType: m.media_type,
+          originalName: m.original_name,
+          size: m.file_size,
         }));
         setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
       })
@@ -718,7 +722,7 @@ export default function App() {
           onAcceptFriend={handleAcceptFriend}
           onDeclineFriend={handleDeclineFriend}
           onSendMessage={(msg) => {
-            const isGif = msg && typeof msg === "object" && msg.type === "gif";
+            const isMediaObject = msg && typeof msg === "object" && (msg.type === "gif" || msg.type === "media");
 
             if (activeDmUser) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -726,9 +730,11 @@ export default function App() {
                 id: tempId,
                 from: { id: me?.id, username: me?.username },
                 to: { id: activeDmUser.id },
-                text: isGif ? "" : msg,
-                mediaUrl: isGif ? msg.mediaUrl : undefined,
-                mediaType: isGif ? "gif" : undefined,
+                text: isMediaObject ? "" : msg,
+                mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
+                mediaType: isMediaObject ? msg.mediaType : undefined,
+                originalName: isMediaObject ? msg.originalName : undefined,
+                size: isMediaObject ? msg.size : undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
               };
@@ -736,8 +742,16 @@ export default function App() {
                 ...prev,
                 [activeDmUser.id]: [...(prev[activeDmUser.id] ?? []), optimisticMessage],
               }));
-              if (isGif) {
-                socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: "", mediaUrl: msg.mediaUrl, mediaType: "gif" });
+              if (isMediaObject) {
+                socketRef.current?.emit("dm:send", {
+                  toUserId: activeDmUser.id,
+                  text: "",
+                  mediaUrl: msg.mediaUrl,
+                  mediaType: msg.mediaType,
+                  mimeType: msg.mimeType,
+                  size: msg.size,
+                  originalName: msg.originalName,
+                });
               } else {
                 socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: msg });
               }
@@ -746,9 +760,11 @@ export default function App() {
               const optimistic = {
                 id: tempId,
                 from: { id: me?.id, username: me?.username, avatarUrl: me?.avatar_url },
-                text: isGif ? "" : msg,
-                mediaUrl: isGif ? msg.mediaUrl : undefined,
-                mediaType: isGif ? "gif" : undefined,
+                text: isMediaObject ? "" : msg,
+                mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
+                mediaType: isMediaObject ? msg.mediaType : undefined,
+                originalName: isMediaObject ? msg.originalName : undefined,
+                size: isMediaObject ? msg.size : undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
               };
@@ -756,8 +772,13 @@ export default function App() {
                 ...prev,
                 [activeGroup.id]: [...(prev[activeGroup.id] ?? []), optimistic],
               }));
-              if (isGif) {
-                socketRef.current?.emit("group:message", { groupId: activeGroup.id, content: "", mediaUrl: msg.mediaUrl, mediaType: "gif" });
+              if (isMediaObject) {
+                socketRef.current?.emit("group:message", {
+                  groupId: activeGroup.id,
+                  content: "",
+                  mediaUrl: msg.mediaUrl,
+                  mediaType: msg.mediaType,
+                });
               } else {
                 socketRef.current?.emit("group:message", { groupId: activeGroup.id, content: msg });
               }

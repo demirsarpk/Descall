@@ -10,10 +10,24 @@ const router = express.Router();
 const ALLOWED_IMAGE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ALLOWED_VIDEO = ["video/mp4", "video/webm"];
 const ALLOWED_AUDIO = ["audio/webm", "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4"];
-const ALLOWED_ALL = [...ALLOWED_IMAGE, ...ALLOWED_VIDEO, ...ALLOWED_AUDIO];
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const ALLOWED_DOCUMENT = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/x-rar-compressed",
+  "application/json",
+];
+const ALLOWED_ALL = [...ALLOWED_IMAGE, ...ALLOWED_VIDEO, ...ALLOWED_AUDIO, ...ALLOWED_DOCUMENT];
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
-// Use memory storage for Supabase upload
 const storage = multer.memoryStorage();
 
 const upload = multer({
@@ -21,7 +35,7 @@ const upload = multer({
   limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_ALL.includes(file.mimetype)) return cb(null, true);
-    cb(new Error(`File type ${file.mimetype} not allowed.`));
+    cb(new Error(`File type ${file.mimetype} is not allowed.`));
   },
 });
 
@@ -58,11 +72,22 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     if (ALLOWED_IMAGE.includes(file.mimetype)) mediaType = "image";
     else if (ALLOWED_VIDEO.includes(file.mimetype)) mediaType = "video";
     else if (ALLOWED_AUDIO.includes(file.mimetype)) mediaType = "audio";
-    
-    const { url, path } = await uploadToSupabase(file, "files");
+    else if (ALLOWED_DOCUMENT.includes(file.mimetype)) mediaType = "document";
+
+    const folder = mediaType === "image" ? "images" : "files";
+    const { url, path: storagePath } = await uploadToSupabase(file, folder);
+
+    await supabase.from("media_uploads").insert({
+      uploader_id: req.user.id,
+      storage_path: storagePath,
+      public_url: url,
+      media_type: mediaType,
+      mime_type: file.mimetype,
+      file_size: file.size,
+      original_name: file.originalname,
+    });
 
     res.json({
-      id: path,
       url,
       mediaType,
       mimeType: file.mimetype,

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Paperclip, Mic, Smile,
-  Plus, Gift, Image, FileText, X, StopCircle
+  Plus, Gift, Image, FileText, X, StopCircle, Loader2
 } from "lucide-react";
 import GiphyPicker from "./GiphyPicker";
 import { getToken } from "../../lib/storage";
@@ -21,8 +21,11 @@ export default function MessageComposer({ onSend, disabled = false }) {
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showGiphy, setShowGiphy] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
@@ -58,9 +61,11 @@ export default function MessageComposer({ onSend, disabled = false }) {
     }
   };
 
-  const handleFileSelect = async (e) => {
+  const uploadFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploading(true);
+    setUploadError("");
     const formData = new FormData();
     formData.append("file", file);
     try {
@@ -71,11 +76,23 @@ export default function MessageComposer({ onSend, disabled = false }) {
         body: formData,
       });
       const data = await res.json();
-      if (data.url) {
-        onSend?.(`[File: ${file.name}](${data.url})`);
-      }
-    } catch (err) { console.error("Upload failed:", err); }
-    e.target.value = "";
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      onSend?.({
+        type: "media",
+        mediaUrl: data.url,
+        mediaType: data.mediaType,
+        originalName: data.originalName,
+        mimeType: data.mimeType,
+        size: data.size,
+      });
+    } catch (err) {
+      console.error("Upload failed:", err);
+      setUploadError(err.message);
+      setTimeout(() => setUploadError(""), 4000);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   };
 
   /* Voice recording with MediaRecorder */
@@ -141,7 +158,7 @@ export default function MessageComposer({ onSend, disabled = false }) {
             exit={{ opacity: 0, y: 10 }}
             className="attachment-menu"
           >
-            <button className="attachment-item" onClick={() => { fileInputRef.current?.click(); setShowAttachmentMenu(false); }}>
+            <button className="attachment-item" onClick={() => { imageInputRef.current?.click(); setShowAttachmentMenu(false); }}>
               <div className="attachment-icon"><Image size={24} /></div>
               <span className="attachment-label">Upload Image</span>
             </button>
@@ -186,7 +203,8 @@ export default function MessageComposer({ onSend, disabled = false }) {
         )}
       </AnimatePresence>
 
-      <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" style={{ display: "none" }} onChange={handleFileSelect} />
+      <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" style={{ display: "none" }} onChange={uploadFile} />
+      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json" style={{ display: "none" }} onChange={uploadFile} />
 
       {/* Left Actions */}
       <div className="composer-left">
@@ -197,10 +215,20 @@ export default function MessageComposer({ onSend, disabled = false }) {
 
       {/* Input Field */}
       <div className="composer-input-wrapper">
-        {isRecording ? (
+        {uploading ? (
+          <div className="recording-bar">
+            <Loader2 size={16} className="spin" style={{ animation: "spin 1s linear infinite" }} />
+            <span className="recording-label">Uploading file…</span>
+          </div>
+        ) : isRecording ? (
           <div className="recording-bar">
             <div className="recording-pulse" />
             <span className="recording-label">Recording… {formatTime(recordingTime)}</span>
+          </div>
+        ) : uploadError ? (
+          <div className="recording-bar" style={{ color: "var(--danger)" }}>
+            <X size={14} />
+            <span className="recording-label">{uploadError}</span>
           </div>
         ) : (
           <textarea
