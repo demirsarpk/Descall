@@ -195,7 +195,7 @@ export default function CallOverlay({ call, groupCall, me }) {
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
   const remoteScreenSharers = isDm
     ? []
-    : (groupCall?.participants ?? []).filter((p) => p.isScreenSharing && p.id !== localId);
+    : (groupCall?.participants ?? []).filter((p) => p.isScreenSharing && p.screenStream && p.id !== localId);
   const localUsername = me?.username || me?.displayName || "You";
 
   const allScreenSharers = [
