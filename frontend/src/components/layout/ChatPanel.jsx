@@ -143,17 +143,6 @@ export default function ChatPanel({
         </div>
       </header>
 
-      {/* Active Group Call Banner */}
-      <AnimatePresence>
-        {activeGroup && activeCallBanner?.groupId === activeGroup.id && (
-          <ActiveCallBanner
-            banner={activeCallBanner}
-            onJoin={onJoinActiveCall}
-            onDismiss={onDismissActiveBanner}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Friend Notice Banner */}
       <AnimatePresence>
         {friendNotice && (
@@ -179,6 +168,17 @@ export default function ChatPanel({
 
       {/* Messages Area */}
       <div className="messages-container" ref={messagesRef}>
+        {/* Active call bubble — inline at top of messages */}
+        <AnimatePresence>
+          {activeGroup && activeCallBanner?.groupId === activeGroup.id && (
+            <ActiveCallBanner
+              banner={activeCallBanner}
+              onJoin={onJoinActiveCall}
+              onDismiss={onDismissActiveBanner}
+            />
+          )}
+        </AnimatePresence>
+
         {showSearch && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="chat-search-bar">
             <Search size={16} />
