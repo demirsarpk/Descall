@@ -210,13 +210,12 @@ export default function App() {
 
   const verifyBackendEndpoint = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/health`, { method: "GET" });
-      if (!response.ok) throw new Error(`Backend health check failed with status ${response.status}`);
-      const data = await response.json().catch(() => null);
-      if (!data || (data.status !== "ok" && data.status !== "healthy")) throw new Error("Invalid backend health response.");
+      // Any HTTP response means the URL resolves — Render may return 503 during cold start.
+      // Only a network-level failure (fetch throws) means the URL is wrong.
+      await fetch(`${API_BASE_URL}/health`, { method: "GET" });
       return true;
     } catch {
-      throw new Error(`Wrong backend URL (${API_BASE_URL}). VITE_API_BASE_URL must point to your Node/Socket backend service.`);
+      throw new Error(`Cannot reach backend (${API_BASE_URL}). Check your network or VITE_API_BASE_URL setting.`);
     }
   };
 
