@@ -36,6 +36,7 @@ export default function AppLayout({
   onAdminClick,
   isAdmin,
   onRefreshGroups,
+  onGroupCreated,
   friendNotice,
   activeCallBanner,
   onJoinActiveCall,
@@ -99,6 +100,7 @@ export default function AppLayout({
         setAddTab={setAddTab}
         onFriendSelect={onDmSelect}
         onRefreshGroups={onRefreshGroups}
+        onGroupCreated={onGroupCreated}
         friendRequests={friendRequests}
         onAcceptFriend={onAcceptFriend}
         onDeclineFriend={onDeclineFriend}

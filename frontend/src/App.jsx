@@ -404,6 +404,12 @@ export default function App() {
       }
     });
 
+    // Add new group to list when invited or when you create one via socket broadcast
+    socket.on("group:invited", ({ group } = {}) => {
+      if (!group?.id) return;
+      setMyGroups((prev) => prev.some((g) => g.id === group.id) ? prev : [...prev, group]);
+    });
+
     // Group messages listener
     socket.on("group:message", ({ groupId, message }) => {
       if (!groupId || !message) return;
@@ -697,6 +703,9 @@ export default function App() {
           }}
           friendNotice={friendNotice}
           onRefreshGroups={fetchGroups}
+          onGroupCreated={(group) => {
+            setMyGroups((prev) => prev.some((g) => g.id === group.id) ? prev : [...prev, group]);
+          }}
           friendRequests={friendRequests}
           onAcceptFriend={handleAcceptFriend}
           onDeclineFriend={handleDeclineFriend}

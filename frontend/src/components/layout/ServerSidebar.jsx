@@ -28,6 +28,7 @@ export default function ServerSidebar({
   addTab: addTabProp,
   setAddTab: setAddTabProp,
   onRefreshGroups,
+  onGroupCreated,
   friendRequests,
   onAcceptFriend,
   onDeclineFriend,
@@ -130,9 +131,9 @@ export default function ServerSidebar({
       setGroupName("");
       setSelectedGroupMembers([]);
       setTimeout(() => setAddSuccess(""), 3000);
-      // Close modal and trigger groups refresh
       setShowAddModal(false);
-      // Trigger groups refresh via callback
+      // Optimistically add the new group immediately, then do a background refresh
+      if (data.group) onGroupCreated?.(data.group);
       onRefreshGroups?.();
     } catch (err) {
       setAddError(err.message || "Network error. Is backend deployed?");
