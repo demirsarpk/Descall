@@ -106,7 +106,7 @@ export default function App() {
       const activeBannerItem = (banner?.groupId === activeGroup.id && banner?.startTime)
         ? [{ ...banner, id: `active-call-${banner.groupId}`, type: "active_call", timestamp: new Date(banner.startTime).toISOString() }]
         : [];
-      const merged = activeBannerItem.length > 0 ? [...msgs, ...activeBannerItem] : msgs;
+      const merged = activeBannerItem.length > 0 ? [...msgs, ...activeBannerItem] : [...msgs];
       return merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     }
     if (activeDmUser) return dmByUserId[activeDmUser.id] ?? [];
@@ -589,7 +589,7 @@ export default function App() {
               return {
                 ...summary,
                 id: summary.id || m.id,
-                timestamp: summary.endedAt || m.created_at || new Date().toISOString(),
+                timestamp: m.created_at || summary.endedAt || new Date().toISOString(),
                 type: "call_summary",
               };
             } catch {
