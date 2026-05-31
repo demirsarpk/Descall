@@ -380,6 +380,9 @@ export function useGroupCall(socket) {
         
       });
 
+      // Ensure we're in the group socket room to receive left/ended events
+      socketRef.current.emit("group:join", groupId);
+
       // Emit start event
       socketRef.current.emit("group:call:start", {
         groupId,
@@ -452,6 +455,9 @@ export function useGroupCall(socket) {
         hasVideo: type === "video",
         hasAudio: true,
       }]);
+
+      // Join the group socket room so group:call:left/ended events are received
+      socketRef.current.emit("group:join", groupId);
 
       // Send accept signal - initiator will then send offer
       socketRef.current.emit("group:call:accept", {
@@ -980,14 +986,26 @@ export function useGroupCall(socket) {
     };
 
     const onLeft = ({ groupId, userId }) => {
+      const peerData = pcMapRef.current.get(userId);
+      if (peerData?.pc) {
+        try { peerData.pc.close(); } catch (_) {}
+      }
       pcMapRef.current.delete(userId);
+
+      const remoteStream = remoteStreamsRef.current.get(userId);
+      if (remoteStream) {
+        remoteStream.getTracks().forEach((t) => t.stop());
+      }
       remoteStreamsRef.current.delete(userId);
+
       const audioEl = remoteAudioRefs.current.get(userId);
       if (audioEl) {
+        audioEl.pause();
         audioEl.srcObject = null;
         audioEl.remove();
         remoteAudioRefs.current.delete(userId);
       }
+
       setParticipants((prev) => prev.filter((p) => p.id !== userId));
     };
 
