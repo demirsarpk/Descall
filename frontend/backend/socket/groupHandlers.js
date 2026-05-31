@@ -3,7 +3,7 @@
  * Simple, reliable, works with 2-15 people
  */
 
-const { appendErrorLog, activeGroupCalls } = require("../runtime/sharedState");
+const { appendErrorLog, activeGroupCalls, screenShareSessions } = require("../runtime/sharedState");
 const supabase = require("../db/supabase");
 
 function registerGroupHandlers(io, socket, state) {
@@ -424,11 +424,12 @@ function registerGroupHandlers(io, socket, state) {
     }
   });
 
-  // Force-end call for everyone (initiator only action)
+  // Force-end call for everyone (initiator only)
   socket.on("group:call:end", ({ groupId }) => {
     if (!groupId) return;
 
     const activeCall = activeGroupCalls.get(groupId);
+    if (activeCall && activeCall.initiatorId !== myId) return;
     const durationSeconds = activeCall ? Math.floor((Date.now() - activeCall.startTime) / 1000) : 0;
     const summary = activeCall ? {
       id: `call-summary-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -487,8 +488,7 @@ function registerGroupHandlers(io, socket, state) {
         if (error) console.error("[ScreenShare] DB insert error:", error.message);
         else {
           // Store session id keyed by userId so we can close it on stop
-          if (!state.screenShareSessions) state.screenShareSessions = new Map();
-          state.screenShareSessions.set(`${groupId}:${myId}`, data.id);
+          screenShareSessions.set(`${groupId}:${myId}`, data.id);
         }
       });
 
@@ -499,15 +499,13 @@ function registerGroupHandlers(io, socket, state) {
   socket.on("group:screen:stop", ({ groupId }) => {
     if (!groupId) return;
 
-    if (state.screenShareSessions) {
-      const sessionId = state.screenShareSessions.get(`${groupId}:${myId}`);
-      if (sessionId) {
-        supabase.from("screen_share_sessions")
-          .update({ ended_at: new Date().toISOString() })
-          .eq("id", sessionId)
-          .then(({ error }) => { if (error) console.error("[ScreenShare] DB stop error:", error.message); });
-        state.screenShareSessions.delete(`${groupId}:${myId}`);
-      }
+    const sessionId = screenShareSessions.get(`${groupId}:${myId}`);
+    if (sessionId) {
+      supabase.from("screen_share_sessions")
+        .update({ ended_at: new Date().toISOString() })
+        .eq("id", sessionId)
+        .then(({ error }) => { if (error) console.error("[ScreenShare] DB stop error:", error.message); });
+      screenShareSessions.delete(`${groupId}:${myId}`);
     }
 
     socket.to(`group:${groupId}`).emit("group:screen:stopped", { groupId, fromUserId: myId });

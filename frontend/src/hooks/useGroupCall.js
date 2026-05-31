@@ -186,7 +186,7 @@ export function useGroupCall(socket) {
     audioManager.stop("outgoingCall");
   }, []);
 
-  const setupPeerConnection = useCallback((pc, stream, userId) => {
+  const setupPeerConnection = useCallback((pc, stream, userId, groupId) => {
     stream.getTracks().forEach((t) => {
       t.enabled = true;
       pc.addTrack(t, stream);
@@ -266,7 +266,7 @@ export function useGroupCall(socket) {
     pc.onicecandidate = (e) => {
       if (e.candidate && socketRef.current?.connected) {
         socketRef.current.emit("group:call:ice", {
-          groupId: activeGroupId,
+          groupId,
           toUserId: userId,
           candidate: e.candidate,
         });
@@ -292,7 +292,7 @@ export function useGroupCall(socket) {
         setParticipants((prev) => prev.filter((p) => p.id !== userId));
       }
     };
-  }, [activeGroupId, callType]);
+  }, []);
 
   const flushIce = async (pc, userId) => {
     const peerData = pcMapRef.current.get(userId);
@@ -376,7 +376,7 @@ export function useGroupCall(socket) {
         const peerData = { pc, pendingIce: [] };
         pcMapRef.current.set(userId, peerData);
         
-        setupPeerConnection(pc, stream, userId);
+        setupPeerConnection(pc, stream, userId, groupId);
         
       });
 
@@ -417,6 +417,7 @@ export function useGroupCall(socket) {
 
   const acceptGroupCall = useCallback(async (groupId, type, fromUser) => {
     if (!groupId || !fromUser?.id || !socketRef.current) return;
+    if (isInCall) return;
     
     try {
       audioManager.stop("incomingCall");
@@ -486,7 +487,7 @@ export function useGroupCall(socket) {
       }
       cleanup();
     }
-  }, [cleanup]);
+  }, [cleanup, isInCall]);
 
   const declineCall = useCallback((groupId, fromUserId, fromUser, callType) => {
     if (socketRef.current?.connected) {
@@ -819,7 +820,7 @@ export function useGroupCall(socket) {
         const peerData = { pc, pendingIce: [] };
         pcMapRef.current.set(fromUserId, peerData);
         
-        setupPeerConnection(pc, stream, fromUserId);
+        setupPeerConnection(pc, stream, fromUserId, groupId);
 
         // Create and send offer to the callee
         const offer = await pc.createOffer();
@@ -857,7 +858,7 @@ export function useGroupCall(socket) {
         const peerData = { pc, pendingIce: [] };
         pcMapRef.current.set(fromUserId, peerData);
         
-        setupPeerConnection(pc, stream, fromUserId);
+        setupPeerConnection(pc, stream, fromUserId, groupId);
 
         // Create and send offer to the new participant
         const offer = await pc.createOffer();
@@ -920,8 +921,8 @@ export function useGroupCall(socket) {
         const newPeerData = { pc, pendingIce: [] };
         pcMapRef.current.set(fromUserId, newPeerData);
         
-        setupPeerConnection(pc, stream, fromUserId);
-        
+        setupPeerConnection(pc, stream, fromUserId, groupId);
+
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -1138,10 +1139,12 @@ export function useGroupCall(socket) {
             const peerData = { pc, pendingIce: [] };
             pcMapRef.current.set(userId, peerData);
             
-            setupPeerConnection(pc, stream, userId);
+            setupPeerConnection(pc, stream, userId, groupId);
           }
         });
 
+        // Join the group socket room to receive left/ended events
+        socket.emit("group:join", groupId);
         // Notify server we're joining
         socket.emit("group:call:join", { groupId, callType: existingCallType });
 
