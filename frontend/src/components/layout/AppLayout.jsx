@@ -36,7 +36,10 @@ export default function AppLayout({
   onAdminClick,
   isAdmin,
   onRefreshGroups,
-  friendNotice
+  friendNotice,
+  activeCallBanner,
+  onJoinActiveCall,
+  onDismissActiveBanner,
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
@@ -109,6 +112,9 @@ export default function AppLayout({
         onGroupVoiceCall={onGroupVoiceCall}
         onGroupVideoCall={onGroupVideoCall}
         onSettings={() => setUserPanelOpen(true)}
+        activeCallBanner={activeCallBanner}
+        onJoinActiveCall={onJoinActiveCall}
+        onDismissActiveBanner={onDismissActiveBanner}
       >
         {children}
       </ChatPanel>

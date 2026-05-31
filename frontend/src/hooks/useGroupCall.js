@@ -23,6 +23,8 @@ export function useGroupCall(socket) {
   const [duration, setDuration] = useState(0);
   const [participants, setParticipants] = useState([]);
   const [incomingCall, setIncomingCall] = useState(null);
+  const [activeCallBanner, setActiveCallBanner] = useState(null); // { groupId, initiatorId, initiatorUsername, callType, participantCount }
+  const [callSummaries, setCallSummaries] = useState({}); // groupId -> summary[]
   // Audio device selection states
   const [audioInputDevices, setAudioInputDevices] = useState([]);
   const [audioOutputDevices, setAudioOutputDevices] = useState([]);
@@ -461,12 +463,9 @@ export function useGroupCall(socket) {
   const leaveCall = useCallback(() => {
     if (activeGroupId && socketRef.current?.connected) {
       socketRef.current.emit("group:call:leave", { groupId: activeGroupId });
-      if (isInitiator) {
-        socketRef.current.emit("group:call:end", { groupId: activeGroupId });
-      }
     }
     cleanup();
-  }, [activeGroupId, isInitiator, cleanup]);
+  }, [activeGroupId, cleanup]);
 
   const toggleMute = useCallback(() => {
     const track = localStreamRef.current?.getAudioTracks()[0];
@@ -935,10 +934,32 @@ export function useGroupCall(socket) {
       setParticipants((prev) => prev.filter((p) => p.id !== userId));
     };
 
-    const onEnded = ({ groupId }) => {
+    const onEnded = ({ groupId, summary }) => {
+      setActiveCallBanner((prev) => (prev?.groupId === groupId ? null : prev));
       if (groupId === activeGroupId) {
         cleanup();
       }
+    };
+
+    const onCallSummary = ({ groupId, summary }) => {
+      if (!groupId || !summary) return;
+      setCallSummaries((prev) => ({
+        ...prev,
+        [groupId]: [...(prev[groupId] ?? []), summary],
+      }));
+    };
+
+    const onActiveBanner = ({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants }) => {
+      setActiveCallBanner({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants });
+    };
+
+    const onParticipantLeft = ({ groupId, userId }) => {
+      setActiveCallBanner((prev) => {
+        if (!prev || prev.groupId !== groupId) return prev;
+        const updated = (prev.participantCount ?? 1) - 1;
+        if (updated <= 0) return null;
+        return { ...prev, participantCount: updated };
+      });
     };
 
     const onDeclined = ({ groupId, fromUserId }) => {
@@ -1062,6 +1083,9 @@ export function useGroupCall(socket) {
     socket.on("group:call:participant-joined", onParticipantJoined);
     socket.on("group:call:started", onCallStarted);
     socket.on("group:call:join-existing", onJoinExisting);
+    socket.on("group:call:summary", onCallSummary);
+    socket.on("group:call:active-banner", onActiveBanner);
+    socket.on("group:call:left", onParticipantLeft);
 
     return () => {
       socket.off("group:call:incoming", onIncoming);
@@ -1070,6 +1094,7 @@ export function useGroupCall(socket) {
       socket.off("group:call:ice", onIce);
       socket.off("group:call:offer", onOffer);
       socket.off("group:call:left", onLeft);
+      socket.off("group:call:left", onParticipantLeft);
       socket.off("group:call:ended", onEnded);
       socket.off("group:call:declined", onDeclined);
       socket.off("group:screen:started", onScreenStarted);
@@ -1077,6 +1102,8 @@ export function useGroupCall(socket) {
       socket.off("group:call:participant-joined", onParticipantJoined);
       socket.off("group:call:started", onCallStarted);
       socket.off("group:call:join-existing", onJoinExisting);
+      socket.off("group:call:summary", onCallSummary);
+      socket.off("group:call:active-banner", onActiveBanner);
     };
   }, [socket, activeGroupId, isInCall, callType, cleanup, setupPeerConnection]);
 
@@ -1168,6 +1195,8 @@ export function useGroupCall(socket) {
     });
   }, []);
 
+  const dismissActiveBanner = useCallback(() => setActiveCallBanner(null), []);
+
   return {
     isInCall,
     isInitiator,
@@ -1181,6 +1210,9 @@ export function useGroupCall(socket) {
     duration,
     participants,
     incomingCall,
+    activeCallBanner,
+    dismissActiveBanner,
+    callSummaries,
     remoteStreams: remoteStreamsRef,
     localVideoRef,
     screenVideoRef,

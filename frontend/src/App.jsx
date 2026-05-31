@@ -24,6 +24,7 @@ import TitleBar from "./components/TitleBar";
 import MessageList from "./components/chat/MessageList";
 import MessageComposer from "./components/chat/MessageComposer";
 import CallOverlay from "./components/CallOverlay";
+import GroupCallIncomingModal from "./components/GroupCallIncomingModal";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
@@ -90,14 +91,22 @@ export default function App() {
     }
   }, [activeDmUser?.id]);
 
-  const dmMessages = useMemo(
-    () => {
-      if (activeGroup) return groupMessagesById[activeGroup.id] ?? [];
-      if (activeDmUser) return dmByUserId[activeDmUser.id] ?? [];
-      return [];
-    },
-    [activeDmUser, activeGroup, dmByUserId, groupMessagesById],
-  );
+  const dmMessages = useMemo(() => {
+    if (activeGroup) {
+      const msgs = groupMessagesById[activeGroup.id] ?? [];
+      const summaries = (groupCall?.callSummaries?.[activeGroup.id] ?? []).map((s) => ({
+        ...s,
+        timestamp: s.endedAt ?? new Date().toISOString(),
+      }));
+      if (summaries.length === 0) return msgs;
+      // Merge summaries into message list by timestamp
+      return [...msgs, ...summaries].sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
+      );
+    }
+    if (activeDmUser) return dmByUserId[activeDmUser.id] ?? [];
+    return [];
+  }, [activeDmUser, activeGroup, dmByUserId, groupMessagesById, groupCall?.callSummaries]);
 
   useEffect(() => {
     const token = getToken();
@@ -730,21 +739,45 @@ export default function App() {
             }
           }}
           onGroupVoiceCall={() => {
-            if (activeGroup && groupCall?.startGroupCall) {
+            if (!activeGroup || !groupCall) return;
+            const banner = groupCall.activeCallBanner;
+            if (banner?.groupId === activeGroup.id) {
+              // Active call exists — join it instead of starting a new one
+              const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
+              groupCall.startGroupCall(activeGroup.id, banner.callType, memberIds);
+            } else {
               const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
               groupCall.startGroupCall(activeGroup.id, "voice", memberIds);
             }
           }}
           onGroupVideoCall={() => {
-            if (activeGroup && groupCall?.startGroupCall) {
+            if (!activeGroup || !groupCall) return;
+            const banner = groupCall.activeCallBanner;
+            if (banner?.groupId === activeGroup.id) {
+              const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
+              groupCall.startGroupCall(activeGroup.id, banner.callType, memberIds);
+            } else {
               const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
               groupCall.startGroupCall(activeGroup.id, "video", memberIds);
             }
           }}
+          activeCallBanner={groupCall?.activeCallBanner}
+          onJoinActiveCall={() => {
+            if (!activeGroup || !groupCall?.activeCallBanner) return;
+            const banner = groupCall.activeCallBanner;
+            const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
+            groupCall.startGroupCall(banner.groupId, banner.callType, memberIds);
+          }}
+          onDismissActiveBanner={groupCall?.dismissActiveBanner}
         >
           <MessageList messages={dmMessages} currentUser={me} />
         </AppLayout>
         <CallOverlay call={call} groupCall={groupCall} />
+        <GroupCallIncomingModal
+          incomingCall={groupCall?.incomingCall}
+          onAccept={(groupId, callType, fromUser) => groupCall?.acceptGroupCall(groupId, callType, fromUser)}
+          onDecline={(groupId, fromUserId) => groupCall?.declineCall(groupId, fromUserId)}
+        />
       </div>
   );
 }

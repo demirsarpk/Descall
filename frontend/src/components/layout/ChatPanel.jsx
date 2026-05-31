@@ -8,6 +8,7 @@ import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import MessageList from "../chat/MessageList";
 import MessageComposer from "../chat/MessageComposer";
+import ActiveCallBanner from "../ActiveCallBanner";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 
@@ -25,6 +26,9 @@ export default function ChatPanel({
   onGroupVoiceCall,
   onGroupVideoCall,
   onSettings,
+  activeCallBanner,
+  onJoinActiveCall,
+  onDismissActiveBanner,
   children
 }) {
   const messagesRef = useRef(null);
@@ -138,6 +142,17 @@ export default function ChatPanel({
           </button>
         </div>
       </header>
+
+      {/* Active Group Call Banner */}
+      <AnimatePresence>
+        {activeGroup && activeCallBanner?.groupId === activeGroup.id && (
+          <ActiveCallBanner
+            banner={activeCallBanner}
+            onJoin={onJoinActiveCall}
+            onDismiss={onDismissActiveBanner}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Friend Notice Banner */}
       <AnimatePresence>

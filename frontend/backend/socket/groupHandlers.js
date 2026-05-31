@@ -9,7 +9,7 @@ function registerGroupHandlers(io, socket, state) {
   const myId = socket.user?.id;
   if (!myId) return;
 
-  // Track active group calls: groupId -> { initiatorId, callType, participants: Set(userIds) }
+  // Track active group calls: groupId -> { initiatorId, initiatorUsername, callType, participants: Set(userIds), allParticipants: Set(userIds), startTime: Date }
   if (!state.activeGroupCalls) {
     state.activeGroupCalls = new Map();
   }
@@ -18,7 +18,19 @@ function registerGroupHandlers(io, socket, state) {
   socket.on("group:join", (groupId) => {
     if (!groupId) return;
     socket.join(`group:${groupId}`);
-    console.log(`[Socket] ${myId} joined group: ${groupId}`);
+
+    // Notify user if there's an active call in this group
+    const activeCall = state.activeGroupCalls.get(groupId);
+    if (activeCall && activeCall.participants.size > 0) {
+      socket.emit("group:call:active-banner", {
+        groupId,
+        initiatorId: activeCall.initiatorId,
+        initiatorUsername: activeCall.initiatorUsername,
+        callType: activeCall.callType,
+        participantCount: activeCall.participants.size,
+        participants: Array.from(activeCall.participants),
+      });
+    }
   });
 
   // Leave group room
@@ -100,8 +112,11 @@ function registerGroupHandlers(io, socket, state) {
     // Track this call as active
     state.activeGroupCalls.set(groupId, {
       initiatorId: myId,
+      initiatorUsername: socket.user.username,
       callType,
       participants: new Set([myId]),
+      allParticipants: new Set([myId]),
+      startTime: Date.now(),
     });
 
     const payload = {
@@ -147,12 +162,11 @@ function registerGroupHandlers(io, socket, state) {
       return;
     }
 
-    console.log(`[GroupCall] ${myId} accepted call, notifying initiator ${toUserId}`);
-
     // Add participant to active call tracking
     const activeCall = state.activeGroupCalls.get(groupId);
     if (activeCall) {
       activeCall.participants.add(myId);
+      activeCall.allParticipants.add(myId);
     }
 
     // Notify the initiator that someone accepted
@@ -188,10 +202,9 @@ function registerGroupHandlers(io, socket, state) {
       return;
     }
 
-    console.log(`[GroupCall] ${myId} joining existing call in group ${groupId}`);
-
     // Add participant to tracking
     activeCall.participants.add(myId);
+    activeCall.allParticipants.add(myId);
 
     // Notify all participants that someone is joining
     io.to(`group:${groupId}`).emit("group:call:participant-joined", {
@@ -270,36 +283,87 @@ function registerGroupHandlers(io, socket, state) {
   socket.on("group:call:leave", ({ groupId }) => {
     if (!groupId) return;
 
-    // Remove participant from active call tracking
     const activeCall = state.activeGroupCalls.get(groupId);
     if (activeCall) {
       activeCall.participants.delete(myId);
-      // If no participants left, clean up the call
-      if (activeCall.participants.size === 0) {
-        state.activeGroupCalls.delete(groupId);
-        console.log(`[GroupCall] Call in group ${groupId} ended (no participants)`);
-      }
-    }
 
-    socket.to(`group:${groupId}`).emit("group:call:left", {
-      groupId,
-      userId: myId,
-    });
+      // Notify remaining participants this user left
+      socket.to(`group:${groupId}`).emit("group:call:left", {
+        groupId,
+        userId: myId,
+      });
+
+      // Last participant left — end the call and emit summary
+      if (activeCall.participants.size === 0) {
+        const durationSeconds = Math.floor((Date.now() - activeCall.startTime) / 1000);
+        const durationMinutes = Math.floor(durationSeconds / 60);
+        const summary = {
+          id: `call-summary-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          type: "call_summary",
+          callType: activeCall.callType,
+          initiatorId: activeCall.initiatorId,
+          initiatorUsername: activeCall.initiatorUsername,
+          participantCount: activeCall.allParticipants.size,
+          durationSeconds,
+          durationMinutes,
+          endedAt: new Date().toISOString(),
+        };
+
+        state.activeGroupCalls.delete(groupId);
+
+        // Broadcast ended event with summary to everyone in the group room
+        io.to(`group:${groupId}`).emit("group:call:ended", {
+          groupId,
+          endedBy: myId,
+          summary,
+        });
+
+        // Emit the call summary as a chat message so it persists in message list
+        io.to(`group:${groupId}`).emit("group:call:summary", {
+          groupId,
+          summary,
+        });
+      }
+    } else {
+      socket.to(`group:${groupId}`).emit("group:call:left", {
+        groupId,
+        userId: myId,
+      });
+    }
   });
 
-  // End call for everyone
+  // Force-end call for everyone (initiator only action)
   socket.on("group:call:end", ({ groupId }) => {
     if (!groupId) return;
 
-    console.log(`[GroupCall] ${myId} ended call in group ${groupId}`);
+    const activeCall = state.activeGroupCalls.get(groupId);
+    const durationSeconds = activeCall ? Math.floor((Date.now() - activeCall.startTime) / 1000) : 0;
+    const summary = activeCall ? {
+      id: `call-summary-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      type: "call_summary",
+      callType: activeCall.callType,
+      initiatorId: activeCall.initiatorId,
+      initiatorUsername: activeCall.initiatorUsername,
+      participantCount: activeCall.allParticipants.size,
+      durationSeconds,
+      durationMinutes: Math.floor(durationSeconds / 60),
+      endedAt: new Date().toISOString(),
+    } : null;
 
-    // Remove the active call from tracking
     state.activeGroupCalls.delete(groupId);
 
-    socket.to(`group:${groupId}`).emit("group:call:ended", {
+    io.to(`group:${groupId}`).emit("group:call:ended", {
       groupId,
       endedBy: myId,
+      summary,
     });
+
+    if (summary) {
+      io.to(`group:${groupId}`).emit("group:call:summary", {
+        groupId,
+        summary,
+      });
+    }
   });
 
   // Screen share started

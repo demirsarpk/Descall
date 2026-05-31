@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
+import CallSummaryBubble from "./CallSummaryBubble";
 
 /**
  * COMPLETELY REBUILT MESSAGE LIST
@@ -21,34 +22,32 @@ export default function MessageList({ messages, currentUser }) {
 
   const groupMessages = (msgs) => {
     if (!msgs || !Array.isArray(msgs)) return [];
-    
+
     const grouped = [];
     let currentGroup = null;
 
     msgs.forEach((msg, index) => {
+      // Call summary bubbles break grouping — render standalone
+      if (msg.type === "call_summary") {
+        if (currentGroup) { grouped.push(currentGroup); currentGroup = null; }
+        grouped.push({ isSummary: true, summary: msg, id: msg.id });
+        return;
+      }
+
       const prevMsg = msgs[index - 1];
-      const isSameSender = prevMsg?.from?.id === msg.from?.id;
+      const isSameSender = prevMsg?.from?.id === msg.from?.id && prevMsg?.type !== "call_summary";
       const timeDiff = prevMsg ? new Date(msg.timestamp) - new Date(prevMsg.timestamp) : Infinity;
-      const isCompact = isSameSender && timeDiff < 5 * 60 * 1000; // 5 minutes
+      const isCompact = isSameSender && timeDiff < 5 * 60 * 1000;
 
       if (isCompact && currentGroup) {
         currentGroup.messages.push(msg);
       } else {
-        if (currentGroup) {
-          grouped.push(currentGroup);
-        }
-        currentGroup = {
-          user: msg.from,
-          messages: [msg],
-          isCompact: false,
-        };
+        if (currentGroup) grouped.push(currentGroup);
+        currentGroup = { user: msg.from, messages: [msg], isCompact: false };
       }
     });
 
-    if (currentGroup) {
-      grouped.push(currentGroup);
-    }
-
+    if (currentGroup) grouped.push(currentGroup);
     return grouped;
   };
 
@@ -57,18 +56,22 @@ export default function MessageList({ messages, currentUser }) {
   return (
     <div className="message-list">
       {groupedMessages.map((group, groupIndex) => {
+        if (group.isSummary) {
+          return <CallSummaryBubble key={group.id || `summary-${groupIndex}`} summary={group.summary} />;
+        }
+
         const isOwn = group.user?.id === currentUser?.id;
-        
+
         return (
-          <div 
-            key={`group-${groupIndex}`} 
+          <div
+            key={`group-${groupIndex}`}
             className={`message-group ${isOwn ? "own" : ""}`}
           >
             {!group.isCompact && (
               <div className="message-header">
                 <div className="message-avatar">
-                  <Avatar 
-                    name={group.user?.username || "Unknown"} 
+                  <Avatar
+                    name={group.user?.username || "Unknown"}
                     size={40}
                     imageUrl={group.user?.avatarUrl}
                   />
@@ -82,11 +85,11 @@ export default function MessageList({ messages, currentUser }) {
                 </div>
               </div>
             )}
-            
+
             <div className="message-content-wrapper">
               {group.messages.map((msg) => (
-                <MessageBubble 
-                  key={msg.id} 
+                <MessageBubble
+                  key={msg.id}
                   message={msg}
                   isOwn={isOwn}
                   isCompact={group.isCompact}
