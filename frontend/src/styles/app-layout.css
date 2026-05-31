@@ -630,7 +630,6 @@
   right: 0;
   top: 0;
   z-index: 200;
-  min-height: 0;
 }
 
 .user-panel-header {
@@ -656,6 +655,29 @@
 
 .close-btn:hover {
   color: var(--text-0);
+}
+
+/* Scrollable body between header and footer */
+.user-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+.user-panel-body::-webkit-scrollbar {
+  width: 4px;
+}
+.user-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.user-panel-body::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 2px;
 }
 
 /* Profile Card */
@@ -721,7 +743,6 @@
   gap: 2px;
   border-bottom: 1px solid var(--border-2);
   flex-shrink: 0;
-  overflow: visible;
 }
 
 .settings-nav-item {
@@ -769,23 +790,7 @@
 /* Settings Content */
 .settings-content {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 16px 20px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--surface-3) transparent;
-}
-
-.settings-content::-webkit-scrollbar {
-  width: 4px;
-}
-.settings-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-.settings-content::-webkit-scrollbar-thumb {
-  background: var(--surface-3);
-  border-radius: 2px;
+  padding: 16px 20px 24px;
 }
 
 .settings-tab h3 {

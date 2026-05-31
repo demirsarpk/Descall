@@ -230,6 +230,9 @@ export default function UserPanel({ me, onClose, onLogout }) {
         </motion.button>
       </div>
 
+      {/* Scrollable body: everything between header and footer */}
+      <div className="user-panel-body">
+
       {/* Profile Overview Card */}
       <div className="profile-card">
         <div className="profile-banner" style={bannerUrl ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}} />
@@ -477,6 +480,8 @@ export default function UserPanel({ me, onClose, onLogout }) {
           )}
         </AnimatePresence>
       </div>
+
+      </div>{/* end user-panel-body */}
 
       {/* Logout Button */}
       <div className="user-panel-footer">
