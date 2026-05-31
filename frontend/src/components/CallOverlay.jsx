@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor,
-  Minus, Maximize2, Users, MessageSquare, Hand, MoreVertical, Check, X as XIcon
+  Minus, Maximize2, Users, MessageSquare, Hand, MoreVertical, Check, X as XIcon,
+  Volume2, ChevronUp, Mic2
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
 
@@ -23,8 +24,10 @@ export default function CallOverlay({ call, groupCall, me }) {
   const [screenExpanded, setScreenExpanded] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showAudioPanel, setShowAudioPanel] = useState(false);
   const [copiedInfo, setCopiedInfo] = useState(false);
   const moreMenuRef = useRef(null);
+  const audioPanelRef = useRef(null);
 
   useEffect(() => {
     if (!showMoreMenu) return;
@@ -36,6 +39,17 @@ export default function CallOverlay({ call, groupCall, me }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showMoreMenu]);
+
+  useEffect(() => {
+    if (!showAudioPanel) return;
+    const handleClickOutside = (e) => {
+      if (audioPanelRef.current && !audioPanelRef.current.contains(e.target)) {
+        setShowAudioPanel(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showAudioPanel]);
 
   const isDmActive = call?.mode !== null && call?.mode !== undefined;
   const isGroupActive = groupCall?.isInCall;
@@ -355,6 +369,27 @@ export default function CallOverlay({ call, groupCall, me }) {
             >
               <Hand size={22} />
             </motion.button>
+
+            {/* Audio Device Picker */}
+            <div ref={audioPanelRef} style={{ position: "relative" }}>
+              <CircleBtn
+                color={showAudioPanel ? "rgba(255,255,255,0.18)" : "#3c4043"}
+                title="Audio devices"
+                onClick={() => { setShowAudioPanel(v => !v); setShowMoreMenu(false); }}
+              >
+                <Volume2 size={22} />
+              </CircleBtn>
+              <AnimatePresence>
+                {showAudioPanel && (
+                  <AudioDevicePanel
+                    isDm={isDm}
+                    call={call}
+                    groupCall={groupCall}
+                    onClose={() => setShowAudioPanel(false)}
+                  />
+                )}
+              </AnimatePresence>
+            </div>
 
             <div ref={moreMenuRef} style={{ position: "relative" }}>
               <CircleBtn
@@ -873,6 +908,206 @@ function PersonRow({ name, avatarUrl, isHost }) {
         {isHost && <span style={{ fontSize: 11, color: "#b5bac1" }}>Host</span>}
       </div>
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   AudioDevicePanel — floating panel for mic/speaker selection
+   ───────────────────────────────────────────────────────────────── */
+function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
+  const hook = isDm ? call : groupCall;
+  const {
+    audioInputDevices = [],
+    audioOutputDevices = [],
+    selectedAudioInput = "",
+    selectedAudioOutput = "",
+    setAudioInput,
+    setAudioOutput,
+  } = hook || {};
+
+  const [switching, setSwitching] = useState(null); // "input" | "output"
+
+  const handleInputChange = async (deviceId) => {
+    setSwitching("input");
+    try { await setAudioInput?.(deviceId); } finally { setSwitching(null); }
+  };
+
+  const handleOutputChange = async (deviceId) => {
+    setSwitching("output");
+    try { await setAudioOutput?.(deviceId); } finally { setSwitching(null); }
+  };
+
+  const labelOf = (d) => d.label || (d.kind === "audioinput" ? `Microphone ${d.deviceId.slice(0, 5)}` : `Speaker ${d.deviceId.slice(0, 5)}`);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 12, scale: 0.96 }}
+      transition={{ duration: 0.16, ease: [0.25, 0.46, 0.45, 0.94] }}
+      style={{
+        position: "absolute",
+        bottom: "calc(100% + 14px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: 320,
+        background: "linear-gradient(160deg, #25272e 0%, #1e2026 100%)",
+        border: "1px solid rgba(255,255,255,0.09)",
+        borderRadius: 16,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04) inset",
+        zIndex: 200,
+        overflow: "hidden",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(88,101,242,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Volume2 size={14} color="#7289da" />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#e3e5e8", letterSpacing: "0.01em" }}>Audio Devices</span>
+        </div>
+        <button
+          onClick={onClose}
+          style={{ background: "none", border: "none", color: "#72767d", cursor: "pointer", padding: 4, borderRadius: 6, display: "flex", alignItems: "center" }}
+          onMouseEnter={e => e.currentTarget.style.color = "#e3e5e8"}
+          onMouseLeave={e => e.currentTarget.style.color = "#72767d"}
+        >
+          <XIcon size={15} />
+        </button>
+      </div>
+
+      <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "0 16px" }} />
+
+      <div style={{ padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Microphone section */}
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(59,165,93,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Mic2 size={12} color="#3ba55d" />
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#72767d", textTransform: "uppercase", letterSpacing: "0.06em" }}>Microphone</span>
+            {switching === "input" && (
+              <span style={{ fontSize: 10, color: "#7289da", marginLeft: "auto" }}>Switching…</span>
+            )}
+          </div>
+          {audioInputDevices.length === 0 ? (
+            <div style={{ fontSize: 12, color: "#72767d", padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>No microphones found</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {audioInputDevices.map((d) => {
+                const isSelected = d.deviceId === selectedAudioInput;
+                return (
+                  <button
+                    key={d.deviceId}
+                    onClick={() => !isSelected && handleInputChange(d.deviceId)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "9px 12px",
+                      background: isSelected ? "rgba(88,101,242,0.18)" : "rgba(255,255,255,0.04)",
+                      border: isSelected ? "1px solid rgba(88,101,242,0.4)" : "1px solid transparent",
+                      borderRadius: 10, cursor: isSelected ? "default" : "pointer",
+                      textAlign: "left", width: "100%",
+                      transition: "all 0.15s",
+                    }}
+                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                  >
+                    <div style={{
+                      width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+                      background: isSelected ? "#5865f2" : "#4f545c",
+                      boxShadow: isSelected ? "0 0 6px rgba(88,101,242,0.8)" : "none",
+                      transition: "all 0.15s",
+                    }} />
+                    <span style={{
+                      fontSize: 12, fontWeight: isSelected ? 600 : 400,
+                      color: isSelected ? "#dee0fc" : "#b5bac1",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1,
+                    }}>
+                      {labelOf(d)}
+                    </span>
+                    {isSelected && (
+                      <Check size={13} color="#5865f2" style={{ flexShrink: 0 }} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div style={{ height: 1, background: "rgba(255,255,255,0.06)" }} />
+
+        {/* Speaker / Output section */}
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(114,137,218,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Volume2 size={12} color="#7289da" />
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#72767d", textTransform: "uppercase", letterSpacing: "0.06em" }}>Speaker</span>
+            {switching === "output" && (
+              <span style={{ fontSize: 10, color: "#7289da", marginLeft: "auto" }}>Switching…</span>
+            )}
+          </div>
+          {audioOutputDevices.length === 0 ? (
+            <div style={{ fontSize: 12, color: "#72767d", padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>
+              No output devices found
+              <div style={{ fontSize: 11, marginTop: 3, color: "#4f545c" }}>Browser may not support output selection</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {audioOutputDevices.map((d) => {
+                const isSelected = d.deviceId === selectedAudioOutput;
+                return (
+                  <button
+                    key={d.deviceId}
+                    onClick={() => !isSelected && handleOutputChange(d.deviceId)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "9px 12px",
+                      background: isSelected ? "rgba(114,137,218,0.18)" : "rgba(255,255,255,0.04)",
+                      border: isSelected ? "1px solid rgba(114,137,218,0.4)" : "1px solid transparent",
+                      borderRadius: 10, cursor: isSelected ? "default" : "pointer",
+                      textAlign: "left", width: "100%",
+                      transition: "all 0.15s",
+                    }}
+                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                  >
+                    <div style={{
+                      width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+                      background: isSelected ? "#7289da" : "#4f545c",
+                      boxShadow: isSelected ? "0 0 6px rgba(114,137,218,0.8)" : "none",
+                      transition: "all 0.15s",
+                    }} />
+                    <span style={{
+                      fontSize: 12, fontWeight: isSelected ? 600 : 400,
+                      color: isSelected ? "#dee0fc" : "#b5bac1",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1,
+                    }}>
+                      {labelOf(d)}
+                    </span>
+                    {isSelected && (
+                      <Check size={13} color="#7289da" style={{ flexShrink: 0 }} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Arrow pointing down to the button */}
+      <div style={{
+        position: "absolute", bottom: -7, left: "50%", transform: "translateX(-50%)",
+        width: 14, height: 14, background: "#1e2026",
+        border: "1px solid rgba(255,255,255,0.09)",
+        borderTop: "none", borderLeft: "none",
+        transform: "translateX(-50%) rotate(45deg)",
+        transformOrigin: "center",
+      }} />
+    </motion.div>
   );
 }
 

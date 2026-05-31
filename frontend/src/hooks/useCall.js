@@ -28,6 +28,10 @@ export function useCall(socket) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [screenStream, setScreenStream] = useState(null);
+  const [audioInputDevices, setAudioInputDevices] = useState([]);
+  const [audioOutputDevices, setAudioOutputDevices] = useState([]);
+  const [selectedAudioInput, setSelectedAudioInput] = useState("");
+  const [selectedAudioOutput, setSelectedAudioOutput] = useState("");
 
   const pcRef = useRef(null);
   const modeRef = useRef(mode);
@@ -48,6 +52,24 @@ export function useCall(socket) {
   const stopScreenShareRef = useRef(null);
 
   useEffect(() => { peerRef.current = peer; }, [peer]);
+
+  // Enumerate audio devices on mount and on device change
+  useEffect(() => {
+    const getDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter(d => d.kind === "audioinput");
+        const outputs = devices.filter(d => d.kind === "audiooutput");
+        setAudioInputDevices(inputs);
+        setAudioOutputDevices(outputs);
+        if (!selectedAudioInput && inputs.length > 0) setSelectedAudioInput(inputs[0].deviceId);
+        if (!selectedAudioOutput && outputs.length > 0) setSelectedAudioOutput(outputs[0].deviceId);
+      } catch (_) {}
+    };
+    getDevices();
+    navigator.mediaDevices.addEventListener("devicechange", getDevices);
+    return () => navigator.mediaDevices.removeEventListener("devicechange", getDevices);
+  }, []);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -497,6 +519,32 @@ export function useCall(socket) {
     }
   }, [socket]);
 
+  // Change active microphone mid-call
+  const setAudioInput = useCallback(async (deviceId) => {
+    setSelectedAudioInput(deviceId);
+    if (!localStreamRef.current) return;
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId } }, video: false });
+      const newTrack = newStream.getAudioTracks()[0];
+      if (!newTrack) return;
+      localStreamRef.current.getAudioTracks().forEach(t => { t.stop(); localStreamRef.current.removeTrack(t); });
+      localStreamRef.current.addTrack(newTrack);
+      if (pcRef.current) {
+        const sender = pcRef.current.getSenders().find(s => s.track?.kind === "audio");
+        if (sender) await sender.replaceTrack(newTrack);
+      }
+      setLocalStream(localStreamRef.current);
+    } catch (_) {}
+  }, []);
+
+  // Change active speaker/output mid-call
+  const setAudioOutput = useCallback((deviceId) => {
+    setSelectedAudioOutput(deviceId);
+    if (remoteAudioRef.current?.setSinkId) {
+      remoteAudioRef.current.setSinkId(deviceId).catch(() => {});
+    }
+  }, []);
+
   const formatDuration = (s) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
     const sec = (s % 60).toString().padStart(2, "0");
@@ -537,5 +585,11 @@ export function useCall(socket) {
     startScreenShare,
     stopScreenShare,
     cleanup,
+    audioInputDevices,
+    audioOutputDevices,
+    selectedAudioInput,
+    selectedAudioOutput,
+    setAudioInput,
+    setAudioOutput,
   };
 }
