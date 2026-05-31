@@ -34,6 +34,7 @@ export default function UserPanel({ me, onClose, onLogout }) {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const fileInputRef = useRef(null);
 
   /* ── Appearance ── */
@@ -153,6 +154,10 @@ export default function UserPanel({ me, onClose, onLogout }) {
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Reset so the same file can be re-selected if needed
+    e.target.value = "";
+    setAvatarUploading(true);
+    setProfileError("");
     const formData = new FormData();
     formData.append("file", file);
     try {
@@ -163,8 +168,18 @@ export default function UserPanel({ me, onClose, onLogout }) {
         body: formData,
       });
       const data = await res.json();
-      if (data.url) setAvatarUrl(data.url);
-    } catch (err) { console.error("Avatar upload failed:", err); }
+      if (data.url) {
+        setAvatarUrl(data.url);
+      } else {
+        setProfileError(data.error || "Upload failed");
+        setTimeout(() => setProfileError(""), 3000);
+      }
+    } catch (err) {
+      setProfileError("Network error during upload");
+      setTimeout(() => setProfileError(""), 3000);
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const handleLogoutClick = () => {
@@ -294,15 +309,60 @@ export default function UserPanel({ me, onClose, onLogout }) {
                 <input className="profile-input" value={customStatus} onChange={(e) => setCustomStatus(e.target.value)} placeholder="What's on your mind?" maxLength={60} />
 
                 <label className="profile-field-label">
-                  <Camera size={14} /> Avatar URL
+                  <Camera size={14} /> Profile Photo
                 </label>
-                <div className="profile-avatar-row">
-                  <input className="profile-input" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://..." />
-                  <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleAvatarUpload} />
-                  <motion.button className="profile-upload-btn" onClick={() => fileInputRef.current?.click()} whileTap={{ scale: 0.95 }} title="Upload image">
-                    <Upload size={16} />
-                  </motion.button>
+                <div className="avatar-picker-row">
+                  <div
+                    className="avatar-picker-preview"
+                    onClick={() => !avatarUploading && fileInputRef.current?.click()}
+                    title="Click to change photo"
+                  >
+                    <Avatar name={me?.username || "User"} size={64} imageUrl={avatarUrl || me?.avatarUrl} />
+                    <div className="avatar-picker-overlay">
+                      {avatarUploading ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }}
+                          style={{ width: 22, height: 22, border: "3px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%" }}
+                        />
+                      ) : (
+                        <Camera size={20} color="#fff" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="avatar-picker-info">
+                    <input
+                      className="profile-input"
+                      value={avatarUrl}
+                      onChange={(e) => setAvatarUrl(e.target.value)}
+                      placeholder="Paste image URL or upload..."
+                    />
+                    <div className="avatar-picker-actions">
+                      <motion.button
+                        className="avatar-action-btn primary"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={avatarUploading}
+                        whileTap={{ scale: 0.96 }}
+                      >
+                        <Upload size={13} />
+                        {avatarUploading ? "Uploading..." : "Upload Photo"}
+                      </motion.button>
+                      {avatarUrl && (
+                        <motion.button
+                          className="avatar-action-btn danger"
+                          onClick={() => setAvatarUrl("")}
+                          whileTap={{ scale: 0.96 }}
+                          title="Remove photo"
+                        >
+                          <X size={13} />
+                          Remove
+                        </motion.button>
+                      )}
+                    </div>
+                    <span className="avatar-upload-hint">JPG, PNG or GIF · Max 8 MB</span>
+                  </div>
                 </div>
+                <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleAvatarUpload} />
 
                 <label className="profile-field-label">
                   <Camera size={14} /> Banner URL
