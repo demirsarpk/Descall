@@ -122,7 +122,7 @@ export default function MessageComposer({ onSend, disabled = false }) {
   };
 
   const handleGifSelect = (gif) => {
-    onSend?.(`[GIF: ${gif.title}](${gif.url})`);
+    onSend?.({ type: "gif", mediaUrl: gif.url, mediaType: "gif", title: gif.title });
     setShowGiphy(false);
   };
 

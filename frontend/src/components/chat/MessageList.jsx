@@ -120,7 +120,14 @@ function MessageBubble({ message, isOwn, isCompact }) {
       
       {message.mediaUrl && (
         <div className="message-media">
-          {message.mediaType === "image" ? (
+          {message.mediaType === "gif" ? (
+            <img
+              src={message.mediaUrl}
+              alt="GIF"
+              className="message-image"
+              style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, display: "block" }}
+            />
+          ) : message.mediaType === "image" ? (
             <img 
               src={message.mediaUrl} 
               alt="Attachment" 

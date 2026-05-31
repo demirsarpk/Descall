@@ -718,13 +718,17 @@ export default function App() {
           onAcceptFriend={handleAcceptFriend}
           onDeclineFriend={handleDeclineFriend}
           onSendMessage={(msg) => {
+            const isGif = msg && typeof msg === "object" && msg.type === "gif";
+
             if (activeDmUser) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
               const optimisticMessage = {
                 id: tempId,
                 from: { id: me?.id, username: me?.username },
                 to: { id: activeDmUser.id },
-                text: msg,
+                text: isGif ? "" : msg,
+                mediaUrl: isGif ? msg.mediaUrl : undefined,
+                mediaType: isGif ? "gif" : undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
               };
@@ -732,14 +736,19 @@ export default function App() {
                 ...prev,
                 [activeDmUser.id]: [...(prev[activeDmUser.id] ?? []), optimisticMessage],
               }));
-              socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: msg });
+              if (isGif) {
+                socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: "", mediaUrl: msg.mediaUrl, mediaType: "gif" });
+              } else {
+                socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, text: msg });
+              }
             } else if (activeGroup) {
-              // Optimistic group message
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
               const optimistic = {
                 id: tempId,
                 from: { id: me?.id, username: me?.username, avatarUrl: me?.avatar_url },
-                text: msg,
+                text: isGif ? "" : msg,
+                mediaUrl: isGif ? msg.mediaUrl : undefined,
+                mediaType: isGif ? "gif" : undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
               };
@@ -747,7 +756,11 @@ export default function App() {
                 ...prev,
                 [activeGroup.id]: [...(prev[activeGroup.id] ?? []), optimistic],
               }));
-              socketRef.current?.emit("group:message", { groupId: activeGroup.id, content: msg });
+              if (isGif) {
+                socketRef.current?.emit("group:message", { groupId: activeGroup.id, content: "", mediaUrl: msg.mediaUrl, mediaType: "gif" });
+              } else {
+                socketRef.current?.emit("group:message", { groupId: activeGroup.id, content: msg });
+              }
             }
           }}
           onVoiceCall={() => {
