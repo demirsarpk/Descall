@@ -778,9 +778,25 @@ export function useGroupCall(socket) {
       if (!fromUserId) return;
       
       const stream = localStreamRef.current;
-      if (!stream) {
-        return;
-      }
+      if (!stream) return;
+
+      // Register participant with correct username before peer connection fires ontrack
+      setParticipants((prev) => {
+        const exists = prev.find((p) => p.id === fromUserId);
+        if (exists) {
+          return prev.map((p) => p.id === fromUserId
+            ? { ...p, username: fromUser?.username || p.username, avatarUrl: fromUser?.avatar_url || p.avatarUrl }
+            : p
+          );
+        }
+        return [...prev, {
+          id: fromUserId,
+          username: fromUser?.username || fromUser?.displayName || "Member",
+          avatarUrl: fromUser?.avatar_url,
+          hasVideo: callType === "video",
+          hasAudio: true,
+        }];
+      });
 
       try {
         const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
