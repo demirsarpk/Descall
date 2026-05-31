@@ -706,6 +706,14 @@ export default function App() {
           onGroupCreated={(group) => {
             setMyGroups((prev) => prev.some((g) => g.id === group.id) ? prev : [...prev, group]);
           }}
+          onGroupLeft={(groupId) => {
+            setMyGroups((prev) => prev.filter((g) => g.id !== groupId));
+            setActiveGroup((cur) => (cur?.id === groupId ? null : cur));
+          }}
+          onGroupRenamed={(groupId, newName) => {
+            setMyGroups((prev) => prev.map((g) => g.id === groupId ? { ...g, name: newName } : g));
+            setActiveGroup((cur) => (cur?.id === groupId ? { ...cur, name: newName } : cur));
+          }}
           friendRequests={friendRequests}
           onAcceptFriend={handleAcceptFriend}
           onDeclineFriend={handleDeclineFriend}
