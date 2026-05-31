@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor,
@@ -602,22 +602,52 @@ function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, 
 /* ─────────────────────────────────────────────────────────────────
    ParticipantGrid — adaptive grid layout when no screen share
    ───────────────────────────────────────────────────────────────── */
+function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }) {
+  const localStream = isDm ? call?.localStream : groupCall?.localStream;
+
+  const videoCallbackRef = useCallback((el) => {
+    if (!el) return;
+    // Register with hook so toggleCamera / setLocalVideo can drive it
+    if (!isDm && groupCall?.setLocalVideo) groupCall.setLocalVideo(el);
+    // Attach stream if already available
+    if (localStream && el.srcObject !== localStream) {
+      el.srcObject = localStream;
+      el.play().catch(() => {});
+    }
+  }, [isDm, groupCall, localStream]);
+
+  // Re-attach when stream changes (e.g. camera toggled on mid-call)
+  useEffect(() => {
+    const ref = isDm ? call?.localVideoRef : groupCall?.localVideoRef;
+    if (!ref?.current || !localStream) return;
+    if (ref.current.srcObject !== localStream) {
+      ref.current.srcObject = localStream;
+      ref.current.play().catch(() => {});
+    }
+  }, [localStream, isDm, call, groupCall]);
+
+  return (
+    <ParticipantTile
+      username={username}
+      avatarUrl={avatarUrl}
+      isSpeaking={false}
+      videoRef={hasVideo ? videoCallbackRef : null}
+      hasVideo={hasVideo}
+      isLocal
+    />
+  );
+}
+
 function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localAvatarUrl }) {
-  // Include self as first tile
-  const allTiles = [
-    { id: "local", username: localUsername, isLocal: true, hasVideo: hasLocalVideo, avatarUrl: localAvatarUrl },
-    ...remoteParticipants.map((p) => ({
-      id: p.id,
-      username: p.username,
-      avatarUrl: p.avatarUrl,
-      isLocal: false,
-      hasVideo: p.hasVideo || p.isCameraOn,
-    })),
-  ];
+  // Remote tiles only — local is rendered separately below to avoid double-render
+  const remoteTiles = remoteParticipants.map((p) => ({
+    id: p.id,
+    username: p.username || "Member",
+    avatarUrl: p.avatarUrl,
+    hasVideo: p.hasVideo || p.isCameraOn,
+  }));
 
-  const count = allTiles.length;
-
-  // Grid columns: 1 person = 1 col, 2 = 2, 3-4 = 2, 5-6 = 3, 7+ = 4
+  const count = 1 + remoteTiles.length;
   const cols = count === 1 ? 1 : count <= 2 ? 2 : count <= 4 ? 2 : count <= 6 ? 3 : 4;
   const rows = Math.ceil(count / cols);
 
@@ -633,23 +663,27 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
         minHeight: 0,
       }}
     >
-      {allTiles.map((tile) => {
-        const videoRef = tile.isLocal
-          ? (isDm ? call?.localVideoRef : groupCall?.localVideoRef)
-          : (isDm ? call?.remoteVideoRef : groupCall?.remoteStreams?.current?.get(tile.id)?.videoRef);
-
-        return (
-          <ParticipantTile
-            key={tile.id}
-            username={tile.username}
-            avatarUrl={tile.avatarUrl}
-            isSpeaking={tile.isSpeaking}
-            videoRef={tile.hasVideo ? videoRef : null}
-            hasVideo={tile.hasVideo}
-            isLocal={tile.isLocal}
-          />
-        );
-      })}
+      {/* Local tile always first */}
+      <LocalVideoTile
+        isDm={isDm}
+        call={call}
+        groupCall={groupCall}
+        hasVideo={hasLocalVideo}
+        username={localUsername}
+        avatarUrl={localAvatarUrl}
+      />
+      {/* Remote participant tiles */}
+      {remoteTiles.map((tile) => (
+        <ParticipantTile
+          key={tile.id}
+          username={tile.username}
+          avatarUrl={tile.avatarUrl}
+          isSpeaking={false}
+          videoRef={null}
+          hasVideo={false}
+          isLocal={false}
+        />
+      ))}
     </div>
   );
 }

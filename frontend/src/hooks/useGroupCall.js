@@ -387,6 +387,17 @@ export function useGroupCall(socket) {
         memberIds,
       });
 
+      // Immediately set the banner for the initiator — the server only pushes
+      // group:call:active-banner to users who join later via group:join
+      setActiveCallBanner({
+        groupId,
+        initiatorId: myIdRef.current,
+        initiatorUsername: socketRef.current?.user?.username || "You",
+        callType: type,
+        participantCount: 1,
+        participants: [myIdRef.current],
+      });
+
     } catch (err) {
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         alert('Microphone and camera permissions are required for calls. Please allow access in your browser settings.');
@@ -436,6 +447,15 @@ export function useGroupCall(socket) {
       socketRef.current.emit("group:call:accept", {
         groupId,
         toUserId: fromUser.id,
+      });
+
+      setActiveCallBanner((prev) => prev ?? {
+        groupId,
+        initiatorId: fromUser.id,
+        initiatorUsername: fromUser.username || "Unknown",
+        callType: type,
+        participantCount: 2,
+        participants: [fromUser.id, myIdRef.current],
       });
 
     } catch (err) {
@@ -778,16 +798,18 @@ export function useGroupCall(socket) {
     // Handle when a new participant joins an existing call
     const onParticipantJoined = async ({ groupId, fromUserId, fromUser }) => {
       if (!fromUserId || fromUserId === myId) return;
+
+      // Update username if we already have this participant with 'Member' placeholder
+      setParticipants((prev) => prev.map((p) =>
+        p.id === fromUserId && (!p.username || p.username === "Member")
+          ? { ...p, username: fromUser?.username || fromUser?.displayName || p.username }
+          : p
+      ));
       
       const stream = localStreamRef.current;
-      if (!stream) {
-        return;
-      }
+      if (!stream) return;
 
-      // Check if we already have a connection with this user
-      if (pcMapRef.current.has(fromUserId)) {
-        return;
-      }
+      if (pcMapRef.current.has(fromUserId)) return;
 
       try {
         const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
@@ -986,21 +1008,15 @@ export function useGroupCall(socket) {
 
     const onCallStarted = ({ groupId, fromUserId, fromUser, callType }) => {
       if (!fromUserId || fromUserId === myId) return;
-      
-      // Add participant to list if not already there
       setParticipants((prev) => {
-        const exists = prev.find((p) => p.id === fromUserId);
-        if (!exists) {
-          const participant = {
-            id: fromUserId,
-            username: fromUser?.username || "Member",
-            avatar_url: fromUser?.avatar_url,
-            hasVideo: callType === "video",
-            hasAudio: true,
-          };
-          return [...prev, participant];
-        }
-        return prev;
+        if (prev.find((p) => p.id === fromUserId)) return prev;
+        return [...prev, {
+          id: fromUserId,
+          username: fromUser?.username || fromUser?.displayName || "Member",
+          avatarUrl: fromUser?.avatar_url,
+          hasVideo: callType === "video",
+          hasAudio: true,
+        }];
       });
     };
 
@@ -1041,16 +1057,13 @@ export function useGroupCall(socket) {
         existingParticipants.forEach((userId) => {
           if (userId !== myId) {
             setParticipants((prev) => {
-              const exists = prev.find((p) => p.id === userId);
-              if (!exists) {
-                return [...prev, {
-                  id: userId,
-                  username: "Member",
-                  hasVideo: existingCallType === "video",
-                  hasAudio: true,
-                }];
-              }
-              return prev;
+              if (prev.find((p) => p.id === userId)) return prev;
+              return [...prev, {
+                id: userId,
+                username: "Member",
+                hasVideo: existingCallType === "video",
+                hasAudio: true,
+              }];
             });
 
             // Set up peer connection for each existing participant

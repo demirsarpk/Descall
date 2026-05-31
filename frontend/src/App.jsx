@@ -556,20 +556,35 @@ export default function App() {
     getGroupMessages(activeGroup.id)
       .then((res) => {
         const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
-        const normalized = msgs.map((m) => ({
-          id: m.id,
-          from: {
-            id: m.sender?.id || m.sender_id,
-            username: m.sender?.username || "Unknown",
-            avatarUrl: m.sender?.avatar_url,
-          },
-          text: m.content || "",
-          timestamp: m.created_at || new Date().toISOString(),
-          mediaUrl: m.media_url,
-          mediaType: m.media_type,
-          originalName: m.original_name,
-          size: m.file_size,
-        }));
+        const normalized = msgs.map((m) => {
+          if (m.message_type === "call_summary") {
+            try {
+              const summary = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
+              return {
+                ...summary,
+                id: summary.id || m.id,
+                timestamp: summary.endedAt || m.created_at || new Date().toISOString(),
+                type: "call_summary",
+              };
+            } catch {
+              return null;
+            }
+          }
+          return {
+            id: m.id,
+            from: {
+              id: m.sender?.id || m.sender_id,
+              username: m.sender?.username || "Unknown",
+              avatarUrl: m.sender?.avatar_url,
+            },
+            text: m.content || "",
+            timestamp: m.created_at || new Date().toISOString(),
+            mediaUrl: m.media_url,
+            mediaType: m.media_type,
+            originalName: m.original_name,
+            size: m.file_size,
+          };
+        }).filter(Boolean);
         setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
       })
       .catch((err) => console.error("[App] fetch group messages error:", err));
