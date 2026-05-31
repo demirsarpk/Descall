@@ -4,6 +4,7 @@
  */
 
 const { appendErrorLog } = require("../runtime/sharedState");
+const supabase = require("../db/supabase");
 
 function registerGroupHandlers(io, socket, state) {
   const myId = socket.user?.id;
@@ -40,20 +41,39 @@ function registerGroupHandlers(io, socket, state) {
     console.log(`[Socket] ${myId} left group: ${groupId}`);
   });
 
-  // Group message
-  socket.on("group:message", ({ groupId, content, mediaUrl, mediaType }) => {
+  // Group message — persist to DB then broadcast
+  socket.on("group:message", async ({ groupId, content, mediaUrl, mediaType }) => {
     if (!groupId || (!content?.trim() && !mediaUrl)) {
       appendErrorLog("group:message", "Missing required parameters", { groupId, hasContent: !!content, hasMedia: !!mediaUrl }, myId, socket.user?.username);
       return;
     }
 
+    const trimmedContent = content?.trim() || null;
+
+    const { data: row, error } = await supabase
+      .from("group_messages")
+      .insert({
+        group_id: groupId,
+        sender_id: myId,
+        content: trimmedContent,
+        media_url: mediaUrl || null,
+        media_type: mediaType || null,
+        message_type: "text",
+      })
+      .select("id, created_at")
+      .single();
+
+    if (error) {
+      console.error("[GroupMessage] DB insert error:", error.message);
+    }
+
     const message = {
-      id: crypto.randomUUID(),
+      id: row?.id ?? crypto.randomUUID(),
       sender_id: myId,
-      content: content?.trim(),
+      content: trimmedContent,
       media_url: mediaUrl,
       media_type: mediaType,
-      created_at: new Date().toISOString(),
+      created_at: row?.created_at ?? new Date().toISOString(),
       sender: {
         id: myId,
         username: socket.user.username,
@@ -61,7 +81,6 @@ function registerGroupHandlers(io, socket, state) {
       },
     };
 
-    // Broadcast to group (including sender for consistency)
     io.to(`group:${groupId}`).emit("group:message", { groupId, message });
   });
 
@@ -109,6 +128,24 @@ function registerGroupHandlers(io, socket, state) {
 
     console.log(`[GroupCall] ${myId} started ${callType} call in group ${groupId}`);
 
+    // Persist call start to DB
+    let dbCallId = null;
+    supabase
+      .from("group_calls")
+      .insert({ group_id: groupId, started_by: myId, call_type: callType, status: "active" })
+      .select("id")
+      .single()
+      .then(({ data, error }) => {
+        if (error) console.error("[GroupCall] DB insert error:", error.message);
+        else {
+          dbCallId = data.id;
+          const call = state.activeGroupCalls.get(groupId);
+          if (call) call.dbCallId = dbCallId;
+          // Insert initiator as first participant
+          supabase.from("group_call_participants").insert({ call_id: dbCallId, user_id: myId }).then(() => {});
+        }
+      });
+
     // Track this call as active
     state.activeGroupCalls.set(groupId, {
       initiatorId: myId,
@@ -117,6 +154,7 @@ function registerGroupHandlers(io, socket, state) {
       participants: new Set([myId]),
       allParticipants: new Set([myId]),
       startTime: Date.now(),
+      dbCallId: null,
     });
 
     const payload = {
@@ -167,6 +205,11 @@ function registerGroupHandlers(io, socket, state) {
     if (activeCall) {
       activeCall.participants.add(myId);
       activeCall.allParticipants.add(myId);
+      if (activeCall.dbCallId) {
+        supabase.from("group_call_participants")
+          .insert({ call_id: activeCall.dbCallId, user_id: myId })
+          .then(({ error }) => { if (error) console.error("[GroupCall] Participant insert error:", error.message); });
+      }
     }
 
     // Notify the initiator that someone accepted
@@ -297,8 +340,10 @@ function registerGroupHandlers(io, socket, state) {
       if (activeCall.participants.size === 0) {
         const durationSeconds = Math.floor((Date.now() - activeCall.startTime) / 1000);
         const durationMinutes = Math.floor(durationSeconds / 60);
+        const endedAt = new Date().toISOString();
+        const summaryId = `call-summary-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const summary = {
-          id: `call-summary-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: summaryId,
           type: "call_summary",
           callType: activeCall.callType,
           initiatorId: activeCall.initiatorId,
@@ -306,23 +351,49 @@ function registerGroupHandlers(io, socket, state) {
           participantCount: activeCall.allParticipants.size,
           durationSeconds,
           durationMinutes,
-          endedAt: new Date().toISOString(),
+          endedAt,
         };
 
         state.activeGroupCalls.delete(groupId);
 
+        // Persist call end to DB
+        if (activeCall.dbCallId) {
+          supabase.from("group_calls")
+            .update({ ended_at: endedAt, ended_by: myId, duration_seconds: durationSeconds, participant_count: activeCall.allParticipants.size, status: "ended" })
+            .eq("id", activeCall.dbCallId)
+            .then(({ error }) => { if (error) console.error("[GroupCall] DB end update error:", error.message); });
+
+          supabase.from("group_call_participants")
+            .update({ left_at: endedAt })
+            .eq("call_id", activeCall.dbCallId)
+            .is("left_at", null)
+            .then(({ error }) => { if (error) console.error("[GroupCall] Participant left_at error:", error.message); });
+        }
+
+        // Persist call summary as a group_message so it survives restarts
+        supabase.from("group_messages")
+          .insert({
+            group_id: groupId,
+            sender_id: activeCall.initiatorId,
+            content: JSON.stringify(summary),
+            message_type: "call_summary",
+          })
+          .then(({ error }) => { if (error) console.error("[GroupCall] Summary message insert error:", error.message); });
+
         // Broadcast ended event with summary to everyone in the group room
-        io.to(`group:${groupId}`).emit("group:call:ended", {
-          groupId,
-          endedBy: myId,
-          summary,
-        });
+        io.to(`group:${groupId}`).emit("group:call:ended", { groupId, endedBy: myId, summary });
 
         // Emit the call summary as a chat message so it persists in message list
-        io.to(`group:${groupId}`).emit("group:call:summary", {
-          groupId,
-          summary,
-        });
+        io.to(`group:${groupId}`).emit("group:call:summary", { groupId, summary });
+      } else {
+        // Update participant left_at in DB
+        if (activeCall.dbCallId) {
+          supabase.from("group_call_participants")
+            .update({ left_at: new Date().toISOString() })
+            .eq("call_id", activeCall.dbCallId)
+            .eq("user_id", myId)
+            .then(({ error }) => { if (error) console.error("[GroupCall] Participant left_at error:", error.message); });
+        }
       }
     } else {
       socket.to(`group:${groupId}`).emit("group:call:left", {
@@ -350,40 +421,75 @@ function registerGroupHandlers(io, socket, state) {
       endedAt: new Date().toISOString(),
     } : null;
 
+    const dbCallId = activeCall?.dbCallId;
     state.activeGroupCalls.delete(groupId);
 
-    io.to(`group:${groupId}`).emit("group:call:ended", {
-      groupId,
-      endedBy: myId,
-      summary,
-    });
+    if (summary && dbCallId) {
+      const endedAt = summary.endedAt;
+      supabase.from("group_calls")
+        .update({ ended_at: endedAt, ended_by: myId, duration_seconds: summary.durationSeconds, participant_count: summary.participantCount, status: "ended" })
+        .eq("id", dbCallId)
+        .then(({ error }) => { if (error) console.error("[GroupCall] Force-end DB error:", error.message); });
+
+      supabase.from("group_call_participants")
+        .update({ left_at: endedAt })
+        .eq("call_id", dbCallId)
+        .is("left_at", null)
+        .then(({ error }) => { if (error) console.error("[GroupCall] Force-end participants error:", error.message); });
+    }
 
     if (summary) {
-      io.to(`group:${groupId}`).emit("group:call:summary", {
-        groupId,
-        summary,
-      });
+      supabase.from("group_messages")
+        .insert({ group_id: groupId, sender_id: myId, content: JSON.stringify(summary), message_type: "call_summary" })
+        .then(({ error }) => { if (error) console.error("[GroupCall] Force-end summary insert error:", error.message); });
+    }
+
+    io.to(`group:${groupId}`).emit("group:call:ended", { groupId, endedBy: myId, summary });
+
+    if (summary) {
+      io.to(`group:${groupId}`).emit("group:call:summary", { groupId, summary });
     }
   });
 
-  // Screen share started
+  // Screen share started — persist session
   socket.on("group:screen:start", ({ groupId }) => {
     if (!groupId) return;
 
-    socket.to(`group:${groupId}`).emit("group:screen:started", {
-      groupId,
-      fromUserId: myId,
-    });
+    const activeCall = state.activeGroupCalls.get(groupId);
+    const dbCallId = activeCall?.dbCallId ?? null;
+
+    supabase.from("screen_share_sessions")
+      .insert({ group_id: groupId, call_id: dbCallId, user_id: myId })
+      .select("id")
+      .single()
+      .then(({ data, error }) => {
+        if (error) console.error("[ScreenShare] DB insert error:", error.message);
+        else {
+          // Store session id keyed by userId so we can close it on stop
+          if (!state.screenShareSessions) state.screenShareSessions = new Map();
+          state.screenShareSessions.set(`${groupId}:${myId}`, data.id);
+        }
+      });
+
+    socket.to(`group:${groupId}`).emit("group:screen:started", { groupId, fromUserId: myId });
   });
 
-  // Screen share stopped
+  // Screen share stopped — close DB session
   socket.on("group:screen:stop", ({ groupId }) => {
     if (!groupId) return;
 
-    socket.to(`group:${groupId}`).emit("group:screen:stopped", {
-      groupId,
-      fromUserId: myId,
-    });
+    if (state.screenShareSessions) {
+      const sessionId = state.screenShareSessions.get(`${groupId}:${myId}`);
+      if (sessionId) {
+        supabase.from("screen_share_sessions")
+          .update({ ended_at: new Date().toISOString() })
+          .eq("id", sessionId)
+          .then(({ error }) => { if (error) console.error("[ScreenShare] DB stop error:", error.message); });
+        state.screenShareSessions.delete(`${groupId}:${myId}`);
+      }
+    }
+
+    socket.to(`group:${groupId}`).emit("group:screen:stopped", { groupId, fromUserId: myId });
   });
 }
 

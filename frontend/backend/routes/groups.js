@@ -198,8 +198,20 @@ router.get("/:groupId/messages", requireAuth, async (req, res) => {
     
     const { data: messages, error } = await query;
     if (error) throw error;
-    
-    res.json({ messages: (messages || []).reverse() });
+
+    const normalized = (messages || []).reverse().map((m) => {
+      if (m.message_type === "call_summary") {
+        try {
+          const summary = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
+          return { ...m, type: "call_summary", summary };
+        } catch {
+          return m;
+        }
+      }
+      return m;
+    });
+
+    res.json({ messages: normalized });
   } catch (err) {
     console.error("[Groups] Messages error:", err);
     res.status(500).json({ error: "Failed to fetch messages" });
