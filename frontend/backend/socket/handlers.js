@@ -289,22 +289,20 @@ function registerSocketHandlers(io) {
 
     setupAdminSocket(io, socket);
 
-    // Load friends and pending requests from DB on connection
+    // Load friends and pending requests from DB, then fire all initial events together
     Promise.all([
       loadFriendsFromDB(myId),
       loadPendingRequestsFromDB(myId),
     ]).then(() => {
+      socket.emit("connected", {
+        user: me,
+        message: "Socket connected successfully.",
+      });
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
+      socket.emit("sync:state", buildSyncState(myId));
+      broadcastUsers(io);
     });
-
-    socket.emit("connected", {
-      user: me,
-      message: "Socket connected successfully.",
-    });
-
-    broadcastUsers(io);
-    socket.emit("sync:state", buildSyncState(myId));
 
     socket.on("status:set", ({ status } = {}) => {
       const allowed = ["online", "idle", "dnd", "invisible"];
@@ -882,4 +880,4 @@ function registerSocketHandlers(io) {
   });
 }
 
-module.exports = { registerSocketHandlers };
+module.exports = { registerSocketHandlers, loadFriendsFromDB };

@@ -42,15 +42,25 @@ router.post("/request", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Cannot add yourself as a friend" });
     }
 
-    // Check if already friends
-    const { data: existingFriend } = await supabase
+    // Check if already friends or request already pending
+    const { data: existingRows } = await supabase
       .from("friends")
-      .select("*")
-      .or(`and(user_id.eq.${userId},friend_id.eq.${targetUser.id}),and(user_id.eq.${targetUser.id},friend_id.eq.${userId})`)
-      .maybeSingle();
+      .select("id, status")
+      .or(`and(user_id.eq.${userId},friend_id.eq.${targetUser.id}),and(user_id.eq.${targetUser.id},friend_id.eq.${userId})`);
 
-    if (existingFriend) {
-      return res.status(400).json({ error: "Already friends or request pending" });
+    if (existingRows && existingRows.length > 0) {
+      const statuses = existingRows.map((r) => r.status);
+      if (statuses.includes("accepted")) {
+        return res.status(400).json({ error: "Already friends" });
+      }
+      if (statuses.includes("pending")) {
+        return res.status(400).json({ error: "Friend request already pending" });
+      }
+      // Stale declined/other row — delete and re-insert
+      await supabase
+        .from("friends")
+        .delete()
+        .or(`and(user_id.eq.${userId},friend_id.eq.${targetUser.id}),and(user_id.eq.${targetUser.id},friend_id.eq.${userId})`);
     }
 
     // Create friend request
@@ -63,7 +73,8 @@ router.post("/request", requireAuth, async (req, res) => {
       });
 
     if (insertError) {
-      return res.status(500).json({ error: "Failed to send friend request" });
+      console.error("Friend request insert error:", insertError);
+      return res.status(500).json({ error: insertError.message || "Failed to send friend request" });
     }
 
     // Sync socket memory so real-time accept/reject works
@@ -95,7 +106,6 @@ router.post("/accept", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "fromUserId is required" });
     }
 
-    // Update friend request status
     const { error: updateError } = await supabase
       .from("friends")
       .update({ status: "accepted" })
@@ -104,7 +114,22 @@ router.post("/accept", requireAuth, async (req, res) => {
       .eq("status", "pending");
 
     if (updateError) {
-      return res.status(500).json({ error: "Failed to accept friend request" });
+      console.error("Accept friend error:", updateError);
+      return res.status(500).json({ error: updateError.message || "Failed to accept friend request" });
+    }
+
+    // Sync socket memory so both sides see each other immediately
+    const { friends: friendsMap } = require("../runtime/sharedState");
+    if (!friendsMap.has(userId)) friendsMap.set(userId, new Set());
+    if (!friendsMap.has(fromUserId)) friendsMap.set(fromUserId, new Set());
+    friendsMap.get(userId).add(fromUserId);
+    friendsMap.get(fromUserId).add(userId);
+
+    // Notify both sides to refresh their friend list
+    const io = req.app.get("io");
+    if (io) {
+      emitToUserViaIo(io, userId, "friend:accepted", { by: { id: fromUserId } });
+      emitToUserViaIo(io, fromUserId, "friend:accepted", { by: { id: userId } });
     }
 
     res.json({ success: true, message: "Friend request accepted" });
