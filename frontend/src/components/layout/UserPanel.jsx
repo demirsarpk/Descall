@@ -240,13 +240,13 @@ export default function UserPanel({ me, onClose, onLogout }) {
       {/* Profile Overview Card */}
       <div className="profile-card">
         <div className="profile-banner" style={bannerUrl ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}} />
-        <div className="profile-content">
-          <div className="profile-avatar-wrapper">
-            <Avatar name={me?.username || "User"} size={72} imageUrl={avatarUrl || me?.avatarUrl} />
-            <div className="profile-status-ring">
-              <StatusBadge status="online" />
-            </div>
+        <div className="profile-avatar-wrapper">
+          <Avatar name={me?.username || "User"} size={72} imageUrl={avatarUrl || me?.avatarUrl} />
+          <div className="profile-status-ring">
+            <StatusBadge status="online" />
           </div>
+        </div>
+        <div className="profile-content">
           <div className="profile-text">
             <h3 className="profile-name">{displayName || me?.username || "User"}</h3>
             <span className="profile-tag">@{me?.username?.toLowerCase() || "user"}</span>

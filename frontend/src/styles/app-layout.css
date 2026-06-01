@@ -682,31 +682,35 @@
 /* Profile Card */
 .profile-card {
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   border-bottom: 1px solid var(--border-2);
+  flex-shrink: 0;
 }
 
 .profile-banner {
-  height: 90px;
+  height: 72px;
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
 }
 
-.profile-content {
-  padding: 0 20px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-  z-index: 1;
-}
-
 .profile-avatar-wrapper {
-  position: relative;
+  position: absolute;
+  top: 32px;
+  left: 50%;
+  transform: translateX(-50%);
   padding: 4px;
   background: var(--surface-1);
   border-radius: 50%;
-  margin-top: -40px;
+  z-index: 2;
+}
+
+.profile-content {
+  padding: 52px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  z-index: 1;
 }
 
 .profile-status-ring {
