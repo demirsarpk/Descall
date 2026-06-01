@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Notification, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Notification, desktopCapturer, globalShortcut } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -59,7 +59,21 @@ function createWindow() {
 }
 
 // App event handlers
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  // F12 — toggle DevTools
+  globalShortcut.register('F12', () => {
+    if (mainWindow) {
+      mainWindow.webContents.toggleDevTools();
+    }
+  });
+  // Ctrl+Shift+I — toggle DevTools
+  globalShortcut.register('CommandOrControl+Shift+I', () => {
+    if (mainWindow) {
+      mainWindow.webContents.toggleDevTools();
+    }
+  });
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
