@@ -187,8 +187,47 @@ async function loadFriendsFromDB(userId) {
   }
 }
 
-// Mark the pending friend request as accepted in the 'friends' table
-async function saveFriendshipToDB(acceptorId, requesterId) {
+// Load pending friend requests from DB into memory
+async function loadPendingRequestsFromDB(userId) {
+  try {
+    const { data: rows, error } = await supabase
+      .from("friends")
+      .select("user_id")
+      .eq("friend_id", userId)
+      .eq("status", "pending");
+
+    if (error) {
+      console.error("[FRIENDS] loadPendingRequestsFromDB error:", error);
+      return;
+    }
+
+    if (!rows || rows.length === 0) return;
+
+    const senderIds = rows.map((r) => r.user_id);
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, username")
+      .in("id", senderIds);
+
+    if (usersError) {
+      console.error("[FRIENDS] loadPendingRequestsFromDB users error:", usersError);
+      return;
+    }
+
+    const pending = ensurePending(userId);
+    for (const u of (users || [])) {
+      if (!pending.has(u.id)) {
+        pending.set(u.id, { id: u.id, username: u.username });
+        usernameById.set(u.id, u.username);
+      }
+    }
+  } catch (e) {
+    console.error("[FRIENDS] Error in loadPendingRequestsFromDB:", e);
+  }
+}
+
+// Accept the pending friend request in the 'friends' table (one row, requester → acceptor)
+async function saveFriendshipToDB(requesterId, acceptorId) {
   try {
     const { error } = await supabase
       .from("friends")
@@ -250,9 +289,13 @@ function registerSocketHandlers(io) {
 
     setupAdminSocket(io, socket);
 
-    // Load friends from database on connection
-    loadFriendsFromDB(myId).then(() => {
+    // Load friends and pending requests from DB on connection
+    Promise.all([
+      loadFriendsFromDB(myId),
+      loadPendingRequestsFromDB(myId),
+    ]).then(() => {
       socket.emit("friend:list", getFriendList(myId));
+      socket.emit("friend:requests", getPendingList(myId));
     });
 
     socket.emit("connected", {
@@ -261,7 +304,6 @@ function registerSocketHandlers(io) {
     });
 
     broadcastUsers(io);
-    socket.emit("friend:requests", getPendingList(myId));
     socket.emit("sync:state", buildSyncState(myId));
 
     socket.on("status:set", ({ status } = {}) => {
@@ -322,19 +364,31 @@ function registerSocketHandlers(io) {
 
     socket.on("friend:accept", async ({ fromUserId } = {}) => {
       if (typeof fromUserId !== "string") return;
-      const theirPending = pendingRequests.get(myId);
-      if (!theirPending?.has(fromUserId)) return;
 
-      const fromProf = theirPending.get(fromUserId);
-      theirPending.delete(fromUserId);
-      if (theirPending.size === 0) pendingRequests.delete(myId);
+      // Verify pending request exists in DB (handles REST-sent requests not in memory)
+      const { data: pendingRow } = await supabase
+        .from("friends")
+        .select("id")
+        .eq("user_id", fromUserId)
+        .eq("friend_id", myId)
+        .eq("status", "pending")
+        .maybeSingle();
+
+      if (!pendingRow) return;
+
+      // Update memory
+      const theirPending = pendingRequests.get(myId);
+      const fromProf = theirPending?.get(fromUserId);
+      if (theirPending?.has(fromUserId)) {
+        theirPending.delete(fromUserId);
+        if (theirPending.size === 0) pendingRequests.delete(myId);
+      }
 
       ensureSet(friends, myId).add(fromUserId);
       ensureSet(friends, fromUserId).add(myId);
       if (fromProf?.username) usernameById.set(fromUserId, fromProf.username);
 
-      // Save friendship to database for both directions
-      await saveFriendshipToDB(myId, fromUserId);
+      // Accept in DB — only one pending row (requester → acceptor)
       await saveFriendshipToDB(fromUserId, myId);
 
       emitToUser(io, fromUserId, "friend:accepted", { by: { id: myId, username: me.username } });

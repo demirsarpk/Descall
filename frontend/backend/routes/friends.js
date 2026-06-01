@@ -1,8 +1,19 @@
 const express = require("express");
 const supabase = require("../db/supabase");
 const { requireAuth } = require("../middleware/auth");
+const { pendingRequests, presence, usernameById } = require("../runtime/sharedState");
 
 const router = express.Router();
+
+function ensurePending(userId) {
+  if (!pendingRequests.has(userId)) pendingRequests.set(userId, new Map());
+  return pendingRequests.get(userId);
+}
+
+function emitToUserViaIo(io, userId, event, payload) {
+  const p = presence.get(userId);
+  if (p?.socketId) io.to(p.socketId).emit(event, payload);
+}
 
 // Send friend request
 router.post("/request", requireAuth, async (req, res) => {
@@ -53,6 +64,18 @@ router.post("/request", requireAuth, async (req, res) => {
 
     if (insertError) {
       return res.status(500).json({ error: "Failed to send friend request" });
+    }
+
+    // Sync socket memory so real-time accept/reject works
+    const senderUsername = req.user.username || usernameById.get(userId) || "Unknown";
+    ensurePending(targetUser.id).set(userId, { id: userId, username: senderUsername });
+    usernameById.set(userId, senderUsername);
+
+    const io = req.app.get("io");
+    if (io) {
+      emitToUserViaIo(io, targetUser.id, "friend:request:incoming", {
+        from: { id: userId, username: senderUsername },
+      });
     }
 
     res.json({ success: true, message: "Friend request sent" });
