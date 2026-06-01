@@ -1,6 +1,6 @@
 {
   "name": "descall-electron",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "description": "Descall - Discord-like chat application",
   "main": "main.cjs",
   "author": "Descall Team",
@@ -60,7 +60,7 @@
         }
       ],
       "publisherName": "Descall",
-      "icon": "../public/favicon.ico"
+      "icon": "../public/icon.png"
     },
     "nsis": {
       "oneClick": false,

@@ -97,7 +97,7 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
         // Try fallback URL for private repos
         if (FALLBACK_DOWNLOAD_URL) {
           setDownloadLinks({ windows: FALLBACK_DOWNLOAD_URL, mac: null, linux: null });
-          setLatestRelease({ tag_name: 'v1.3.0' }); // Update version manually
+          setLatestRelease({ tag_name: 'v2.0.0' });
         } else {
           setReleaseError('Release not found. Please check the GitHub repository.');
         }
