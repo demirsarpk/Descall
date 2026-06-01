@@ -2323,3 +2323,12 @@
   font-weight: 500;
 }
 
+@keyframes spin-refresh {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.spin-refresh {
+  animation: spin-refresh 0.7s linear infinite;
+}
+

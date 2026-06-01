@@ -39,6 +39,7 @@ export default function AppLayout({
   onGroupCreated,
   onGroupLeft,
   onGroupRenamed,
+  onRefresh,
   friendNotice,
   activeCallBanner,
   onJoinActiveCall,
@@ -176,6 +177,7 @@ export default function AppLayout({
         onGroupCreated={onGroupCreated}
         onGroupLeft={onGroupLeft}
         onGroupRenamed={onGroupRenamed}
+        onRefresh={onRefresh}
         friendRequests={friendRequests}
         onAcceptFriend={onAcceptFriend}
         onDeclineFriend={onDeclineFriend}

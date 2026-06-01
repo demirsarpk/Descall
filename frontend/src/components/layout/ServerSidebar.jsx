@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
   ChevronDown, ChevronRight, Bell, UserPlus, X, User, Users, Megaphone,
-  MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus
+  MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus, RefreshCw
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -33,6 +33,7 @@ export default function ServerSidebar({
   onGroupCreated,
   onGroupLeft,
   onGroupRenamed,
+  onRefresh,
   friendRequests,
   onAcceptFriend,
   onDeclineFriend,
@@ -58,6 +59,7 @@ export default function ServerSidebar({
   const [announcements, setAnnouncements] = useState([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(false);
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     if (!socket) return;
@@ -197,8 +199,20 @@ export default function ServerSidebar({
             {activeView === "calls" && "Calls"}
           </h2>
           <div className="sidebar-actions">
-            <button 
-              className="icon-btn" 
+            <button
+              className="icon-btn"
+              title="Refresh"
+              onClick={async () => {
+                setIsRefreshing(true);
+                await onRefresh?.();
+                setTimeout(() => setIsRefreshing(false), 800);
+              }}
+              style={{ position: 'relative' }}
+            >
+              <RefreshCw size={18} className={isRefreshing ? 'spin-refresh' : ''} />
+            </button>
+            <button
+              className="icon-btn"
               title="Search"
               onClick={() => {
                 const searchInput = document.querySelector('.search-input');

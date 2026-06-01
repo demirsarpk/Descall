@@ -593,6 +593,15 @@ export default function App() {
     }
   }, []);
 
+  const handleRefresh = useCallback(() => {
+    fetchGroups();
+    const s = socketRef.current;
+    if (s?.connected) {
+      s.disconnect();
+      setTimeout(() => s.connect(), 150);
+    }
+  }, [fetchGroups]);
+
   // Fetch group messages when activeGroup changes
   useEffect(() => {
     if (!activeGroup?.id || groupMessagesById[activeGroup.id]) return;
@@ -772,6 +781,7 @@ export default function App() {
           }}
           friendNotice={friendNotice}
           onRefreshGroups={fetchGroups}
+          onRefresh={handleRefresh}
           onGroupCreated={(group) => {
             setMyGroups((prev) => prev.some((g) => g.id === group.id) ? prev : [...prev, group]);
           }}
