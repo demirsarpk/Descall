@@ -44,7 +44,7 @@ router.post("/request", requireAuth, async (req, res) => {
 
     // Check if already friends or request already pending
     const { data: existingRows } = await supabase
-      .from("friends")
+      .from("friendships")
       .select("id, status")
       .or(`and(user_id.eq.${userId},friend_id.eq.${targetUser.id}),and(user_id.eq.${targetUser.id},friend_id.eq.${userId})`);
 
@@ -58,14 +58,14 @@ router.post("/request", requireAuth, async (req, res) => {
       }
       // Stale declined/other row — delete and re-insert
       await supabase
-        .from("friends")
+        .from("friendships")
         .delete()
         .or(`and(user_id.eq.${userId},friend_id.eq.${targetUser.id}),and(user_id.eq.${targetUser.id},friend_id.eq.${userId})`);
     }
 
     // Create friend request
     const { error: insertError } = await supabase
-      .from("friends")
+      .from("friendships")
       .insert({
         user_id: userId,
         friend_id: targetUser.id,
@@ -107,7 +107,7 @@ router.post("/accept", requireAuth, async (req, res) => {
     }
 
     const { error: updateError } = await supabase
-      .from("friends")
+      .from("friendships")
       .update({ status: "accepted" })
       .eq("user_id", fromUserId)
       .eq("friend_id", userId)
@@ -151,7 +151,7 @@ router.post("/decline", requireAuth, async (req, res) => {
 
     // Delete friend request
     const { error: deleteError } = await supabase
-      .from("friends")
+      .from("friendships")
       .delete()
       .eq("user_id", fromUserId)
       .eq("friend_id", userId)
@@ -180,7 +180,7 @@ router.post("/remove", requireAuth, async (req, res) => {
 
     // Delete friendship
     const { error: deleteError } = await supabase
-      .from("friends")
+      .from("friendships")
       .delete()
       .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`);
 
@@ -201,7 +201,7 @@ router.get("/list", requireAuth, async (req, res) => {
     const userId = req.user.id;
 
     const { data: rows, error } = await supabase
-      .from("friends")
+      .from("friendships")
       .select("user_id, friend_id")
       .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
       .eq("status", "accepted");
@@ -248,7 +248,7 @@ router.get("/requests", requireAuth, async (req, res) => {
     const userId = req.user.id;
 
     const { data: rows, error } = await supabase
-      .from("friends")
+      .from("friendships")
       .select("user_id")
       .eq("friend_id", userId)
       .eq("status", "pending");

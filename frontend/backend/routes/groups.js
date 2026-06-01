@@ -449,7 +449,7 @@ router.post("/:groupId/members", requireAuth, async (req, res) => {
 
     // Target must be an accepted friend of the requester
     const { data: friendship } = await supabase
-      .from("friends")
+      .from("friendships")
       .select("id")
       .or(
         `and(user_id.eq.${requesterId},friend_id.eq.${targetUserId}),and(user_id.eq.${targetUserId},friend_id.eq.${requesterId})`

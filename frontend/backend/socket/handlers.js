@@ -141,7 +141,7 @@ async function loadFriendsFromDB(userId) {
   try {
     // Fetch all accepted friendship rows involving this user
     const { data: rows, error } = await supabase
-      .from("friends")
+      .from("friendships")
       .select("user_id, friend_id")
       .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
       .eq("status", "accepted");
@@ -191,7 +191,7 @@ async function loadFriendsFromDB(userId) {
 async function loadPendingRequestsFromDB(userId) {
   try {
     const { data: rows, error } = await supabase
-      .from("friends")
+      .from("friendships")
       .select("user_id")
       .eq("friend_id", userId)
       .eq("status", "pending");
@@ -230,7 +230,7 @@ async function loadPendingRequestsFromDB(userId) {
 async function saveFriendshipToDB(requesterId, acceptorId) {
   try {
     const { error } = await supabase
-      .from("friends")
+      .from("friendships")
       .update({ status: "accepted" })
       .eq("user_id", requesterId)
       .eq("friend_id", acceptorId)
@@ -248,7 +248,7 @@ async function saveFriendshipToDB(requesterId, acceptorId) {
 async function removeFriendshipFromDB(userId, friendId) {
   try {
     const { error } = await supabase
-      .from("friends")
+      .from("friendships")
       .delete()
       .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`);
 
@@ -368,7 +368,7 @@ function registerSocketHandlers(io) {
 
       // Verify pending request exists in DB (handles REST-sent requests not in memory)
       const { data: pendingRow } = await supabase
-        .from("friends")
+        .from("friendships")
         .select("id")
         .eq("user_id", fromUserId)
         .eq("friend_id", myId)
