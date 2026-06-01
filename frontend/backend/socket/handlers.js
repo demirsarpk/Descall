@@ -139,45 +139,41 @@ async function findUserByUsername(username) {
 // Load friends from database into memory
 async function loadFriendsFromDB(userId) {
   try {
-    // Get friendships where user is the requester
-    const { data: myFriends, error: err1 } = await supabase
-      .from("friendships")
-      .select("friend_id, friend:users!friend_id(id, username), created_at")
+    // Rows where current user sent the request — other party is friend_id
+    const { data: sentRows, error: err1 } = await supabase
+      .from("friends")
+      .select("friend_id, users!friends_friend_id_fkey (id, username)")
       .eq("user_id", userId)
       .eq("status", "accepted");
-    
-    if (err1) {
-      console.error("[FRIENDS] Error loading friends from DB (my requests):", err1);
-    }
 
-    // Get friendships where user is the recipient
-    const { data: theirFriends, error: err2 } = await supabase
-      .from("friendships")
-      .select("user_id, user:users!user_id(id, username), created_at")
+    if (err1) console.error("[FRIENDS] loadFriendsFromDB sent rows:", err1);
+
+    // Rows where current user received the request — other party is user_id
+    const { data: receivedRows, error: err2 } = await supabase
+      .from("friends")
+      .select("user_id, users!friends_user_id_fkey (id, username)")
       .eq("friend_id", userId)
       .eq("status", "accepted");
-    
-    if (err2) {
-      console.error("[FRIENDS] Error loading friends from DB (their requests):", err2);
+
+    if (err2) console.error("[FRIENDS] loadFriendsFromDB received rows:", err2);
+
+    const friendSet = new Set();
+
+    for (const row of (sentRows || [])) {
+      const u = row.users;
+      if (u?.id) {
+        friendSet.add(u.id);
+        usernameById.set(u.id, u.username);
+      }
+    }
+    for (const row of (receivedRows || [])) {
+      const u = row.users;
+      if (u?.id) {
+        friendSet.add(u.id);
+        usernameById.set(u.id, u.username);
+      }
     }
 
-    // Combine both directions
-    const friendSet = new Set();
-    
-    (myFriends || []).forEach(f => {
-      if (f.friend) {
-        friendSet.add(f.friend.id);
-        usernameById.set(f.friend.id, f.friend.username);
-      }
-    });
-    
-    (theirFriends || []).forEach(f => {
-      if (f.user) {
-        friendSet.add(f.user.id);
-        usernameById.set(f.user.id, f.user.username);
-      }
-    });
-    
     friends.set(userId, friendSet);
     console.log(`[FRIENDS] Loaded ${friendSet.size} friends for user ${userId}`);
     return friendSet;
@@ -187,51 +183,34 @@ async function loadFriendsFromDB(userId) {
   }
 }
 
-// Save friendship to database
-async function saveFriendshipToDB(userId, friendId) {
+// Mark the pending friend request as accepted in the 'friends' table
+async function saveFriendshipToDB(acceptorId, requesterId) {
   try {
     const { error } = await supabase
-      .from("friendships")
-      .upsert({
-        user_id: userId,
-        friend_id: friendId,
-        status: "accepted",
-        created_at: new Date().toISOString()
-      }, { onConflict: ["user_id", "friend_id"] });
-    
-    if (error) {
-      console.error("[FRIENDS] Error saving friendship:", error);
-      return false;
-    }
-    console.log(`[FRIENDS] Saved friendship: ${userId} <-> ${friendId}`);
-    return true;
+      .from("friends")
+      .update({ status: "accepted" })
+      .eq("user_id", requesterId)
+      .eq("friend_id", acceptorId)
+      .eq("status", "pending");
+
+    if (error) console.error("[FRIENDS] Error accepting friendship in DB:", error);
+    return !error;
   } catch (e) {
     console.error("[FRIENDS] Error in saveFriendshipToDB:", e);
     return false;
   }
 }
 
-// Remove friendship from database
+// Remove friendship from the 'friends' table (both directions)
 async function removeFriendshipFromDB(userId, friendId) {
   try {
-    // Try both directions since friendship is mutual
-    const { error: err1 } = await supabase
-      .from("friendships")
+    const { error } = await supabase
+      .from("friends")
       .delete()
-      .eq("user_id", userId)
-      .eq("friend_id", friendId);
-    
-    const { error: err2 } = await supabase
-      .from("friendships")
-      .delete()
-      .eq("user_id", friendId)
-      .eq("friend_id", userId);
-    
-    if (err1) console.error("[FRIENDS] Error removing friendship (dir 1):", err1);
-    if (err2) console.error("[FRIENDS] Error removing friendship (dir 2):", err2);
-    
-    console.log(`[FRIENDS] Removed friendship: ${userId} <-> ${friendId}`);
-    return true;
+      .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`);
+
+    if (error) console.error("[FRIENDS] Error removing friendship from DB:", error);
+    return !error;
   } catch (e) {
     console.error("[FRIENDS] Error in removeFriendshipFromDB:", e);
     return false;

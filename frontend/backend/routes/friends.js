@@ -152,28 +152,42 @@ router.get("/list", requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const { data: friends, error } = await supabase
+    // Rows where current user sent the request — other party is friend_id
+    const { data: sentRows, error: sentErr } = await supabase
       .from("friends")
-      .select(`
-        friend_id,
-        user_id,
-        status,
-        users!friends_friend_id_fkey (id, username, avatar_url, status)
-      `)
-      .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+      .select("friend_id, users!friends_friend_id_fkey (id, username, avatar_url)")
+      .eq("user_id", userId)
       .eq("status", "accepted");
 
-    if (error) {
+    // Rows where current user received the request — other party is user_id
+    const { data: receivedRows, error: receivedErr } = await supabase
+      .from("friends")
+      .select("user_id, users!friends_user_id_fkey (id, username, avatar_url)")
+      .eq("friend_id", userId)
+      .eq("status", "accepted");
+
+    if (sentErr || receivedErr) {
+      console.error("Friends list error:", sentErr || receivedErr);
       return res.status(500).json({ error: "Failed to fetch friends" });
     }
 
-    // Format response
-    const formattedFriends = friends.map(f => ({
-      id: f.users.id,
-      username: f.users.username,
-      avatarUrl: f.users.avatar_url,
-      status: f.users.status
-    }));
+    const seen = new Set();
+    const formattedFriends = [];
+
+    for (const row of (sentRows || [])) {
+      const u = row.users;
+      if (u && !seen.has(u.id)) {
+        seen.add(u.id);
+        formattedFriends.push({ id: u.id, username: u.username, avatarUrl: u.avatar_url });
+      }
+    }
+    for (const row of (receivedRows || [])) {
+      const u = row.users;
+      if (u && !seen.has(u.id)) {
+        seen.add(u.id);
+        formattedFriends.push({ id: u.id, username: u.username, avatarUrl: u.avatar_url });
+      }
+    }
 
     res.json({ friends: formattedFriends });
   } catch (err) {

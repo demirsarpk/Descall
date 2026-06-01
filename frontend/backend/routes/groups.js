@@ -447,13 +447,14 @@ router.post("/:groupId/members", requireAuth, async (req, res) => {
 
     if (!requesterMembership) return res.status(403).json({ error: "Not a member of this group" });
 
-    // Target must be a friend of the requester
+    // Target must be an accepted friend of the requester
     const { data: friendship } = await supabase
       .from("friends")
       .select("id")
       .or(
         `and(user_id.eq.${requesterId},friend_id.eq.${targetUserId}),and(user_id.eq.${targetUserId},friend_id.eq.${requesterId})`
       )
+      .eq("status", "accepted")
       .maybeSingle();
 
     if (!friendship) return res.status(403).json({ error: "You can only add your friends" });
