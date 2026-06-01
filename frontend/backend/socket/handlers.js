@@ -318,7 +318,8 @@ function registerSocketHandlers(io) {
       io.to(socket.id).emit("friend:list", getFriendList(myId));
     });
 
-    socket.on("friend:list", () => {
+    socket.on("friend:list", async () => {
+      await Promise.all([loadFriendsFromDB(myId), loadPendingRequestsFromDB(myId)]);
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
     });

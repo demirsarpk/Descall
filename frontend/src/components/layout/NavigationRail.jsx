@@ -27,6 +27,7 @@ export default function NavigationRail({
       {/* Logo/Brand */}
       <div className="nav-rail-brand">
         <div className="brand-icon">D</div>
+        <span className="brand-wordmark">descall</span>
       </div>
 
       {/* Main Navigation */}
