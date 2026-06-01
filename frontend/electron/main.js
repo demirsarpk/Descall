@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Notification, desktopCapturer } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -131,4 +131,18 @@ ipcMain.handle('close-window', () => {
 // Platform info
 ipcMain.handle('get-platform', () => {
   return process.platform;
+});
+
+// Desktop capturer — screen share sources
+ipcMain.handle('get-screen-sources', async () => {
+  const sources = await desktopCapturer.getSources({
+    types: ['screen', 'window'],
+    thumbnailSize: { width: 320, height: 240 },
+    fetchWindowIcons: true,
+  });
+  return sources.map(s => ({
+    id: s.id,
+    name: s.name,
+    thumbnailDataURL: s.thumbnail.toDataURL(),
+  }));
 });

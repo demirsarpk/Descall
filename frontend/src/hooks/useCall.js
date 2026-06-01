@@ -449,14 +449,79 @@ export function useCall(socket) {
     stopScreenShareRef.current = stopScreenShare;
   });
 
+  // Helper: show a modern inline screen-picker for Electron
+  const showElectronScreenPicker = (sources) => {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'electron-screen-picker-overlay';
+      overlay.innerHTML = `
+        <div class="electron-screen-picker-modal">
+          <div class="electron-screen-picker-header">
+            <h3>Share your screen</h3>
+            <button class="electron-screen-picker-close" aria-label="Close">×</button>
+          </div>
+          <div class="electron-screen-picker-grid"></div>
+        </div>
+      `;
+      const grid = overlay.querySelector('.electron-screen-picker-grid');
+      const closeBtn = overlay.querySelector('.electron-screen-picker-close');
+
+      sources.forEach((source) => {
+        const item = document.createElement('div');
+        item.className = 'electron-screen-picker-item';
+        item.innerHTML = `
+          <img src="${source.thumbnailDataURL}" alt="${source.name}" draggable="false" />
+          <span>${source.name}</span>
+        `;
+        item.addEventListener('click', () => {
+          document.body.removeChild(overlay);
+          resolve(source.id);
+        });
+        grid.appendChild(item);
+      });
+
+      const close = () => {
+        if (overlay.parentNode) document.body.removeChild(overlay);
+        resolve(null);
+      };
+      closeBtn.addEventListener('click', close);
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) close();
+      });
+      document.body.appendChild(overlay);
+    });
+  };
+
   const startScreenShare = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc || screenSharingRef.current) return;
     try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: "always", width: 1920, height: 1080 },
-        audio: false,
-      });
+      let screenStream;
+
+      if (window.electronAPI?.isElectron) {
+        const sources = await window.electronAPI.getScreenSources();
+        if (!sources || sources.length === 0) return;
+        const sourceId = await showElectronScreenPicker(sources);
+        if (!sourceId) return;
+        screenStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sourceId,
+              minWidth: 1280,
+              maxWidth: 1920,
+              minHeight: 720,
+              maxHeight: 1080,
+            },
+          },
+        });
+      } else {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: "always", width: 1920, height: 1080 },
+          audio: false,
+        });
+      }
 
       const screenTrack = screenStream.getVideoTracks()[0];
       

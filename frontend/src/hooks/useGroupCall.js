@@ -618,6 +618,49 @@ export function useGroupCall(socket) {
     }
   }, [isCameraOn]);
 
+  // Helper: show a modern inline screen-picker for Electron
+  const showElectronScreenPicker = (sources) => {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'electron-screen-picker-overlay';
+      overlay.innerHTML = `
+        <div class="electron-screen-picker-modal">
+          <div class="electron-screen-picker-header">
+            <h3>Share your screen</h3>
+            <button class="electron-screen-picker-close" aria-label="Close">×</button>
+          </div>
+          <div class="electron-screen-picker-grid"></div>
+        </div>
+      `;
+      const grid = overlay.querySelector('.electron-screen-picker-grid');
+      const closeBtn = overlay.querySelector('.electron-screen-picker-close');
+
+      sources.forEach((source) => {
+        const item = document.createElement('div');
+        item.className = 'electron-screen-picker-item';
+        item.innerHTML = `
+          <img src="${source.thumbnailDataURL}" alt="${source.name}" draggable="false" />
+          <span>${source.name}</span>
+        `;
+        item.addEventListener('click', () => {
+          document.body.removeChild(overlay);
+          resolve(source.id);
+        });
+        grid.appendChild(item);
+      });
+
+      const close = () => {
+        if (overlay.parentNode) document.body.removeChild(overlay);
+        resolve(null);
+      };
+      closeBtn.addEventListener('click', close);
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) close();
+      });
+      document.body.appendChild(overlay);
+    });
+  };
+
   const startScreenShare = useCallback(async (quality) => {
     try {
       // Use provided quality or fall back to current state
@@ -638,23 +681,42 @@ export function useGroupCall(socket) {
       };
       
       const { width, height } = resolutionMap[effectiveQuality.resolution] || resolutionMap['1080p'];
-      const frameRate = effectiveQuality.fps || 30; // Support higher FPS now
+      const frameRate = effectiveQuality.fps || 30;
       
-      
-      // OPTIMIZED: Get display media with performance constraints
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { 
-          cursor: "always",
-          displaySurface: "monitor",
-          width: { ideal: width, max: width },
-          height: { ideal: height, max: height },
-          frameRate: { ideal: frameRate, max: frameRate },
-          // Performance optimizations
-          resizeMode: "crop-and-scale",
-          aspectRatio: width / height
-        },
-        audio: false,
-      });
+      let stream;
+
+      if (window.electronAPI?.isElectron) {
+        const sources = await window.electronAPI.getScreenSources();
+        if (!sources || sources.length === 0) return;
+        const sourceId = await showElectronScreenPicker(sources);
+        if (!sourceId) return;
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sourceId,
+              minWidth: width,
+              maxWidth: width,
+              minHeight: height,
+              maxHeight: height,
+            },
+          },
+        });
+      } else {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { 
+            cursor: "always",
+            displaySurface: "monitor",
+            width: { ideal: width, max: width },
+            height: { ideal: height, max: height },
+            frameRate: { ideal: frameRate, max: frameRate },
+            resizeMode: "crop-and-scale",
+            aspectRatio: width / height
+          },
+          audio: false,
+        });
+      }
       
       const screenTrack = stream.getVideoTracks()[0];
       

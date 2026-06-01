@@ -34,6 +34,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onNotificationClicked: (callback) => {
     ipcRenderer.on('notification:clicked', (_event, data) => callback(data));
   },
+
+  // Desktop screen sharing
+  getScreenSources: () => ipcRenderer.invoke('get-screen-sources'),
 });
 
 // Confirm preload loaded
