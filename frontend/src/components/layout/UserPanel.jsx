@@ -394,7 +394,7 @@ export default function UserPanel({ me, onClose, onLogout }) {
             <motion.div key="appearance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="settings-tab">
               <h3>Appearance</h3>
               <div className="toggle-row">
-                <span><Moon size={16} style={{ marginRight: 8, verticalAlign: "middle" }} /> Dark Mode</span>
+                <span><Moon size={16} /> Dark Mode</span>
                 <Toggle value={darkMode} onChange={setDarkMode} />
               </div>
             </motion.div>
@@ -405,11 +405,11 @@ export default function UserPanel({ me, onClose, onLogout }) {
             <motion.div key="notifications" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="settings-tab">
               <h3>Notifications</h3>
               <div className="toggle-row">
-                <span><Bell size={16} style={{ marginRight: 8, verticalAlign: "middle" }} /> Message Notifications</span>
+                <span><Bell size={16} /> Message Notifications</span>
                 <Toggle value={msgNotifications} onChange={setMsgNotifications} />
               </div>
               <div className="toggle-row">
-                <span><Mic size={16} style={{ marginRight: 8, verticalAlign: "middle" }} /> Call Notifications</span>
+                <span><Mic size={16} /> Call Notifications</span>
                 <Toggle value={callNotifications} onChange={setCallNotifications} />
               </div>
             </motion.div>
@@ -469,11 +469,11 @@ export default function UserPanel({ me, onClose, onLogout }) {
             <motion.div key="sound" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="settings-tab">
               <h3>Sound Effects</h3>
               <div className="toggle-row">
-                <span><Bell size={16} style={{ marginRight: 8, verticalAlign: "middle" }} /> Message Sounds</span>
+                <span><Bell size={16} /> Message Sounds</span>
                 <Toggle value={msgSounds} onChange={setMsgSounds} />
               </div>
               <div className="toggle-row">
-                <span><Mic size={16} style={{ marginRight: 8, verticalAlign: "middle" }} /> Call Sounds</span>
+                <span><Mic size={16} /> Call Sounds</span>
                 <Toggle value={callSounds} onChange={setCallSounds} />
               </div>
             </motion.div>
