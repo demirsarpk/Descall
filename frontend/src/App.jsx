@@ -245,7 +245,6 @@ export default function App() {
       transportFallbackStepRef.current = 0;
       setAuthError("");
       emitDmActive(socket, activeDmRef.current?.id ?? null);
-      socket.emit("friend:list");
       rejoinGroups();
     });
 
@@ -296,10 +295,7 @@ export default function App() {
     });
 
     socket.on("connected", (payload) => {
-      // Don't override me from socket connected, use the me from /auth/me which has is_admin
       if (payload?.user) { setUser(payload.user); }
-      // Request friend list and groups on connection
-      socket.emit("friend:list");
       getMyGroups().then((raw) => {
         const groups = normalizeGroups(raw);
         setMyGroups(groups);

@@ -317,7 +317,9 @@ function registerSocketHandlers(io) {
     });
 
     socket.on("friend:list", async () => {
-      await Promise.all([loadFriendsFromDB(myId), loadPendingRequestsFromDB(myId)]);
+      // Reload from DB only if memory is empty (handles edge cases)
+      if (!friends.has(myId)) await loadFriendsFromDB(myId);
+      if (!pendingRequests.has(myId)) await loadPendingRequestsFromDB(myId);
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
     });
