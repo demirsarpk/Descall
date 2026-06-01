@@ -663,10 +663,9 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
   scrollbar-width: thin;
   scrollbar-color: var(--surface-3) transparent;
+  padding-bottom: 24px;
 }
 
 .user-panel-body::-webkit-scrollbar {
@@ -683,12 +682,12 @@
 /* Profile Card */
 .profile-card {
   position: relative;
-  flex-shrink: 0;
   overflow: visible;
+  border-bottom: 1px solid var(--border-2);
 }
 
 .profile-banner {
-  height: 80px;
+  height: 90px;
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
 }
 
@@ -697,8 +696,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  margin-top: -36px;
+  gap: 8px;
   position: relative;
   z-index: 1;
 }
@@ -708,12 +706,13 @@
   padding: 4px;
   background: var(--surface-1);
   border-radius: 50%;
+  margin-top: -40px;
 }
 
 .profile-status-ring {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
+  bottom: 6px;
+  right: 6px;
 }
 
 .profile-text {
@@ -2305,7 +2304,3 @@
   font-weight: 500;
 }
 
-/* ─── UserPanel body scroll fix ─── */
-.user-panel-body {
-  padding-bottom: 20px;
-}
