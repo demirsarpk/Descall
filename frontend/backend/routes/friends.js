@@ -247,23 +247,34 @@ router.get("/requests", requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const { data: requests, error } = await supabase
+    const { data: rows, error } = await supabase
       .from("friends")
-      .select(`
-        user_id,
-        users!friends_user_id_fkey (id, username, avatar_url)
-      `)
+      .select("user_id")
       .eq("friend_id", userId)
       .eq("status", "pending");
 
     if (error) {
+      console.error("Get friend requests query error:", error);
       return res.status(500).json({ error: "Failed to fetch friend requests" });
     }
 
-    const formattedRequests = requests.map(r => ({
-      id: r.users.id,
-      username: r.users.username,
-      avatarUrl: r.users.avatar_url
+    if (!rows || rows.length === 0) return res.json({ requests: [] });
+
+    const senderIds = rows.map((r) => r.user_id);
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, username, avatar_url")
+      .in("id", senderIds);
+
+    if (usersError) {
+      console.error("Get friend requests users fetch error:", usersError);
+      return res.status(500).json({ error: "Failed to fetch requester details" });
+    }
+
+    const formattedRequests = (users || []).map((u) => ({
+      id: u.id,
+      username: u.username,
+      avatarUrl: u.avatar_url || null,
     }));
 
     res.json({ requests: formattedRequests });
