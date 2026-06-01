@@ -112,6 +112,31 @@ export default function UserProfileModal({
     }
   };
 
+  const handleRemoveFriend = async () => {
+    if (friendLoading || friendState !== "friend") return;
+    setFriendLoading(true);
+    setFriendError("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/friends/remove`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ friendId: userId }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Failed to remove friend");
+      setFriendState("none");
+      onFriendSent?.();
+    } catch (err) {
+      setFriendError(err.message);
+      setTimeout(() => setFriendError(""), 3000);
+    } finally {
+      setFriendLoading(false);
+    }
+  };
+
   const displayUsername = profile?.username || username || "Unknown";
   const displayAvatar = profile?.avatarUrl ?? avatarUrl ?? null;
   const bannerGradient = generateBannerGradient(displayUsername);
@@ -270,11 +295,11 @@ export default function UserProfileModal({
               {/* Action buttons (skip for self) */}
               {!isSelf && (
                 <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                  {/* Add Friend button */}
+                  {/* Add / Remove Friend button */}
                   <motion.button
                     whileTap={{ scale: 0.96 }}
-                    onClick={handleAddFriend}
-                    disabled={friendLoading || friendState !== "none"}
+                    onClick={friendState === "friend" ? handleRemoveFriend : handleAddFriend}
+                    disabled={friendLoading || friendState === "sent"}
                     style={{
                       flex: 1,
                       display: "flex",
@@ -284,7 +309,7 @@ export default function UserProfileModal({
                       padding: "9px 12px",
                       borderRadius: 8,
                       border: "none",
-                      cursor: friendState !== "none" ? "default" : "pointer",
+                      cursor: (friendLoading || friendState === "sent") ? "default" : "pointer",
                       fontSize: 13,
                       fontWeight: 600,
                       transition: "all 0.15s",
@@ -296,20 +321,29 @@ export default function UserProfileModal({
                           : "var(--primary)",
                       color:
                         friendState === "friend"
-                          ? "var(--text-muted)"
+                          ? "var(--text-1)"
                           : friendState === "sent"
                           ? "#23a55a"
                           : "white",
                     }}
                     onMouseEnter={(e) => {
-                      if (friendState === "none") e.currentTarget.style.filter = "brightness(1.12)";
+                      if (friendState === "friend") {
+                        e.currentTarget.style.background = "rgba(242,63,67,0.15)";
+                        e.currentTarget.style.color = "var(--danger)";
+                      } else if (friendState === "none") {
+                        e.currentTarget.style.filter = "brightness(1.12)";
+                      }
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.filter = "";
+                      if (friendState === "friend") {
+                        e.currentTarget.style.background = "var(--surface-3)";
+                        e.currentTarget.style.color = "var(--text-1)";
+                      }
                     }}
                   >
                     {friendState === "friend" ? (
-                      <><UserMinus size={15} /> Friends</>
+                      <><UserMinus size={15} /> {friendLoading ? "Removing…" : "Friends"}</>
                     ) : friendState === "sent" ? (
                       <><Check size={15} /> Sent</>
                     ) : (
