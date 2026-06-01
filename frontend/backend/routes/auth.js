@@ -156,6 +156,31 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
+router.get("/users/:userId", requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("id, username, avatar_url, created_at")
+      .eq("id", userId)
+      .single();
+
+    if (error || !user) return res.status(404).json({ error: "User not found" });
+
+    return res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        avatarUrl: user.avatar_url || null,
+        createdAt: user.created_at,
+      },
+    });
+  } catch (err) {
+    console.error("[AUTH] /users/:userId error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 router.get("/test", async (_req, res) => {
   try {
     const { data, error } = await supabase.from("users").select("count").limit(1);

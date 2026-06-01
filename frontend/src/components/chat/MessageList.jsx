@@ -1,18 +1,29 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileText, Download } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import CallSummaryBubble from "./CallSummaryBubble";
 import ActiveCallBanner from "../ActiveCallBanner";
+import UserProfileModal from "../social/UserProfileModal";
 
 /**
  * COMPLETELY REBUILT MESSAGE LIST
  * Discord-style message display
  * No old layout remnants
  */
-export default function MessageList({ messages, currentUser, onJoinActiveCall, onDismissActiveBanner }) {
+export default function MessageList({
+  messages,
+  currentUser,
+  onJoinActiveCall,
+  onDismissActiveBanner,
+  me,
+  friends,
+  onlineUsers,
+  onStartDm,
+}) {
   const messagesEndRef = useRef(null);
+  const [profileTarget, setProfileTarget] = useState(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -78,6 +89,9 @@ export default function MessageList({ messages, currentUser, onJoinActiveCall, o
         }
 
         const isOwn = group.user?.id === currentUser?.id;
+        const openProfile = () => {
+          if (group.user?.id) setProfileTarget(group.user);
+        };
 
         return (
           <div
@@ -86,16 +100,28 @@ export default function MessageList({ messages, currentUser, onJoinActiveCall, o
           >
             {!group.isCompact && (
               <div className="message-header">
-                <div className="message-avatar">
+                <div
+                  className="message-avatar"
+                  onClick={openProfile}
+                  style={{ cursor: group.user?.id ? "pointer" : "default" }}
+                >
                   <Avatar
                     name={group.user?.username || "Unknown"}
                     size={40}
                     imageUrl={group.user?.avatarUrl}
                   />
-                  <StatusBadge status="online" />
+                  <StatusBadge status={onlineUsers?.some(u => u.id === group.user?.id) ? "online" : "offline"} />
                 </div>
                 <div className="message-meta">
-                  <span className="message-author">{group.user?.username || "Unknown"}</span>
+                  <span
+                    className="message-author"
+                    onClick={openProfile}
+                    style={{ cursor: group.user?.id ? "pointer" : "default" }}
+                    onMouseEnter={(e) => { if (group.user?.id) e.currentTarget.style.textDecoration = "underline"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.textDecoration = ""; }}
+                  >
+                    {group.user?.username || "Unknown"}
+                  </span>
                   <span className="message-timestamp">
                     {formatTimestamp(group.messages[0]?.timestamp)}
                   </span>
@@ -117,6 +143,18 @@ export default function MessageList({ messages, currentUser, onJoinActiveCall, o
         );
       })}
       <div ref={messagesEndRef} />
+
+      <UserProfileModal
+        open={!!profileTarget}
+        onClose={() => setProfileTarget(null)}
+        userId={profileTarget?.id}
+        username={profileTarget?.username}
+        avatarUrl={profileTarget?.avatarUrl}
+        me={me}
+        friends={friends}
+        onlineUsers={onlineUsers}
+        onStartDm={onStartDm}
+      />
     </div>
   );
 }

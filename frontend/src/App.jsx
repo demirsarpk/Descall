@@ -875,6 +875,10 @@ export default function App() {
           <MessageList
             messages={dmMessages}
             currentUser={me}
+            me={me}
+            friends={friends}
+            onlineUsers={onlineUsers}
+            onStartDm={(user) => setActiveDmUser(user)}
             onJoinActiveCall={() => {
               if (!activeGroup || !groupCall?.activeCallBanner) return;
               groupCall.joinActiveCall(groupCall.activeCallBanner);
