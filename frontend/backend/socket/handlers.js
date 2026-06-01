@@ -139,39 +139,43 @@ async function findUserByUsername(username) {
 // Load friends from database into memory
 async function loadFriendsFromDB(userId) {
   try {
-    // Rows where current user sent the request — other party is friend_id
-    const { data: sentRows, error: err1 } = await supabase
+    // Fetch all accepted friendship rows involving this user
+    const { data: rows, error } = await supabase
       .from("friends")
-      .select("friend_id, users!friends_friend_id_fkey (id, username)")
-      .eq("user_id", userId)
+      .select("user_id, friend_id")
+      .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
       .eq("status", "accepted");
 
-    if (err1) console.error("[FRIENDS] loadFriendsFromDB sent rows:", err1);
+    if (error) {
+      console.error("[FRIENDS] loadFriendsFromDB query error:", error);
+      return new Set();
+    }
 
-    // Rows where current user received the request — other party is user_id
-    const { data: receivedRows, error: err2 } = await supabase
-      .from("friends")
-      .select("user_id, users!friends_user_id_fkey (id, username)")
-      .eq("friend_id", userId)
-      .eq("status", "accepted");
+    // Collect the IDs of the OTHER party in each row
+    const friendIds = [];
+    for (const row of (rows || [])) {
+      const otherId = row.user_id === userId ? row.friend_id : row.user_id;
+      if (otherId && otherId !== userId) friendIds.push(otherId);
+    }
 
-    if (err2) console.error("[FRIENDS] loadFriendsFromDB received rows:", err2);
+    if (friendIds.length === 0) {
+      friends.set(userId, new Set());
+      console.log(`[FRIENDS] No friends found for user ${userId}`);
+      return new Set();
+    }
+
+    // Batch-fetch usernames
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, username")
+      .in("id", friendIds);
+
+    if (usersError) console.error("[FRIENDS] loadFriendsFromDB users fetch error:", usersError);
 
     const friendSet = new Set();
-
-    for (const row of (sentRows || [])) {
-      const u = row.users;
-      if (u?.id) {
-        friendSet.add(u.id);
-        usernameById.set(u.id, u.username);
-      }
-    }
-    for (const row of (receivedRows || [])) {
-      const u = row.users;
-      if (u?.id) {
-        friendSet.add(u.id);
-        usernameById.set(u.id, u.username);
-      }
+    for (const u of (users || [])) {
+      friendSet.add(u.id);
+      usernameById.set(u.id, u.username);
     }
 
     friends.set(userId, friendSet);

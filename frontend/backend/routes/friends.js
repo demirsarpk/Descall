@@ -152,42 +152,40 @@ router.get("/list", requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Rows where current user sent the request — other party is friend_id
-    const { data: sentRows, error: sentErr } = await supabase
+    const { data: rows, error } = await supabase
       .from("friends")
-      .select("friend_id, users!friends_friend_id_fkey (id, username, avatar_url)")
-      .eq("user_id", userId)
+      .select("user_id, friend_id")
+      .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
       .eq("status", "accepted");
 
-    // Rows where current user received the request — other party is user_id
-    const { data: receivedRows, error: receivedErr } = await supabase
-      .from("friends")
-      .select("user_id, users!friends_user_id_fkey (id, username, avatar_url)")
-      .eq("friend_id", userId)
-      .eq("status", "accepted");
-
-    if (sentErr || receivedErr) {
-      console.error("Friends list error:", sentErr || receivedErr);
+    if (error) {
+      console.error("Friends list query error:", error);
       return res.status(500).json({ error: "Failed to fetch friends" });
     }
 
-    const seen = new Set();
-    const formattedFriends = [];
+    const friendIds = [];
+    for (const row of (rows || [])) {
+      const otherId = row.user_id === userId ? row.friend_id : row.user_id;
+      if (otherId && !friendIds.includes(otherId)) friendIds.push(otherId);
+    }
 
-    for (const row of (sentRows || [])) {
-      const u = row.users;
-      if (u && !seen.has(u.id)) {
-        seen.add(u.id);
-        formattedFriends.push({ id: u.id, username: u.username, avatarUrl: u.avatar_url });
-      }
+    if (friendIds.length === 0) return res.json({ friends: [] });
+
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, username, avatar_url")
+      .in("id", friendIds);
+
+    if (usersError) {
+      console.error("Friends list users fetch error:", usersError);
+      return res.status(500).json({ error: "Failed to fetch friend details" });
     }
-    for (const row of (receivedRows || [])) {
-      const u = row.users;
-      if (u && !seen.has(u.id)) {
-        seen.add(u.id);
-        formattedFriends.push({ id: u.id, username: u.username, avatarUrl: u.avatar_url });
-      }
-    }
+
+    const formattedFriends = (users || []).map((u) => ({
+      id: u.id,
+      username: u.username,
+      avatarUrl: u.avatar_url || null,
+    }));
 
     res.json({ friends: formattedFriends });
   } catch (err) {
