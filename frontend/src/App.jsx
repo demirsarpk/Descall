@@ -54,6 +54,7 @@ export default function App() {
   const [activeDmUser, setActiveDmUser] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
   const [friendNotice, setFriendNotice] = useState("");
+  const [notifPermission, setNotifPermission] = useState(() => notificationService.getPermissionState());
   const [socketApi, setSocketApi] = useState(null);
   const [typingDmUser, setTypingDmUser] = useState(null);
   const [dmHasMore, setDmHasMore] = useState(true);
@@ -143,10 +144,15 @@ export default function App() {
   // Initialize audio manager and notification service on app startup
   useEffect(() => {
     initAudioManager().catch(() => {});
-    // Initialize notification service (will request permission on first user interaction)
     notificationService.init().catch(() => {});
+    setNotifPermission(notificationService.getPermissionState());
     return () => { audioManager.destroy(); };
   }, []);
+
+  const handleRequestNotifPermission = async () => {
+    const result = await notificationService.requestPermission();
+    setNotifPermission(result);
+  };
 
   useEffect(() => {
     const token = getToken();
@@ -883,6 +889,8 @@ export default function App() {
             groupCall.joinActiveCall(groupCall.activeCallBanner);
           }}
           onDismissActiveBanner={groupCall?.dismissActiveBanner}
+          notifPermission={notifPermission}
+          onRequestNotifPermission={handleRequestNotifPermission}
         >
           <MessageList
             messages={dmMessages}

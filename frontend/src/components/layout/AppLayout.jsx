@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MessageSquare, Users, Settings, Bell, 
-  LogOut, User, Search, Plus
+  LogOut, User, Search, Plus, BellOff, X
 } from "lucide-react";
 import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
@@ -46,12 +46,18 @@ export default function AppLayout({
   friendRequests,
   onAcceptFriend,
   onDeclineFriend,
+  notifPermission,
+  onRequestNotifPermission,
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
   const [userPanelOpen, setUserPanelOpen] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTab, setAddTab] = useState("friend");
+  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
+
+  const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
+  const showNotifBanner = !isElectron && !notifBannerDismissed && notifPermission === 'default';
 
   const handleAddClick = () => {
     if (activeView === "groups") setAddTab("group");
@@ -70,6 +76,71 @@ export default function AppLayout({
 
   return (
     <div className="app-root">
+      {/* Web notification permission banner */}
+      <AnimatePresence>
+        {showNotifBanner && (
+          <motion.div
+            initial={{ y: -48, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -48, opacity: 0 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 380 }}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 99999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              padding: '10px 16px',
+              background: 'var(--primary)',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            <Bell size={15} style={{ flexShrink: 0 }} />
+            <span>Mesaj, arama ve mention bildirimleri almak için izin verin</span>
+            <button
+              onClick={async () => {
+                await onRequestNotifPermission?.();
+                setNotifBannerDismissed(true);
+              }}
+              style={{
+                padding: '5px 14px',
+                borderRadius: 6,
+                border: 'none',
+                background: 'rgba(255,255,255,0.22)',
+                color: 'white',
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              İzin Ver
+            </button>
+            <button
+              onClick={() => setNotifBannerDismissed(true)}
+              style={{
+                marginLeft: 4,
+                background: 'none',
+                border: 'none',
+                color: 'rgba(255,255,255,0.7)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                padding: 4,
+                flexShrink: 0,
+              }}
+            >
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Navigation Rail - Leftmost vertical bar */}
       <NavigationRail
         activeView={activeView}

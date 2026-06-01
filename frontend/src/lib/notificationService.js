@@ -15,19 +15,37 @@ class NotificationService {
     this.initialized = true;
 
     if (this.isElectron) {
-      // Electron always has permission via IPC — no prompt needed
       this.hasPermission = true;
       this._registerClickHandler();
     } else if ('Notification' in window) {
       if (Notification.permission === 'granted') {
         this.hasPermission = true;
-      } else if (Notification.permission !== 'denied') {
-        const result = await Notification.requestPermission().catch(() => 'denied');
-        this.hasPermission = result === 'granted';
       }
+      // Don't auto-request on init — let requestPermission() be called explicitly
+      // so the browser doesn't block the prompt (requires user gesture in some browsers)
     }
 
     this._drainPending();
+  }
+
+  // Call this from a button click / user gesture to request web permission
+  async requestPermission() {
+    if (this.isElectron) return 'granted';
+    if (!('Notification' in window)) return 'unsupported';
+    if (Notification.permission === 'granted') {
+      this.hasPermission = true;
+      return 'granted';
+    }
+    if (Notification.permission === 'denied') return 'denied';
+    const result = await Notification.requestPermission().catch(() => 'denied');
+    this.hasPermission = result === 'granted';
+    return result;
+  }
+
+  getPermissionState() {
+    if (this.isElectron) return 'granted';
+    if (!('Notification' in window)) return 'unsupported';
+    return Notification.permission; // 'default' | 'granted' | 'denied'
   }
 
   _registerClickHandler() {
