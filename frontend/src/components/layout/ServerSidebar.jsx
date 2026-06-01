@@ -661,17 +661,31 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
   );
 }
 
-function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember }) {
+function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anchorRef }) {
+  const [openUpward, setOpenUpward] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!anchorRef?.current || !menuRef.current) return;
+    const anchorRect = anchorRef.current.getBoundingClientRect();
+    const menuHeight = menuRef.current.offsetHeight || 130;
+    const spaceBelow = window.innerHeight - anchorRect.bottom;
+    setOpenUpward(spaceBelow < menuHeight + 8);
+  }, [anchorRef]);
+
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.92, y: -4 }}
+      ref={menuRef}
+      initial={{ opacity: 0, scale: 0.92, y: openUpward ? 4 : -4 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.92, y: -4 }}
+      exit={{ opacity: 0, scale: 0.92, y: openUpward ? 4 : -4 }}
       transition={{ duration: 0.12 }}
       style={{
         position: "absolute",
         right: 0,
-        top: "calc(100% + 2px)",
+        ...(openUpward
+          ? { bottom: "calc(100% + 2px)", top: "auto" }
+          : { top: "calc(100% + 2px)", bottom: "auto" }),
         zIndex: 200,
         background: "var(--surface-2)",
         border: "1px solid var(--border-3)",
@@ -877,6 +891,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
   const [addMemberGroup, setAddMemberGroup] = useState(null); // group object
   const [actionError, setActionError] = useState("");
   const menuRef = useRef(null);
+  const dotBtnRefs = useRef({});
 
   useEffect(() => {
     if (!openMenuId) return;
@@ -990,6 +1005,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                       {/* Three-dot menu button — visible only on active group */}
                       {isActive && (
                         <button
+                          ref={(el) => { dotBtnRefs.current[group.id] = el; }}
                           onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === group.id ? null : group.id); }}
                           style={{
                             position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
@@ -1015,6 +1031,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                             onLeave={() => setConfirmLeave(group)}
                             onRename={() => setConfirmRename(group)}
                             onAddMember={() => setAddMemberGroup(group)}
+                            anchorRef={{ current: dotBtnRefs.current[group.id] }}
                           />
                         )}
                       </AnimatePresence>
