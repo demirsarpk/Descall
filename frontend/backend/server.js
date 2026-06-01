@@ -54,6 +54,37 @@ app.use((req, res, next) => {
   next();
 });
 
+// TEMP DEBUG: list all tables in public schema
+app.get("/debug/tables", async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("information_schema.tables")
+      .select("table_name")
+      .eq("table_schema", "public");
+    if (error) {
+      // fallback: try raw SQL via rpc
+      const { data: d2, error: e2 } = await supabase.rpc("list_tables");
+      return res.json({ rpcResult: d2, rpcError: e2?.message, originalError: error?.message });
+    }
+    return res.json({ tables: data });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// TEMP DEBUG: show first 5 rows of any table
+app.get("/debug/peek/:tableName", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from(req.params.tableName)
+      .select("*")
+      .limit(5);
+    return res.json({ data, error: error?.message });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 // Root endpoint
 app.get("/", (_req, res) => {
   res.json({
