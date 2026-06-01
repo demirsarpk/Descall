@@ -12,9 +12,10 @@ import RippleButton from "../ui/RippleButton";
 
 const CATEGORIES = [
   { id: "bug", label: "Bug Report", color: "#f23f43", icon: AlertTriangle },
-  { id: "feature", label: "Feature Request", color: "#6678ff", icon: Star },
-  { id: "improvement", label: "Improvement", color: "#23a55a", icon: CheckCircle },
+  { id: "feature", label: "Feature / Suggestion", color: "#6678ff", icon: Star },
+  { id: "improvement", label: "Improvement / Praise", color: "#23a55a", icon: CheckCircle },
   { id: "security", label: "Security Issue", color: "#f0b232", icon: Flag },
+  { id: "general", label: "General", color: "#9da5b5", icon: MessageSquare },
   { id: "other", label: "Other", color: "#9da5b5", icon: MessageSquare },
 ];
 

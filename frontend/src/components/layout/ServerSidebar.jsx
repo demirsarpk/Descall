@@ -11,6 +11,20 @@ import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { addMemberToGroup } from "../../api/groups";
 
+const FEEDBACK_TYPE_TO_CATEGORY = {
+  suggestion: "feature",
+  bug: "bug",
+  praise: "improvement",
+};
+
+const RATING_TO_PRIORITY = {
+  1: "critical",
+  2: "high",
+  3: "medium",
+  4: "low",
+  5: "low",
+};
+
 export default function ServerSidebar({
   collapsed,
   onToggleCollapse,
@@ -339,10 +353,14 @@ export default function ServerSidebar({
                         if (feedbackText.trim().length < 5) return;
                         setFeedbackSending(true);
                         try {
-                          await fetch(`${import.meta.env.VITE_API_URL || ''}/api/feedback`, {
+                          await fetch(`${API_BASE_URL}/api/feedback/submit`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-                            body: JSON.stringify({ type: feedbackType, rating: feedbackRating, text: feedbackText.trim() }),
+                            body: JSON.stringify({
+                              category: FEEDBACK_TYPE_TO_CATEGORY[feedbackType] || 'other',
+                              priority: RATING_TO_PRIORITY[feedbackRating] || 'medium',
+                              message: feedbackText.trim(),
+                            }),
                           });
                         } catch (_) {}
                         setFeedbackSending(false);
