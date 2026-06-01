@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
+import notificationService from "../lib/notificationService";
 
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
@@ -761,7 +762,7 @@ export function useGroupCall(socket) {
     const myId = socket.user?.id;
     myIdRef.current = myId;
 
-    const onIncoming = ({ groupId, fromUser, callType: type }) => {
+    const onIncoming = ({ groupId, fromUser, callType: type, groupName }) => {
       if (!groupId || !fromUser?.id || fromUser.id === myId) return;
       if (isInCall) {
         socket.emit("group:call:busy", { groupId, toUserId: fromUser.id });
@@ -769,6 +770,7 @@ export function useGroupCall(socket) {
       }
       setIncomingCall({ groupId, fromUser, callType: type });
       audioManager.play("incomingCall", { loop: true });
+      notificationService.groupCall({ groupName: groupName || "Grup", from: fromUser.username });
     };
 
     const onAccept = async ({ groupId, fromUserId, fromUser }) => {

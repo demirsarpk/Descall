@@ -445,6 +445,22 @@ export default function App() {
         if (cur.some((m) => m.id === normalized.id)) return prev;
         return { ...prev, [groupId]: [...cur, normalized] };
       });
+      // Notify for messages from others in non-active group
+      const isFromMe = normalized.from.id === me?.id;
+      const isActiveGroup = activeGroup?.id === groupId;
+      if (!isFromMe && !isActiveGroup) {
+        const grp = myGroupsRef.current.find((g) => g.id === groupId);
+        notificationService.groupMessage({
+          groupName: grp?.name || "Grup",
+          from: normalized.from.username,
+          text: normalized.text,
+          groupId,
+        });
+      }
+    });
+
+    socket.on("mention:received", ({ groupId, dmConversationId, from, text, groupName }) => {
+      notificationService.mention({ groupId, dmConversationId, from, text, groupName });
     });
 
     socket.on("dm:message:update", ({ msgId, convWith, deliveredAt } = {}) => {

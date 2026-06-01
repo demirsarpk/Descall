@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
+import notificationService from "../lib/notificationService";
 
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
@@ -256,6 +257,7 @@ export function useCall(socket) {
       setPeer(fromUser);
       setCallType(incomingType || "voice");
       setMode("incoming");
+      notificationService.incomingCall({ from: fromUser.username, type: incomingType || "voice" });
     };
 
     const onAnswer = async ({ fromUserId, answer } = {}) => {

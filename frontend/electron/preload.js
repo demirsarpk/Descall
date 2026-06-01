@@ -26,6 +26,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
   },
+
+  // Native notifications
+  showNotification: (title, options) => ipcRenderer.invoke('show-notification', { title, ...options }),
+  isWindowFocused: () => ipcRenderer.invoke('is-window-focused'),
+  focusWindow: () => ipcRenderer.invoke('focus-window'),
+  onNotificationClicked: (callback) => {
+    ipcRenderer.on('notification:clicked', (_event, data) => callback(data));
+  },
 });
 
 // Confirm preload loaded

@@ -49,6 +49,7 @@ export default function UserProfileModal({
   const [friendState, setFriendState] = useState("none"); // "none" | "friend" | "sent"
   const [friendLoading, setFriendLoading] = useState(false);
   const [friendError, setFriendError] = useState("");
+  const [mutualFriends, setMutualFriends] = useState([]);
 
   const isSelf = me?.id === userId;
   const presence = onlineUsers.find((u) => u.id === userId);
@@ -71,14 +72,30 @@ export default function UserProfileModal({
     }
   }, [userId, open]);
 
+  const fetchMutualFriends = useCallback(async () => {
+    if (!username || isSelf) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/friends/mutual/${encodeURIComponent(username)}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setMutualFriends(data.mutualFriends || []);
+    } catch {
+      setMutualFriends([]);
+    }
+  }, [username, isSelf]);
+
   useEffect(() => {
     if (!open) return;
     fetchProfile();
+    fetchMutualFriends();
 
     const alreadyFriend = friends.some((f) => f.id === userId);
     setFriendState(alreadyFriend ? "friend" : "none");
     setFriendError("");
-  }, [open, userId, friends, fetchProfile]);
+    setMutualFriends([]);
+  }, [open, userId, friends, fetchProfile, fetchMutualFriends]);
 
   useEffect(() => {
     if (!open) return;
@@ -291,6 +308,62 @@ export default function UserProfileModal({
                   </div>
                 </div>
               ) : null}
+
+              {/* Mutual friends */}
+              {!isSelf && mutualFriends.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.6px",
+                      color: "var(--text-muted)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Mutual Friends
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ display: "flex" }}>
+                      {mutualFriends.slice(0, 4).map((f, i) => (
+                        <div
+                          key={f.id}
+                          title={f.username}
+                          style={{
+                            marginLeft: i === 0 ? 0 : -8,
+                            zIndex: 4 - i,
+                            position: "relative",
+                            width: 24,
+                            height: 24,
+                            borderRadius: "50%",
+                            border: "2px solid var(--surface-1)",
+                            overflow: "hidden",
+                            background: "var(--surface-3)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: "var(--text-1)",
+                          }}
+                        >
+                          {f.avatarUrl ? (
+                            <img src={f.avatarUrl} alt={f.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            f.username[0].toUpperCase()
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 12, color: "var(--text-1)", fontWeight: 500 }}>
+                      {mutualFriends.length === 1
+                        ? `${mutualFriends[0].username}`
+                        : `${mutualFriends[0].username} and ${mutualFriends.length - 1} other${mutualFriends.length - 1 > 1 ? "s" : ""}`}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Action buttons (skip for self) */}
               {!isSelf && (

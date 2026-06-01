@@ -3,8 +3,21 @@
  * Simple, reliable, works with 2-15 people
  */
 
-const { appendErrorLog, activeGroupCalls, screenShareSessions } = require("../runtime/sharedState");
+const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernameById } = require("../runtime/sharedState");
 const supabase = require("../db/supabase");
+
+const MENTION_PATTERN = /@(\w{1,32})/g;
+
+function extractMentionedUsernames(text) {
+  if (!text) return [];
+  const matches = [...text.matchAll(MENTION_PATTERN)];
+  return [...new Set(matches.map((m) => m[1].toLowerCase()))];
+}
+
+function emitMentionToUser(io, userId, payload) {
+  const p = presence.get(userId);
+  if (p?.socketId) io.to(p.socketId).emit("mention:received", payload);
+}
 
 function registerGroupHandlers(io, socket, state) {
   const myId = socket.user?.id;
@@ -105,6 +118,33 @@ function registerGroupHandlers(io, socket, state) {
     socket.to(`group:${groupId}`).emit("group:message", { groupId, message });
     // Echo back to sender with tempId for optimistic message replacement
     socket.emit("group:message", { groupId, message, tempId });
+
+    // Detect @mentions and notify mentioned users
+    if (trimmedContent) {
+      const mentionedUsernames = extractMentionedUsernames(trimmedContent);
+      if (mentionedUsernames.length > 0) {
+        const { data: groupMeta } = await supabase
+          .from("groups")
+          .select("name")
+          .eq("id", groupId)
+          .single();
+
+        const { data: mentionedUsers } = await supabase
+          .from("users")
+          .select("id, username")
+          .in("username", mentionedUsernames);
+
+        for (const mentioned of (mentionedUsers || [])) {
+          if (mentioned.id === myId) continue;
+          emitMentionToUser(io, mentioned.id, {
+            groupId,
+            groupName: groupMeta?.name || "Grup",
+            from: socket.user.username,
+            text: trimmedContent,
+          });
+        }
+      }
+    }
   });
 
   // ========== GROUP CALL ==========

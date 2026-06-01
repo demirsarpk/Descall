@@ -1,329 +1,209 @@
-/**
- * Advanced Notification Service for Descall
- * Handles both Electron native notifications and Web Push notifications
- * with permission management and modern UX
- */
+const COOLDOWN_MS = 800;
+const CALL_TAG = 'descall-incoming-call';
 
 class NotificationService {
   constructor() {
-    this.permission = 'default';
-    this.isElectron = window.electronAPI?.isElectron || false;
+    this.isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
     this.hasPermission = false;
     this.initialized = false;
-    this.pendingNotifications = [];
     this.lastNotificationTime = 0;
-    this.cooldownMs = 1000; // Minimum time between notifications
+    this.pendingNotifications = [];
   }
 
-  /**
-   * Initialize notification service and request permission
-   */
   async init() {
     if (this.initialized) return;
-    
-    if (this.isElectron) {
-      // Electron: Use native notification API via IPC
-      await this.requestElectronPermission();
-    } else {
-      // Web: Use browser Notification API
-      await this.requestWebPermission();
-    }
-    
     this.initialized = true;
-    this.processPendingNotifications();
-  }
 
-  /**
-   * Request permission for Electron
-   */
-  async requestElectronPermission() {
-    try {
-      if (window.electronAPI?.requestNotificationPermission) {
-        this.hasPermission = await window.electronAPI.requestNotificationPermission();
-        this.permission = this.hasPermission ? 'granted' : 'denied';
-      }
-    } catch (err) {
-      console.error('[Notification] Electron permission error:', err);
-      this.hasPermission = false;
-    }
-  }
-
-  /**
-   * Request permission for Web
-   */
-  async requestWebPermission() {
-    if (!('Notification' in window)) {
-      console.warn('[Notification] Browser does not support notifications');
-      this.permission = 'unsupported';
-      return;
-    }
-
-    if (Notification.permission === 'granted') {
-      this.permission = 'granted';
+    if (this.isElectron) {
+      // Electron always has permission via IPC — no prompt needed
       this.hasPermission = true;
-      return;
-    }
-
-    if (Notification.permission !== 'denied') {
-      try {
-        const result = await Notification.requestPermission();
-        this.permission = result;
+      this._registerClickHandler();
+    } else if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        this.hasPermission = true;
+      } else if (Notification.permission !== 'denied') {
+        const result = await Notification.requestPermission().catch(() => 'denied');
         this.hasPermission = result === 'granted';
-      } catch (err) {
-        console.error('[Notification] Web permission error:', err);
-        this.permission = 'error';
-        this.hasPermission = false;
       }
     }
+
+    this._drainPending();
   }
 
-  /**
-   * Show permission prompt to user
-   */
-  async requestPermissionWithDialog() {
-    // For web: Show custom dialog before requesting
-    if (!this.isElectron && 'Notification' in window) {
-      const userConfirmed = confirm('Bildirimler için izin vermek istiyor musunuz?\n\nYeni mesajlar, aramalar ve duyurular için bildirim alacaksınız.');
-      if (userConfirmed) {
-        await this.init();
-        return this.hasPermission;
-      }
-      return false;
+  _registerClickHandler() {
+    if (!this.isElectron || !window.electronAPI?.onNotificationClicked) return;
+    window.electronAPI.onNotificationClicked((payload) => {
+      window.dispatchEvent(new CustomEvent('descall:notification-click', { detail: payload }));
+    });
+  }
+
+  async _isWindowActive() {
+    if (this.isElectron && window.electronAPI?.isWindowFocused) {
+      return window.electronAPI.isWindowFocused();
     }
-    
-    // Electron: Direct request
-    await this.init();
-    return this.hasPermission;
+    return document.hasFocus();
   }
 
-  /**
-   * Show notification with rate limiting
-   */
-  async show(options = {}) {
-    const {
-      title = 'Descall',
-      body = '',
-      icon = '/icon.png',
-      tag = 'descall',
-      requireInteraction = false,
-      silent = false,
-      data = {}
-    } = options;
-
-    // Check rate limit
-    const now = Date.now();
-    if (now - this.lastNotificationTime < this.cooldownMs) {
-      // Queue notification for later
-      this.pendingNotifications.push(options);
+  async show({ title, body, tag = 'descall', requireInteraction = false, silent = false, data = {} }) {
+    if (!this.initialized) {
+      this.pendingNotifications.push({ title, body, tag, requireInteraction, silent, data });
+      await this.init();
       return;
     }
+    if (!this.hasPermission) return;
+
+    // Rate limit — skip non-call notifications during cooldown
+    const now = Date.now();
+    if (!requireInteraction && now - this.lastNotificationTime < COOLDOWN_MS) return;
     this.lastNotificationTime = now;
 
-    // Check permission
-    if (!this.hasPermission) {
-      // Try to initialize if not done yet
-      if (!this.initialized) {
-        this.pendingNotifications.push(options);
-        await this.init();
-        return;
-      }
-      console.log('[Notification] No permission, skipping');
-      return;
-    }
+    // Skip if window is focused (user can already see the message)
+    const windowActive = await this._isWindowActive();
+    if (windowActive && !requireInteraction) return;
 
-    // Show notification based on platform
     if (this.isElectron) {
-      this.showElectronNotification({ title, body, icon, tag, data });
+      window.electronAPI.showNotification(title, { body, tag, data });
     } else {
-      this.showWebNotification({ title, body, icon, tag, requireInteraction, silent, data });
+      this._showWebNotification({ title, body, tag, requireInteraction, silent, data });
     }
   }
 
-  /**
-   * Show Electron native notification
-   */
-  showElectronNotification({ title, body, icon, data }) {
-    if (window.electronAPI?.showNotification) {
-      window.electronAPI.showNotification(title, {
+  _showWebNotification({ title, body, tag, requireInteraction, silent, data }) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+      const n = new Notification(title, {
         body,
-        icon,
-        ...data
+        tag,
+        requireInteraction,
+        silent,
+        icon: '/icon.png',
+        badge: '/icon.png',
+        data,
       });
-      
-      // Listen for click
-      if (window.electronAPI.onNotificationClick) {
-        window.electronAPI.onNotificationClick((notificationData) => {
-          this.handleNotificationClick(notificationData);
-        });
-      }
+      n.onclick = () => {
+        window.focus();
+        n.close();
+        window.dispatchEvent(new CustomEvent('descall:notification-click', { detail: data }));
+      };
+      if (!requireInteraction) setTimeout(() => n.close(), 5000);
+    } catch (err) {
+      console.error('[Notification] Failed to show:', err);
     }
   }
 
-  /**
-   * Show Web browser notification
-   */
-  showWebNotification({ title, body, icon, tag, requireInteraction, silent, data }) {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        const notification = new Notification(title, {
-          body,
-          icon,
-          tag,
-          requireInteraction,
-          silent,
-          badge: '/icon.png',
-          data
-        });
-
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-          this.handleNotificationClick(data);
-        };
-
-        notification.onerror = (err) => {
-          console.error('[Notification] Web notification error:', err);
-        };
-
-        // Auto close after 5 seconds if not requireInteraction
-        if (!requireInteraction) {
-          setTimeout(() => notification.close(), 5000);
-        }
-      } catch (err) {
-        console.error('[Notification] Failed to show web notification:', err);
-      }
-    }
+  _drainPending() {
+    const queued = this.pendingNotifications.splice(0);
+    queued.forEach((opts, i) => setTimeout(() => this.show(opts), i * COOLDOWN_MS));
   }
 
-  /**
-   * Handle notification click
-   */
-  handleNotificationClick(data) {
-    console.log('[Notification] Clicked:', data);
-    // Emit event for components to handle
-    window.dispatchEvent(new CustomEvent('descall:notification-click', { detail: data }));
-  }
+  // ─── Typed notification helpers ───────────────────────────────────────────
 
-  /**
-   * Process pending notifications
-   */
-  processPendingNotifications() {
-    if (this.pendingNotifications.length === 0) return;
-    
-    const notifications = [...this.pendingNotifications];
-    this.pendingNotifications = [];
-    
-    notifications.forEach((options, index) => {
-      setTimeout(() => {
-        this.show(options);
-      }, index * this.cooldownMs);
-    });
-  }
-
-  // ========== Specific Notification Types ==========
-
-  /**
-   * New DM message notification
-   */
-  async newMessage({ from, text, preview, conversationId }) {
+  async dm({ from, text, conversationId }) {
     await this.show({
-      title: `Yeni Mesaj - ${from}`,
-      body: preview || text.substring(0, 100),
+      title: from,
+      body: text?.substring(0, 120) || 'Yeni mesaj',
       tag: `dm-${conversationId}`,
-      data: { type: 'dm', conversationId, from }
+      data: { type: 'dm', conversationId, from },
     });
   }
 
-  /**
-   * Incoming call notification
-   */
+  // Legacy alias used in existing App.jsx calls
+  async newMessage({ from, text, preview, conversationId }) {
+    await this.dm({ from, text: preview || text, conversationId });
+  }
+
+  async groupMessage({ groupName, from, text, groupId }) {
+    await this.show({
+      title: groupName,
+      body: `${from}: ${(text || 'Yeni mesaj').substring(0, 100)}`,
+      tag: `group-${groupId}`,
+      data: { type: 'group', groupId, from, groupName },
+    });
+  }
+
+  async mention({ groupName, from, text, groupId, dmConversationId }) {
+    await this.show({
+      title: `💬 ${from} senden bahsetti`,
+      body: groupName ? `${groupName}: ${(text || '').substring(0, 100)}` : (text || '').substring(0, 120),
+      tag: `mention-${groupId || dmConversationId}`,
+      requireInteraction: true,
+      data: { type: 'mention', groupId, dmConversationId, from },
+    });
+  }
+
+  // Legacy alias
+  async groupMention({ groupName, from, text, groupId }) {
+    await this.mention({ groupName, from, text, groupId });
+  }
+
   async incomingCall({ from, type = 'voice' }) {
     await this.show({
-      title: `${from} arıyor...`,
+      title: `📞 ${from} arıyor`,
       body: type === 'video' ? 'Görüntülü arama' : 'Sesli arama',
-      icon: '/icon.png',
+      tag: CALL_TAG,
       requireInteraction: true,
-      tag: 'incoming-call',
-      data: { type: 'call', from, callType: type }
+      data: { type: 'call', from, callType: type },
     });
   }
 
-  /**
-   * Missed call notification
-   */
+  async groupCall({ groupName, from }) {
+    await this.show({
+      title: `📞 ${groupName} — Grup Araması`,
+      body: `${from} grup araması başlattı`,
+      tag: `group-call-${groupName}`,
+      requireInteraction: true,
+      data: { type: 'group-call', groupName, from },
+    });
+  }
+
   async missedCall({ from, type = 'voice' }) {
     await this.show({
       title: 'Cevapsız Arama',
       body: `${from} ${type === 'video' ? 'görüntülü' : 'sesli'} aradı`,
       tag: `missed-call-${from}`,
-      data: { type: 'missed-call', from, callType: type }
+      data: { type: 'missed-call', from, callType: type },
     });
   }
 
-  /**
-   * New announcement notification
-   */
-  async newAnnouncement({ title, preview, announcementId }) {
-    await this.show({
-      title: `📢 ${title}`,
-      body: preview,
-      tag: `announcement-${announcementId}`,
-      data: { type: 'announcement', announcementId }
-    });
-  }
-
-  /**
-   * Friend request notification
-   */
   async friendRequest({ from, fromId }) {
     await this.show({
       title: 'Arkadaşlık İsteği',
       body: `${from} seni arkadaş olarak eklemek istiyor`,
-      tag: `friend-request-${fromId}`,
-      data: { type: 'friend-request', fromId }
+      tag: `friend-req-${fromId}`,
+      data: { type: 'friend-request', fromId, from },
     });
   }
 
-  /**
-   * Friend online notification
-   */
   async friendOnline({ username }) {
     await this.show({
-      title: 'Arkadaş Çevrimiçi',
+      title: 'Descall',
       body: `${username} çevrimiçi oldu`,
-      tag: `friend-online-${username}`,
+      tag: `online-${username}`,
       silent: true,
-      data: { type: 'friend-online', username }
+      data: { type: 'friend-online', username },
     });
   }
 
-  /**
-   * Group mention notification
-   */
-  async groupMention({ groupName, from, text, groupId }) {
+  async newAnnouncement({ title, preview, announcementId }) {
     await this.show({
-      title: `${groupName} - ${from}`,
-      body: `Sizden bahsetti: ${text.substring(0, 80)}`,
-      tag: `mention-${groupId}`,
-      data: { type: 'mention', groupId }
+      title: `📢 ${title}`,
+      body: preview,
+      tag: `ann-${announcementId}`,
+      data: { type: 'announcement', announcementId },
     });
   }
 }
 
-// Singleton instance
 const notificationService = new NotificationService();
 
-// Initialize on load
 if (typeof window !== 'undefined') {
-  // Wait for user interaction before requesting permission
-  const initOnInteraction = () => {
+  const boot = () => {
     notificationService.init();
-    document.removeEventListener('click', initOnInteraction);
-    document.removeEventListener('keydown', initOnInteraction);
+    document.removeEventListener('click', boot);
+    document.removeEventListener('keydown', boot);
   };
-  
-  document.addEventListener('click', initOnInteraction, { once: true });
-  document.addEventListener('keydown', initOnInteraction, { once: true });
+  document.addEventListener('click', boot, { once: true });
+  document.addEventListener('keydown', boot, { once: true });
 }
 
 export default notificationService;

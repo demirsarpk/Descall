@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Notification } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -76,6 +76,35 @@ app.on('activate', () => {
 // IPC handlers
 ipcMain.handle('get-version', () => {
   return app.getVersion();
+});
+
+ipcMain.handle('show-notification', (_event, { title, body, icon, tag, data }) => {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({
+    title: title || 'Descall',
+    body: body || '',
+    icon: icon || undefined,
+    silent: false,
+    timeoutType: 'default',
+  });
+  n.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+      mainWindow.webContents.send('notification:clicked', { tag, data });
+    }
+  });
+  n.show();
+});
+
+ipcMain.handle('is-window-focused', () => {
+  return mainWindow ? mainWindow.isFocused() : false;
+});
+
+ipcMain.handle('focus-window', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
 });
 
 ipcMain.handle('check-for-updates', async () => {

@@ -284,4 +284,70 @@ router.get("/requests", requireAuth, async (req, res) => {
   }
 });
 
+// Get mutual friends with a target user
+router.get("/mutual/:username", requireAuth, async (req, res) => {
+  try {
+    const myId = req.user.id;
+    const { username } = req.params;
+
+    const { data: targetUser, error: lookupError } = await supabase
+      .from("users")
+      .select("id")
+      .ilike("username", username)
+      .maybeSingle();
+
+    if (lookupError || !targetUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (targetUser.id === myId) {
+      return res.json({ mutualFriends: [], count: 0 });
+    }
+
+    // Fetch accepted friends of current user
+    const { data: myRows } = await supabase
+      .from("friendships")
+      .select("user_id, friend_id")
+      .or(`user_id.eq.${myId},friend_id.eq.${myId}`)
+      .eq("status", "accepted");
+
+    const myFriendIds = new Set(
+      (myRows || []).map((r) => (r.user_id === myId ? r.friend_id : r.user_id))
+    );
+
+    // Fetch accepted friends of target user
+    const { data: theirRows } = await supabase
+      .from("friendships")
+      .select("user_id, friend_id")
+      .or(`user_id.eq.${targetUser.id},friend_id.eq.${targetUser.id}`)
+      .eq("status", "accepted");
+
+    const theirFriendIds = new Set(
+      (theirRows || []).map((r) => (r.user_id === targetUser.id ? r.friend_id : r.user_id))
+    );
+
+    const mutualIds = [...myFriendIds].filter((id) => theirFriendIds.has(id));
+
+    if (mutualIds.length === 0) {
+      return res.json({ mutualFriends: [], count: 0 });
+    }
+
+    const { data: mutualUsers } = await supabase
+      .from("users")
+      .select("id, username, avatar_url")
+      .in("id", mutualIds);
+
+    const mutualFriends = (mutualUsers || []).map((u) => ({
+      id: u.id,
+      username: u.username,
+      avatarUrl: u.avatar_url || null,
+    }));
+
+    res.json({ mutualFriends, count: mutualFriends.length });
+  } catch (err) {
+    console.error("Mutual friends error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;

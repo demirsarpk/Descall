@@ -510,6 +510,19 @@ function registerSocketHandlers(io) {
       emitToUser(io, toUserId, "dm:message", { ...messagePayload, convWith: myId });
       // Echo back to sender with tempId so client can replace the optimistic message
       socket.emit("dm:message", { ...messagePayload, tempId, convWith: toUserId });
+
+      // Emit mention:received if text contains @recipient — used by notification service
+      if (text) {
+        const recipientUsername = usernameById.get(toUserId);
+        const mentionPattern = new RegExp(`@${recipientUsername}\\b`, "i");
+        if (recipientUsername && mentionPattern.test(text)) {
+          emitToUser(io, toUserId, "mention:received", {
+            dmConversationId: myId,
+            from: me.username,
+            text,
+          });
+        }
+      }
     });
 
     socket.on("dm:delivered", ({ msgId, fromUserId } = {}) => {
