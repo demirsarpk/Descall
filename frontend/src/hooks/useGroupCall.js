@@ -2,6 +2,49 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
 
+// Helper: show a modern inline screen-picker for Electron
+function showElectronScreenPicker(sources) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'electron-screen-picker-overlay';
+    overlay.innerHTML = `
+      <div class="electron-screen-picker-modal">
+        <div class="electron-screen-picker-header">
+          <h3>Share your screen</h3>
+          <button class="electron-screen-picker-close" aria-label="Close">×</button>
+        </div>
+        <div class="electron-screen-picker-grid"></div>
+      </div>
+    `;
+    const grid = overlay.querySelector('.electron-screen-picker-grid');
+    const closeBtn = overlay.querySelector('.electron-screen-picker-close');
+
+    sources.forEach((source) => {
+      const item = document.createElement('div');
+      item.className = 'electron-screen-picker-item';
+      item.innerHTML = `
+        <img src="${source.thumbnailDataURL}" alt="${source.name}" draggable="false" />
+        <span>${source.name}</span>
+      `;
+      item.addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        resolve(source.id);
+      });
+      grid.appendChild(item);
+    });
+
+    const close = () => {
+      if (overlay.parentNode) document.body.removeChild(overlay);
+      resolve(null);
+    };
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+    document.body.appendChild(overlay);
+  });
+}
+
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
@@ -618,55 +661,14 @@ export function useGroupCall(socket) {
     }
   }, [isCameraOn]);
 
-  // Helper: show a modern inline screen-picker for Electron
-  const showElectronScreenPicker = (sources) => {
-    return new Promise((resolve) => {
-      const overlay = document.createElement('div');
-      overlay.className = 'electron-screen-picker-overlay';
-      overlay.innerHTML = `
-        <div class="electron-screen-picker-modal">
-          <div class="electron-screen-picker-header">
-            <h3>Share your screen</h3>
-            <button class="electron-screen-picker-close" aria-label="Close">×</button>
-          </div>
-          <div class="electron-screen-picker-grid"></div>
-        </div>
-      `;
-      const grid = overlay.querySelector('.electron-screen-picker-grid');
-      const closeBtn = overlay.querySelector('.electron-screen-picker-close');
-
-      sources.forEach((source) => {
-        const item = document.createElement('div');
-        item.className = 'electron-screen-picker-item';
-        item.innerHTML = `
-          <img src="${source.thumbnailDataURL}" alt="${source.name}" draggable="false" />
-          <span>${source.name}</span>
-        `;
-        item.addEventListener('click', () => {
-          document.body.removeChild(overlay);
-          resolve(source.id);
-        });
-        grid.appendChild(item);
-      });
-
-      const close = () => {
-        if (overlay.parentNode) document.body.removeChild(overlay);
-        resolve(null);
-      };
-      closeBtn.addEventListener('click', close);
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) close();
-      });
-      document.body.appendChild(overlay);
-    });
-  };
-
   const startScreenShare = useCallback(async (quality) => {
+    console.log('[GroupScreenShare] startScreenShare called, quality:', quality);
     try {
       // Use provided quality or fall back to current state
       const effectiveQuality = quality || screenQuality;
       
       if (isScreenSharing) {
+        console.log('[GroupScreenShare] abort: already sharing');
         return;
       }
       
@@ -686,9 +688,16 @@ export function useGroupCall(socket) {
       let stream;
 
       if (window.electronAPI?.isElectron) {
+        console.log('[GroupScreenShare] Electron detected, fetching sources...');
         const sources = await window.electronAPI.getScreenSources();
-        if (!sources || sources.length === 0) return;
+        console.log('[GroupScreenShare] sources:', sources?.length);
+        if (!sources || sources.length === 0) {
+          console.warn('[GroupScreenShare] no sources');
+          return;
+        }
+        console.log('[GroupScreenShare] opening picker...');
         const sourceId = await showElectronScreenPicker(sources);
+        console.log('[GroupScreenShare] picked sourceId:', sourceId);
         if (!sourceId) return;
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
