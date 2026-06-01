@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
   ChevronDown, ChevronRight, Bell, UserPlus, X, User, Users, Megaphone,
-  MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus, RefreshCw
+  MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus, RefreshCw, MessageSquarePlus, Star, Bug, Lightbulb, ChevronDown as ChevronDownIcon
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -60,6 +60,12 @@ export default function ServerSidebar({
   const [announcementsLoading, setAnnouncementsLoading] = useState(false);
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackType, setFeedbackType] = useState('suggestion');
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackSending, setFeedbackSending] = useState(false);
 
   useEffect(() => {
     if (!socket) return;
@@ -230,6 +236,13 @@ export default function ServerSidebar({
             </button>
             <button
               className="icon-btn"
+              title="Send Feedback"
+              onClick={() => { setShowFeedback(true); setFeedbackSent(false); setFeedbackText(''); setFeedbackRating(0); setFeedbackType('suggestion'); }}
+            >
+              <MessageSquarePlus size={18} />
+            </button>
+            <button
+              className="icon-btn"
               title="Add"
               onClick={() => {
                 setShowAddModal(true);
@@ -242,6 +255,108 @@ export default function ServerSidebar({
             </button>
           </div>
         </div>
+
+        {/* Feedback Modal */}
+        <AnimatePresence>
+          {showFeedback && (
+            <motion.div
+              className="feedback-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={(e) => { if (e.target === e.currentTarget) { setShowFeedback(false); setFeedbackSent(false); } }}
+            >
+              <motion.div
+                className="feedback-modal"
+                initial={{ opacity: 0, scale: 0.92, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 16 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {feedbackSent ? (
+                  <div className="feedback-success">
+                    <div className="feedback-success-icon">✓</div>
+                    <h3>Thanks for your feedback!</h3>
+                    <p>We review every submission and use it to make Descall better.</p>
+                    <button className="feedback-close-btn" onClick={() => { setShowFeedback(false); setFeedbackSent(false); }}>Close</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="feedback-header">
+                      <div className="feedback-header-left">
+                        <MessageSquarePlus size={20} />
+                        <h3>Send Feedback</h3>
+                      </div>
+                      <button className="icon-btn" onClick={() => setShowFeedback(false)}><X size={18} /></button>
+                    </div>
+
+                    <div className="feedback-type-row">
+                      {[
+                        { id: 'suggestion', label: 'Suggestion', icon: <Lightbulb size={14} /> },
+                        { id: 'bug', label: 'Bug Report', icon: <Bug size={14} /> },
+                        { id: 'praise', label: 'Praise', icon: <Star size={14} /> },
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          className={`feedback-type-btn${feedbackType === t.id ? ' active' : ''}`}
+                          onClick={() => setFeedbackType(t.id)}
+                        >
+                          {t.icon} {t.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="feedback-rating-row">
+                      <span className="feedback-rating-label">Overall experience</span>
+                      <div className="feedback-stars">
+                        {[1,2,3,4,5].map(n => (
+                          <button
+                            key={n}
+                            className={`feedback-star${feedbackRating >= n ? ' active' : ''}`}
+                            onClick={() => setFeedbackRating(n)}
+                            aria-label={`${n} star`}
+                          >
+                            <Star size={18} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <textarea
+                      className="feedback-textarea"
+                      placeholder={feedbackType === 'bug' ? 'Describe the bug — what happened and how to reproduce it…' : feedbackType === 'praise' ? 'Tell us what you love about Descall…' : 'Share your idea or suggestion…'}
+                      value={feedbackText}
+                      onChange={e => setFeedbackText(e.target.value)}
+                      rows={5}
+                      maxLength={1000}
+                    />
+                    <div className="feedback-char-count">{feedbackText.length}/1000</div>
+
+                    <button
+                      className="feedback-submit-btn"
+                      disabled={feedbackText.trim().length < 5 || feedbackSending}
+                      onClick={async () => {
+                        if (feedbackText.trim().length < 5) return;
+                        setFeedbackSending(true);
+                        try {
+                          await fetch(`${import.meta.env.VITE_API_URL || ''}/api/feedback`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+                            body: JSON.stringify({ type: feedbackType, rating: feedbackRating, text: feedbackText.trim() }),
+                          });
+                        } catch (_) {}
+                        setFeedbackSending(false);
+                        setFeedbackSent(true);
+                      }}
+                    >
+                      {feedbackSending ? 'Sending…' : 'Submit Feedback'}
+                    </button>
+                  </>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Search */}
         <div className="sidebar-search">
