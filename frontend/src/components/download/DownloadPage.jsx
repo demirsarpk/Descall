@@ -90,6 +90,38 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
     fetchLatestRelease();
   }, []);
 
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root');
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevHtmlHeight = html.style.height;
+    const prevBodyHeight = body.style.height;
+    const prevRootOverflow = root?.style.overflow;
+    const prevRootHeight = root?.style.height;
+
+    html.style.overflow = 'auto';
+    html.style.height = 'auto';
+    body.style.overflow = 'auto';
+    body.style.height = 'auto';
+    if (root) {
+      root.style.overflow = 'visible';
+      root.style.height = 'auto';
+    }
+
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      html.style.height = prevHtmlHeight;
+      body.style.overflow = prevBodyOverflow;
+      body.style.height = prevBodyHeight;
+      if (root) {
+        root.style.overflow = prevRootOverflow;
+        root.style.height = prevRootHeight;
+      }
+    };
+  }, []);
+
   const fetchLatestRelease = async () => {
     try {
       const response = await fetch(GITHUB_API);
