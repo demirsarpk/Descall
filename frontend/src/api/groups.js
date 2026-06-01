@@ -86,6 +86,17 @@ export async function leaveGroup(groupId) {
   return res.json();
 }
 
+export async function addMemberToGroup(groupId, userId) {
+  const res = await fetch(`${BASE}/${groupId}/members`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ userId }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || "Failed to add member");
+  return body;
+}
+
 export async function renameGroup(groupId, newName) {
   const res = await fetch(`${BASE}/${groupId}/rename`, {
     method: "POST",

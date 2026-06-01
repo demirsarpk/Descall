@@ -428,6 +428,87 @@ router.post("/invites/:inviteId/respond", requireAuth, async (req, res) => {
   }
 });
 
+// Add member directly (friends only, no invite flow)
+router.post("/:groupId/members", requireAuth, async (req, res) => {
+  try {
+    const requesterId = req.user.id;
+    const { groupId } = req.params;
+    const { userId: targetUserId } = req.body;
+
+    if (!targetUserId) return res.status(400).json({ error: "userId required" });
+
+    // Requester must be a member
+    const { data: requesterMembership } = await supabase
+      .from("group_members")
+      .select("group_id")
+      .eq("group_id", groupId)
+      .eq("user_id", requesterId)
+      .maybeSingle();
+
+    if (!requesterMembership) return res.status(403).json({ error: "Not a member of this group" });
+
+    // Target must be a friend of the requester
+    const { data: friendship } = await supabase
+      .from("friends")
+      .select("id")
+      .or(
+        `and(user_id.eq.${requesterId},friend_id.eq.${targetUserId}),and(user_id.eq.${targetUserId},friend_id.eq.${requesterId})`
+      )
+      .maybeSingle();
+
+    if (!friendship) return res.status(403).json({ error: "You can only add your friends" });
+
+    // Check group capacity
+    const { count } = await supabase
+      .from("group_members")
+      .select("*", { count: "exact", head: true })
+      .eq("group_id", groupId);
+
+    if (count >= MAX_GROUP_SIZE) {
+      return res.status(400).json({ error: "Group is full (max 15 members)" });
+    }
+
+    // Check not already a member
+    const { data: existing } = await supabase
+      .from("group_members")
+      .select("group_id")
+      .eq("group_id", groupId)
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+
+    if (existing) return res.status(409).json({ error: "User is already a member" });
+
+    // Add directly
+    const { error: insertError } = await supabase
+      .from("group_members")
+      .insert({ group_id: groupId, user_id: targetUserId });
+
+    if (insertError) throw insertError;
+
+    // Fetch added user info for response
+    const { data: addedUser } = await supabase
+      .from("users")
+      .select("id, username, avatar_url")
+      .eq("id", targetUserId)
+      .single();
+
+    // Notify group members via socket
+    const io = req.app.get("io");
+    if (io) {
+      io.to(`group:${groupId}`).emit("group:member:added", {
+        groupId,
+        user: addedUser,
+        addedBy: requesterId,
+      });
+    }
+
+    res.json({ message: "Member added", user: addedUser });
+  } catch (err) {
+    console.error("[Groups] Add member error:", err);
+    res.status(500).json({ error: "Failed to add member" });
+  }
+});
+
 // Leave group
 router.post("/:groupId/leave", requireAuth, async (req, res) => {
   try {

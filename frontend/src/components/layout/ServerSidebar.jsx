@@ -3,12 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
   ChevronDown, ChevronRight, Bell, UserPlus, X, User, Users, Megaphone,
-  MoreHorizontal, LogOut, Edit3, Check
+  MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
+import { addMemberToGroup } from "../../api/groups";
 
 export default function ServerSidebar({
   collapsed,
@@ -256,6 +257,7 @@ export default function ServerSidebar({
           {activeView === "groups" && (
             <GroupList
               groups={filteredGroups}
+              friends={friends}
               activeGroup={activeGroup}
               expanded={expandedSections.groups}
               onToggle={() => toggleSection("groups")}
@@ -481,7 +483,185 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
   );
 }
 
-function GroupContextMenu({ group, onClose, onLeave, onRename }) {
+function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const filtered = (friends || []).filter((f) =>
+    f.username?.toLowerCase().includes(query.toLowerCase())
+  );
+
+  const handleAdd = async (friend) => {
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      await addMemberToGroup(group.id, friend.id);
+      setSuccess(`${friend.username} added to ${group.name}`);
+      onMemberAdded?.();
+      setTimeout(onClose, 1200);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 16 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 16 }}
+        transition={{ type: "spring", damping: 24, stiffness: 340 }}
+        style={{
+          background: "var(--surface-1)",
+          border: "1px solid var(--border-3)",
+          borderRadius: 16,
+          padding: 0,
+          width: 340,
+          maxHeight: 520,
+          boxShadow: "var(--shadow-xl)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 20px", borderBottom: "1px solid var(--border-2)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: "var(--primary-soft)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "var(--primary)",
+            }}>
+              <UserRoundPlus size={16} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-0)" }}>Add Member</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{group.name}</div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 28, height: 28, borderRadius: 6, border: "none",
+              background: "transparent", color: "var(--text-muted)",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-3)"; e.currentTarget.style.color = "var(--text-1)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-muted)"; }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border-2)" }}>
+          <div style={{ position: "relative" }}>
+            <Search size={14} style={{
+              position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+              color: "var(--text-muted)", pointerEvents: "none",
+            }} />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search friends…"
+              style={{
+                width: "100%", padding: "8px 10px 8px 32px",
+                background: "var(--surface-2)", border: "1px solid var(--border-3)",
+                borderRadius: 8, color: "var(--text-1)", fontSize: 13,
+                outline: "none", boxSizing: "border-box",
+              }}
+              onFocus={(e) => { e.target.style.borderColor = "var(--primary)"; }}
+              onBlur={(e) => { e.target.style.borderColor = "var(--border-3)"; }}
+            />
+          </div>
+        </div>
+
+        {/* Friend list */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+              {(friends || []).length === 0 ? "No friends to add" : "No results"}
+            </div>
+          ) : (
+            filtered.map((friend) => (
+              <button
+                key={friend.id}
+                disabled={loading}
+                onClick={() => handleAdd(friend)}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 12,
+                  padding: "9px 12px", borderRadius: 8, border: "none",
+                  background: "transparent", cursor: loading ? "not-allowed" : "pointer",
+                  transition: "background 0.12s", textAlign: "left",
+                }}
+                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = "var(--surface-2)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <div style={{
+                  width: 34, height: 34, borderRadius: "50%",
+                  background: "var(--primary-soft)", flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  overflow: "hidden",
+                }}>
+                  {friend.avatarUrl ? (
+                    <img src={friend.avatarUrl} alt={friend.username} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+                  ) : (
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>
+                      {friend.username?.charAt(0)?.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{friend.username}</span>
+                <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4,
+                  fontSize: 11, color: "var(--primary)", fontWeight: 600,
+                }}>
+                  <UserRoundPlus size={13} />
+                  Add
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+
+        {/* Feedback */}
+        {(error || success) && (
+          <div style={{
+            padding: "10px 16px", borderTop: "1px solid var(--border-2)",
+            fontSize: 12, fontWeight: 500,
+            color: error ? "var(--danger)" : "#23a55a",
+            background: error ? "var(--danger-soft)" : "rgba(35,165,90,0.1)",
+          }}>
+            {error || success}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.92, y: -4 }}
@@ -502,6 +682,21 @@ function GroupContextMenu({ group, onClose, onLeave, onRename }) {
       }}
       onClick={(e) => e.stopPropagation()}
     >
+      <button
+        onClick={() => { onAddMember(); onClose(); }}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 14px", background: "none", border: "none",
+          cursor: "pointer", fontSize: 13, color: "var(--text-1)",
+          transition: "background 0.1s",
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-3)"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+      >
+        <UserRoundPlus size={14} style={{ color: "var(--primary)" }} />
+        Add Member
+      </button>
+      <div style={{ height: 1, background: "var(--border-2)", margin: "2px 0" }} />
       <button
         onClick={() => { onRename(); onClose(); }}
         style={{
@@ -674,11 +869,12 @@ function RenameDialog({ group, onConfirm, onCancel }) {
   );
 }
 
-function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed }) {
+function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed }) {
   const safeGroups = Array.isArray(groups) ? groups : [];
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(null);   // group object
   const [confirmRename, setConfirmRename] = useState(null); // group object
+  const [addMemberGroup, setAddMemberGroup] = useState(null); // group object
   const [actionError, setActionError] = useState("");
   const menuRef = useRef(null);
 
@@ -818,6 +1014,7 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect, onG
                             onClose={() => setOpenMenuId(null)}
                             onLeave={() => setConfirmLeave(group)}
                             onRename={() => setConfirmRename(group)}
+                            onAddMember={() => setAddMemberGroup(group)}
                           />
                         )}
                       </AnimatePresence>
@@ -849,6 +1046,17 @@ function GroupList({ groups, activeGroup, expanded, onToggle, onGroupSelect, onG
             group={confirmRename}
             onConfirm={(newName) => handleRename(confirmRename, newName)}
             onCancel={() => setConfirmRename(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {addMemberGroup && (
+          <AddMemberDialog
+            group={addMemberGroup}
+            friends={friends}
+            onClose={() => setAddMemberGroup(null)}
+            onMemberAdded={() => {}}
           />
         )}
       </AnimatePresence>
