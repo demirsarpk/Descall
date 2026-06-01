@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Notification, desktopCapturer, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Notification, desktopCapturer, globalShortcut, Menu, MenuItem } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -55,6 +55,27 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // Right-click context menu — always available for debugging
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu();
+    menu.append(new MenuItem({
+      label: 'Toggle Developer Tools',
+      accelerator: 'F12',
+      click: () => {
+        mainWindow.webContents.toggleDevTools();
+      },
+    }));
+    menu.append(new MenuItem({ type: 'separator' }));
+    menu.append(new MenuItem({
+      label: 'Reload',
+      accelerator: 'F5',
+      click: () => {
+        mainWindow.webContents.reload();
+      },
+    }));
+    menu.popup();
   });
 }
 
