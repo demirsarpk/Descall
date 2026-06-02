@@ -18,7 +18,7 @@ const TYPE_COLOR = {
 };
 
 function PresenceCard({ friend, presence, onlineUsers }) {
-  const isOnline = onlineUsers?.has?.(friend.id) || onlineUsers?.includes?.(friend.id);
+  const isOnline = onlineUsers?.some?.(u => u.id === friend.id) || onlineUsers?.has?.(friend.id);
   const accentColor = presence ? (TYPE_COLOR[presence.appType] || '#5865f2') : null;
 
   return (
@@ -33,7 +33,7 @@ function PresenceCard({ friend, presence, onlineUsers }) {
     >
       <div className="activity-presence-avatar">
         <Avatar name={friend.username} imageUrl={friend.avatarUrl} size={36} />
-        <StatusBadge online={isOnline} size={10} />
+        <StatusBadge status={isOnline ? 'online' : 'offline'} />
       </div>
       <div className="activity-presence-info">
         <span className="activity-presence-name">{friend.username}</span>
@@ -56,7 +56,7 @@ export default function ActivitySidebar({ friends, friendPresence, onlineUsers }
     const idle   = [];
     for (const friend of (friends || [])) {
       const presence = friendPresence?.[friend.id];
-      const isOnline = onlineUsers?.has?.(friend.id) || onlineUsers?.includes?.(friend.id);
+      const isOnline = onlineUsers?.some?.(u => u.id === friend.id) || onlineUsers?.has?.(friend.id);
       if (!isOnline) continue;
       if (presence?.displayName) {
         active.push({ friend, presence });
