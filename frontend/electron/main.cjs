@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu, MenuItem, desktopCapturer, globalShortcut } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const path = require('path');
@@ -178,6 +178,32 @@ function createMainWindow() {
     }
   });
 
+  // Allow screen capture permissions
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowed = ['media', 'display-capture', 'screen', 'audioCapture', 'videoCapture'];
+    callback(allowed.includes(permission));
+  });
+
+  mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
+    const allowed = ['media', 'display-capture', 'screen', 'audioCapture', 'videoCapture'];
+    return allowed.includes(permission);
+  });
+
+  // Right-click context menu for DevTools
+  mainWindow.webContents.on('context-menu', () => {
+    const menu = new Menu();
+    menu.append(new MenuItem({
+      label: 'Toggle Developer Tools',
+      click: () => mainWindow?.webContents.toggleDevTools(),
+    }));
+    menu.append(new MenuItem({ type: 'separator' }));
+    menu.append(new MenuItem({
+      label: 'Reload',
+      click: () => mainWindow?.webContents.reload(),
+    }));
+    menu.popup();
+  });
+
   // Set CSP headers to allow Supabase and API connections
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -273,11 +299,14 @@ function createMainWindow() {
 // App events
 app.whenReady().then(() => {
   createSplashWindow();
-  
-  // Small delay for splash effect
+
   setTimeout(() => {
     createMainWindow();
   }, 1500);
+
+  // DevTools shortcuts
+  globalShortcut.register('F12', () => mainWindow?.webContents.toggleDevTools());
+  globalShortcut.register('CommandOrControl+Shift+I', () => mainWindow?.webContents.toggleDevTools());
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -365,6 +394,25 @@ ipcMain.handle('maximize-window', () => {
 
 ipcMain.handle('close-window', () => {
   if (mainWindow) mainWindow.close();
+});
+
+// Desktop capturer — screen share sources
+ipcMain.handle('get-screen-sources', async () => {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen', 'window'],
+      thumbnailSize: { width: 320, height: 240 },
+      fetchWindowIcons: true,
+    });
+    return sources.map(s => ({
+      id: s.id,
+      name: s.name,
+      thumbnailDataURL: s.thumbnail.toDataURL(),
+    }));
+  } catch (err) {
+    log.error('get-screen-sources error:', err);
+    return [];
+  }
 });
 
 // Security: Handle downloads

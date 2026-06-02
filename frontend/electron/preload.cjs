@@ -41,6 +41,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   requestNotificationPermission: () => ipcRenderer.invoke('notification:request-permission'),
   showNotification: (title, options) => ipcRenderer.send('notification:show', { title, options }),
   onNotificationClick: (callback) => ipcRenderer.on('notification:click', (_, data) => callback(data)),
+  onNotificationClicked: (callback) => ipcRenderer.on('notification:click', (_, data) => callback(data)),
+
+  // Desktop screen sharing
+  getScreenSources: () => ipcRenderer.invoke('get-screen-sources'),
 });
 
 // Log preload loaded

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Notification, desktopCapturer, globalShortcut, Menu, MenuItem } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, Notification, desktopCapturer, globalShortcut, Menu, MenuItem, session } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -15,9 +15,20 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: true,
+      webSecurity: false,
     },
     icon: path.join(__dirname, 'build', 'icon.png'),
+  });
+
+  // Allow screen capture and media permissions
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowed = ['media', 'display-capture', 'screen', 'audioCapture', 'videoCapture'];
+    callback(allowed.includes(permission));
+  });
+
+  mainWindow.webContents.session.setPermissionCheckHandler((webContents, permission) => {
+    const allowed = ['media', 'display-capture', 'screen', 'audioCapture', 'videoCapture'];
+    return allowed.includes(permission);
   });
 
   // Load the app

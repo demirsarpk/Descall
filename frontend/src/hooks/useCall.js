@@ -2,45 +2,109 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
 
-// Helper: show a modern inline screen-picker for Electron
+// Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
   return new Promise((resolve) => {
+    let resolved = false;
+    const done = (id) => {
+      if (resolved) return;
+      resolved = true;
+      if (document.body.contains(overlay)) document.body.removeChild(overlay);
+      resolve(id);
+    };
+
     const overlay = document.createElement('div');
-    overlay.className = 'electron-screen-picker-overlay';
-    overlay.innerHTML = `
-      <div class="electron-screen-picker-modal">
-        <div class="electron-screen-picker-header">
-          <h3>Share your screen</h3>
-          <button class="electron-screen-picker-close" aria-label="Close">×</button>
-        </div>
-        <div class="electron-screen-picker-grid"></div>
-      </div>
-    `;
-    const grid = overlay.querySelector('.electron-screen-picker-grid');
-    const closeBtn = overlay.querySelector('.electron-screen-picker-close');
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', zIndex: '2147483647',
+      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+    });
+
+    const modal = document.createElement('div');
+    Object.assign(modal.style, {
+      background: '#1a1a1f', border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: '16px', width: '720px', maxWidth: '90vw',
+      maxHeight: '82vh', display: 'flex', flexDirection: 'column',
+      overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+    });
+
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)',
+      flexShrink: '0',
+    });
+
+    const title = document.createElement('h3');
+    title.textContent = 'Share your screen';
+    Object.assign(title.style, { margin: '0', fontSize: '16px', fontWeight: '600', color: '#f0f0f5' });
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '×';
+    Object.assign(closeBtn.style, {
+      width: '32px', height: '32px', border: 'none', borderRadius: '8px',
+      background: 'transparent', color: '#8a8a93', fontSize: '24px',
+      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      lineHeight: '1',
+    });
+    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = 'rgba(255,255,255,0.08)'; closeBtn.style.color = '#f0f0f5'; });
+    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'transparent'; closeBtn.style.color = '#8a8a93'; });
+    closeBtn.addEventListener('click', () => done(null));
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    const grid = document.createElement('div');
+    Object.assign(grid.style, {
+      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+      gap: '12px', padding: '20px 24px 24px', overflowY: 'auto',
+    });
 
     sources.forEach((source) => {
       const item = document.createElement('div');
-      item.className = 'electron-screen-picker-item';
-      item.innerHTML = `
-        <img src="${source.thumbnailDataURL}" alt="${source.name}" draggable="false" />
-        <span>${source.name}</span>
-      `;
-      item.addEventListener('click', () => {
-        document.body.removeChild(overlay);
-        resolve(source.id);
+      Object.assign(item.style, {
+        display: 'flex', flexDirection: 'column', gap: '8px',
+        background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.07)',
+        borderRadius: '12px', padding: '10px', cursor: 'pointer',
+        transition: 'all 0.15s',
       });
+      item.addEventListener('mouseenter', () => {
+        item.style.background = 'rgba(88,101,242,0.15)';
+        item.style.borderColor = '#5865f2';
+      });
+      item.addEventListener('mouseleave', () => {
+        item.style.background = 'rgba(255,255,255,0.04)';
+        item.style.borderColor = 'rgba(255,255,255,0.07)';
+      });
+
+      const thumb = document.createElement('img');
+      thumb.src = source.thumbnailDataURL;
+      thumb.alt = source.name;
+      thumb.draggable = false;
+      Object.assign(thumb.style, {
+        width: '100%', aspectRatio: '16/9', objectFit: 'cover',
+        borderRadius: '8px', background: '#111',
+      });
+
+      const label = document.createElement('span');
+      label.textContent = source.name;
+      Object.assign(label.style, {
+        fontSize: '12px', fontWeight: '500', color: '#c0c0c8',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        textAlign: 'center',
+      });
+
+      item.appendChild(thumb);
+      item.appendChild(label);
+      item.addEventListener('click', () => done(source.id));
       grid.appendChild(item);
     });
 
-    const close = () => {
-      if (overlay.parentNode) document.body.removeChild(overlay);
-      resolve(null);
-    };
-    closeBtn.addEventListener('click', close);
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) close();
-    });
+    modal.appendChild(header);
+    modal.appendChild(grid);
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
     document.body.appendChild(overlay);
   });
 }
