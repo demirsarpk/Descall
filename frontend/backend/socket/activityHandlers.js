@@ -15,9 +15,12 @@ async function getFriendIds(userId) {
     .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
     .eq('status', 'accepted');
 
-  if (error || !data) return new Set();
+  if (error) {
+    console.error('[activity] getFriendIds error:', error.message);
+    return new Set();
+  }
   return new Set(
-    data.map(row => (row.user_id === userId ? row.friend_id : row.user_id))
+    (data || []).map(row => (row.user_id === userId ? row.friend_id : row.user_id))
   );
 }
 
@@ -104,43 +107,47 @@ function registerActivityHandlers(io, socket) {
   socket.on('activity:manual', async ({ displayName, expiresIn } = {}) => {
     if (!displayName || typeof displayName !== 'string') return;
 
+    console.log(`[activity:manual] ${me.username} -> "${displayName}" (expires: ${expiresIn ?? 'never'})`);
+
     const EXPIRY_MAP = { '1h': 3600, '4h': 14400 };
-    const expirySec = EXPIRY_MAP[expiresIn] ?? null;
-    const expiresAt = expirySec
-      ? new Date(Date.now() + expirySec * 1000).toISOString()
-      : null;
+    const expirySec  = EXPIRY_MAP[expiresIn] ?? null;
+    const expiresAt  = expirySec ? new Date(Date.now() + expirySec * 1000).toISOString() : null;
+    const startedAt  = new Date().toISOString();
+    const displayStr = String(displayName).slice(0, 120);
 
-    const payload = {
-      user_id:          myId,
-      app_name:         'manual',
-      app_type:         'manual',
-      display_name:     String(displayName).slice(0, 120),
-      started_at:       new Date().toISOString(),
-      updated_at:       new Date().toISOString(),
-      is_manual:        true,
-      manual_expires_at: expiresAt,
-    };
+    // Non-blocking DB persist — broadcast doesn't wait on this
+    supabase.from('user_presence').upsert({
+      user_id: myId, app_name: 'manual', app_type: 'manual',
+      display_name: displayStr, started_at: startedAt,
+      updated_at: startedAt, is_manual: true, manual_expires_at: expiresAt,
+    }, { onConflict: 'user_id' }).then(({ error }) => {
+      if (error) console.error('[activity:manual] upsert error:', error.message);
+    });
 
-    await supabase
-      .from('user_presence')
-      .upsert(payload, { onConflict: 'user_id' });
-
-    const { data: settings } = await supabase
+    // Privacy check — default to 'friends' if table not yet created
+    const { data: settings, error: settingsErr } = await supabase
       .from('user_activity_settings')
       .select('privacy')
       .eq('user_id', myId)
       .single();
 
+    const IGNORABLE = new Set(['PGRST116', '42P01']);  // row-not-found, table-not-found
+    if (settingsErr && !IGNORABLE.has(settingsErr.code)) {
+      console.error('[activity:manual] settings error:', settingsErr.message);
+    }
+
     const privacy = settings?.privacy ?? 'friends';
-    if (privacy === 'hidden' || privacy === 'only-me') return;
+    if (privacy === 'hidden' || privacy === 'only-me') {
+      console.log(`[activity:manual] ${me.username} privacy=${privacy}, skipping broadcast`);
+      return;
+    }
 
     const friendIds = await getFriendIds(myId);
+    console.log(`[activity:manual] broadcasting to ${friendIds.size} friend socket(s)`);
+
     broadcastPresenceToFriends(io, myId, me.username, {
-      appName:     'manual',
-      appType:     'manual',
-      displayName: payload.display_name,
-      startedAt:   payload.started_at,
-      isManual:    true,
+      appName: 'manual', appType: 'manual',
+      displayName: displayStr, startedAt, isManual: true,
     }, friendIds, privacy);
   });
 

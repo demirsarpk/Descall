@@ -276,13 +276,12 @@ export function useActivity({ socket, me, friends = [] }) {
   const setManual = useCallback((displayName, expiresIn) => {
     if (manualTimerRef.current) clearTimeout(manualTimerRef.current);
 
-    const override = { displayName, expiresIn, startedAt: new Date().toISOString() };
-    setManualOverride(override);
-    setCurrentActivity({ appName: 'manual', appType: 'manual', displayName, icon: '✏️' });
+    const startedAt = new Date().toISOString();
+    setManualOverride({ displayName, expiresIn, startedAt });
+    setCurrentActivity({ appName: 'manual', appType: 'manual', displayName, startedAt, icon: '✏️' });
 
-    if (socket?.connected) {
-      socket.emit('activity:manual', { displayName, expiresIn: expiresIn || null });
-    }
+    // Emit regardless — socket.emit queues internally if briefly disconnected
+    socket?.emit('activity:manual', { displayName, expiresIn: expiresIn ?? null });
 
     if (expiresIn) {
       const ms = expiresIn === '1h' ? 3_600_000 : 14_400_000;
