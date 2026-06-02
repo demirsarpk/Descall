@@ -30,18 +30,15 @@ if "%GH_TOKEN%"=="" (
     exit /b 1
 )
 
-:: ─── Read current version from package.json ─────────────────────────────────
-for /f "tokens=2 delims=:, " %%v in ('findstr /i "\"version\"" package.json') do (
-    set "RAW=%%v"
-    set "CURRENT_VER=!RAW:"=!"
-    goto :got_version
+:: ─── Read and compute versions via Node ─────────────────────────────────────
+node release-versions.cjs > "%TEMP%\descall_versions.txt" 2>nul
+if %ERRORLEVEL% neq 0 (
+    echo  %RED%[!] Failed to read version from package.json%RESET%
+    pause
+    exit /b 1
 )
-:got_version
-
-:: ─── Compute next versions ──────────────────────────────────────────────────
-for /f %%v in ('node -e "const [a,b,c]=require('./package.json').version.split('.').map(Number);console.log(`${a}.${b}.${c+1}`)"') do set "NEXT_PATCH=%%v"
-for /f %%v in ('node -e "const [a,b,c]=require('./package.json').version.split('.').map(Number);console.log(`${a}.${b+1}.0`)"') do set "NEXT_MINOR=%%v"
-for /f %%v in ('node -e "const [a,b,c]=require('./package.json').version.split('.').map(Number);console.log(`${a+1}.0.0`)"') do set "NEXT_MAJOR=%%v"
+for /f "tokens=1,2 delims==" %%a in (%TEMP%\descall_versions.txt) do set "%%a=%%b"
+del "%TEMP%\descall_versions.txt" >nul 2>&1
 
 :MENU
 cls
