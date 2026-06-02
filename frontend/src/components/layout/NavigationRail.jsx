@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import {
   MessageSquare, Users, Settings,
-  UserPlus, Phone, Shield, Plus
+  UserPlus, Phone, Shield, Plus, Zap
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 
@@ -16,10 +16,11 @@ export default function NavigationRail({
   isAdmin
 }) {
   const navItems = [
-    { id: "chat", icon: MessageSquare, label: "Chats" },
-    { id: "groups", icon: Users, label: "Groups" },
-    { id: "friends", icon: UserPlus, label: "Friends" },
-    { id: "calls", icon: Phone, label: "Calls" },
+    { id: "chat",     icon: MessageSquare, label: "Chats"    },
+    { id: "groups",   icon: Users,         label: "Groups"   },
+    { id: "friends",  icon: UserPlus,      label: "Friends"  },
+    { id: "activity", icon: Zap,           label: "Activity" },
+    { id: "calls",    icon: Phone,         label: "Calls"    },
   ];
 
   return (

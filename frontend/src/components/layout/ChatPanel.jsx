@@ -9,6 +9,7 @@ import StatusBadge from "../ui/StatusBadge";
 import MessageList from "../chat/MessageList";
 import MessageComposer from "../chat/MessageComposer";
 import ActiveCallBanner from "../ActiveCallBanner";
+import ActivityView from "../activity/ActivityView";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 
@@ -29,6 +30,8 @@ export default function ChatPanel({
   activeCallBanner,
   onJoinActiveCall,
   onDismissActiveBanner,
+  activity,
+  friends,
   children
 }) {
   const messagesRef = useRef(null);
@@ -52,7 +55,8 @@ export default function ChatPanel({
     if (activeView === "chat") return "Chats";
     if (activeView === "dms") return "Direct Messages";
     if (activeView === "groups") return "Groups";
-    if (activeView === "calls") return "Calls";
+    if (activeView === "calls")    return "Calls";
+    if (activeView === "activity") return "Activity";
     return "Descall";
   };
 
@@ -180,7 +184,22 @@ export default function ChatPanel({
             <button className="icon-btn" onClick={() => { setShowSearch(false); setSearchQuery(""); }}><X size={16} /></button>
           </motion.div>
         )}
-        {(activeDmUser || activeGroup) ? children : (
+        {activeView === "activity" ? (
+          <ActivityView
+            me={activity?.me}
+            currentActivity={activity?.currentActivity}
+            manualOverride={activity?.manualOverride}
+            history={activity?.history}
+            friendPresence={activity?.friendPresence}
+            friends={friends}
+            settings={activity?.settings}
+            isElectron={activity?.isElectron}
+            onSetManual={activity?.setManual}
+            onClearManual={activity?.clearManual}
+            onUpdatePrivacy={activity?.updatePrivacy}
+            onlineUsers={onlineUsers}
+          />
+        ) : (activeDmUser || activeGroup) ? children : (
           <div className="empty-state">
             <div className="empty-icon">
               {activeView === "dms" && <MessageSquare size={64} />}

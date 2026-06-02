@@ -8,6 +8,8 @@ import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
+import ActivitySidebar from "../activity/ActivitySidebar";
+import { useActivity } from "../../hooks/useActivity";
 import { Avatar } from "../ui/Avatar";
 
 /**
@@ -56,6 +58,8 @@ export default function AppLayout({
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTab, setAddTab] = useState("friend");
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
+
+  const activity = useActivity({ socket, me, friends });
 
   const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
   const showNotifBanner = !isElectron && !notifBannerDismissed && notifPermission === 'default';
@@ -154,7 +158,14 @@ export default function AppLayout({
         isAdmin={isAdmin}
       />
 
-      {/* Server/Channel Sidebar - Secondary sidebar */}
+      {/* Activity sidebar replaces ServerSidebar when activity view is active */}
+      {activeView === "activity" ? (
+        <ActivitySidebar
+          friends={friends}
+          friendPresence={activity.friendPresence}
+          onlineUsers={onlineUsers}
+        />
+      ) : (
       <ServerSidebar 
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -182,6 +193,7 @@ export default function AppLayout({
         onAcceptFriend={onAcceptFriend}
         onDeclineFriend={onDeclineFriend}
       />
+      )}
 
       {/* Main Chat Panel - Center content area */}
       <ChatPanel 
@@ -200,6 +212,8 @@ export default function AppLayout({
         activeCallBanner={activeCallBanner}
         onJoinActiveCall={onJoinActiveCall}
         onDismissActiveBanner={onDismissActiveBanner}
+        activity={{ ...activity, me }}
+        friends={friends}
       >
         {children}
       </ChatPanel>

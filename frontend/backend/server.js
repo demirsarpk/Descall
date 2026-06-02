@@ -20,6 +20,7 @@ const mediaRoutes = require("./routes/media");
 const groupRoutes = require("./routes/groups");
 const reactionRoutes = require("./routes/reactions");
 const friendsRoutes = require("./routes/friends");
+const activityRoutes = require("./routes/activity");
 
 // Inline feedback - no external file needed
 const { requireAuth } = require("./middleware/auth");
@@ -28,6 +29,7 @@ const supabase = require("./db/supabase");
 // Socket
 const { socketAuthMiddleware } = require("./middleware/socketAuth");
 const { registerSocketHandlers } = require("./socket/handlers");
+const { registerActivityHandlers } = require("./socket/activityHandlers");
 
 const PORT = process.env.PORT || 3000;
 
@@ -130,6 +132,7 @@ app.use("/api/media", mediaRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/reactions", reactionRoutes);
 app.use("/api/friends", friendsRoutes);
+app.use("/api/activity", activityRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)
@@ -748,6 +751,13 @@ app.use((err, _req, res, _next) => {
 io.use(socketAuthMiddleware);
 io.engine.on("connection_error", () => {});
 registerSocketHandlers(io);
+
+// Activity handlers run on every authenticated socket connection
+// (registerSocketHandlers already sets up the main io.on('connection') listener;
+//  we attach ours after, which is safe — multiple listeners are allowed)
+io.on('connection', (socket) => {
+  if (socket.user) registerActivityHandlers(io, socket);
+});
 
 // Start server
 console.log("=== Descall Backend v3.0 ===");

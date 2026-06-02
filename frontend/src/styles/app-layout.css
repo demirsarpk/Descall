@@ -2691,3 +2691,647 @@
   white-space: nowrap;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   ACTIVITY SYSTEM
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Activity Sidebar ─── */
+.activity-sidebar-section {
+  padding: 0 4px;
+}
+
+.activity-sidebar-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 4px 8px 6px;
+}
+
+.activity-presence-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+  cursor: default;
+  transition: background 0.12s;
+  margin-bottom: 2px;
+}
+
+.activity-presence-card:hover {
+  background: var(--surface-2);
+}
+
+.activity-presence-avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.activity-presence-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.activity-presence-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-presence-status {
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.activity-presence-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.activity-presence-idle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.activity-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 13px;
+}
+
+/* ─── Activity View (Main Panel) ─── */
+.activity-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--surface-0);
+}
+
+.activity-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid var(--border-2);
+  flex-shrink: 0;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.activity-header-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--primary-soft, rgba(88,101,242,0.15));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+}
+
+.activity-view-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-0);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.activity-view-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.activity-view-section {
+  padding: 20px 28px 0;
+  flex-shrink: 0;
+}
+
+/* ─── Current Activity Card ─── */
+.activity-current-card {
+  background: var(--surface-1);
+  border: 1.5px solid var(--border-2);
+  border-radius: 14px;
+  padding: 18px 20px;
+  transition: border-color 0.25s;
+}
+
+.activity-current-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.activity-current-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.activity-current-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-current-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.activity-current-display {
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.activity-current-since {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.activity-clear-manual-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.activity-clear-manual-btn:hover {
+  background: var(--danger, #ed4245);
+  color: white;
+}
+
+.activity-web-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(88,101,242,0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border: 1px solid rgba(88,101,242,0.15);
+}
+
+/* ─── Privacy selector ─── */
+.activity-privacy-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-3);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.activity-privacy-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-0);
+}
+
+.activity-privacy-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  z-index: 200;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.activity-privacy-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+
+.activity-privacy-option:hover {
+  background: var(--surface-3);
+  color: var(--text-0);
+}
+
+.activity-privacy-option.active {
+  color: var(--primary);
+  background: var(--primary-soft, rgba(88,101,242,0.1));
+}
+
+.activity-privacy-option-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 1px;
+}
+
+/* ─── Set status button ─── */
+.activity-set-status-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.12s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.activity-set-status-btn:hover {
+  opacity: 0.9;
+}
+
+.activity-set-status-btn:active {
+  transform: scale(0.97);
+}
+
+/* ─── Tabs ─── */
+.activity-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 16px 28px 0;
+  border-bottom: 1px solid var(--border-2);
+  flex-shrink: 0;
+}
+
+.activity-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.12s, border-color 0.12s;
+  margin-bottom: -1px;
+}
+
+.activity-tab-btn:hover {
+  color: var(--text-1);
+}
+
+.activity-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* ─── Tab content area ─── */
+.activity-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 28px 24px;
+}
+
+.activity-tab-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  gap: 8px;
+}
+
+.activity-tab-empty p {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin: 0;
+}
+
+.activity-tab-empty span {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ─── History list ─── */
+.activity-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.activity-history-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: background 0.1s;
+}
+
+.activity-history-row:hover {
+  background: var(--surface-2);
+}
+
+.activity-history-icon {
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.activity-history-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.activity-history-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-history-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.activity-history-duration {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ─── Friend feed ─── */
+.activity-friend-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.activity-friend-feed-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: background 0.1s;
+}
+
+.activity-friend-feed-row:hover {
+  background: var(--surface-2);
+}
+
+.activity-friend-feed-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.activity-friend-feed-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+
+.activity-friend-feed-status {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-friend-feed-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ─── Manual Status Modal ─── */
+.activity-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.activity-modal {
+  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  border-radius: 16px;
+  width: 420px;
+  max-width: 90vw;
+  padding: 0 0 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.activity-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-2);
+}
+
+.activity-modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-0);
+}
+
+.activity-modal-input {
+  display: block;
+  width: 100%;
+  margin: 16px 0 0;
+  padding: 10px 16px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border-3);
+  border-radius: 10px;
+  color: var(--text-0);
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  padding-left: 20px;
+  padding-right: 20px;
+  width: calc(100% - 40px);
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+.activity-modal-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft);
+}
+
+.activity-modal-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 20px 0;
+}
+
+.activity-suggestion-chip {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border-3);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.activity-suggestion-chip:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.activity-modal-expiry {
+  padding: 14px 20px 0;
+}
+
+.activity-modal-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.activity-expiry-options {
+  display: flex;
+  gap: 6px;
+}
+
+.activity-expiry-btn {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-3);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.activity-expiry-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.activity-expiry-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-soft, rgba(88,101,242,0.1));
+  color: var(--primary);
+}
+
+.activity-modal-submit {
+  display: block;
+  width: calc(100% - 40px);
+  margin: 16px 20px 0;
+  padding: 11px 0;
+  border-radius: 10px;
+  border: none;
+  background: var(--primary);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+
+.activity-modal-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.activity-modal-submit:not(:disabled):hover {
+  opacity: 0.9;
+}
+

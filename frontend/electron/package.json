@@ -40,6 +40,7 @@
       "preload.cjs",
       "notificationWindow.cjs",
       "notifPreload.cjs",
+      "processScanner.cjs",
       "node_modules/**/*"
     ],
     "asar": true,

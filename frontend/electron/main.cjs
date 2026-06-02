@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu, MenuItem, desktopCapturer, globalShortcut, Tray, Notification } = require('electron');
 const { showNotificationWindow } = require('./notificationWindow.cjs');
+const { registerProcessScannerIPC } = require('./processScanner.cjs');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const path = require('path');
@@ -363,6 +364,8 @@ app.whenReady().then(() => {
     createMainWindow();
     createTray();
   }, 1500);
+
+  registerProcessScannerIPC();
 
   globalShortcut.register('F12', () => mainWindow?.webContents.toggleDevTools());
   globalShortcut.register('CommandOrControl+Shift+I', () => mainWindow?.webContents.toggleDevTools());

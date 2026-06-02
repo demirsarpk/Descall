@@ -49,6 +49,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Window focus helpers (used by notificationService)
   isWindowFocused: () => ipcRenderer.invoke('is-window-focused'),
   focusWindow: () => ipcRenderer.invoke('focus-window'),
+
+  // Activity / process scanning
+  scanProcesses: () => ipcRenderer.invoke('scan-processes'),
 });
 
 // Log preload loaded
