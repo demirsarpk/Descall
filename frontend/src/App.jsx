@@ -73,6 +73,7 @@ export default function App() {
 
   const socketRef = useRef(null);
   const activeDmRef = useRef(null);
+  const activeGroupRef = useRef(null);
   const myIdRef = useRef(null);
   const myGroupsRef = useRef([]);
   const transportFallbackStepRef = useRef(0);
@@ -87,6 +88,10 @@ export default function App() {
   useEffect(() => {
     activeDmRef.current = activeDmUser;
   }, [activeDmUser]);
+
+  useEffect(() => {
+    activeGroupRef.current = activeGroup;
+  }, [activeGroup]);
 
   useEffect(() => {
     myGroupsRef.current = myGroups;
@@ -623,13 +628,53 @@ export default function App() {
   }, []);
 
   const handleRefresh = useCallback(() => {
-    fetchGroups();
     const s = socketRef.current;
-    if (s?.connected) {
-      s.disconnect();
-      setTimeout(() => s.connect(), 150);
+    if (!s?.connected) return;
+
+    // 1. Groups
+    fetchGroups();
+
+    // 2. Friends & global state
+    s.emit("friend:list");
+    s.emit("sync:state");
+
+    // 3. Active DM
+    const dmPeer = activeDmRef.current;
+    if (dmPeer) {
+      s.emit("dm:history", { withUserId: dmPeer.id });
+      s.emit("dm:unread:sync");
+    }
+
+    // 4. Active group messages
+    const grp = activeGroupRef.current;
+    if (grp?.id) {
+      s.emit("group:join", grp.id);
+      getGroupMessages(grp.id)
+        .then((res) => {
+          const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
+          const normalized = msgs.map((m) => ({
+            id: m.id,
+            from: { id: m.sender?.id || m.sender_id, username: m.sender?.username || "Unknown", avatarUrl: m.sender?.avatar_url },
+            text: m.content || "",
+            timestamp: m.created_at || new Date().toISOString(),
+            mediaUrl: m.media_url,
+            mediaType: m.media_type,
+            originalName: m.original_name,
+            size: m.file_size,
+          }));
+          setGroupMessagesById((prev) => ({ ...prev, [grp.id]: normalized }));
+        })
+        .catch(console.error);
     }
   }, [fetchGroups]);
+
+  // Periodic background refresh every 30s when tab is visible
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") handleRefresh();
+    }, 30000);
+    return () => clearInterval(id);
+  }, [handleRefresh]);
 
   // Fetch group messages when activeGroup changes
   useEffect(() => {
