@@ -214,11 +214,29 @@ function bumpVersion(current, type) {
     console.log(`[release] ✅  ${label} uploaded.`);
   }
 
-  // 6. Commit bumped package.json and push
+  // 6. Update DownloadPage.jsx fallback download URL
+  const downloadPagePath = path.join(__dirname, "..", "src", "components", "download", "DownloadPage.jsx");
+  const newFallbackUrl = `https://github.com/${OWNER}/${REPO}/releases/download/v${newVer}/Descall-Setup-${newVer}.exe`;
+  try {
+    const pageContent = fs.readFileSync(downloadPagePath, "utf8");
+    const updated = pageContent.replace(
+      /FALLBACK_DOWNLOAD_URL\s*=\s*"[^"]+"/,
+      `FALLBACK_DOWNLOAD_URL = "${newFallbackUrl}"`
+    );
+    if (updated !== pageContent) {
+      fs.writeFileSync(downloadPagePath, updated, "utf8");
+      console.log(`[release] 📝  DownloadPage.jsx fallback URL updated to v${newVer}`);
+    }
+  } catch (err) {
+    console.warn("[release] ⚠️   Could not update DownloadPage.jsx:", err.message);
+  }
+
+  // 7. Commit bumped package.json + DownloadPage and push
   if (!noBump) {
     console.log("[release] 📤  Committing version bump and pushing…");
     try {
       execSync(`git add "${PKG_PATH}"`, { cwd: path.join(__dirname, ".."), stdio: "inherit" });
+      execSync(`git add "${downloadPagePath}"`, { cwd: path.join(__dirname, ".."), stdio: "inherit" });
       execSync(`git commit -m "chore: bump electron version to ${newVer}"`, { cwd: path.join(__dirname, ".."), stdio: "inherit" });
       execSync("git push", { cwd: path.join(__dirname, ".."), stdio: "inherit" });
     } catch (err) {
