@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, Video, MoreVertical, Users,
@@ -45,6 +45,14 @@ export default function ChatPanel({
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(false);
+
+  const typingNames = useMemo(() => {
+    if (!activeDmUser && !activeGroup) return [];
+    if (activeDmUser) return typingDmUser ? [typingDmUser.username] : [];
+    const groupMap = typingGroupUsers?.[activeGroup.id];
+    if (!groupMap) return [];
+    return [...groupMap.values()].map((u) => u.username);
+  }, [activeDmUser, activeGroup, typingDmUser, typingGroupUsers]);
 
   const scrollToBottom = () => {
     if (messagesRef.current) {
@@ -223,17 +231,20 @@ export default function ChatPanel({
       )}
 
       {/* Typing Indicator */}
-      {(activeDmUser || activeGroup) && (() => {
-        const dmNames = typingDmUser && activeDmUser ? [typingDmUser.username] : [];
-        const groupMap = activeGroup ? (typingGroupUsers?.[activeGroup.id] ?? new Map()) : new Map();
-        const groupNames = [...groupMap.values()].map(u => u.username);
-        const names = activeDmUser ? dmNames : groupNames;
-        return names.length > 0 ? (
-          <div style={{ padding: '0 16px 4px' }}>
-            <TypingIndicator names={names} />
-          </div>
-        ) : null;
-      })()}
+      <AnimatePresence>
+        {typingNames.length > 0 && (
+          <motion.div
+            key="typing-bar"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.18 }}
+            style={{ padding: '0 16px 4px', overflow: 'hidden' }}
+          >
+            <TypingIndicator names={typingNames} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Composer */}
       {(activeDmUser || activeGroup) && (

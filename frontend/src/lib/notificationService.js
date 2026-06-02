@@ -8,6 +8,10 @@ class NotificationService {
     this.initialized = false;
     this.lastNotificationTime = 0;
     this.pendingNotifications = [];
+    // tag → timeout id — prevents duplicate notifications for the same event
+    this._activeByTag = new Map();
+    // tags currently executing the async show() path
+    this._pendingByTag = new Set();
   }
 
   async init() {
@@ -70,20 +74,42 @@ class NotificationService {
     }
     if (!this.hasPermission) return;
 
+    // Drop concurrent async calls for the same tag (e.g. two rapid socket events)
+    if (this._pendingByTag.has(tag)) return;
+    this._pendingByTag.add(tag);
+
+    // Tag-based dedup: close any existing shown notification with the same tag
+    if (this._activeByTag.has(tag)) {
+      clearTimeout(this._activeByTag.get(tag));
+      this._activeByTag.delete(tag);
+    }
+
     // Rate limit — skip non-call notifications during cooldown
     const now = Date.now();
-    if (!requireInteraction && now - this.lastNotificationTime < COOLDOWN_MS) return;
+    if (!requireInteraction && now - this.lastNotificationTime < COOLDOWN_MS) {
+      this._pendingByTag.delete(tag);
+      return;
+    }
     this.lastNotificationTime = now;
 
     // Skip if window is focused (user can already see the message)
     const windowActive = await this._isWindowActive();
-    if (windowActive && !requireInteraction) return;
+    if (windowActive && !requireInteraction) {
+      this._pendingByTag.delete(tag);
+      return;
+    }
 
     if (this.isElectron) {
       window.electronAPI.showNotification(title, { body, tag, data });
     } else {
       this._showWebNotification({ title, body, tag, requireInteraction, silent, data });
     }
+
+    // Track this tag as active; clear after its visible duration
+    const ttl = requireInteraction ? 30_000 : 6_000;
+    const timer = setTimeout(() => this._activeByTag.delete(tag), ttl);
+    this._activeByTag.set(tag, timer);
+    this._pendingByTag.delete(tag);
   }
 
   _showWebNotification({ title, body, tag, requireInteraction, silent, data }) {
