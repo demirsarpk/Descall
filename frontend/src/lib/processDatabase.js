@@ -503,7 +503,6 @@ export const PROCESS_DB = {
   'kotatsu.exe':                       { name: 'Kotatsu',             type: 'media', category: 'reading',        icon: '📖' },
 
   // ─── SYSTEM / UTILITY (show-worthy) ─────────────────────────────────────────
-  'taskmgr.exe':                       { name: 'Task Manager',        type: 'app', category: 'system',    icon: '⚙️' },
   'msiafterburner.exe':                { name: 'MSI Afterburner',     type: 'app', category: 'system',    icon: '🔥' },
   'hwinfo64.exe':                      { name: 'HWiNFO64',            type: 'app', category: 'system',    icon: '📊' },
   'cpu-z.exe':                         { name: 'CPU-Z',               type: 'app', category: 'system',    icon: '🔬' },
@@ -543,13 +542,13 @@ export const PROCESS_BLOCKLIST = new Set([
   'securityhealthservice.exe', 'securityhealthsystray.exe', 'msmpeng.exe',
   'nissrv.exe', 'antimalware service executable', 'wmirvse.exe', 'wmiprvse.exe',
   'igfxcuiservice.exe', 'igfxem.exe', 'igfxhk.exe', 'amdow.exe',
-  'nvdisplay.container.exe', 'nvcontainer.exe', 'nvcplui.exe',
+  'nvdisplay.container.exe', 'nvcplui.exe',
   'amdrsserv.exe', 'cncmd.exe', 'radeoninstaller.exe',
   'textinputhost.exe', 'sppsvc.exe', 'sppextcomobj.exe',
   'usocoreworker.exe', 'musnotification.exe', 'startmenuexperiencehost.exe',
   'shellexperiencehost.exe', 'applicationframehost.exe', 'systemsettings.exe',
   'lockapp.exe', 'logonui.exe', 'crashdump64.exe', 'werfault.exe',
-  'wermgr.exe', 'sppextcomobj.exe', 'ngen.exe', 'ngentask.exe',
+  'wermgr.exe', 'ngen.exe', 'ngentask.exe',
   'microsoftedgeupdate.exe', 'googleupdate.exe', 'acrocrdsvc.exe',
   'acrord32.exe', 'adobearm.exe', 'ccxprocess.exe', 'armsvc.exe',
   'adobecollabsync.exe', 'crashreporter.exe', 'updater.exe',

@@ -74,8 +74,8 @@ export default function ChatPanel({
   return (
     <>
       <main className="main-panel">
-        {/* Header */}
-        <header className="panel-header">
+        {/* Header — hidden on activity view since ActivityView has its own header */}
+        <header className="panel-header" style={activeView === "activity" ? { display: 'none' } : {}}>
         <div className="header-left">
           {activeDmUser && (
             <div className="header-avatar">
@@ -170,7 +170,23 @@ export default function ChatPanel({
         )}
       </AnimatePresence>
 
-      {/* Messages Area */}
+      {/* Activity view fills the full panel — rendered outside messages-container to avoid double-scroll */}
+      {activeView === "activity" ? (
+        <ActivityView
+          me={activity?.me}
+          currentActivity={activity?.currentActivity}
+          manualOverride={activity?.manualOverride}
+          history={activity?.history}
+          friendPresence={activity?.friendPresence}
+          friends={friends}
+          settings={activity?.settings}
+          isElectron={activity?.isElectron}
+          onSetManual={activity?.setManual}
+          onClearManual={activity?.clearManual}
+          onUpdatePrivacy={activity?.updatePrivacy}
+          onlineUsers={onlineUsers}
+        />
+      ) : (
       <div className="messages-container" ref={messagesRef}>
         {showSearch && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="chat-search-bar">
@@ -184,22 +200,7 @@ export default function ChatPanel({
             <button className="icon-btn" onClick={() => { setShowSearch(false); setSearchQuery(""); }}><X size={16} /></button>
           </motion.div>
         )}
-        {activeView === "activity" ? (
-          <ActivityView
-            me={activity?.me}
-            currentActivity={activity?.currentActivity}
-            manualOverride={activity?.manualOverride}
-            history={activity?.history}
-            friendPresence={activity?.friendPresence}
-            friends={friends}
-            settings={activity?.settings}
-            isElectron={activity?.isElectron}
-            onSetManual={activity?.setManual}
-            onClearManual={activity?.clearManual}
-            onUpdatePrivacy={activity?.updatePrivacy}
-            onlineUsers={onlineUsers}
-          />
-        ) : (activeDmUser || activeGroup) ? children : (
+        {(activeDmUser || activeGroup) ? children : (
           <div className="empty-state">
             <div className="empty-icon">
               {activeView === "dms" && <MessageSquare size={64} />}
@@ -212,6 +213,7 @@ export default function ChatPanel({
           </div>
         )}
       </div>
+      )}
 
       {/* Composer */}
       {(activeDmUser || activeGroup) && (

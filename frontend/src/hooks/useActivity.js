@@ -67,6 +67,8 @@ export function useActivity({ socket, me, friends = [] }) {
   const focusAccumRef     = useRef(0);      // accumulated focused seconds this session
   const manualTimerRef    = useRef(null);
   const scanIntervalRef   = useRef(null);
+  const scanAndEmitRef    = useRef(null);   // stable ref so clearManual never captures stale closure
+  const clearManualRef    = useRef(null);   // stable ref so setManual timeout always calls current clearManual
 
   // ─── Load initial data ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -120,9 +122,13 @@ export function useActivity({ socket, me, friends = [] }) {
 
     // Filter per user settings
     if (detected) {
-      if (detected.appType === 'browser' && !settings.show_browser) return;
-      if (detected.appType === 'game'    && !settings.show_game_activity) return;
-      if (!['game', 'music'].includes(detected.appType) && !settings.show_app_activity) return;
+      if (detected.appType === 'browser' && !settings.show_browser) {
+        // treat as no detection — don't return early, fall through to emit clear
+        return;
+      }
+      if (detected.appType === 'game' && !settings.show_game_activity) return;
+      if (detected.appType === 'music' && !settings.show_app_activity) return;
+      if (!['game', 'music', 'browser'].includes(detected.appType) && !settings.show_app_activity) return;
     }
 
     const newName = detected?.appName ?? null;
@@ -150,19 +156,23 @@ export function useActivity({ socket, me, friends = [] }) {
     }
   }, [socket, manualOverride, settings]);
 
+  // Keep a stable ref so clearManual and onFocus always call the latest version
+  useEffect(() => { scanAndEmitRef.current = scanAndEmit; }, [scanAndEmit]);
+
   useEffect(() => {
     if (!isElectron) return;
-    scanAndEmit();
-    scanIntervalRef.current = setInterval(scanAndEmit, SCAN_INTERVAL_MS);
+    scanAndEmitRef.current();
+    scanIntervalRef.current = setInterval(() => scanAndEmitRef.current(), SCAN_INTERVAL_MS);
 
-    const onFocus = () => scanAndEmit();
+    const onFocus = () => scanAndEmitRef.current();
     window.addEventListener('focus', onFocus);
 
     return () => {
       clearInterval(scanIntervalRef.current);
       window.removeEventListener('focus', onFocus);
     };
-  }, [scanAndEmit]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);  // intentionally empty — scanAndEmitRef.current is always current
 
   // ─── Log a completed session to backend ────────────────────────────────────
   const logSession = useCallback(async (appName, startedAt) => {
@@ -215,19 +225,20 @@ export function useActivity({ socket, me, friends = [] }) {
       const token = getToken();
       if (!token) return;
 
-      // Use sendBeacon for reliability on page unload
-      const payload = JSON.stringify({
-        app_name: DESCALL_APP_NAME, app_type: 'app',
-        display_name: `Using ${DESCALL_APP_NAME}`,
-        started_at: sessionStart,
-        ended_at: new Date().toISOString(),
-        duration_sec: secs, is_manual: false,
-      });
-      const blob = new Blob([payload], { type: 'application/json' });
-      navigator.sendBeacon(
-        `${API_BASE_URL}/api/activity/session`,
-        blob
-      );
+      // fetch with keepalive is reliable on unload AND supports Authorization headers
+      // (sendBeacon cannot send auth headers — intentionally avoided)
+      fetch(`${API_BASE_URL}/api/activity/session`, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          app_name: DESCALL_APP_NAME, app_type: 'app',
+          display_name: `Using ${DESCALL_APP_NAME}`,
+          started_at: sessionStart,
+          ended_at: new Date().toISOString(),
+          duration_sec: secs, is_manual: false,
+        }),
+      }).catch(() => {});
     };
 
     window.addEventListener('beforeunload', flush);
@@ -275,7 +286,7 @@ export function useActivity({ socket, me, friends = [] }) {
 
     if (expiresIn) {
       const ms = expiresIn === '1h' ? 3_600_000 : 14_400_000;
-      manualTimerRef.current = setTimeout(clearManual, ms);
+      manualTimerRef.current = setTimeout(() => clearManualRef.current?.(), ms);
     }
   }, [socket]);
 
@@ -283,8 +294,10 @@ export function useActivity({ socket, me, friends = [] }) {
     if (manualTimerRef.current) clearTimeout(manualTimerRef.current);
     setManualOverride(null);
     lastEmittedRef.current = null;  // force re-scan on next tick
-    scanAndEmit();
-  }, [scanAndEmit]);
+    scanAndEmitRef.current?.();
+  }, []);  // no deps — scanAndEmitRef.current is always current
+
+  useEffect(() => { clearManualRef.current = clearManual; }, [clearManual]);
 
   // ─── Privacy update ─────────────────────────────────────────────────────────
   const updatePrivacy = useCallback(async (privacy) => {
