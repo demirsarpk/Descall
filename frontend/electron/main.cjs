@@ -432,14 +432,24 @@ autoUpdater.on('update-downloaded', (info) => {
 });
 
 // ─── Notification IPC ────────────────────────────────────────────────────────
+// tag → BrowserWindow — prevents duplicate notifications for the same event
+const activeNotifByTag = new Map();
+
 ipcMain.on('notification:show', (event, { title, options = {} } = {}) => {
   const { body, tag = 'descall', data = {} } = options;
 
-  const isCall      = data.type === 'call' || data.type === 'group-call';
-  const notifType   = isCall ? 'call' : (tag.startsWith('mention') ? 'mention' : 'default');
-  const duration    = isCall ? 0 : 5000;   // calls persist until dismissed
+  // Deduplicate: close any existing window with the same tag
+  if (activeNotifByTag.has(tag)) {
+    const existing = activeNotifByTag.get(tag);
+    try { if (!existing.isDestroyed()) existing.close(); } catch (_) {}
+    activeNotifByTag.delete(tag);
+  }
 
-  showNotificationWindow({
+  const isCall    = data.type === 'call' || data.type === 'group-call';
+  const notifType = isCall ? 'call' : (tag.startsWith('mention') ? 'mention' : 'default');
+  const duration  = isCall ? 0 : 5000;
+
+  const win = showNotificationWindow({
     title,
     body,
     type:     notifType,
@@ -458,6 +468,13 @@ ipcMain.on('notification:show', (event, { title, options = {} } = {}) => {
       mainWindow?.webContents.send('notification:call-decline', data);
     } : undefined,
   });
+
+  if (win) {
+    activeNotifByTag.set(tag, win);
+    win.once('closed', () => {
+      if (activeNotifByTag.get(tag) === win) activeNotifByTag.delete(tag);
+    });
+  }
 });
 
 // IPC handlers
