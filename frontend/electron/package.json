@@ -111,6 +111,14 @@
         "height": 380
       }
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "demirrsarppkurtlarr",
+        "repo": "descall",
+        "releaseType": "release"
+      }
+    ],
     "linux": {
       "target": [
         {

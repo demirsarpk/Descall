@@ -10,9 +10,11 @@ const fs = require('fs');
 log.transports.file.level = 'info';
 log.info('App starting...');
 
-// Auto-updater logging
+// Auto-updater — fully silent, no user prompts
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
+autoUpdater.autoDownload    = true;   // start download immediately
+autoUpdater.autoInstallOnAppQuit = false; // we install right away, not on quit
 
 // Paths
 const isDev = process.env.NODE_ENV === 'development';
@@ -288,9 +290,12 @@ function createMainWindow() {
     mainWindow.show();
     mainWindow.focus();
 
-    // Check for updates after window shows
+    // Silently check for updates on startup and every 30 minutes
     if (isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify();
+      autoUpdater.checkForUpdates().catch((err) => log.error('[updater] Initial check failed:', err?.message));
+      setInterval(() => {
+        autoUpdater.checkForUpdates().catch((err) => log.error('[updater] Periodic check failed:', err?.message));
+      }, 30 * 60 * 1000);
     }
   });
 
@@ -388,47 +393,37 @@ app.on('before-quit', () => {
 
 // Auto-updater events
 autoUpdater.on('checking-for-update', () => {
-  log.info('Checking for update...');
+  log.info('[updater] Checking for update...');
 });
 
 autoUpdater.on('update-available', (info) => {
-  log.info('Update available:', info);
-  dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    title: 'Güncelleme Mevcut',
-    message: 'Yeni bir sürüm mevcut. İndirip kurulacak.',
-    buttons: ['Tamam']
-  });
+  log.info('[updater] Update available, downloading silently:', info.version);
+  // autoDownload=true means electron-updater already started the download.
+  // Notify the renderer so it can show a subtle in-app banner if desired.
+  mainWindow?.webContents.send('update:downloading', { version: info.version });
 });
 
 autoUpdater.on('update-not-available', (info) => {
-  log.info('Update not available:', info);
+  log.info('[updater] Already up-to-date:', info.version);
 });
 
 autoUpdater.on('error', (err) => {
-  log.error('Auto-updater error:', err);
+  log.error('[updater] Error:', err?.message ?? err);
 });
 
-autoUpdater.on('download-progress', (progressObj) => {
-  let logMessage = `Download speed: ${progressObj.bytesPerSecond}`;
-  logMessage += ` - Downloaded ${progressObj.percent}%`;
-  logMessage += ` (${progressObj.transferred}/${progressObj.total})`;
-  log.info(logMessage);
+autoUpdater.on('download-progress', ({ percent, bytesPerSecond, transferred, total }) => {
+  log.info(`[updater] Downloading: ${percent.toFixed(1)}% (${bytesPerSecond} B/s)`);
+  mainWindow?.webContents.send('update:progress', { percent, bytesPerSecond, transferred, total });
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-  log.info('Update downloaded:', info);
-  dialog.showMessageBox(mainWindow, {
-    type: 'info',
-    title: 'Güncelleme Hazır',
-    message: 'Yeni sürüm indirildi. Yeniden başlatmak ister misiniz?',
-    buttons: ['Şimdi Yeniden Başlat', 'Daha Sonra'],
-    defaultId: 0
-  }).then((returnValue) => {
-    if (returnValue.response === 0) {
-      autoUpdater.quitAndInstall();
-    }
-  });
+  log.info('[updater] Downloaded, installing now:', info.version);
+  // Give the renderer 2 s to show a "Restarting…" message, then force-install.
+  mainWindow?.webContents.send('update:installing', { version: info.version });
+  setTimeout(() => {
+    isQuitting = true;
+    autoUpdater.quitAndInstall(true, true); // isSilent=true, isForceRunAfter=true
+  }, 2000);
 });
 
 // ─── Notification IPC ────────────────────────────────────────────────────────

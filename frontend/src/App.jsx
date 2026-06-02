@@ -65,6 +65,9 @@ export default function App() {
   const [peerScreenSharing, setPeerScreenSharing] = useState(false);
   const [myGroups, setMyGroups] = useState([]);
   const [groupMessagesById, setGroupMessagesById] = useState({});
+  // Electron silent auto-update state: null | 'downloading' | 'installing'
+  const [updateState, setUpdateState] = useState(null);
+  const [updateVersion, setUpdateVersion] = useState(null);
 
   const socketRef = useRef(null);
   const activeDmRef = useRef(null);
@@ -147,6 +150,20 @@ export default function App() {
     notificationService.init().catch(() => {});
     setNotifPermission(notificationService.getPermissionState());
     return () => { audioManager.destroy(); };
+  }, []);
+
+  // Electron silent auto-update banner
+  useEffect(() => {
+    if (!window.electronAPI?.onUpdateDownloading) return;
+    const unsubDownloading = window.electronAPI.onUpdateDownloading(({ version }) => {
+      setUpdateVersion(version);
+      setUpdateState('downloading');
+    });
+    const unsubInstalling = window.electronAPI.onUpdateInstalling(({ version }) => {
+      setUpdateVersion(version);
+      setUpdateState('installing');
+    });
+    return () => { unsubDownloading?.(); unsubInstalling?.(); };
   }, []);
 
   const handleRequestNotifPermission = async () => {
@@ -753,6 +770,20 @@ export default function App() {
 
   return (
     <div className="app-container">
+        {updateState && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
+            background: updateState === 'installing' ? '#23a55a' : '#5865f2',
+            color: '#fff', fontSize: '13px', fontWeight: 600,
+            textAlign: 'center', padding: '6px 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          }}>
+            {updateState === 'installing'
+              ? `⚡ Descall ${updateVersion} yükleniyor, yeniden başlatılıyor…`
+              : `⬇️ Descall ${updateVersion} güncelleniyor, arka planda indiriliyor…`}
+          </div>
+        )}
         {(me?.is_admin || me?.username === "admin") && adminOpen && (
           <AdminPanel socket={socketApi} onClose={() => setAdminOpen(false)} onAdminChanged={() => setAdminChanged(true)} />
         )}

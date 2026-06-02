@@ -27,9 +27,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateAvailable: (callback) => {
     ipcRenderer.on('update-available', callback);
   },
-  
+
   onUpdateDownloaded: (callback) => {
     ipcRenderer.on('update-downloaded', callback);
+  },
+
+  // Silent auto-update progress events
+  onUpdateDownloading: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('update:downloading', handler);
+    return () => ipcRenderer.off('update:downloading', handler);
+  },
+  onUpdateProgress: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('update:progress', handler);
+    return () => ipcRenderer.off('update:progress', handler);
+  },
+  onUpdateInstalling: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('update:installing', handler);
+    return () => ipcRenderer.off('update:installing', handler);
   },
   
   // Remove listeners
