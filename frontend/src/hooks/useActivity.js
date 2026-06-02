@@ -5,7 +5,8 @@ import { API_BASE_URL } from '../config/api';
 
 const SCAN_INTERVAL_MS    = 10_000;
 const DESCALL_APP_NAME    = 'Descall';
-const SETTINGS_STORAGE_KEY = 'descall_activity_settings';
+const SETTINGS_STORAGE_KEY  = 'descall_activity_settings';
+const MANUAL_STORAGE_KEY    = 'descall_manual_status';
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
 
 const DEFAULT_SETTINGS = {
@@ -28,6 +29,34 @@ function loadStoredSettings() {
 
 function persistSettings(s) {
   try { localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s)); } catch {}
+}
+
+function loadStoredManual() {
+  try {
+    const raw = localStorage.getItem(MANUAL_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.displayName) return null;
+    // If it had an expiry, check whether it's already passed
+    if (parsed.expiresIn && parsed.startedAt) {
+      const msMap = { '1h': 3_600_000, '4h': 14_400_000 };
+      const ttl = msMap[parsed.expiresIn];
+      if (ttl && Date.now() - new Date(parsed.startedAt).getTime() >= ttl) {
+        localStorage.removeItem(MANUAL_STORAGE_KEY);
+        return null;
+      }
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function persistManual(override) {
+  try {
+    if (override) localStorage.setItem(MANUAL_STORAGE_KEY, JSON.stringify(override));
+    else localStorage.removeItem(MANUAL_STORAGE_KEY);
+  } catch {}
 }
 
 /** Resolve the highest-priority detected app from running process names. */
@@ -72,11 +101,16 @@ function buildDisplayName({ type, name }) {
 }
 
 export function useActivity({ socket, me, friends = [] }) {
-  const [currentActivity, setCurrentActivity] = useState(null);   // own detected/manual
-  const [friendPresence, setFriendPresence]   = useState({});      // { [userId]: presenceObj }
+  const [manualOverride, setManualOverride]   = useState(loadStoredManual);
+  const [currentActivity, setCurrentActivity] = useState(() => {
+    const m = loadStoredManual();
+    return m
+      ? { appName: 'manual', appType: 'manual', displayName: m.displayName, startedAt: m.startedAt, icon: '✏️' }
+      : null;
+  });
+  const [friendPresence, setFriendPresence]   = useState({});
   const [history, setHistory]                 = useState([]);
   const [settings, setSettings]               = useState(loadStoredSettings);
-  const [manualOverride, setManualOverride]   = useState(null);
 
   const lastEmittedRef    = useRef(null);   // last app name emitted — prevent redundant emits
   const sessionStartRef   = useRef(null);   // start time of current activity session
@@ -298,10 +332,11 @@ export function useActivity({ socket, me, friends = [] }) {
     if (manualTimerRef.current) clearTimeout(manualTimerRef.current);
 
     const startedAt = new Date().toISOString();
-    setManualOverride({ displayName, expiresIn, startedAt });
+    const override  = { displayName, expiresIn, startedAt };
+    setManualOverride(override);
     setCurrentActivity({ appName: 'manual', appType: 'manual', displayName, startedAt, icon: '✏️' });
+    persistManual(override);
 
-    // Emit regardless — socket.emit queues internally if briefly disconnected
     socket?.emit('activity:manual', { displayName, expiresIn: expiresIn ?? null });
 
     if (expiresIn) {
@@ -313,9 +348,11 @@ export function useActivity({ socket, me, friends = [] }) {
   const clearManual = useCallback(() => {
     if (manualTimerRef.current) clearTimeout(manualTimerRef.current);
     setManualOverride(null);
-    lastEmittedRef.current = null;  // force re-scan on next tick
+    setCurrentActivity(null);
+    persistManual(null);
+    lastEmittedRef.current = null;
     scanAndEmitRef.current?.();
-  }, []);  // no deps — scanAndEmitRef.current is always current
+  }, []);
 
   useEffect(() => { clearManualRef.current = clearManual; }, [clearManual]);
 
