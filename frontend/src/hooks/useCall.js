@@ -13,12 +13,25 @@ function showElectronScreenPicker(sources) {
       resolve(id);
     };
 
+    // Inject keyframes once
+    const STYLE_ID = '__esp_anim__';
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement('style');
+      style.id = STYLE_ID;
+      style.textContent = `
+        @keyframes _esp_overlay { from { opacity:0 } to { opacity:1 } }
+        @keyframes _esp_modal { from { opacity:0; transform:scale(0.9) translateY(16px) } to { opacity:1; transform:scale(1) translateY(0) } }
+      `;
+      document.head.appendChild(style);
+    }
+
     const overlay = document.createElement('div');
     Object.assign(overlay.style, {
       position: 'fixed', inset: '0', zIndex: '2147483647',
       background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: 'system-ui, -apple-system, sans-serif',
+      animation: '_esp_overlay 0.2s ease',
     });
 
     const modal = document.createElement('div');
@@ -27,6 +40,7 @@ function showElectronScreenPicker(sources) {
       borderRadius: '16px', width: '720px', maxWidth: '90vw',
       maxHeight: '82vh', display: 'flex', flexDirection: 'column',
       overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+      animation: '_esp_modal 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
     });
 
     const header = document.createElement('div');
