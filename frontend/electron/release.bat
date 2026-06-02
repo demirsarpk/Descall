@@ -4,20 +4,23 @@ title Descall Release Manager
 color 0A
 cd /d "%~dp0"
 
-:: ─── GH_TOKEN: load from User env scope if not in session ───────────────────
-if "%GH_TOKEN%"=="" (
-    for /f "usebackq delims=" %%t in (`powershell -NoProfile -Command "[System.Environment]::GetEnvironmentVariable('GH_TOKEN','User')"`) do set "GH_TOKEN=%%t"
-)
-if "%GH_TOKEN%"=="" (
-    echo.
-    echo  [!] GH_TOKEN is not set.
-    echo.
-    echo  Run this once in PowerShell, then retry:
-    echo    [System.Environment]::SetEnvironmentVariable("GH_TOKEN", "ghp_...", "User")
-    echo.
-    pause
-    exit /b 1
-)
+:: ─── GH_TOKEN: load from Windows User environment scope ─────────────────────
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0get-token.ps1" > "%TEMP%\descall_token.txt" 2>nul
+set /p GH_TOKEN= < "%TEMP%\descall_token.txt"
+del "%TEMP%\descall_token.txt" >nul 2>&1
+if not defined GH_TOKEN goto :NO_TOKEN
+if "%GH_TOKEN%"=="" goto :NO_TOKEN
+goto :TOKEN_OK
+:NO_TOKEN
+echo.
+echo  [!] GH_TOKEN is not set.
+echo.
+echo  Run this once in PowerShell, then retry:
+echo    [System.Environment]::SetEnvironmentVariable("GH_TOKEN", "ghp_...", "User")
+echo.
+pause
+exit /b 1
+:TOKEN_OK
 
 :: ─── Read and compute versions via Node ─────────────────────────────────────
 node release-versions.cjs > "%TEMP%\descall_ver.txt"
@@ -40,10 +43,10 @@ echo   Current version:  v%CURRENT_VER%
 echo.
 echo   Select release type:
 echo.
-echo    [1]  Patch   v%CURRENT_VER%  ->  v%NEXT_PATCH%   (bug fixes)
-echo    [2]  Minor   v%CURRENT_VER%  ->  v%NEXT_MINOR%   (new features)
-echo    [3]  Major   v%CURRENT_VER%  ->  v%NEXT_MAJOR%   (breaking changes)
-echo    [4]  Rebuild v%CURRENT_VER%  (no version bump)
+echo    [1]  Patch  to v%NEXT_PATCH%   [bug fixes]
+echo    [2]  Minor  to v%NEXT_MINOR%   [new features]
+echo    [3]  Major  to v%NEXT_MAJOR%   [breaking]
+echo    [4]  Rebuild v%CURRENT_VER%    [no bump]
 echo.
 echo    [Q]  Quit
 echo.
