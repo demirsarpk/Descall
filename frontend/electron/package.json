@@ -18,7 +18,10 @@
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
     "pack": "electron-builder --dir",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "release": "node release.cjs",
+    "release:minor": "node release.cjs --minor",
+    "release:major": "node release.cjs --major"
   },
   "devDependencies": {
     "electron": "28.3.3",
