@@ -38,6 +38,8 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "notificationWindow.cjs",
+      "notifPreload.cjs",
       "node_modules/**/*"
     ],
     "asar": true,

@@ -401,21 +401,30 @@ export function useCall(socket) {
     };
 
     const onEnded = ({ fromUserId } = {}) => {
-      if (peerRef.current?.id === fromUserId) cleanup();
+      if (!fromUserId || peerRef.current?.id === fromUserId) cleanup();
     };
 
-    socket.on("call:offer", onOffer);
-    socket.on("call:answer", onAnswer);
-    socket.on("call:ice-candidate", onIce);
-    socket.on("call:ended", onEnded);
-    socket.on("call:declined", onEnded);
+    const onCancelled = ({ fromUserId } = {}) => {
+      if (!fromUserId || peerRef.current?.id === fromUserId) {
+        audioManager.stop('incomingCall');
+        cleanup();
+      }
+    };
+
+    socket.on('call:offer', onOffer);
+    socket.on('call:answer', onAnswer);
+    socket.on('call:ice-candidate', onIce);
+    socket.on('call:ended', onEnded);
+    socket.on('call:declined', onEnded);
+    socket.on('call:cancelled', onCancelled);
 
     return () => {
-      socket.off("call:offer", onOffer);
-      socket.off("call:answer", onAnswer);
-      socket.off("call:ice-candidate", onIce);
-      socket.off("call:ended", onEnded);
-      socket.off("call:declined", onEnded);
+      socket.off('call:offer', onOffer);
+      socket.off('call:answer', onAnswer);
+      socket.off('call:ice-candidate', onIce);
+      socket.off('call:ended', onEnded);
+      socket.off('call:declined', onEnded);
+      socket.off('call:cancelled', onCancelled);
     };
   }, [socket, cleanup]);
 
@@ -487,12 +496,21 @@ export function useCall(socket) {
   }, [peer, socket, cleanup, setupPeerConnection]);
 
   const endCall = useCallback((toUserId) => {
-    if (toUserId && socket?.connected) socket.emit("call:end", { toUserId });
+    const targetId = toUserId ?? peerRef.current?.id;
+    if (targetId && socket?.connected) {
+      const currentMode = modeRef.current;
+      if (currentMode === 'outgoing') {
+        socket.emit('call:cancel', { toUserId: targetId });
+      } else {
+        socket.emit('call:end', { toUserId: targetId });
+      }
+    }
     cleanup();
   }, [socket, cleanup]);
 
   const declineIncoming = useCallback(() => {
-    if (peer?.id) socket.emit("call:decline", { toUserId: peer.id });
+    const targetId = peerRef.current?.id ?? peer?.id;
+    if (targetId && socket?.connected) socket.emit('call:decline', { toUserId: targetId });
     cleanup();
   }, [peer, socket, cleanup]);
 

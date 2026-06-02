@@ -629,6 +629,11 @@ function registerSocketHandlers(io) {
       emitToUser(io, toUserId, "call:ended", { fromUserId: myId });
     });
 
+    socket.on("call:cancel", ({ toUserId } = {}) => {
+      if (typeof toUserId !== "string") return;
+      emitToUser(io, toUserId, "call:cancelled", { fromUserId: myId });
+    });
+
     socket.on("call:decline", ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
       emitToUser(io, toUserId, "call:declined", { fromUserId: myId });

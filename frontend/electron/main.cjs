@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu, MenuItem, desktopCapturer, globalShortcut, Tray, Notification, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu, MenuItem, desktopCapturer, globalShortcut, Tray, Notification } = require('electron');
+const { showNotificationWindow } = require('./notificationWindow.cjs');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const path = require('path');
@@ -164,36 +165,34 @@ function createMainWindow() {
   // Notification handlers
   ipcMain.handle('notification:request-permission', async () => true);
 
-  const showNativeNotification = ({ title, body, tag, data, requireInteraction = false, silent = false }) => {
-    if (!Notification.isSupported()) return;
-    const iconPath = path.join(__dirname, '../public/icon.png');
-    const n = new Notification({
+  const dispatchNotification = ({ title, body, tag, data, requireInteraction = false, silent = false, avatarUrl = null }) => {
+    const type = data?.type === 'call' || data?.type === 'group-call' ? 'call'
+      : data?.type === 'mention' ? 'mention'
+      : 'default';
+
+    showNotificationWindow({
       title: title || 'Descall',
       body: body || '',
-      icon: fs.existsSync(iconPath) ? iconPath : undefined,
-      silent,
-      timeoutType: requireInteraction ? 'never' : 'default',
-      urgency: requireInteraction ? 'critical' : 'normal',
+      type,
+      avatarUrl: avatarUrl || null,
+      duration: requireInteraction ? 0 : 5000,
+      onClick: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.focus();
+        }
+        mainWindow?.webContents?.send('notification:click', { title, body, tag, data });
+      },
     });
-    n.on('click', () => {
-      if (mainWindow) {
-        mainWindow.show();
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.focus();
-      }
-      mainWindow?.webContents?.send('notification:click', { title, body, tag, data });
-    });
-    n.show();
   };
 
-  // ipcRenderer.send path (preload uses send)
   ipcMain.on('notification:show', (_, { title, options = {} }) => {
-    showNativeNotification({ title, ...options });
+    dispatchNotification({ title, ...options });
   });
 
-  // ipcRenderer.invoke path (preload.js uses invoke)
   ipcMain.handle('show-notification', (_, payload) => {
-    showNativeNotification(payload || {});
+    dispatchNotification(payload || {});
   });
 
   // Allow screen capture permissions
