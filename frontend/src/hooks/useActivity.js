@@ -112,14 +112,16 @@ export function useActivity({ socket, me, friends = [] }) {
   const [history, setHistory]                 = useState([]);
   const [settings, setSettings]               = useState(loadStoredSettings);
 
-  const lastEmittedRef    = useRef(null);   // last app name emitted — prevent redundant emits
-  const sessionStartRef   = useRef(null);   // start time of current activity session
-  const focusStartRef     = useRef(null);   // start time of current focus window
-  const focusAccumRef     = useRef(0);      // accumulated focused seconds this session
+  const lastEmittedRef    = useRef(null);
+  const sessionStartRef   = useRef(null);
+  const focusStartRef     = useRef(null);
+  const focusAccumRef     = useRef(0);
   const manualTimerRef    = useRef(null);
   const scanIntervalRef   = useRef(null);
-  const scanAndEmitRef    = useRef(null);   // stable ref so clearManual never captures stale closure
-  const clearManualRef    = useRef(null);   // stable ref so setManual timeout always calls current clearManual
+  const scanAndEmitRef    = useRef(null);
+  const clearManualRef    = useRef(null);
+  const friendsRef        = useRef(friends);  // always current friends list without triggering re-renders
+  useEffect(() => { friendsRef.current = friends; }, [friends]);
 
   // ─── Load initial data ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -145,48 +147,47 @@ export function useActivity({ socket, me, friends = [] }) {
     }).catch(() => {});
   }, []);
 
-  // ─── Hydrate friend presence on mount & socket connect ──────────────────────
-  // Friends' current activity is only pushed via socket events — after a page
-  // refresh the state is empty. Fetch each friend's last known presence from
-  // the REST API so the panel is populated immediately.
-  useEffect(() => {
-    if (!friends.length) return;
+  // ─── Hydrate friend presence from REST ───────────────────────────────────
+  // Called on mount (once friends are available) AND on every socket connect
+  // so that a page refresh on the viewer side always shows current presence.
+  const hydratePresence = useCallback(async () => {
+    const currentFriends = friendsRef.current;
+    if (!currentFriends.length) return;
     const token = getToken();
     if (!token) return;
 
-    const hydrate = async () => {
-      const results = await Promise.allSettled(
-        friends.map(f =>
-          fetch(`${API_BASE_URL}/api/activity/friend/${f.id}/presence`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }).then(r => r.ok ? r.json() : null)
-        )
-      );
+    const results = await Promise.allSettled(
+      currentFriends.map(f =>
+        fetch(`${API_BASE_URL}/api/activity/friend/${f.id}/presence`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then(r => r.ok ? r.json() : null)
+      )
+    );
 
-      const presenceMap = {};
-      results.forEach((result, i) => {
-        if (result.status !== 'fulfilled' || !result.value?.presence) return;
-        const p = result.value.presence;
-        if (p.privacy === 'only-me' || p.privacy === 'hidden') return;
-        presenceMap[friends[i].id] = {
-          userId:      friends[i].id,
-          username:    friends[i].username,
-          appName:     p.app_name,
-          appType:     p.app_type,
-          displayName: p.display_name,
-          startedAt:   p.started_at,
-          isManual:    p.is_manual,
-        };
-      });
+    const snapshot = {};
+    results.forEach((result, i) => {
+      if (result.status !== 'fulfilled' || !result.value?.presence) return;
+      const p = result.value.presence;
+      if (!p.display_name) return;  // null presence = no activity
+      snapshot[currentFriends[i].id] = {
+        userId:      currentFriends[i].id,
+        username:    currentFriends[i].username,
+        appName:     p.app_name,
+        appType:     p.app_type,
+        displayName: p.display_name,
+        startedAt:   p.started_at,
+        isManual:    p.is_manual,
+      };
+    });
 
-      if (Object.keys(presenceMap).length) {
-        setFriendPresence(prev => ({ ...presenceMap, ...prev }));
-      }
-    };
+    // Merge: live socket updates (prev) win over REST snapshot
+    setFriendPresence(prev => ({ ...snapshot, ...prev }));
+  }, []);  // stable — uses friendsRef
 
-    hydrate();
+  useEffect(() => {
+    if (friends.length) hydratePresence();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [friends.length]);  // re-run when friends list first loads
+  }, [friends.length]);  // trigger when friends list first populates after mount
 
   // ─── Focused-time tracking ──────────────────────────────────────────────────
   useEffect(() => {
@@ -361,8 +362,11 @@ export function useActivity({ socket, me, friends = [] }) {
       });
     };
 
-    // After reconnect, re-broadcast own current presence so friends don't lose it
-    const onReconnect = () => {
+    const onConnect = () => {
+      // Re-fetch friend presence for the viewer side
+      hydratePresence();
+
+      // Re-broadcast own presence for the sharer side
       const stored = loadStoredManual();
       if (stored) {
         socket.emit('activity:manual', {
@@ -370,7 +374,6 @@ export function useActivity({ socket, me, friends = [] }) {
           expiresIn:   stored.expiresIn ?? null,
         });
       } else {
-        // Let the scanner pick it back up on next tick
         lastEmittedRef.current = null;
         scanAndEmitRef.current?.();
       }
@@ -378,14 +381,18 @@ export function useActivity({ socket, me, friends = [] }) {
 
     socket.on('activity:friend:update', onFriendUpdate);
     socket.on('activity:friend:clear',  onFriendClear);
-    socket.on('connect',                onReconnect);
+    socket.on('connect',                onConnect);
+
+    // If socket is already connected when this effect runs (e.g. after refresh
+    // where socket reconnects before React mounts this hook), hydrate immediately
+    if (socket.connected) hydratePresence();
 
     return () => {
       socket.off('activity:friend:update', onFriendUpdate);
       socket.off('activity:friend:clear',  onFriendClear);
-      socket.off('connect',                onReconnect);
+      socket.off('connect',                onConnect);
     };
-  }, [socket]);
+  }, [socket, hydratePresence]);
 
   // ─── Manual override ────────────────────────────────────────────────────────
   const setManual = useCallback((displayName, expiresIn) => {
