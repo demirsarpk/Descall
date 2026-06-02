@@ -10,6 +10,7 @@ import MessageList from "../chat/MessageList";
 import MessageComposer from "../chat/MessageComposer";
 import ActiveCallBanner from "../ActiveCallBanner";
 import ActivityView from "../activity/ActivityView";
+import TypingIndicator from "../chat/TypingIndicator";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 
@@ -32,6 +33,12 @@ export default function ChatPanel({
   onDismissActiveBanner,
   activity,
   friends,
+  typingDmUser,
+  typingGroupUsers,
+  onTypingDmStart,
+  onTypingDmStop,
+  onTypingGroupStart,
+  onTypingGroupStop,
   children
 }) {
   const messagesRef = useRef(null);
@@ -215,12 +222,31 @@ export default function ChatPanel({
       </div>
       )}
 
+      {/* Typing Indicator */}
+      {(activeDmUser || activeGroup) && (() => {
+        const dmNames = typingDmUser && activeDmUser ? [typingDmUser.username] : [];
+        const groupMap = activeGroup ? (typingGroupUsers?.[activeGroup.id] ?? new Map()) : new Map();
+        const groupNames = [...groupMap.values()].map(u => u.username);
+        const names = activeDmUser ? dmNames : groupNames;
+        return names.length > 0 ? (
+          <div style={{ padding: '0 16px 4px' }}>
+            <TypingIndicator names={names} />
+          </div>
+        ) : null;
+      })()}
+
       {/* Composer */}
       {(activeDmUser || activeGroup) && (
         <div className="composer-container">
           <MessageComposer
             onSend={onSendMessage}
             disabled={!activeDmUser && !activeGroup}
+            activeDmUser={activeDmUser}
+            activeGroup={activeGroup}
+            onTypingDmStart={onTypingDmStart}
+            onTypingDmStop={onTypingDmStop}
+            onTypingGroupStart={onTypingGroupStart}
+            onTypingGroupStop={onTypingGroupStop}
           />
         </div>
       )}

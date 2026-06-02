@@ -440,24 +440,22 @@ function registerSocketHandlers(io) {
     });
 
     socket.on("typing:start", (payload = {}) => {
-      const { context = "dm", toUserId } = payload;
+      const { context = "dm", toUserId, groupId } = payload;
+      const fromUser = { id: myId, username: me.username };
       if (context === "dm" && typeof toUserId === "string") {
-        emitToUser(io, toUserId, "typing:update", {
-          context: "dm",
-          fromUser: { id: myId, username: me.username },
-          typing: true,
-        });
+        emitToUser(io, toUserId, "typing:update", { context: "dm", fromUser, typing: true });
+      } else if (context === "group" && typeof groupId === "string") {
+        socket.to(`group:${groupId}`).emit("typing:update", { context: "group", groupId, fromUser, typing: true });
       }
     });
 
     socket.on("typing:stop", (payload = {}) => {
-      const { context = "dm", toUserId } = payload;
+      const { context = "dm", toUserId, groupId } = payload;
+      const fromUser = { id: myId, username: me.username };
       if (context === "dm" && typeof toUserId === "string") {
-        emitToUser(io, toUserId, "typing:update", {
-          context: "dm",
-          fromUser: { id: myId, username: me.username },
-          typing: false,
-        });
+        emitToUser(io, toUserId, "typing:update", { context: "dm", fromUser, typing: false });
+      } else if (context === "group" && typeof groupId === "string") {
+        socket.to(`group:${groupId}`).emit("typing:update", { context: "group", groupId, fromUser, typing: false });
       }
     });
 

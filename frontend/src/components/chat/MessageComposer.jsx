@@ -14,7 +14,16 @@ const EMOJI_CATEGORIES = [
   { name: "Hearts", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","❣️","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☪️","🕉️","☸️","✡️","🔯","🕎","☯️","☦️","🛐","⛎","♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓","🆔","⚛️","🉑","☢️","☣️","📴","📳","🈶","🈚","🈸","🈺","🈷️","✴️","🆚","💮","🉐","㊙️","㊗️","🈴","🈵","🈹","🈲","🅰️","🅱️","🆎","🆑","🅾️","🆘","❌","⭕","🛑","⛔","📛","🚫","💯","💢","♨️","🚷","🚯","🚳","🚱","🔞","📵","🚭","❗","❕","❓","❔","‼️","⁉️","🔅","🔆","〽️","⚠️","🚸","🔱","⚜️","🔰","♻️","✅","🈯","💹","❇️","✳️","❎","🌐","💠","Ⓜ️","🌀","💤","🏧","🚾","♿","🅿️","🈳","🈂️","🛂","🛃","🛄","🛅","🛗","🛹","🛺","🚂","🚃","🚄","🚅","🚆","🚇","🚈","🚉","🚊","🚝","🚞","🚋","🚌","🚍","🚎","🚐","🚑","🚒","🚓","🚔","🚕","🚖","🚗","🚘","🚙","🛻","🚚","🚛","🚜","🏎️","🏍️","🛵","🦽","🦼","🛺","🚲","🛴","🚏","🛣️","🛤️","🛢️","⛽","🚨","🚥","🚦","🛑","🚧"] },
 ];
 
-export default function MessageComposer({ onSend, disabled = false }) {
+export default function MessageComposer({
+  onSend,
+  disabled = false,
+  activeDmUser,
+  activeGroup,
+  onTypingDmStart,
+  onTypingDmStop,
+  onTypingGroupStart,
+  onTypingGroupStop,
+}) {
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -29,6 +38,8 @@ export default function MessageComposer({ onSend, disabled = false }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
+  const typingTimerRef = useRef(null);
+  const isTypingRef = useRef(false);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -48,8 +59,35 @@ export default function MessageComposer({ onSend, disabled = false }) {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  const emitTypingStop = useCallback(() => {
+    if (!isTypingRef.current) return;
+    isTypingRef.current = false;
+    if (activeDmUser) onTypingDmStop?.(activeDmUser.id);
+    else if (activeGroup) onTypingGroupStop?.(activeGroup.id);
+  }, [activeDmUser, activeGroup, onTypingDmStop, onTypingGroupStop]);
+
+  const emitTypingStart = useCallback(() => {
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      if (activeDmUser) onTypingDmStart?.(activeDmUser.id);
+      else if (activeGroup) onTypingGroupStart?.(activeGroup.id);
+    }
+    clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(emitTypingStop, 3000);
+  }, [activeDmUser, activeGroup, onTypingDmStart, onTypingGroupStart, emitTypingStop]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(typingTimerRef.current);
+      emitTypingStop();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDmUser?.id, activeGroup?.id]);
+
   const handleSend = () => {
     if (!message.trim() || disabled) return;
+    clearTimeout(typingTimerRef.current);
+    emitTypingStop();
     onSend?.(message.trim());
     setMessage("");
   };
@@ -261,7 +299,7 @@ export default function MessageComposer({ onSend, disabled = false }) {
           <textarea
             ref={inputRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => { setMessage(e.target.value); if (e.target.value) emitTypingStart(); else emitTypingStop(); }}
             onKeyDown={handleKeyDown}
             placeholder="Message #general"
             className="composer-input"

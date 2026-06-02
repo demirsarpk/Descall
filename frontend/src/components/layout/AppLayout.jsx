@@ -51,6 +51,12 @@ export default function AppLayout({
   onDeclineFriend,
   notifPermission,
   onRequestNotifPermission,
+  typingDmUser,
+  typingGroupUsers,
+  onTypingDmStart,
+  onTypingDmStop,
+  onTypingGroupStart,
+  onTypingGroupStop,
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
@@ -214,6 +220,12 @@ export default function AppLayout({
         onDismissActiveBanner={onDismissActiveBanner}
         activity={{ ...activity, me }}
         friends={friends}
+        typingDmUser={typingDmUser}
+        typingGroupUsers={typingGroupUsers}
+        onTypingDmStart={onTypingDmStart}
+        onTypingDmStop={onTypingDmStop}
+        onTypingGroupStart={onTypingGroupStart}
+        onTypingGroupStop={onTypingGroupStop}
       >
         {children}
       </ChatPanel>

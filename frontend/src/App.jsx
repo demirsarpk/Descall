@@ -57,6 +57,8 @@ export default function App() {
   const [notifPermission, setNotifPermission] = useState(() => notificationService.getPermissionState());
   const [socketApi, setSocketApi] = useState(null);
   const [typingDmUser, setTypingDmUser] = useState(null);
+  // groupId -> Map<userId, {id, username}>
+  const [typingGroupUsers, setTypingGroupUsers] = useState({});
   const [dmHasMore, setDmHasMore] = useState(true);
   const [loadingOlderDm, setLoadingOlderDm] = useState(false);
   const [reconnectState, setReconnectState] = useState("idle");
@@ -331,7 +333,7 @@ export default function App() {
     });
 
     socket.on("typing:update", (payload = {}) => {
-      const { context, fromUser, typing } = payload;
+      const { context, fromUser, typing, groupId } = payload;
       if (!fromUser?.id || fromUser.id === myIdRef.current) return;
       if (context === "dm") {
         const peer = activeDmRef.current;
@@ -340,6 +342,16 @@ export default function App() {
           return;
         }
         setTypingDmUser(typing ? fromUser : null);
+      } else if (context === "group" && groupId) {
+        setTypingGroupUsers((prev) => {
+          const groupMap = new Map(prev[groupId] ?? []);
+          if (typing) {
+            groupMap.set(fromUser.id, fromUser);
+          } else {
+            groupMap.delete(fromUser.id);
+          }
+          return { ...prev, [groupId]: groupMap };
+        });
       }
     });
 
@@ -726,6 +738,12 @@ export default function App() {
   const emitTypingDmStop = (toUserId) => {
     socketRef.current?.emit("typing:stop", { context: "dm", toUserId });
   };
+  const emitTypingGroupStart = (groupId) => {
+    socketRef.current?.emit("typing:start", { context: "group", groupId });
+  };
+  const emitTypingGroupStop = (groupId) => {
+    socketRef.current?.emit("typing:stop", { context: "group", groupId });
+  };
 
   const loadOlderDm = () => {
     const s = socketRef.current;
@@ -932,6 +950,12 @@ export default function App() {
           onDismissActiveBanner={groupCall?.dismissActiveBanner}
           notifPermission={notifPermission}
           onRequestNotifPermission={handleRequestNotifPermission}
+          typingDmUser={typingDmUser}
+          typingGroupUsers={typingGroupUsers}
+          onTypingDmStart={emitTypingDmStart}
+          onTypingDmStop={emitTypingDmStop}
+          onTypingGroupStart={emitTypingGroupStart}
+          onTypingGroupStop={emitTypingGroupStop}
         >
           <MessageList
             messages={dmMessages}

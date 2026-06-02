@@ -120,9 +120,19 @@ export default function ActivitySidebar({ friends, friendPresence, onlineUsers }
           )}
 
           {active.length === 0 && idle.length === 0 && (
-            <div className="activity-empty-state">
-              <Zap size={32} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
-              <p>No friends online</p>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '40px 16px',
+              gap: 8,
+              textAlign: 'center',
+            }}>
+              <Zap size={32} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>
+                No friends online
+              </p>
             </div>
           )}
         </div>
