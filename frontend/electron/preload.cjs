@@ -45,6 +45,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Desktop screen sharing
   getScreenSources: () => ipcRenderer.invoke('get-screen-sources'),
+
+  // Window focus helpers (used by notificationService)
+  isWindowFocused: () => ipcRenderer.invoke('is-window-focused'),
+  focusWindow: () => ipcRenderer.invoke('focus-window'),
 });
 
 // Log preload loaded

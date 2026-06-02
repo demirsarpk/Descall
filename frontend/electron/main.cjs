@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu, MenuItem, desktopCapturer, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu, MenuItem, desktopCapturer, globalShortcut, Tray, Notification, powerMonitor } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const path = require('path');
@@ -18,6 +18,8 @@ const isPackaged = app.isPackaged;
 
 let mainWindow = null;
 let splashWindow = null;
+let tray = null;
+let isQuitting = false;
 
 // Create splash window
 function createSplashWindow() {
@@ -115,9 +117,23 @@ function createMainWindow() {
     }
   });
 
-  // Remove menu bar completely (native Windows title bar without File, Edit, View, Help)
   mainWindow.setMenu(null);
   Menu.setApplicationMenu(null);
+
+  // Close → minimize to tray instead of quitting
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+      if (tray) {
+        tray.displayBalloon({
+          iconType: 'info',
+          title: 'Descall',
+          content: 'Descall arka planda çalışmaya devam ediyor.',
+        });
+      }
+    }
+  });
 
   // IPC handlers for window controls
   ipcMain.on('window:minimize', () => {
@@ -146,36 +162,38 @@ function createMainWindow() {
   });
 
   // Notification handlers
-  ipcMain.handle('notification:request-permission', async () => {
-    const { Notification } = require('electron');
-    const permission = await Notification.requestPermission();
-    return permission === 'granted';
+  ipcMain.handle('notification:request-permission', async () => true);
+
+  const showNativeNotification = ({ title, body, tag, data, requireInteraction = false, silent = false }) => {
+    if (!Notification.isSupported()) return;
+    const iconPath = path.join(__dirname, '../public/icon.png');
+    const n = new Notification({
+      title: title || 'Descall',
+      body: body || '',
+      icon: fs.existsSync(iconPath) ? iconPath : undefined,
+      silent,
+      timeoutType: requireInteraction ? 'never' : 'default',
+      urgency: requireInteraction ? 'critical' : 'normal',
+    });
+    n.on('click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+      mainWindow?.webContents?.send('notification:click', { title, body, tag, data });
+    });
+    n.show();
+  };
+
+  // ipcRenderer.send path (preload uses send)
+  ipcMain.on('notification:show', (_, { title, options = {} }) => {
+    showNativeNotification({ title, ...options });
   });
 
-  ipcMain.on('notification:show', (_, { title, options = {} }) => {
-    const { Notification } = require('electron');
-    if (Notification.isSupported()) {
-      const notification = new Notification({
-        title,
-        body: options.body || '',
-        icon: path.join(__dirname, '../public/icon.png'),
-        silent: false,
-        urgency: 'normal',
-        ...options
-      });
-      
-      notification.on('click', () => {
-        // Focus window when notification clicked
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.focus();
-        }
-        // Send click event to renderer
-        mainWindow?.webContents?.send('notification:click', { title, options });
-      });
-      
-      notification.show();
-    }
+  // ipcRenderer.invoke path (preload.js uses invoke)
+  ipcMain.handle('show-notification', (_, payload) => {
+    showNativeNotification(payload || {});
   });
 
   // Allow screen capture permissions
@@ -296,29 +314,74 @@ function createMainWindow() {
   });
 }
 
+function createTray() {
+  const iconPath = path.join(__dirname, '../public/icon.png');
+  const icon = fs.existsSync(iconPath)
+    ? nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+    : nativeImage.createEmpty();
+
+  tray = new Tray(icon);
+  tray.setToolTip('Descall');
+
+  const buildMenu = () => Menu.buildFromTemplate([
+    {
+      label: 'Descall\'i Aç',
+      click: () => { mainWindow?.show(); mainWindow?.focus(); },
+    },
+    { type: 'separator' },
+    {
+      label: 'Windows ile Başlat',
+      type: 'checkbox',
+      checked: app.getLoginItemSettings().openAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({ openAtLogin: item.checked });
+        tray.setContextMenu(buildMenu());
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Çıkış',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(buildMenu());
+  tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
+}
+
 // App events
 app.whenReady().then(() => {
-  createSplashWindow();
+  // Enable startup on first run (packaged only)
+  if (isPackaged && !app.getLoginItemSettings().openAtLogin) {
+    app.setLoginItemSettings({ openAtLogin: true });
+  }
 
+  createSplashWindow();
   setTimeout(() => {
     createMainWindow();
+    createTray();
   }, 1500);
 
-  // DevTools shortcuts
   globalShortcut.register('F12', () => mainWindow?.webContents.toggleDevTools());
   globalShortcut.register('CommandOrControl+Shift+I', () => mainWindow?.webContents.toggleDevTools());
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
     }
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // Don't quit — stay in tray
+});
+
+app.on('before-quit', () => {
+  isQuitting = true;
 });
 
 // Auto-updater events
@@ -394,6 +457,15 @@ ipcMain.handle('maximize-window', () => {
 
 ipcMain.handle('close-window', () => {
   if (mainWindow) mainWindow.close();
+});
+
+ipcMain.handle('is-window-focused', () => mainWindow ? mainWindow.isFocused() : false);
+
+ipcMain.handle('focus-window', () => {
+  if (!mainWindow) return;
+  mainWindow.show();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
 });
 
 // Desktop capturer — screen share sources
