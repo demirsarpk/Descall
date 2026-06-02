@@ -428,6 +428,18 @@ export function useCall(socket) {
     };
   }, [socket, cleanup]);
 
+  // Electron notification button → accept / decline
+  useEffect(() => {
+    if (!window.electronAPI?.onCallAccept) return;
+    const unsubAccept  = window.electronAPI.onCallAccept(()  => acceptIncoming());
+    const unsubDecline = window.electronAPI.onCallDecline(() => declineIncoming());
+    return () => {
+      unsubAccept?.();
+      unsubDecline?.();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const startCall = useCallback(async (friend, type = "voice") => {
     if (!friend?.id || !socket) return;
     try {

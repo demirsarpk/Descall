@@ -431,6 +431,35 @@ autoUpdater.on('update-downloaded', (info) => {
   });
 });
 
+// ─── Notification IPC ────────────────────────────────────────────────────────
+ipcMain.on('notification:show', (event, { title, options = {} } = {}) => {
+  const { body, tag = 'descall', data = {} } = options;
+
+  const isCall      = data.type === 'call' || data.type === 'group-call';
+  const notifType   = isCall ? 'call' : (tag.startsWith('mention') ? 'mention' : 'default');
+  const duration    = isCall ? 0 : 5000;   // calls persist until dismissed
+
+  showNotificationWindow({
+    title,
+    body,
+    type:     notifType,
+    duration,
+    onClick:  () => {
+      mainWindow?.show();
+      mainWindow?.focus();
+      mainWindow?.webContents.send('notification:click', data);
+    },
+    onAccept: isCall ? () => {
+      mainWindow?.show();
+      mainWindow?.focus();
+      mainWindow?.webContents.send('notification:call-accept', data);
+    } : undefined,
+    onDecline: isCall ? () => {
+      mainWindow?.webContents.send('notification:call-decline', data);
+    } : undefined,
+  });
+});
+
 // IPC handlers
 ipcMain.handle('app-version', () => {
   return app.getVersion();

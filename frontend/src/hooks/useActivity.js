@@ -209,7 +209,7 @@ export function useActivity({ socket, me, friends = [] }) {
 
   // ─── Process scanning (Electron only) ──────────────────────────────────────
   const scanAndEmit = useCallback(async () => {
-    if (!isElectron || !socket?.connected) return;
+    if (!isElectron || !socket) return;
     if (manualOverride) return;  // manual override takes precedence
 
     let processList = [];

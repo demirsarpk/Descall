@@ -144,6 +144,7 @@ export function useGroupCall(socket) {
   const [duration, setDuration] = useState(0);
   const [participants, setParticipants] = useState([]);
   const [incomingCall, setIncomingCall] = useState(null);
+  const incomingCallRef = useRef(null);
   const [activeCallBanner, setActiveCallBanner] = useState(null); // { groupId, initiatorId, initiatorUsername, callType, participantCount }
   const [callSummaries, setCallSummaries] = useState({}); // groupId -> summary[]
   // Audio device selection states
@@ -1356,6 +1357,27 @@ export function useGroupCall(socket) {
   useEffect(() => {
     return () => cleanup();
   }, [cleanup]);
+
+  // Keep ref current so Electron IPC callbacks can read latest incomingCall without stale closure
+  useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
+
+  // Electron notification Accept / Decline buttons for group calls
+  useEffect(() => {
+    if (!window.electronAPI?.onCallAccept) return;
+    const unsubAccept = window.electronAPI.onCallAccept(() => {
+      const ic = incomingCallRef.current;
+      if (ic) acceptGroupCall(ic.groupId, ic.callType, ic.fromUser);
+    });
+    const unsubDecline = window.electronAPI.onCallDecline(() => {
+      const ic = incomingCallRef.current;
+      if (ic) declineCall(ic.groupId, ic.fromUser?.id, ic.fromUser, ic.callType);
+    });
+    return () => {
+      unsubAccept?.();
+      unsubDecline?.();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setLocalVideo = useCallback((ref) => {
     localVideoRef.current = ref;

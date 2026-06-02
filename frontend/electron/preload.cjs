@@ -40,8 +40,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Notifications
   requestNotificationPermission: () => ipcRenderer.invoke('notification:request-permission'),
   showNotification: (title, options) => ipcRenderer.send('notification:show', { title, options }),
-  onNotificationClick: (callback) => ipcRenderer.on('notification:click', (_, data) => callback(data)),
-  onNotificationClicked: (callback) => ipcRenderer.on('notification:click', (_, data) => callback(data)),
+  onNotificationClick:   (callback) => ipcRenderer.on('notification:click',        (_, data) => callback(data)),
+  onNotificationClicked: (callback) => ipcRenderer.on('notification:click',        (_, data) => callback(data)),
+  onCallAccept: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('notification:call-accept', handler);
+    return () => ipcRenderer.off('notification:call-accept', handler);
+  },
+  onCallDecline: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('notification:call-decline', handler);
+    return () => ipcRenderer.off('notification:call-decline', handler);
+  },
 
   // Desktop screen sharing
   getScreenSources: () => ipcRenderer.invoke('get-screen-sources'),
