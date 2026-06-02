@@ -145,6 +145,49 @@ export function useActivity({ socket, me, friends = [] }) {
     }).catch(() => {});
   }, []);
 
+  // ─── Hydrate friend presence on mount & socket connect ──────────────────────
+  // Friends' current activity is only pushed via socket events — after a page
+  // refresh the state is empty. Fetch each friend's last known presence from
+  // the REST API so the panel is populated immediately.
+  useEffect(() => {
+    if (!friends.length) return;
+    const token = getToken();
+    if (!token) return;
+
+    const hydrate = async () => {
+      const results = await Promise.allSettled(
+        friends.map(f =>
+          fetch(`${API_BASE_URL}/api/activity/friend/${f.id}/presence`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).then(r => r.ok ? r.json() : null)
+        )
+      );
+
+      const presenceMap = {};
+      results.forEach((result, i) => {
+        if (result.status !== 'fulfilled' || !result.value?.presence) return;
+        const p = result.value.presence;
+        if (p.privacy === 'only-me' || p.privacy === 'hidden') return;
+        presenceMap[friends[i].id] = {
+          userId:      friends[i].id,
+          username:    friends[i].username,
+          appName:     p.app_name,
+          appType:     p.app_type,
+          displayName: p.display_name,
+          startedAt:   p.started_at,
+          isManual:    p.is_manual,
+        };
+      });
+
+      if (Object.keys(presenceMap).length) {
+        setFriendPresence(prev => ({ ...presenceMap, ...prev }));
+      }
+    };
+
+    hydrate();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [friends.length]);  // re-run when friends list first loads
+
   // ─── Focused-time tracking ──────────────────────────────────────────────────
   useEffect(() => {
     const onFocus = () => { focusStartRef.current = Date.now(); };
@@ -300,7 +343,7 @@ export function useActivity({ socket, me, friends = [] }) {
     return () => window.removeEventListener('beforeunload', flush);
   }, [settings.show_descall_time]);
 
-  // ─── Socket event listeners (friend presence) ──────────────────────────────
+  // ─── Socket event listeners + re-emit own activity on reconnect ─────────────
   useEffect(() => {
     if (!socket) return;
 
@@ -318,12 +361,29 @@ export function useActivity({ socket, me, friends = [] }) {
       });
     };
 
+    // After reconnect, re-broadcast own current presence so friends don't lose it
+    const onReconnect = () => {
+      const stored = loadStoredManual();
+      if (stored) {
+        socket.emit('activity:manual', {
+          displayName: stored.displayName,
+          expiresIn:   stored.expiresIn ?? null,
+        });
+      } else {
+        // Let the scanner pick it back up on next tick
+        lastEmittedRef.current = null;
+        scanAndEmitRef.current?.();
+      }
+    };
+
     socket.on('activity:friend:update', onFriendUpdate);
     socket.on('activity:friend:clear',  onFriendClear);
+    socket.on('connect',                onReconnect);
 
     return () => {
       socket.off('activity:friend:update', onFriendUpdate);
       socket.off('activity:friend:clear',  onFriendClear);
+      socket.off('connect',                onReconnect);
     };
   }, [socket]);
 
