@@ -4,14 +4,16 @@ title Descall Release Manager
 color 0A
 cd /d "%~dp0"
 
-:: ─── GH_TOKEN check ─────────────────────────────────────────────────────────
+:: ─── GH_TOKEN: load from User env scope if not in session ───────────────────
+if "%GH_TOKEN%"=="" (
+    for /f "usebackq delims=" %%t in (`powershell -NoProfile -Command "[System.Environment]::GetEnvironmentVariable('GH_TOKEN','User')"`) do set "GH_TOKEN=%%t"
+)
 if "%GH_TOKEN%"=="" (
     echo.
     echo  [!] GH_TOKEN is not set.
     echo.
-    echo  Set it once in PowerShell:
+    echo  Run this once in PowerShell, then retry:
     echo    [System.Environment]::SetEnvironmentVariable("GH_TOKEN", "ghp_...", "User")
-    echo  Then open a new terminal window.
     echo.
     pause
     exit /b 1
