@@ -3,9 +3,32 @@ import { PROCESS_DB, TYPE_PRIORITY, PROCESS_BLOCKLIST } from '../lib/processData
 import { getToken } from '../lib/storage';
 import { API_BASE_URL } from '../config/api';
 
-const SCAN_INTERVAL_MS = 10_000;
-const DESCALL_APP_NAME = 'Descall';
+const SCAN_INTERVAL_MS    = 10_000;
+const DESCALL_APP_NAME    = 'Descall';
+const SETTINGS_STORAGE_KEY = 'descall_activity_settings';
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
+
+const DEFAULT_SETTINGS = {
+  privacy: 'friends',
+  show_game_activity: true,
+  show_app_activity: true,
+  show_browser: false,
+  show_descall_time: true,
+};
+
+function loadStoredSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return DEFAULT_SETTINGS;
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+function persistSettings(s) {
+  try { localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s)); } catch {}
+}
 
 /** Resolve the highest-priority detected app from running process names. */
 function resolveActivity(processList) {
@@ -52,13 +75,7 @@ export function useActivity({ socket, me, friends = [] }) {
   const [currentActivity, setCurrentActivity] = useState(null);   // own detected/manual
   const [friendPresence, setFriendPresence]   = useState({});      // { [userId]: presenceObj }
   const [history, setHistory]                 = useState([]);
-  const [settings, setSettings]               = useState({
-    privacy: 'friends',
-    show_game_activity: true,
-    show_app_activity: true,
-    show_browser: false,
-    show_descall_time: true,
-  });
+  const [settings, setSettings]               = useState(loadStoredSettings);
   const [manualOverride, setManualOverride]   = useState(null);
 
   const lastEmittedRef    = useRef(null);   // last app name emitted — prevent redundant emits
@@ -85,7 +102,11 @@ export function useActivity({ socket, me, friends = [] }) {
       }
       if (setRes.ok) {
         const { settings: s } = await setRes.json();
-        if (s) setSettings(prev => ({ ...prev, ...s }));
+        if (s) {
+          const merged = { ...DEFAULT_SETTINGS, ...s };
+          setSettings(merged);
+          persistSettings(merged);
+        }
       }
     }).catch(() => {});
   }, []);
@@ -300,8 +321,12 @@ export function useActivity({ socket, me, friends = [] }) {
 
   // ─── Privacy update ─────────────────────────────────────────────────────────
   const updatePrivacy = useCallback(async (privacy) => {
-    setSettings(prev => ({ ...prev, privacy }));
-    if (socket?.connected) socket.emit('activity:privacy', { privacy });
+    setSettings(prev => {
+      const next = { ...prev, privacy };
+      persistSettings(next);
+      return next;
+    });
+    socket?.emit('activity:privacy', { privacy });
 
     const token = getToken();
     if (!token) return;
@@ -313,7 +338,11 @@ export function useActivity({ socket, me, friends = [] }) {
   }, [socket]);
 
   const updateSettings = useCallback(async (patch) => {
-    setSettings(prev => ({ ...prev, ...patch }));
+    setSettings(prev => {
+      const next = { ...prev, ...patch };
+      persistSettings(next);
+      return next;
+    });
     const token = getToken();
     if (!token) return;
     await fetch(`${API_BASE_URL}/api/activity/settings`, {
