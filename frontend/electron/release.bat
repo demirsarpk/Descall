@@ -4,14 +4,12 @@ title Descall Release Manager v2.0
 color 0A
 cd /d "%~dp0"
 
-:: ─── Configuration ───────────────────────────────────────────────────────────
-set "APP_NAME=Descall"
+::  Configuration set "APP_NAME=Descall"
 set "REPO_OWNER=demirrsarppkurtlarr"
 set "REPO_NAME=Descall"
 set "BUILD_TARGETS=win-x64,win-ia32,win-portable"
 
-:: ─── GH_TOKEN: load from Windows User environment scope ─────────────────────
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0get-token.ps1" > "%TEMP%\descall_token.txt" 2>nul
+::  GH_TOKEN: load from Windows User environment scope powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0get-token.ps1" > "%TEMP%\descall_token.txt" 2>nul
 set /p GH_TOKEN= < "%TEMP%\descall_token.txt"
 del "%TEMP%\descall_token.txt" >nul 2>&1
 if not defined GH_TOKEN goto :NO_TOKEN
@@ -28,8 +26,7 @@ pause
 exit /b 1
 :TOKEN_OK
 
-:: ─── Read and compute versions via Node ─────────────────────────────────────
-node release-versions.cjs > "%TEMP%\descall_ver.txt"
+::  Read and compute versions via Node node release-versions.cjs > "%TEMP%\descall_ver.txt"
 if %ERRORLEVEL% neq 0 (
     echo  [!] Failed to read version. Is Node.js installed?
     pause
@@ -38,8 +35,7 @@ if %ERRORLEVEL% neq 0 (
 for /f "usebackq tokens=1,2 delims==" %%a in ("%TEMP%\descall_ver.txt") do set "%%a=%%b"
 del "%TEMP%\descall_ver.txt" >nul 2>&1
 
-:: ─── Initialize variables ────────────────────────────────────────────────────
-set "BUMP_ARG="
+::  Initialize variables set "BUMP_ARG="
 set "NEXT_VER=%CURRENT_VER%"
 set "RELEASE_TYPE=custom"
 set "BUILD_ONLY=0"
@@ -49,50 +45,41 @@ set "SKIP_UPLOAD=0"
 set "DRY_RUN=0"
 set "RELEASE_NOTES="
 
-:: ─── Main Menu ─────────────────────────────────────────────────────────────
-:MENU
+::  Main Menu :MENU
 cls
 echo.
-echo  ╔══════════════════════════════════════════════════════════════════════════╗
-echo  ║                    DESCALL RELEASE MANAGER v2.0                          ║
-echo  ╠══════════════════════════════════════════════════════════════════════════╣
-echo  ║  Current Version:  v%CURRENT_VER%                                                ║
-echo  ║  Repository:       %REPO_OWNER%/%REPO_NAME%                                            ║
-echo  ╚══════════════════════════════════════════════════════════════════════════╝
+echo  ========================================================================
+echo                    DESCALL RELEASE MANAGER v2.0
+echo  ========================================================================
+echo  Current Version:  v%CURRENT_VER%
+echo  Repository:       %REPO_OWNER%/%REPO_NAME%
+echo  ========================================================================
 echo.
-echo   ┌─────────────────────────────────────────────────────────────────────┐
-echo   │  SEMANTIC VERSIONING BUMPS                                            │
-echo   ├─────────────────────────────────────────────────────────────────────┤
-echo   │  [1]  Patch      v%NEXT_PATCH%    (bug fixes)                          │
-echo   │  [2]  Minor      v%NEXT_MINOR%    (new features)                       │
-echo   │  [3]  Major      v%NEXT_MAJOR%    (breaking changes)                   │
-echo   └─────────────────────────────────────────────────────────────────────┘
+echo   SEMANTIC VERSIONING BUMPS
+echo  ----------------------------------------
+echo   [1]  Patch      v%NEXT_PATCH%    (bug fixes)
+echo   [2]  Minor      v%NEXT_MINOR%    (new features)
+echo   [3]  Major      v%NEXT_MAJOR%    (breaking changes)
 echo.
-echo   ┌─────────────────────────────────────────────────────────────────────┐
-echo   │  MICRO-PATCH BUMPS (for small bug fixes)                              │
-echo   ├─────────────────────────────────────────────────────────────────────┤
-echo   │  [4]  Micro +1   v%NEXT_MICRO_1%   (hotfix)                            │
-echo   │  [5]  Micro +2   v%NEXT_MICRO_2%   (quick fixes)                       │
-echo   │  [6]  Micro +3   v%NEXT_MICRO_3%   (small updates)                     │
-echo   │  [7]  Micro +5   v%NEXT_MICRO_5%   (moderate fixes)                    │
-echo   │  [8]  Micro +10  v%NEXT_MICRO_10%  (multiple fixes)                   │
-echo   └─────────────────────────────────────────────────────────────────────┘
+echo   MICRO-PATCH BUMPS (for small bug fixes)
+echo  ----------------------------------------
+echo   [4]  Micro +1   v%NEXT_MICRO_1%   (hotfix)
+echo   [5]  Micro +2   v%NEXT_MICRO_2%   (quick fixes)
+echo   [6]  Micro +3   v%NEXT_MICRO_3%   (small updates)
+echo   [7]  Micro +5   v%NEXT_MICRO_5%   (moderate fixes)
+echo   [8]  Micro +10  v%NEXT_MICRO_10%  (multiple fixes)
 echo.
-echo   ┌─────────────────────────────────────────────────────────────────────┐
-echo   │  SPECIAL OPTIONS                                                        │
-echo   ├─────────────────────────────────────────────────────────────────────┤
-echo   │  [9]  Custom Version  (enter your own version)                       │
-echo   │  [A]  Rebuild Only    (no version bump, rebuild current)              │
-echo   │  [B]  Build Only      (skip git and upload)                          │
-echo   │  [C]  Configuration   (change settings)                               │
-echo   │  [V]  View History    (show recent releases)                          │
-echo   │  [L]  Changelog       (generate changelog)                           │
-echo   └─────────────────────────────────────────────────────────────────────┘
+echo   SPECIAL OPTIONS
+echo  ----------------------------------------
+echo   [9]  Custom Version  (enter your own version)
+echo   [A]  Rebuild Only    (no version bump, rebuild current)
+echo   [B]  Build Only      (skip git and upload)
+echo   [C]  Configuration   (change settings)
+echo   [V]  View History    (show recent releases)
+echo   [L]  Changelog       (generate changelog)
 echo.
-echo   ┌─────────────────────────────────────────────────────────────────────┐
-echo   │  [H]  Help / Documentation                                             │
-echo   │  [Q]  Quit                                                               │
-echo   └─────────────────────────────────────────────────────────────────────┘
+echo   [H]  Help / Documentation
+echo   [Q]  Quit
 echo.
 set /p "CHOICE=  Select option > "
 
@@ -165,13 +152,12 @@ if /i "%CHOICE%"=="h" goto :HELP
 if /i "%CHOICE%"=="q" goto :EXIT
 goto :MENU
 
-:: ─── Custom Version Input ───────────────────────────────────────────────────
-:CUSTOM_VERSION
+::  Custom Version Input :CUSTOM_VERSION
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  CUSTOM VERSION INPUT                                                  │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    CUSTOM VERSION INPUT
+echo  ========================================================================
 echo.
 echo   Current version: v%CURRENT_VER%
 echo.
@@ -190,13 +176,12 @@ set "BUMP_ARG=--custom %CUSTOM_INPUT%"
 set "RELEASE_TYPE=custom"
 goto :CONFIRM
 
-:: ─── Configuration Menu ────────────────────────────────────────────────────
-:CONFIG
+::  Configuration Menu :CONFIG
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  CONFIGURATION                                                         │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    CONFIGURATION
+echo  ========================================================================
 echo.
 echo   Current Settings:
 echo.
@@ -234,13 +219,12 @@ if /i "%CONFIG_CHOICE%"=="r" goto :RESET_CONFIG
 if /i "%CONFIG_CHOICE%"=="b" goto :MENU
 goto :CONFIG
 
-:: ─── Build Targets Configuration ───────────────────────────────────────────
-:BUILD_TARGETS_CONFIG
+::  Build Targets Configuration :BUILD_TARGETS_CONFIG
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  BUILD TARGETS SELECTION                                              │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    BUILD TARGETS SELECTION
+echo  ========================================================================
 echo.
 echo   Available Targets:
 echo.
@@ -314,8 +298,7 @@ if /i "%TARGET_CHOICE%"=="b" (
 )
 goto :BUILD_TARGETS_CONFIG
 
-:: ─── Toggle Options ───────────────────────────────────────────────────────
-:TOGGLE_PRECHECK
+::  Toggle Options :TOGGLE_PRECHECK
 echo.
 echo   Pre-release checks toggled (not implemented in this version)
 pause
@@ -333,13 +316,12 @@ echo   Success notification toggled (not implemented in this version)
 pause
 goto :CONFIG
 
-:: ─── Advanced Configuration ───────────────────────────────────────────────
-:ADVANCED_CONFIG
+::  Advanced Configuration :ADVANCED_CONFIG
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  ADVANCED CONFIGURATION                                               │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    ADVANCED CONFIGURATION
+echo  ========================================================================
 echo.
 echo   [1]  Custom Build Arguments
 echo   [2]  Environment Variables
@@ -435,13 +417,12 @@ if /i "%ADV_CONFIG_CHOICE%"=="5" (
 if /i "%ADV_CONFIG_CHOICE%"=="b" goto :CONFIG
 goto :ADVANCED_CONFIG
 
-:: ─── Reset Configuration ───────────────────────────────────────────────────
-:RESET_CONFIG
+::  Reset Configuration :RESET_CONFIG
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  RESET CONFIGURATION                                                   │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    RESET CONFIGURATION
+echo  ========================================================================
 echo.
 echo   This will reset all settings to default values.
 echo.
@@ -455,13 +436,12 @@ if /i "%RESET_CONFIRM%"=="y" (
 )
 goto :CONFIG
 
-:: ─── View Release History ───────────────────────────────────────────────────
-:VIEW_HISTORY
+::  View Release History :VIEW_HISTORY
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  RELEASE HISTORY                                                       │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    RELEASE HISTORY
+echo  ========================================================================
 echo.
 echo   Fetching recent releases from GitHub...
 echo.
@@ -475,13 +455,12 @@ echo.
 pause
 goto :MENU
 
-:: ─── Generate Changelog ────────────────────────────────────────────────────
-:CHANGELOG
+::  Generate Changelog :CHANGELOG
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  CHANGELOG GENERATOR                                                  │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    CHANGELOG GENERATOR
+echo  ========================================================================
 echo.
 echo   This will generate a changelog based on git commits.
 echo.
@@ -529,13 +508,12 @@ if /i "%CHANGELOG_CHOICE%"=="3" (
 if /i "%CHANGELOG_CHOICE%"=="b" goto :MENU
 goto :CHANGELOG
 
-:: ─── Help / Documentation ───────────────────────────────────────────────────
-:HELP
+::  Help / Documentation :HELP
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  RELEASE MANAGER HELP                                                  │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    RELEASE MANAGER HELP
+echo  ========================================================================
 echo.
 echo   SEMANTIC VERSIONING (SemVer):
 echo.
@@ -586,13 +564,12 @@ echo.
 pause
 goto :MENU
 
-:: ─── Confirmation Screen ─────────────────────────────────────────────────
-:CONFIRM
+::  Confirmation Screen :CONFIRM
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  RELEASE CONFIRMATION                                                  │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    RELEASE CONFIRMATION
+echo  ========================================================================
 echo.
 echo   Current Version:  v%CURRENT_VER%
 echo   Next Version:     v%NEXT_VER%
@@ -616,10 +593,8 @@ if %BUILD_ONLY%==0 (
     echo   [7]  Push to remote repository
 )
 echo.
-echo   ┌─────────────────────────────────────────────────────────────────────┐
-echo   │  Advanced Options (press any key to skip)                            │
-echo   └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo   Advanced Options (press any key to skip)
+echo  ----------------------------------------
 echo   [S]  Skip Build (only git operations)
 echo   [G]  Skip Git (only build and upload)
 echo   [U]  Skip Upload (only build)
@@ -655,13 +630,12 @@ if /i "%ADV_CHOICE%"=="r" goto :ROLLBACK_PLAN
 if "%ADV_CHOICE%"=="" goto :CONFIRM_FINAL
 goto :MENU
 
-:: ─── Pre-release Validation ─────────────────────────────────────────────────
-:PRE_RELEASE_VALIDATION
+::  Pre-release Validation :PRE_RELEASE_VALIDATION
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  PRE-RELEASE VALIDATION                                               │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    PRE-RELEASE VALIDATION
+echo  ========================================================================
 echo.
 echo   Running validation checks...
 echo.
@@ -710,13 +684,12 @@ echo   Validation complete. Press any key to continue...
 pause >nul
 goto :CONFIRM
 
-:: ─── Rollback Plan ────────────────────────────────────────────────────────
-:ROLLBACK_PLAN
+::  Rollback Plan :ROLLBACK_PLAN
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  ROLLBACK PLAN                                                        │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    ROLLBACK PLAN
+echo  ========================================================================
 echo.
 echo   In case of release failure, follow these steps:
 echo.
@@ -748,13 +721,12 @@ if /i "%ROLLBACK_CHOICE%"=="c" (
 )
 goto :CONFIRM
 
-:: ─── Release Notes Input ───────────────────────────────────────────────────
-:RELEASE_NOTES
+::  Release Notes Input :RELEASE_NOTES
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  RELEASE NOTES                                                        │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    RELEASE NOTES
+echo  ========================================================================
 echo.
 echo   Enter release notes for v%NEXT_VER%
 echo   (Press ENTER on empty line to finish)
@@ -770,13 +742,12 @@ if defined RELEASE_NOTES (
 )
 goto :NOTES_LOOP
 
-:: ─── Final Confirmation ────────────────────────────────────────────────────
-:CONFIRM_FINAL
+::  Final Confirmation :CONFIRM_FINAL
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  FINAL CONFIRMATION                                                    │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    FINAL CONFIRMATION
+echo  ========================================================================
 echo.
 echo   About to release:  v%NEXT_VER%
 echo   Type:              %RELEASE_TYPE%
@@ -794,8 +765,7 @@ echo  Cancelled. Returning to menu...
 timeout /t 2 /nobreak >nul
 goto :MENU
 
-:: ─── Execute Release Pipeline ───────────────────────────────────────────────
-:RUN
+::  Execute Release Pipeline :RUN
 cls
 echo.
 echo  ╔══════════════════════════════════════════════════════════════════════════╗
@@ -956,8 +926,7 @@ echo.
 pause
 goto :MENU
 
-:: ─── Exit ───────────────────────────────────────────────────────────────────
-:EXIT
+::  Exit :EXIT
 cls
 echo.
 echo  ╔══════════════════════════════════════════════════════════════════════════╗
@@ -981,8 +950,7 @@ echo.
 endlocal
 exit /b 0
 
-:: ─── Error Handling ─────────────────────────────────────────────────────────
-:ERROR_HANDLER
+::  Error Handling :ERROR_HANDLER
 cls
 echo.
 echo  ╔══════════════════════════════════════════════════════════════════════════╗
@@ -1016,13 +984,12 @@ if /i "%ERROR_CHOICE%"=="m" goto :MENU
 if /i "%ERROR_CHOICE%"=="q" goto :EXIT
 goto :ERROR_HANDLER
 
-:: ─── View Logs ───────────────────────────────────────────────────────────────
-:VIEW_LOGS
+::  View Logs :VIEW_LOGS
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  DETAILED LOGS                                                         │
-echo  └─────────────────────────────────────────────────────────────────────┘
+echo  ========================================================================
+echo                    DETAILED LOGS
+echo  ========================================================================
 echo.
 echo   Recent git log:
 echo.
@@ -1044,21 +1011,18 @@ echo.
 pause
 goto :ERROR_HANDLER
 
-:: ─── Continue Step ─────────────────────────────────────────────────────────
-:CONTINUE_STEP
+::  Continue Step :CONTINUE_STEP
 echo.
 echo   Continuing with next step...
 echo.
 goto :RUN
 
-:: ─── Version History Tracking ───────────────────────────────────────────────
-:VERSION_HISTORY
+::  Version History Tracking :VERSION_HISTORY
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  VERSION HISTORY TRACKING                                              │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    VERSION HISTORY TRACKING
+echo  ========================================================================
 echo   Local version history from package.json:
 echo.
 git log --all --grep="Release" --oneline
@@ -1077,14 +1041,12 @@ if /i "%HISTORY_CHOICE%"=="c" goto :COMPARE_VERSIONS
 if /i "%HISTORY_CHOICE%"=="b" goto :MENU
 goto :VERSION_HISTORY
 
-:: ─── Download Specific Version ───────────────────────────────────────────────
-:DOWNLOAD_VERSION
+::  Download Specific Version :DOWNLOAD_VERSION
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  DOWNLOAD SPECIFIC VERSION                                             │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    DOWNLOAD SPECIFIC VERSION
+echo  ========================================================================
 set /p "DOWNLOAD_VER=  Enter version to download (e.g., v2.0.0) > "
 echo.
 echo   Downloading assets for v%DOWNLOAD_VER%...
@@ -1099,14 +1061,12 @@ if %ERRORLEVEL% neq 0 (
 )
 goto :VERSION_HISTORY
 
-:: ─── Compare Versions ─────────────────────────────────────────────────────
-:COMPARE_VERSIONS
+::  Compare Versions :COMPARE_VERSIONS
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  COMPARE VERSIONS                                                      │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    COMPARE VERSIONS
+echo  ========================================================================
 set /p "VER1=  Enter first version (e.g., v2.0.0) > "
 set /p "VER2=  Enter second version (e.g., v2.1.0) > "
 echo.
@@ -1121,14 +1081,12 @@ echo.
 pause
 goto :VERSION_HISTORY
 
-:: ─── Build Statistics ────────────────────────────────────────────────────────
-:BUILD_STATS
+::  Build Statistics :BUILD_STATS
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  BUILD STATISTICS                                                      │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    BUILD STATISTICS
+echo  ========================================================================
 echo   Analyzing build statistics...
 echo.
 if exist "dist" (
@@ -1151,14 +1109,12 @@ echo.
 pause
 goto :MENU
 
-:: ─── Environment Diagnostics ────────────────────────────────────────────────
-:ENV_DIAGNOSTICS
+::  Environment Diagnostics :ENV_DIAGNOSTICS
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  ENVIRONMENT DIAGNOSTICS                                              │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    ENVIRONMENT DIAGNOSTICS
+echo  ========================================================================
 echo   System Information:
 echo.
 echo   OS: %OS%
@@ -1200,14 +1156,12 @@ echo.
 pause
 goto :MENU
 
-:: ─── Quick Actions ─────────────────────────────────────────────────────────
-:QUICK_ACTIONS
+::  Quick Actions :QUICK_ACTIONS
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  QUICK ACTIONS                                                         │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    QUICK ACTIONS
+echo  ========================================================================
 echo   [1]  Quick Patch Release (+1)
 echo   [2]  Quick Minor Release (+1)
 echo   [3]  Quick Micro Release (+1)
@@ -1256,14 +1210,12 @@ if /i "%QUICK_CHOICE%"=="5" (
 if /i "%QUICK_CHOICE%"=="b" goto :MENU
 goto :QUICK_ACTIONS
 
-:: ─── Batch Release ─────────────────────────────────────────────────────────
-:BATCH_RELEASE
+::  Batch Release :BATCH_RELEASE
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  BATCH RELEASE MODE                                                    │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    BATCH RELEASE MODE
+echo  ========================================================================
 echo   This mode allows you to queue multiple releases.
 echo.
 echo   [1]  Add release to queue
@@ -1281,8 +1233,7 @@ if /i "%BATCH_CHOICE%"=="4" goto :CLEAR_QUEUE
 if /i "%BATCH_CHOICE%"=="b" goto :MENU
 goto :BATCH_RELEASE
 
-:: ─── Add to Queue ─────────────────────────────────────────────────────────
-:ADD_TO_QUEUE
+::  Add to Queue :ADD_TO_QUEUE
 cls
 echo.
 echo   Add release to queue
@@ -1294,8 +1245,7 @@ echo   Added v%QUEUE_VER% (%QUEUE_TYPE%) to queue
 pause
 goto :BATCH_RELEASE
 
-:: ─── View Queue ───────────────────────────────────────────────────────────
-:VIEW_QUEUE
+::  View Queue :VIEW_QUEUE
 cls
 echo.
 echo   Current Release Queue:
@@ -1309,8 +1259,7 @@ echo.
 pause
 goto :BATCH_RELEASE
 
-:: ─── Execute Queue ───────────────────────────────────────────────────────
-:EXECUTE_QUEUE
+::  Execute Queue :EXECUTE_QUEUE
 cls
 echo.
 echo   Executing release queue...
@@ -1329,21 +1278,18 @@ del "%TEMP%\release_queue.txt" >nul 2>&1
 pause
 goto :BATCH_RELEASE
 
-:: ─── Clear Queue ─────────────────────────────────────────────────────────
-:CLEAR_QUEUE
+::  Clear Queue :CLEAR_QUEUE
 del "%TEMP%\release_queue.txt" >nul 2>&1
 echo   Queue cleared
 pause
 goto :BATCH_RELEASE
 
-:: ─── Release Templates ────────────────────────────────────────────────────
-:RELEASE_TEMPLATES
+::  Release Templates :RELEASE_TEMPLATES
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  RELEASE TEMPLATES                                                    │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    RELEASE TEMPLATES
+echo  ========================================================================
 echo   [1]  Bug Fix Template
 echo   [2]  Feature Template
 echo   [3]  Breaking Change Template
@@ -1361,14 +1307,12 @@ if /i "%TEMPLATE_CHOICE%"=="5" goto :CUSTOM_TEMPLATE
 if /i "%TEMPLATE_CHOICE%"=="b" goto :MENU
 goto :RELEASE_TEMPLATES
 
-:: ─── Bug Fix Template ─────────────────────────────────────────────────────
-:BUGFIX_TEMPLATE
+::  Bug Fix Template :BUGFIX_TEMPLATE
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  BUG FIX RELEASE TEMPLATE                                              │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    BUG FIX RELEASE TEMPLATE
+echo  ========================================================================
 echo   This template is for bug fix releases.
 echo.
 echo   Recommended version bump: Patch (+1)
@@ -1392,14 +1336,12 @@ if /i "%USE_TEMPLATE%"=="u" (
 )
 goto :RELEASE_TEMPLATES
 
-:: ─── Feature Template ─────────────────────────────────────────────────────
-:FEATURE_TEMPLATE
+::  Feature Template :FEATURE_TEMPLATE
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  FEATURE RELEASE TEMPLATE                                              │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    FEATURE RELEASE TEMPLATE
+echo  ========================================================================
 echo   This template is for new feature releases.
 echo.
 echo   Recommended version bump: Minor (+1)
@@ -1426,14 +1368,12 @@ if /i "%USE_TEMPLATE%"=="u" (
 )
 goto :RELEASE_TEMPLATES
 
-:: ─── Breaking Change Template ─────────────────────────────────────────────
-:BREAKING_TEMPLATE
+::  Breaking Change Template :BREAKING_TEMPLATE
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  BREAKING CHANGE TEMPLATE                                              │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    BREAKING CHANGE TEMPLATE
+echo  ========================================================================
 echo   This template is for breaking changes.
 echo.
 echo   Recommended version bump: Major (+1)
@@ -1460,14 +1400,12 @@ if /i "%USE_TEMPLATE%"=="u" (
 )
 goto :RELEASE_TEMPLATES
 
-:: ─── Hotfix Template ───────────────────────────────────────────────────────
-:HOTFIX_TEMPLATE
+::  Hotfix Template :HOTFIX_TEMPLATE
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  HOTFIX RELEASE TEMPLATE                                               │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    HOTFIX RELEASE TEMPLATE
+echo  ========================================================================
 echo   This template is for hotfix releases.
 echo.
 echo   Recommended version bump: Micro (+1)
@@ -1490,14 +1428,12 @@ if /i "%USE_TEMPLATE%"=="u" (
 )
 goto :RELEASE_TEMPLATES
 
-:: ─── Custom Template ───────────────────────────────────────────────────────
-:CUSTOM_TEMPLATE
+::  Custom Template :CUSTOM_TEMPLATE
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  CUSTOM RELEASE TEMPLATE                                               │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    CUSTOM RELEASE TEMPLATE
+echo  ========================================================================
 echo   Create your custom release template.
 echo.
 set /p "CUSTOM_NAME=  Template name > "
@@ -1519,14 +1455,12 @@ echo   Template saved
 pause
 goto :RELEASE_TEMPLATES
 
-:: ─── Release Schedule ───────────────────────────────────────────────────────
-:RELEASE_SCHEDULE
+::  Release Schedule :RELEASE_SCHEDULE
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  RELEASE SCHEDULE                                                      │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    RELEASE SCHEDULE
+echo  ========================================================================
 echo   Planned releases:
 echo.
 if exist "%TEMP%\release_schedule.txt" (
@@ -1547,8 +1481,7 @@ if /i "%SCHEDULE_CHOICE%"=="e" goto :EDIT_SCHEDULED
 if /i "%SCHEDULE_CHOICE%"=="b" goto :MENU
 goto :RELEASE_SCHEDULE
 
-:: ─── Add Scheduled Release ───────────────────────────────────────────────
-:ADD_SCHEDULED
+::  Add Scheduled Release :ADD_SCHEDULED
 cls
 echo.
 echo   Add scheduled release
@@ -1561,8 +1494,7 @@ echo   Scheduled v%SCHED_VER% for %SCHED_DATE%
 pause
 goto :RELEASE_SCHEDULE
 
-:: ─── Remove Scheduled Release ────────────────────────────────────────────
-:REMOVE_SCHEDULED
+::  Remove Scheduled Release :REMOVE_SCHEDULED
 cls
 echo.
 echo   Remove scheduled release
@@ -1574,8 +1506,7 @@ echo   Removed %REMOVE_VER% from schedule
 pause
 goto :RELEASE_SCHEDULE
 
-:: ─── Edit Scheduled Release ───────────────────────────────────────────────
-:EDIT_SCHEDULED
+::  Edit Scheduled Release :EDIT_SCHEDULED
 cls
 echo.
 echo   Edit scheduled release
@@ -1590,14 +1521,12 @@ echo   Updated %EDIT_VER%
 pause
 goto :RELEASE_SCHEDULE
 
-:: ─── Release Notes Editor ───────────────────────────────────────────────────
-:NOTES_EDITOR
+::  Release Notes Editor :NOTES_EDITOR
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  RELEASE NOTES EDITOR                                                 │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    RELEASE NOTES EDITOR
+echo  ========================================================================
 echo   [1]  Create new notes
 echo   [2]  Edit existing notes
 echo   [3]  Load from file
@@ -1615,8 +1544,7 @@ if /i "%NOTES_EDITOR_CHOICE%"=="5" goto :PREVIEW_NOTES
 if /i "%NOTES_EDITOR_CHOICE%"=="b" goto :MENU
 goto :NOTES_EDITOR
 
-:: ─── Create Notes ─────────────────────────────────────────────────────────
-:CREATE_NOTES
+::  Create Notes :CREATE_NOTES
 cls
 echo.
 echo   Create new release notes
@@ -1637,8 +1565,7 @@ echo   Notes created
 pause
 goto :NOTES_EDITOR
 
-:: ─── Edit Notes ─────────────────────────────────────────────────────────
-:EDIT_NOTES
+::  Edit Notes :EDIT_NOTES
 cls
 echo.
 echo   Current release notes:
@@ -1655,8 +1582,7 @@ echo   Notes updated
 pause
 goto :NOTES_EDITOR
 
-:: ─── Load Notes ─────────────────────────────────────────────────────────
-:LOAD_NOTES
+::  Load Notes :LOAD_NOTES
 cls
 echo.
 set /p "LOAD_FILE=  Enter file path > "
@@ -1669,8 +1595,7 @@ if exist "%LOAD_FILE%" (
 pause
 goto :NOTES_EDITOR
 
-:: ─── Save Notes ─────────────────────────────────────────────────────────
-:SAVE_NOTES
+::  Save Notes :SAVE_NOTES
 cls
 echo.
 set /p "SAVE_FILE=  Enter file path > "
@@ -1683,14 +1608,12 @@ if defined RELEASE_NOTES (
 pause
 goto :NOTES_EDITOR
 
-:: ─── Preview Notes ────────────────────────────────────────────────────────
-:PREVIEW_NOTES
+::  Preview Notes :PREVIEW_NOTES
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  RELEASE NOTES PREVIEW                                                │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    RELEASE NOTES PREVIEW
+echo  ========================================================================
 if defined RELEASE_NOTES (
     echo %RELEASE_NOTES%
 ) else (
@@ -1700,14 +1623,12 @@ echo.
 pause
 goto :NOTES_EDITOR
 
-:: ─── Team Collaboration ───────────────────────────────────────────────────
-:TEAM_COLLAB
+::  Team Collaboration :TEAM_COLLAB
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  TEAM COLLABORATION                                                    │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    TEAM COLLABORATION
+echo  ========================================================================
 echo   [1]  Assign reviewers
 echo   [2]  Request approval
 echo   [3]  View team activity
@@ -1723,8 +1644,7 @@ if /i "%TEAM_CHOICE%"=="4" goto :NOTIFY_TEAM
 if /i "%TEAM_CHOICE%"=="b" goto :MENU
 goto :TEAM_COLLAB
 
-:: ─── Assign Reviewers ─────────────────────────────────────────────────────
-:ASSIGN_REVIEWERS
+::  Assign Reviewers :ASSIGN_REVIEWERS
 cls
 echo.
 echo   Assign reviewers for this release
@@ -1743,8 +1663,7 @@ if /i "%REVIEWER_CHOICE%"=="c" (
 )
 goto :TEAM_COLLAB
 
-:: ─── Request Approval ─────────────────────────────────────────────────────
-:REQUEST_APPROVAL
+::  Request Approval :REQUEST_APPROVAL
 cls
 echo.
 echo   Request approval for release v%NEXT_VER%
@@ -1765,8 +1684,7 @@ if /i "%APPROVAL_CHOICE%"=="2" (
 )
 goto :TEAM_COLLAB
 
-:: ─── View Team Activity ───────────────────────────────────────────────────
-:VIEW_TEAM_ACTIVITY
+::  View Team Activity :VIEW_TEAM_ACTIVITY
 cls
 echo.
 echo   Recent team activity:
@@ -1776,8 +1694,7 @@ echo.
 pause
 goto :TEAM_COLLAB
 
-:: ─── Notify Team ─────────────────────────────────────────────────────────
-:NOTIFY_TEAM
+::  Notify Team :NOTIFY_TEAM
 cls
 echo.
 echo   Notify team about release
@@ -1789,14 +1706,12 @@ echo   Notification sent (simulated)
 pause
 goto :TEAM_COLLAB
 
-:: ─── Security Checks ─────────────────────────────────────────────────────
-:SECURITY_CHECKS
+::  Security Checks :SECURITY_CHECKS
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  SECURITY CHECKS                                                       │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    SECURITY CHECKS
+echo  ========================================================================
 echo   Running security checks...
 echo.
 echo   [1]  Dependency vulnerability scan
@@ -1816,8 +1731,7 @@ if /i "%SECURITY_CHOICE%"=="a" goto :RUN_ALL_SECURITY
 if /i "%SECURITY_CHOICE%"=="b" goto :MENU
 goto :SECURITY_CHECKS
 
-:: ─── Dependency Scan ─────────────────────────────────────────────────────
-:DEPENDENCY_SCAN
+::  Dependency Scan :DEPENDENCY_SCAN
 cls
 echo.
 echo   Scanning dependencies for vulnerabilities...
@@ -1832,8 +1746,7 @@ echo.
 pause
 goto :SECURITY_CHECKS
 
-:: ─── Code Audit ───────────────────────────────────────────────────────────
-:CODE_AUDIT
+::  Code Audit :CODE_AUDIT
 cls
 echo.
 echo   Running code security audit...
@@ -1844,8 +1757,7 @@ echo.
 pause
 goto :SECURITY_CHECKS
 
-:: ─── Secrets Check ───────────────────────────────────────────────────────
-:SECRETS_CHECK
+::  Secrets Check :SECRETS_CHECK
 cls
 echo.
 echo   Checking for exposed secrets...
@@ -1860,8 +1772,7 @@ echo.
 pause
 goto :SECURITY_CHECKS
 
-:: ─── License Check ───────────────────────────────────────────────────────
-:LICENSE_CHECK
+::  License Check :LICENSE_CHECK
 cls
 echo.
 echo   Checking license compliance...
@@ -1874,8 +1785,7 @@ echo.
 pause
 goto :SECURITY_CHECKS
 
-:: ─── Run All Security Checks ───────────────────────────────────────────────
-:RUN_ALL_SECURITY
+::  Run All Security Checks :RUN_ALL_SECURITY
 cls
 echo.
 echo   Running all security checks...
@@ -1889,14 +1799,12 @@ echo   All security checks complete
 pause
 goto :SECURITY_CHECKS
 
-:: ─── Performance Metrics ───────────────────────────────────────────────────
-:PERFORMANCE_METRICS
+::  Performance Metrics :PERFORMANCE_METRICS
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  PERFORMANCE METRICS                                                   │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    PERFORMANCE METRICS
+echo  ========================================================================
 echo   Analyzing performance metrics...
 echo.
 echo   [1]  Build time analysis
@@ -1914,8 +1822,7 @@ if /i "%PERF_CHOICE%"=="4" goto :MEMORY_USAGE_ANALYSIS
 if /i "%PERF_CHOICE%"=="b" goto :MENU
 goto :PERFORMANCE_METRICS
 
-:: ─── Build Time Analysis ───────────────────────────────────────────────────
-:BUILD_TIME_ANALYSIS
+::  Build Time Analysis :BUILD_TIME_ANALYSIS
 cls
 echo.
 echo   Build time analysis
@@ -1926,8 +1833,7 @@ echo.
 pause
 goto :PERFORMANCE_METRICS
 
-:: ─── Bundle Size Analysis ─────────────────────────────────────────────────
-:BUNDLE_SIZE_ANALYSIS
+::  Bundle Size Analysis :BUNDLE_SIZE_ANALYSIS
 cls
 echo.
 echo   Bundle size analysis
@@ -1944,8 +1850,7 @@ echo.
 pause
 goto :PERFORMANCE_METRICS
 
-:: ─── Startup Time Analysis ───────────────────────────────────────────────
-:STARTUP_TIME_ANALYSIS
+::  Startup Time Analysis :STARTUP_TIME_ANALYSIS
 cls
 echo.
 echo   Startup time analysis
@@ -1956,8 +1861,7 @@ echo.
 pause
 goto :PERFORMANCE_METRICS
 
-:: ─── Memory Usage Analysis ───────────────────────────────────────────────
-:MEMORY_USAGE_ANALYSIS
+::  Memory Usage Analysis :MEMORY_USAGE_ANALYSIS
 cls
 echo.
 echo   Memory usage analysis
@@ -1968,14 +1872,12 @@ echo.
 pause
 goto :PERFORMANCE_METRICS
 
-:: ─── Custom Scripts ───────────────────────────────────────────────────────
-:CUSTOM_SCRIPTS
+::  Custom Scripts :CUSTOM_SCRIPTS
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  CUSTOM SCRIPTS                                                        │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    CUSTOM SCRIPTS
+echo  ========================================================================
 echo   [1]  Run pre-release script
 echo   [2]  Run post-release script
 echo   [3]  Run custom script
@@ -1991,8 +1893,7 @@ if /i "%SCRIPT_CHOICE%"=="4" goto :MANAGE_SCRIPTS
 if /i "%SCRIPT_CHOICE%"=="b" goto :MENU
 goto :CUSTOM_SCRIPTS
 
-:: ─── Pre-release Script ───────────────────────────────────────────────────
-:PRE_RELEASE_SCRIPT
+::  Pre-release Script :PRE_RELEASE_SCRIPT
 cls
 echo.
 echo   Running pre-release script...
@@ -2006,8 +1907,7 @@ echo.
 pause
 goto :CUSTOM_SCRIPTS
 
-:: ─── Post-release Script ──────────────────────────────────────────────────
-:POST_RELEASE_SCRIPT
+::  Post-release Script :POST_RELEASE_SCRIPT
 cls
 echo.
 echo   Running post-release script...
@@ -2021,8 +1921,7 @@ echo.
 pause
 goto :CUSTOM_SCRIPTS
 
-:: ─── Run Custom Script ─────────────────────────────────────────────────────
-:RUN_CUSTOM_SCRIPT
+::  Run Custom Script :RUN_CUSTOM_SCRIPT
 cls
 echo.
 set /p "CUSTOM_SCRIPT_PATH=  Enter script path > "
@@ -2035,8 +1934,7 @@ echo.
 pause
 goto :CUSTOM_SCRIPTS
 
-:: ─── Manage Scripts ─────────────────────────────────────────────────────
-:MANAGE_SCRIPTS
+::  Manage Scripts :MANAGE_SCRIPTS
 cls
 echo.
 echo   Manage custom scripts
@@ -2053,8 +1951,7 @@ if /i "%MANAGE_SCRIPT_CHOICE%"=="3" goto :DELETE_SCRIPT
 if /i "%MANAGE_SCRIPT_CHOICE%"=="b" goto :CUSTOM_SCRIPTS
 goto :MANAGE_SCRIPTS
 
-:: ─── Create Script ───────────────────────────────────────────────────────
-:CREATE_SCRIPT
+::  Create Script :CREATE_SCRIPT
 cls
 echo.
 set /p "NEW_SCRIPT_NAME=  Enter script name > "
@@ -2064,8 +1961,7 @@ echo   Script created
 pause
 goto :MANAGE_SCRIPTS
 
-:: ─── Edit Script ─────────────────────────────────────────────────────────
-:EDIT_SCRIPT
+::  Edit Script :EDIT_SCRIPT
 cls
 echo.
 set /p "EDIT_SCRIPT_NAME=  Enter script name > "
@@ -2074,8 +1970,7 @@ echo   Script edited
 pause
 goto :MANAGE_SCRIPTS
 
-:: ─── Delete Script ───────────────────────────────────────────────────────
-:DELETE_SCRIPT
+::  Delete Script :DELETE_SCRIPT
 cls
 echo.
 set /p "DELETE_SCRIPT_NAME=  Enter script name > "
@@ -2084,14 +1979,12 @@ echo   Script deleted
 pause
 goto :MANAGE_SCRIPTS
 
-:: ─── Integration Settings ───────────────────────────────────────────────────
-:INTEGRATION_SETTINGS
+::  Integration Settings :INTEGRATION_SETTINGS
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  INTEGRATION SETTINGS                                                  │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    INTEGRATION SETTINGS
+echo  ========================================================================
 echo   [1]  Slack Integration
 echo   [2]  Discord Integration
 echo   [3]  Email Integration
@@ -2107,8 +2000,7 @@ if /i "%INTEGRATION_CHOICE%"=="4" goto :WEBHOOK_CONFIG
 if /i "%INTEGRATION_CHOICE%"=="b" goto :MENU
 goto :INTEGRATION_SETTINGS
 
-:: ─── Slack Integration ────────────────────────────────────────────────────
-:SLACK_INTEGRATION
+::  Slack Integration :SLACK_INTEGRATION
 cls
 echo.
 echo   Slack Integration Settings
@@ -2119,8 +2011,7 @@ echo   Slack integration configured
 pause
 goto :INTEGRATION_SETTINGS
 
-:: ─── Discord Integration ──────────────────────────────────────────────────
-:DISCORD_INTEGRATION
+::  Discord Integration :DISCORD_INTEGRATION
 cls
 echo.
 echo   Discord Integration Settings
@@ -2130,8 +2021,7 @@ echo   Discord integration configured
 pause
 goto :INTEGRATION_SETTINGS
 
-:: ─── Email Integration ─────────────────────────────────────────────────────
-:EMAIL_INTEGRATION
+::  Email Integration :EMAIL_INTEGRATION
 cls
 echo.
 echo   Email Integration Settings
@@ -2143,8 +2033,7 @@ echo   Email integration configured
 pause
 goto :INTEGRATION_SETTINGS
 
-:: ─── Webhook Configuration ───────────────────────────────────────────────
-:WEBHOOK_CONFIG
+::  Webhook Configuration :WEBHOOK_CONFIG
 cls
 echo.
 echo   Webhook Configuration
@@ -2155,14 +2044,12 @@ echo   Webhook configured
 pause
 goto :INTEGRATION_SETTINGS
 
-:: ─── Backup and Restore ───────────────────────────────────────────────────
-:BACKUP_RESTORE
+::  Backup and Restore :BACKUP_RESTORE
 cls
 echo.
-echo  ┌─────────────────────────────────────────────────────────────────────┐
-echo  │  BACKUP AND RESTORE                                                    │
-echo  └─────────────────────────────────────────────────────────────────────┘
-echo.
+echo  ========================================================================
+echo                    BACKUP AND RESTORE
+echo  ========================================================================
 echo   [1]  Backup current state
 echo   [2]  Restore from backup
 echo   [3]  View backups
@@ -2178,8 +2065,7 @@ if /i "%BACKUP_CHOICE%"=="4" goto :DELETE_BACKUP
 if /i "%BACKUP_CHOICE%"=="b" goto :MENU
 goto :BACKUP_RESTORE
 
-:: ─── Backup State ─────────────────────────────────────────────────────────
-:BACKUP_STATE
+::  Backup State :BACKUP_STATE
 cls
 echo.
 echo   Creating backup...
@@ -2194,8 +2080,7 @@ echo   Backup created: %BACKUP_DIR%
 pause
 goto :BACKUP_RESTORE
 
-:: ─── Restore State ───────────────────────────────────────────────────────
-:RESTORE_STATE
+::  Restore State :RESTORE_STATE
 cls
 echo.
 echo   Available backups:
@@ -2215,8 +2100,7 @@ if exist "backups\%RESTORE_BACKUP%" (
 pause
 goto :BACKUP_RESTORE
 
-:: ─── View Backups ─────────────────────────────────────────────────────────
-:VIEW_BACKUPS
+::  View Backups :VIEW_BACKUPS
 cls
 echo.
 echo   Available backups:
@@ -2226,8 +2110,7 @@ echo.
 pause
 goto :BACKUP_RESTORE
 
-:: ─── Delete Backup ───────────────────────────────────────────────────────
-:DELETE_BACKUP
+::  Delete Backup :DELETE_BACKUP
 cls
 echo.
 set /p "DELETE_BACKUP=  Enter backup name to delete > "
@@ -2240,4 +2123,4 @@ if exist "backups\%DELETE_BACKUP%" (
 pause
 goto :BACKUP_RESTORE
 
-:: ─── End of File ───────────────────────────────────────────────────────────
+::  End of File 
