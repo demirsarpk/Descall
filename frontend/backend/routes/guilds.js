@@ -672,4 +672,323 @@ router.delete("/:id/channels/:channelId", requireAuth, async (req, res) => {
   }
 });
 
+// ─── GUILD MESSAGES ───
+
+// GET /guilds/:id/channels/:channelId/messages — Fetch messages in a channel
+router.get("/:id/channels/:channelId/messages", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const guildId = req.params.id;
+    const channelId = req.params.channelId;
+    const { before, limit = 50 } = req.query;
+
+    const member = await isGuildMember(guildId, userId);
+    if (!member) {
+      return res.status(403).json({ error: "You are not a member of this guild" });
+    }
+
+    let query = supabase
+      .from("guild_messages")
+      .select("id, guild_id, channel_id, sender_id, content, media_url, media_type, reply_to, is_pinned, is_edited, edited_at, created_at")
+      .eq("channel_id", channelId)
+      .eq("guild_id", guildId)
+      .order("created_at", { ascending: false })
+      .limit(parseInt(limit));
+
+    if (before) {
+      query = query.lt("created_at", before);
+    }
+
+    const { data: messages, error } = await query;
+    if (error) {
+      console.error("[Guilds] Messages fetch error:", error);
+      return res.status(500).json({ error: "Failed to fetch messages" });
+    }
+
+    // Fetch sender info for all messages
+    const senderIds = [...new Set(messages?.map((m) => m.sender_id) || [])];
+    let senders = [];
+    if (senderIds.length > 0) {
+      const { data } = await supabase
+        .from("users")
+        .select("id, username, avatar_url, status")
+        .in("id", senderIds);
+      senders = data || [];
+    }
+
+    // Fetch reactions for all messages
+    const messageIds = messages?.map((m) => m.id) || [];
+    let reactions = [];
+    if (messageIds.length > 0) {
+      const { data } = await supabase
+        .from("guild_message_reactions")
+        .select("message_id, emoji, user_id")
+        .in("message_id", messageIds);
+      reactions = data || [];
+    }
+
+    const enriched = messages?.map((m) => ({
+      ...m,
+      sender: senders.find((s) => s.id === m.sender_id) || { id: m.sender_id, username: "Unknown" },
+      reactions: reactions
+        .filter((r) => r.message_id === m.id)
+        .reduce((acc, r) => {
+          const existing = acc.find((x) => x.emoji === r.emoji);
+          if (existing) {
+            existing.count += 1;
+            existing.users.push(r.user_id);
+          } else {
+            acc.push({ emoji: r.emoji, count: 1, users: [r.user_id] });
+          }
+          return acc;
+        }, []),
+    })) || [];
+
+    return res.json({ messages: enriched.reverse() });
+  } catch (err) {
+    console.error("[Guilds] GET messages error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /guilds/:id/channels/:channelId/messages — Send a message
+router.post("/:id/channels/:channelId/messages", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const guildId = req.params.id;
+    const channelId = req.params.channelId;
+    const { content, mediaUrl, mediaType, replyTo } = req.body;
+
+    const member = await isGuildMember(guildId, userId);
+    if (!member) {
+      return res.status(403).json({ error: "You are not a member of this guild" });
+    }
+
+    const { data: message, error } = await supabase
+      .from("guild_messages")
+      .insert({
+        guild_id: guildId,
+        channel_id: channelId,
+        sender_id: userId,
+        content: content || null,
+        media_url: mediaUrl || null,
+        media_type: mediaType || null,
+        reply_to: replyTo || null,
+      })
+      .select()
+      .single();
+
+    if (error || !message) {
+      console.error("[Guilds] Message send error:", error);
+      return res.status(500).json({ error: "Failed to send message" });
+    }
+
+    // Fetch sender info
+    const { data: sender } = await supabase
+      .from("users")
+      .select("id, username, avatar_url, status")
+      .eq("id", userId)
+      .single();
+
+    return res.status(201).json({
+      message: { ...message, sender: sender || { id: userId, username: "Unknown" }, reactions: [] },
+    });
+  } catch (err) {
+    console.error("[Guilds] POST message error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PATCH /guilds/:id/channels/:channelId/messages/:messageId — Edit message
+router.patch("/:id/channels/:channelId/messages/:messageId", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const guildId = req.params.id;
+    const channelId = req.params.channelId;
+    const messageId = req.params.messageId;
+    const { content } = req.body;
+
+    const member = await isGuildMember(guildId, userId);
+    if (!member) {
+      return res.status(403).json({ error: "You are not a member of this guild" });
+    }
+
+    // Verify ownership
+    const { data: existing } = await supabase
+      .from("guild_messages")
+      .select("sender_id")
+      .eq("id", messageId)
+      .eq("channel_id", channelId)
+      .eq("guild_id", guildId)
+      .single();
+
+    if (!existing || existing.sender_id !== userId) {
+      return res.status(403).json({ error: "You can only edit your own messages" });
+    }
+
+    const { data: message, error } = await supabase
+      .from("guild_messages")
+      .update({
+        content: content?.trim(),
+        is_edited: true,
+        edited_at: new Date().toISOString(),
+      })
+      .eq("id", messageId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[Guilds] Message edit error:", error);
+      return res.status(500).json({ error: "Failed to edit message" });
+    }
+
+    return res.json({ message });
+  } catch (err) {
+    console.error("[Guilds] PATCH message error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE /guilds/:id/channels/:channelId/messages/:messageId — Delete message
+router.delete("/:id/channels/:channelId/messages/:messageId", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const guildId = req.params.id;
+    const channelId = req.params.channelId;
+    const messageId = req.params.messageId;
+
+    const member = await isGuildMember(guildId, userId);
+    if (!member) {
+      return res.status(403).json({ error: "You are not a member of this guild" });
+    }
+
+    // Verify ownership or admin (simplified: only owner for now)
+    const { data: existing } = await supabase
+      .from("guild_messages")
+      .select("sender_id")
+      .eq("id", messageId)
+      .eq("channel_id", channelId)
+      .eq("guild_id", guildId)
+      .single();
+
+    if (!existing) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    const isOwner = await isGuildOwner(guildId, userId);
+    if (existing.sender_id !== userId && !isOwner) {
+      return res.status(403).json({ error: "You can only delete your own messages" });
+    }
+
+    await supabase
+      .from("guild_messages")
+      .delete()
+      .eq("id", messageId)
+      .eq("channel_id", channelId)
+      .eq("guild_id", guildId);
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[Guilds] DELETE message error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /guilds/:id/channels/:channelId/messages/:messageId/reactions — Add reaction
+router.post("/:id/channels/:channelId/messages/:messageId/reactions", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const guildId = req.params.id;
+    const channelId = req.params.channelId;
+    const messageId = req.params.messageId;
+    const { emoji } = req.body;
+
+    if (!emoji) {
+      return res.status(400).json({ error: "Emoji is required" });
+    }
+
+    const member = await isGuildMember(guildId, userId);
+    if (!member) {
+      return res.status(403).json({ error: "You are not a member of this guild" });
+    }
+
+    const { data: reaction, error } = await supabase
+      .from("guild_message_reactions")
+      .insert({ message_id: messageId, user_id: userId, emoji })
+      .select()
+      .single();
+
+    if (error) {
+      // Likely duplicate, ignore
+      if (error.code === "23505") {
+        return res.json({ reaction: null });
+      }
+      console.error("[Guilds] Reaction add error:", error);
+      return res.status(500).json({ error: "Failed to add reaction" });
+    }
+
+    return res.status(201).json({ reaction });
+  } catch (err) {
+    console.error("[Guilds] POST reaction error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// DELETE /guilds/:id/channels/:channelId/messages/:messageId/reactions/:emoji — Remove reaction
+router.delete("/:id/channels/:channelId/messages/:messageId/reactions/:emoji", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const guildId = req.params.id;
+    const channelId = req.params.channelId;
+    const messageId = req.params.messageId;
+    const emoji = decodeURIComponent(req.params.emoji);
+
+    const member = await isGuildMember(guildId, userId);
+    if (!member) {
+      return res.status(403).json({ error: "You are not a member of this guild" });
+    }
+
+    await supabase
+      .from("guild_message_reactions")
+      .delete()
+      .eq("message_id", messageId)
+      .eq("user_id", userId)
+      .eq("emoji", emoji);
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[Guilds] DELETE reaction error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /guilds/:id/channels/:channelId/read — Mark channel as read
+router.post("/:id/channels/:channelId/read", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const guildId = req.params.id;
+    const channelId = req.params.channelId;
+    const { lastMessageId } = req.body;
+
+    const member = await isGuildMember(guildId, userId);
+    if (!member) {
+      return res.status(403).json({ error: "You are not a member of this guild" });
+    }
+
+    await supabase
+      .from("guild_message_reads")
+      .upsert({
+        user_id: userId,
+        channel_id: channelId,
+        last_read_message_id: lastMessageId || null,
+        read_at: new Date().toISOString(),
+      }, { onConflict: "user_id, channel_id" });
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[Guilds] POST read error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;

@@ -315,6 +315,149 @@ function registerGuildHandlers(io, socket) {
 
     socket.emit("guild:invite:created", { invite });
   });
+
+  // ─── Guild Messages (Real-time) ───
+
+  // Send message in a guild channel
+  socket.on("guild:message", async ({ guildId, channelId, content, mediaUrl, mediaType, replyTo }) => {
+    if (!guildId || !channelId) return;
+    const member = await isGuildMember(guildId, myId);
+    if (!member) {
+      socket.emit("guild:error", { message: "You are not a member of this guild" });
+      return;
+    }
+
+    const { data: message, error } = await supabase
+      .from("guild_messages")
+      .insert({
+        guild_id: guildId,
+        channel_id: channelId,
+        sender_id: myId,
+        content: content || null,
+        media_url: mediaUrl || null,
+        media_type: mediaType || null,
+        reply_to: replyTo || null,
+      })
+      .select()
+      .single();
+
+    if (error || !message) {
+      socket.emit("guild:error", { message: "Failed to send message" });
+      return;
+    }
+
+    // Fetch sender info
+    const { data: sender } = await supabase
+      .from("users")
+      .select("id, username, avatar_url, status")
+      .eq("id", myId)
+      .single();
+
+    const payload = { ...message, sender: sender || { id: myId, username: "Unknown" }, reactions: [] };
+    broadcastToGuild(io, guildId, "guild:message:new", { guildId, channelId, message: payload });
+  });
+
+  // Edit message
+  socket.on("guild:message:edit", async ({ guildId, channelId, messageId, content }) => {
+    if (!guildId || !channelId || !messageId) return;
+    const member = await isGuildMember(guildId, myId);
+    if (!member) return;
+
+    const { data: existing } = await supabase
+      .from("guild_messages")
+      .select("sender_id")
+      .eq("id", messageId)
+      .single();
+
+    if (!existing || existing.sender_id !== myId) {
+      socket.emit("guild:error", { message: "You can only edit your own messages" });
+      return;
+    }
+
+    const { data: message, error } = await supabase
+      .from("guild_messages")
+      .update({
+        content: content?.trim(),
+        is_edited: true,
+        edited_at: new Date().toISOString(),
+      })
+      .eq("id", messageId)
+      .select()
+      .single();
+
+    if (error || !message) return;
+
+    broadcastToGuild(io, guildId, "guild:message:edited", { guildId, channelId, message });
+  });
+
+  // Delete message
+  socket.on("guild:message:delete", async ({ guildId, channelId, messageId }) => {
+    if (!guildId || !channelId || !messageId) return;
+    const member = await isGuildMember(guildId, myId);
+    if (!member) return;
+
+    const { data: existing } = await supabase
+      .from("guild_messages")
+      .select("sender_id")
+      .eq("id", messageId)
+      .single();
+
+    const isOwner = await isGuildOwner(guildId, myId);
+    if (!existing || (existing.sender_id !== myId && !isOwner)) {
+      socket.emit("guild:error", { message: "You can only delete your own messages" });
+      return;
+    }
+
+    await supabase.from("guild_messages").delete().eq("id", messageId);
+    broadcastToGuild(io, guildId, "guild:message:deleted", { guildId, channelId, messageId });
+  });
+
+  // Add reaction
+  socket.on("guild:message:reaction", async ({ guildId, channelId, messageId, emoji }) => {
+    if (!guildId || !channelId || !messageId || !emoji) return;
+    const member = await isGuildMember(guildId, myId);
+    if (!member) return;
+
+    const { data: reaction, error } = await supabase
+      .from("guild_message_reactions")
+      .insert({ message_id: messageId, user_id: myId, emoji })
+      .select()
+      .single();
+
+    if (error) return;
+    broadcastToGuild(io, guildId, "guild:reaction:added", { guildId, channelId, messageId, reaction });
+  });
+
+  // Remove reaction
+  socket.on("guild:message:reaction:remove", async ({ guildId, channelId, messageId, emoji }) => {
+    if (!guildId || !channelId || !messageId || !emoji) return;
+    const member = await isGuildMember(guildId, myId);
+    if (!member) return;
+
+    await supabase
+      .from("guild_message_reactions")
+      .delete()
+      .eq("message_id", messageId)
+      .eq("user_id", myId)
+      .eq("emoji", emoji);
+
+    broadcastToGuild(io, guildId, "guild:reaction:removed", { guildId, channelId, messageId, userId: myId, emoji });
+  });
+
+  // Typing indicator
+  socket.on("guild:typing", async ({ guildId, channelId }) => {
+    if (!guildId || !channelId) return;
+    const member = await isGuildMember(guildId, myId);
+    if (!member) return;
+
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, username, avatar_url")
+      .eq("id", myId)
+      .single();
+
+    socket.to(`guild:${guildId}`).emit("guild:typing", { guildId, channelId, user: user || { id: myId, username: "Unknown" } });
+  });
 }
 
 module.exports = { registerGuildHandlers };
