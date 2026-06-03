@@ -180,7 +180,6 @@ function GuildMessageBubble({
 }
 
 export default function GuildChatView({ socket, me, guildId, channelId, channelName }) {
-  console.log('[GuildChatView] props:', { socket: !!socket, me, guildId, channelId, channelName });
   const myId = me?.id;
   const {
     messages,
@@ -194,8 +193,6 @@ export default function GuildChatView({ socket, me, guildId, channelId, channelN
     toggleReaction,
     sendTyping,
   } = useGuildMessages(socket, guildId, channelId, myId);
-
-  console.log('[GuildChatView] hook result:', { messagesCount: messages.length, loading, hasMore });
 
   const containerRef = useRef(null);
   const [input, setInput] = useState("");

@@ -9,7 +9,6 @@ import {
 } from "../api/guilds";
 
 export function useGuildMessages(socket, guildId, channelId, myId) {
-  console.log('[useGuildMessages] init:', { socket: !!socket, guildId, channelId, myId });
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -24,7 +23,6 @@ export function useGuildMessages(socket, guildId, channelId, myId) {
   // Load initial messages when channel changes
   useEffect(() => {
     if (!guildId || !channelId) {
-      console.log('[useGuildMessages] no guildId or channelId, clearing messages');
       setMessages([]);
       setHasMore(true);
       return;
@@ -35,11 +33,9 @@ export function useGuildMessages(socket, guildId, channelId, myId) {
     setMessages([]);
     setHasMore(true);
 
-    console.log('[useGuildMessages] fetching messages for:', { guildId, channelId });
     getGuildMessages(guildId, channelId, { limit: 50 })
       .then(({ messages: fetched }) => {
         if (cancelled) return;
-        console.log('[useGuildMessages] fetched messages:', fetched?.length);
         setMessages(fetched || []);
         setHasMore((fetched || []).length >= 50);
       })
@@ -179,13 +175,8 @@ export function useGuildMessages(socket, guildId, channelId, myId) {
 
   const sendMessage = useCallback(
     async ({ content, mediaUrl, mediaType, replyTo }) => {
-      console.log('[useGuildMessages] sendMessage called:', { content, mediaUrl, mediaType, replyTo, socket: !!socket, guildId, channelId });
-      if (!socket || !guildId || !channelId) {
-        console.error('[useGuildMessages] sendMessage missing required data:', { socket: !!socket, guildId, channelId });
-        return;
-      }
+      if (!socket || !guildId || !channelId) return;
       socket.emit("guild:message", { guildId, channelId, content, mediaUrl, mediaType, replyTo });
-      console.log('[useGuildMessages] socket.emit sent');
     },
     [socket, guildId, channelId]
   );

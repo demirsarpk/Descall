@@ -17,7 +17,7 @@ export default function NavigationRail({
 }) {
   const navItems = [
     { id: "chat",     icon: MessageSquare, label: "Chats"    },
-    { id: "servers",  icon: Server,          label: "Servers"  },
+    // { id: "servers",  icon: Server,          label: "Servers"  }, // Temporarily hidden
     { id: "groups",   icon: Users,         label: "Groups"   },
     { id: "friends",  icon: UserPlus,      label: "Friends"  },
     { id: "activity", icon: Zap,           label: "Activity" },

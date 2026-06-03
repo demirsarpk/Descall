@@ -182,26 +182,6 @@ export default function AppLayout({
           friendPresence={activity.friendPresence}
           onlineUsers={onlineUsers}
         />
-      ) : activeView === "servers" ? (
-        <>
-          {/* Server Icon Bar - 72px vertical bar with guild icons */}
-          <ServerIconBar
-            guilds={guilds}
-            activeGuild={activeGuild}
-            onGuildSelect={onGuildSelect}
-            onCreateGuild={onCreateGuild}
-            onJoinGuild={onJoinGuild}
-          />
-
-          {/* Server Sidebar - Channel list only */}
-          <ServerSidebar
-            activeGuild={activeGuild}
-            activeChannel={activeGuildChannel}
-            onChannelSelect={onGuildChannelSelect}
-            onLeaveGuild={onLeaveGuild}
-            onDeleteGuild={onDeleteGuild}
-          />
-        </>
       ) : (
       <ServerSidebar
         collapsed={sidebarCollapsed}
