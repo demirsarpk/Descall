@@ -55,51 +55,56 @@ export default function NavigationRail({
 
       {/* Bottom Actions */}
       <div className="nav-rail-bottom">
-        <motion.button
-          className="rail-btn"
-          onClick={onAddClick}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title="Add New"
-        >
-          <Plus size={24} strokeWidth={2} />
-        </motion.button>
-
-        <motion.button
-          className="rail-btn"
-          onClick={onUserClick}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title="User Settings"
-        >
-          <Settings size={24} strokeWidth={2} />
-        </motion.button>
-
-        {isAdmin && (
+        <div className="nav-rail-actions">
           <motion.button
-            className="rail-btn admin-btn"
-            onClick={onAdminClick}
+            className="rail-btn mini"
+            onClick={onAddClick}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            title="Admin Panel"
+            title="Add New"
           >
-            <Shield size={24} strokeWidth={2} />
+            <Plus size={20} strokeWidth={2} />
           </motion.button>
-        )}
 
-        <motion.button
-          className="rail-btn rail-avatar-btn"
-          onClick={onUserClick}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title={me?.username || "User"}
-        >
-          <Avatar
-            name={me?.username || "User"}
-            size={32}
-            imageUrl={me?.avatarUrl}
-          />
-        </motion.button>
+          <motion.button
+            className="rail-btn mini"
+            onClick={onUserClick}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            title="User Settings"
+          >
+            <Settings size={20} strokeWidth={2} />
+          </motion.button>
+
+          {isAdmin && (
+            <motion.button
+              className="rail-btn mini admin-btn"
+              onClick={onAdminClick}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Admin Panel"
+            >
+              <Shield size={20} strokeWidth={2} />
+            </motion.button>
+          )}
+        </div>
+
+        {/* User Profile Panel */}
+        <button className="rail-user-panel" onClick={onUserClick}>
+          <div className="rail-user-avatar-wrap">
+            <Avatar
+              name={me?.username || "User"}
+              size={32}
+              imageUrl={me?.avatarUrl}
+            />
+            <span className="rail-user-status-dot" />
+          </div>
+          <div className="rail-user-info">
+            <span className="rail-user-name">{me?.username || "User"}</span>
+            <span className="rail-user-status">Online</span>
+          </div>
+          <Settings size={16} className="rail-user-settings-icon" />
+        </button>
       </div>
     </nav>
   );
