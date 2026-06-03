@@ -233,10 +233,14 @@ export default function AppLayout({
       )}
 
       {/* Main Chat Panel - Center content area */}
-      <ChatPanel 
+      <ChatPanel
         activeView={activeView}
         activeDmUser={activeDmUser}
         activeGroup={activeGroup}
+        activeGuild={activeGuild}
+        activeGuildChannel={activeGuildChannel}
+        socket={socket}
+        me={me}
         sidebarCollapsed={sidebarCollapsed}
         onlineUsers={onlineUsers}
         friendNotice={friendNotice}

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Phone, Video, MoreVertical, Users,
+  Phone, Video, MoreVertical, Users, Hash,
   Settings, Bell, Search, Plus, MessageSquare, X, ChevronDown, ChevronRight
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
@@ -11,6 +11,7 @@ import MessageComposer from "../chat/MessageComposer";
 import ActiveCallBanner from "../ActiveCallBanner";
 import ActivityView from "../activity/ActivityView";
 import TypingIndicator from "../chat/TypingIndicator";
+import GuildChatView from "../servers/GuildChatView";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 
@@ -18,6 +19,10 @@ export default function ChatPanel({
   activeView,
   activeDmUser,
   activeGroup,
+  activeGuild,
+  activeGuildChannel,
+  socket,
+  me,
   sidebarCollapsed,
   onlineUsers,
   messages = [],
@@ -67,11 +72,13 @@ export default function ChatPanel({
   const getTitle = () => {
     if (activeDmUser) return activeDmUser.username;
     if (activeGroup) return activeGroup.name;
+    if (activeGuildChannel) return activeGuildChannel.name;
     if (activeView === "chat") return "Chats";
     if (activeView === "dms") return "Direct Messages";
     if (activeView === "groups") return "Groups";
     if (activeView === "calls")    return "Calls";
     if (activeView === "activity") return "Activity";
+    if (activeView === "servers") return activeGuild?.name || "Servers";
     return "Descall";
   };
 
@@ -82,6 +89,9 @@ export default function ChatPanel({
     }
     if (activeGroup) {
       return `${activeGroup.memberCount || 0} members`;
+    }
+    if (activeGuildChannel) {
+      return activeGuild?.name || "";
     }
     return "";
   };
@@ -109,6 +119,11 @@ export default function ChatPanel({
               ) : (
                 <span>{activeGroup.name?.charAt(0)?.toUpperCase()}</span>
               )}
+            </div>
+          )}
+          {activeGuildChannel && (
+            <div className="header-icon" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+              <Hash size={20} />
             </div>
           )}
           <div className="header-title-block">
@@ -201,6 +216,14 @@ export default function ChatPanel({
           onUpdatePrivacy={activity?.updatePrivacy}
           onlineUsers={onlineUsers}
         />
+      ) : activeGuildChannel ? (
+        <GuildChatView
+          socket={socket}
+          me={me}
+          guildId={activeGuild?.id}
+          channelId={activeGuildChannel?.id}
+          channelName={activeGuildChannel?.name}
+        />
       ) : (
       <div className="messages-container" ref={messagesRef}>
         {showSearch && (
@@ -222,6 +245,7 @@ export default function ChatPanel({
               {activeView === "groups" && <Users size={64} />}
               {activeView === "chat" && <MessageSquare size={64} />}
               {activeView === "calls" && <Phone size={64} />}
+              {activeView === "servers" && <Hash size={64} />}
             </div>
             <h2>Welcome to Descall</h2>
             <p>Select a conversation to start chatting</p>
