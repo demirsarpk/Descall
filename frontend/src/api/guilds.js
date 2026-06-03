@@ -125,3 +125,74 @@ export async function updateGuildChannel(guildId, channelId, updates) {
   if (!res.ok) throw new Error("Failed to update channel");
   return res.json();
 }
+
+// ─── Guild Messages ───
+
+export async function getGuildMessages(guildId, channelId, { before, limit = 50 } = {}) {
+  const params = new URLSearchParams();
+  if (before) params.set("before", before);
+  params.set("limit", String(limit));
+  const res = await fetch(`${BASE}/${guildId}/channels/${channelId}/messages?${params}`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to fetch messages");
+  return res.json();
+}
+
+export async function sendGuildMessage(guildId, channelId, { content, mediaUrl, mediaType, replyTo }) {
+  const res = await fetch(`${BASE}/${guildId}/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ content, mediaUrl, mediaType, replyTo }),
+  });
+  if (!res.ok) throw new Error("Failed to send message");
+  return res.json();
+}
+
+export async function editGuildMessage(guildId, channelId, messageId, content) {
+  const res = await fetch(`${BASE}/${guildId}/channels/${channelId}/messages/${messageId}`, {
+    method: "PATCH",
+    headers: getHeaders(),
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error("Failed to edit message");
+  return res.json();
+}
+
+export async function deleteGuildMessage(guildId, channelId, messageId) {
+  const res = await fetch(`${BASE}/${guildId}/channels/${channelId}/messages/${messageId}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to delete message");
+  return res.json();
+}
+
+export async function addGuildReaction(guildId, channelId, messageId, emoji) {
+  const res = await fetch(`${BASE}/${guildId}/channels/${channelId}/messages/${messageId}/reactions`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ emoji }),
+  });
+  if (!res.ok) throw new Error("Failed to add reaction");
+  return res.json();
+}
+
+export async function removeGuildReaction(guildId, channelId, messageId, emoji) {
+  const res = await fetch(
+    `${BASE}/${guildId}/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+    { method: "DELETE", headers: getHeaders() }
+  );
+  if (!res.ok) throw new Error("Failed to remove reaction");
+  return res.json();
+}
+
+export async function markGuildChannelRead(guildId, channelId, lastMessageId) {
+  const res = await fetch(`${BASE}/${guildId}/channels/${channelId}/read`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ lastMessageId }),
+  });
+  if (!res.ok) throw new Error("Failed to mark as read");
+  return res.json();
+}

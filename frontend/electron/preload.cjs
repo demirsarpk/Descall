@@ -7,7 +7,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Updates
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-  
+  restartApp: () => ipcRenderer.invoke('restart-app'),
+  getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
+
   // Window controls
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
@@ -43,10 +45,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update:progress', handler);
     return () => ipcRenderer.off('update:progress', handler);
   },
-  onUpdateInstalling: (callback) => {
+  onUpdateReady: (callback) => {
     const handler = (_, data) => callback(data);
-    ipcRenderer.on('update:installing', handler);
-    return () => ipcRenderer.off('update:installing', handler);
+    ipcRenderer.on('update:ready', handler);
+    return () => ipcRenderer.off('update:ready', handler);
+  },
+  onUpdateError: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('update:error', handler);
+    return () => ipcRenderer.off('update:error', handler);
   },
   
   // Remove listeners

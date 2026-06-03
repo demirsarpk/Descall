@@ -10,11 +10,14 @@ const fs = require('fs');
 log.transports.file.level = 'info';
 log.info('App starting...');
 
-// Auto-updater — fully silent, no user prompts
+// Auto-updater — silent download, install on quit OR user restart
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
-autoUpdater.autoDownload    = true;   // start download immediately
-autoUpdater.autoInstallOnAppQuit = false; // we install right away, not on quit
+autoUpdater.autoDownload         = true;  // download immediately when available
+autoUpdater.autoInstallOnAppQuit = true;  // install when user quits normally
+
+let updateReady = false;
+let updateVersion = null;
 
 // Paths
 const isDev = process.env.NODE_ENV === 'development';
@@ -398,9 +401,7 @@ autoUpdater.on('checking-for-update', () => {
 
 autoUpdater.on('update-available', (info) => {
   log.info('[updater] Update available, downloading silently:', info.version);
-  // autoDownload=true means electron-updater already started the download.
-  // Notify the renderer so it can show a subtle in-app banner if desired.
-  mainWindow?.webContents.send('update:downloading', { version: info.version });
+  mainWindow?.webContents?.send('update:downloading', { version: info.version });
 });
 
 autoUpdater.on('update-not-available', (info) => {
@@ -409,21 +410,42 @@ autoUpdater.on('update-not-available', (info) => {
 
 autoUpdater.on('error', (err) => {
   log.error('[updater] Error:', err?.message ?? err);
+  mainWindow?.webContents?.send('update:error', { message: err?.message || String(err) });
 });
 
 autoUpdater.on('download-progress', ({ percent, bytesPerSecond, transferred, total }) => {
   log.info(`[updater] Downloading: ${percent.toFixed(1)}% (${bytesPerSecond} B/s)`);
-  mainWindow?.webContents.send('update:progress', { percent, bytesPerSecond, transferred, total });
+  mainWindow?.webContents?.send('update:progress', { percent, bytesPerSecond, transferred, total });
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-  log.info('[updater] Downloaded, installing now:', info.version);
-  // Give the renderer 2 s to show a "Restarting…" message, then force-install.
-  mainWindow?.webContents.send('update:installing', { version: info.version });
-  setTimeout(() => {
-    isQuitting = true;
-    autoUpdater.quitAndInstall(true, true); // isSilent=true, isForceRunAfter=true
-  }, 2000);
+  log.info('[updater] Update downloaded, ready to install:', info.version);
+  updateReady = true;
+  updateVersion = info.version;
+
+  // Notify renderer that update is ready
+  mainWindow?.webContents?.send('update:ready', { version: info.version });
+
+  // Show system tray balloon notification
+  if (tray) {
+    tray.displayBalloon({
+      iconType: 'info',
+      title: 'Descall Güncelleme Hazır',
+      content: `v${info.version} indirildi. Uygulamayı yeniden başlattığınızda kurulacak.`,
+    });
+  }
+
+  // If user is actively using the app, show a subtle notification window
+  showNotificationWindow({
+    title: 'Descall Güncelleme',
+    body: `v${info.version} hazır. Yeniden başlatmak için tıklayın.`,
+    type: 'default',
+    duration: 8000,
+    onClick: () => {
+      mainWindow?.show();
+      mainWindow?.focus();
+    },
+  });
 });
 
 // ─── Notification IPC ────────────────────────────────────────────────────────
@@ -479,9 +501,29 @@ ipcMain.handle('app-version', () => {
 
 ipcMain.handle('check-for-updates', async () => {
   if (isPackaged) {
-    await autoUpdater.checkForUpdates();
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      return { success: true, updateInfo: result?.updateInfo || null };
+    } catch (err) {
+      log.error('[updater] Manual check failed:', err?.message);
+      return { success: false, error: err?.message };
+    }
   }
-  return { success: true };
+  return { success: true, skipped: true };
+});
+
+ipcMain.handle('restart-app', () => {
+  if (updateReady) {
+    isQuitting = true;
+    autoUpdater.quitAndInstall(true, true); // silent, force run after
+  } else {
+    app.relaunch();
+    app.quit();
+  }
+});
+
+ipcMain.handle('get-update-status', () => {
+  return { updateReady, updateVersion };
 });
 
 ipcMain.handle('minimize-window', () => {
