@@ -100,35 +100,61 @@ ALTER TABLE public.guild_message_reactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.guild_message_reads ENABLE ROW LEVEL SECURITY;
 
 -- RLS policies (service_role bypasses these)
+DROP POLICY IF EXISTS guilds_select ON public.guilds;
 CREATE POLICY guilds_select ON public.guilds FOR SELECT USING (true);
+DROP POLICY IF EXISTS guilds_insert ON public.guilds;
 CREATE POLICY guilds_insert ON public.guilds FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS guilds_update ON public.guilds;
 CREATE POLICY guilds_update ON public.guilds FOR UPDATE USING (true);
+DROP POLICY IF EXISTS guilds_delete ON public.guilds;
 CREATE POLICY guilds_delete ON public.guilds FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS guild_members_select ON public.guild_members;
 CREATE POLICY guild_members_select ON public.guild_members FOR SELECT USING (true);
+DROP POLICY IF EXISTS guild_members_insert ON public.guild_members;
 CREATE POLICY guild_members_insert ON public.guild_members FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS guild_members_update ON public.guild_members;
 CREATE POLICY guild_members_update ON public.guild_members FOR UPDATE USING (true);
+DROP POLICY IF EXISTS guild_members_delete ON public.guild_members;
 CREATE POLICY guild_members_delete ON public.guild_members FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS guild_channels_select ON public.guild_channels;
 CREATE POLICY guild_channels_select ON public.guild_channels FOR SELECT USING (true);
+DROP POLICY IF EXISTS guild_channels_insert ON public.guild_channels;
 CREATE POLICY guild_channels_insert ON public.guild_channels FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS guild_channels_update ON public.guild_channels;
 CREATE POLICY guild_channels_update ON public.guild_channels FOR UPDATE USING (true);
+DROP POLICY IF EXISTS guild_channels_delete ON public.guild_channels;
 CREATE POLICY guild_channels_delete ON public.guild_channels FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS guild_invites_select ON public.guild_invites;
 CREATE POLICY guild_invites_select ON public.guild_invites FOR SELECT USING (true);
+DROP POLICY IF EXISTS guild_invites_insert ON public.guild_invites;
 CREATE POLICY guild_invites_insert ON public.guild_invites FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS guild_invites_update ON public.guild_invites;
 CREATE POLICY guild_invites_update ON public.guild_invites FOR UPDATE USING (true);
+DROP POLICY IF EXISTS guild_invites_delete ON public.guild_invites;
 CREATE POLICY guild_invites_delete ON public.guild_invites FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS guild_messages_select ON public.guild_messages;
 CREATE POLICY guild_messages_select ON public.guild_messages FOR SELECT USING (true);
+DROP POLICY IF EXISTS guild_messages_insert ON public.guild_messages;
 CREATE POLICY guild_messages_insert ON public.guild_messages FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS guild_messages_update ON public.guild_messages;
 CREATE POLICY guild_messages_update ON public.guild_messages FOR UPDATE USING (true);
+DROP POLICY IF EXISTS guild_messages_delete ON public.guild_messages;
 CREATE POLICY guild_messages_delete ON public.guild_messages FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS guild_reactions_select ON public.guild_message_reactions;
 CREATE POLICY guild_reactions_select ON public.guild_message_reactions FOR SELECT USING (true);
+DROP POLICY IF EXISTS guild_reactions_insert ON public.guild_message_reactions;
 CREATE POLICY guild_reactions_insert ON public.guild_message_reactions FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS guild_reactions_delete ON public.guild_message_reactions;
 CREATE POLICY guild_reactions_delete ON public.guild_message_reactions FOR DELETE USING (true);
 
+DROP POLICY IF EXISTS guild_reads_select ON public.guild_message_reads;
 CREATE POLICY guild_reads_select ON public.guild_message_reads FOR SELECT USING (true);
+DROP POLICY IF EXISTS guild_reads_insert ON public.guild_message_reads;
 CREATE POLICY guild_reads_insert ON public.guild_message_reads FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS guild_reads_update ON public.guild_message_reads;
 CREATE POLICY guild_reads_update ON public.guild_message_reads FOR UPDATE USING (true);
