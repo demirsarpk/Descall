@@ -103,7 +103,6 @@ export default function NavigationRail({
             <span className="rail-user-name">{me?.username || "User"}</span>
             <span className="rail-user-status">Online</span>
           </div>
-          <Settings size={16} className="rail-user-settings-icon" />
         </button>
       </div>
     </nav>
