@@ -46,6 +46,7 @@ export default function ChatPanel({
   onTypingGroupStop,
   children
 }) {
+  console.log('[ChatPanel] render:', { activeView, activeGuildChannel, activeGuild, activeDmUser, activeGroup });
   const messagesRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
