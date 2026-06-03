@@ -1,4 +1,4 @@
-Copyright (c) 2026 Demir
+Copyright (c) 2026 Demir Sarp Kurtlar
 
 All Rights Reserved.
 
