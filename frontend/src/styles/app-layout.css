@@ -359,9 +359,9 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   width: 100%;
-  padding: 0 12px;
+  padding: 0 14px;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
@@ -374,17 +374,19 @@
 .nav-rail-bottom {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  padding: 14px 10px 18px;
+  padding: 20px 10px 22px;
   flex-shrink: 0;
   border-top: 1px solid var(--border-2);
   background: var(--surface-0);
 }
 
 .rail-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -434,7 +436,7 @@
   height: 2px;
   background: var(--border-3);
   border-radius: 1px;
-  margin: 6px 0;
+  margin: 4px 0;
   flex-shrink: 0;
 }
 
@@ -442,9 +444,9 @@
 .rail-user-panel {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
   width: 100%;
-  padding: 10px 6px;
+  padding: 14px 6px;
   border: none;
   border-radius: 8px;
   background: transparent;

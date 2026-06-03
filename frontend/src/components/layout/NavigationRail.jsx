@@ -99,10 +99,6 @@ export default function NavigationRail({
             />
             <span className="rail-user-status-dot" />
           </div>
-          <div className="rail-user-info">
-            <span className="rail-user-name">{me?.username || "User"}</span>
-            <span className="rail-user-status">Online</span>
-          </div>
         </button>
       </div>
     </nav>
