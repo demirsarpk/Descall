@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
-import GuildSidebar from "../servers/ServerSidebar";
+import ServerIconBar from "../servers/ServerIconBar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
 import ActivitySidebar from "../activity/ActivitySidebar";
@@ -97,7 +97,7 @@ export default function AppLayout({
   };
 
   return (
-    <div className="app-root">
+    <div className="app-root" data-view={activeView}>
       {/* Web notification permission banner */}
       <AnimatePresence>
         {showNotifBanner && (
@@ -183,19 +183,25 @@ export default function AppLayout({
           onlineUsers={onlineUsers}
         />
       ) : activeView === "servers" ? (
-        <GuildSidebar
-          guilds={guilds}
-          activeGuild={activeGuild}
-          activeChannel={activeGuildChannel}
-          onGuildSelect={onGuildSelect}
-          onChannelSelect={onGuildChannelSelect}
-          onCreateGuild={onCreateGuild}
-          onJoinGuild={onJoinGuild}
-          onLeaveGuild={onLeaveGuild}
-          onDeleteGuild={onDeleteGuild}
-          onRefreshGuilds={onRefreshGuilds}
-          me={me}
-        />
+        <>
+          {/* Server Icon Bar - 72px vertical bar with guild icons */}
+          <ServerIconBar
+            guilds={guilds}
+            activeGuild={activeGuild}
+            onGuildSelect={onGuildSelect}
+            onCreateGuild={onCreateGuild}
+            onJoinGuild={onJoinGuild}
+          />
+
+          {/* Server Sidebar - Channel list only */}
+          <ServerSidebar
+            activeGuild={activeGuild}
+            activeChannel={activeGuildChannel}
+            onChannelSelect={onGuildChannelSelect}
+            onLeaveGuild={onLeaveGuild}
+            onDeleteGuild={onDeleteGuild}
+          />
+        </>
       ) : (
       <ServerSidebar
         collapsed={sidebarCollapsed}
