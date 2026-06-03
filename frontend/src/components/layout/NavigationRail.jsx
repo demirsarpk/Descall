@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import {
   MessageSquare, Users, Settings,
-  UserPlus, Phone, Shield, Plus, Zap
+  UserPlus, Phone, Shield, Plus, Zap, Server
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 
@@ -17,6 +17,7 @@ export default function NavigationRail({
 }) {
   const navItems = [
     { id: "chat",     icon: MessageSquare, label: "Chats"    },
+    { id: "servers",  icon: Server,          label: "Servers"  },
     { id: "groups",   icon: Users,         label: "Groups"   },
     { id: "friends",  icon: UserPlus,      label: "Friends"  },
     { id: "activity", icon: Zap,           label: "Activity" },

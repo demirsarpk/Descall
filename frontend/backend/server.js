@@ -21,6 +21,7 @@ const groupRoutes = require("./routes/groups");
 const reactionRoutes = require("./routes/reactions");
 const friendsRoutes = require("./routes/friends");
 const activityRoutes = require("./routes/activity");
+const guildRoutes = require("./routes/guilds");
 
 // Inline feedback - no external file needed
 const { requireAuth } = require("./middleware/auth");
@@ -30,6 +31,7 @@ const supabase = require("./db/supabase");
 const { socketAuthMiddleware } = require("./middleware/socketAuth");
 const { registerSocketHandlers } = require("./socket/handlers");
 const { registerActivityHandlers } = require("./socket/activityHandlers");
+const { registerGuildHandlers } = require("./socket/guildHandlers");
 
 const PORT = process.env.PORT || 3000;
 
@@ -124,6 +126,7 @@ app.use("/media", mediaRoutes);
 app.use("/groups", groupRoutes);
 app.use("/reactions", reactionRoutes);
 app.use("/friends", friendsRoutes);
+app.use("/guilds", guildRoutes);
 
 // /api/* aliases — frontend calls mix /api/... and /... so support both
 app.use("/api/auth", authRoutes);
@@ -133,6 +136,7 @@ app.use("/api/groups", groupRoutes);
 app.use("/api/reactions", reactionRoutes);
 app.use("/api/friends", friendsRoutes);
 app.use("/api/activity", activityRoutes);
+app.use("/api/guilds", guildRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)
@@ -756,7 +760,10 @@ registerSocketHandlers(io);
 // (registerSocketHandlers already sets up the main io.on('connection') listener;
 //  we attach ours after, which is safe — multiple listeners are allowed)
 io.on('connection', (socket) => {
-  if (socket.user) registerActivityHandlers(io, socket);
+  if (socket.user) {
+    registerActivityHandlers(io, socket);
+    registerGuildHandlers(io, socket);
+  }
 });
 
 // Start server

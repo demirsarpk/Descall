@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
+import GuildSidebar from "../servers/ServerSidebar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
 import ActivitySidebar from "../activity/ActivitySidebar";
@@ -57,6 +58,16 @@ export default function AppLayout({
   onTypingDmStop,
   onTypingGroupStart,
   onTypingGroupStop,
+  guilds,
+  activeGuild,
+  activeGuildChannel,
+  onGuildSelect,
+  onGuildChannelSelect,
+  onCreateGuild,
+  onJoinGuild,
+  onLeaveGuild,
+  onDeleteGuild,
+  onRefreshGuilds,
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
@@ -171,8 +182,22 @@ export default function AppLayout({
           friendPresence={activity.friendPresence}
           onlineUsers={onlineUsers}
         />
+      ) : activeView === "servers" ? (
+        <GuildSidebar
+          guilds={guilds}
+          activeGuild={activeGuild}
+          activeChannel={activeGuildChannel}
+          onGuildSelect={onGuildSelect}
+          onChannelSelect={onGuildChannelSelect}
+          onCreateGuild={onCreateGuild}
+          onJoinGuild={onJoinGuild}
+          onLeaveGuild={onLeaveGuild}
+          onDeleteGuild={onDeleteGuild}
+          onRefreshGuilds={onRefreshGuilds}
+          me={me}
+        />
       ) : (
-      <ServerSidebar 
+      <ServerSidebar
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         activeView={activeView}

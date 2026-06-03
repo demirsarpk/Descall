@@ -147,7 +147,7 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
       if (data.assets && Array.isArray(data.assets)) {
         data.assets.forEach(asset => {
           const name = asset.name.toLowerCase();
-          if (name.includes('setup') && name.includes('.exe')) {
+          if (name.includes('setup') && name.endsWith('.exe')) {
             links.windows = asset.browser_download_url;
           } else if (name.includes('dmg') || name.includes('mac')) {
             links.mac = asset.browser_download_url;
