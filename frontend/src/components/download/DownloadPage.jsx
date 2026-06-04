@@ -522,6 +522,7 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
                 setUsername('');
                 setPassword('');
               } catch (err) {
+                // Keep modal open to show error
               }
             }}>
               <div className="form-group">

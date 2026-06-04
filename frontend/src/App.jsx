@@ -690,6 +690,7 @@ export default function App() {
       setMe(data.user);
     } catch (error) {
       setAuthError(error.message);
+      throw error;
     } finally {
       setAuthLoading(false);
     }
@@ -703,6 +704,7 @@ export default function App() {
       await handleLogin(payload);
     } catch (error) {
       setAuthError(error.message);
+      throw error;
     } finally {
       setAuthLoading(false);
     }
