@@ -28,7 +28,7 @@ const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
 // Fallback download link for private repos (update this manually after each release)
-const FALLBACK_DOWNLOAD_URL = "https://github.com/demirrsarppkurtlarr/descall/releases/download/v2.1.0/Descall-Setup-2.1.0.exe";
+const FALLBACK_DOWNLOAD_URL = "https://github.com/demirrsarppkurtlarr/descall/releases/download/v2.2.11/Descall-Setup-2.2.11.exe";
 
 const features = [
   { icon: MessageCircle, title: "Real-time Chat", desc: "Instant messaging with typing indicators" },
@@ -83,6 +83,7 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
   const [password, setPassword] = useState('');
   const [releaseError, setReleaseError] = useState(null);
   const [downloadLinks, setDownloadLinks] = useState({ windows: null, mac: null, linux: null });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const downloadIntervalRef = useRef(null);
 
   useEffect(() => {
@@ -511,6 +512,7 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
             
             <form onSubmit={async (e) => {
               e.preventDefault();
+              setIsSubmitting(true);
               try {
                 if (isRegistering) {
                   await onRegister?.({ username, password });
@@ -523,6 +525,8 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
                 setPassword('');
               } catch (err) {
                 // Keep modal open to show error
+              } finally {
+                setIsSubmitting(false);
               }
             }}>
               <div className="form-group">
@@ -547,12 +551,12 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
                 />
               </div>
               
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="submit-btn"
-                disabled={authLoading}
+                disabled={isSubmitting || authLoading}
               >
-                {authLoading ? 'Loading...' : (isRegistering ? 'Create Account' : 'Sign In')}
+                {(isSubmitting || authLoading) ? 'Loading...' : (isRegistering ? 'Create Account' : 'Sign In')}
               </button>
             </form>
             
