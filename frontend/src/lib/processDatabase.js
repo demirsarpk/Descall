@@ -12,6 +12,8 @@
  * icon     : emoji fallback (used when no custom icon is available)
  */
 
+import { EXTRA_GAMES } from './games500.js';
+
 export const PROCESS_DB = {
   // ─── FPS / TACTICAL SHOOTERS ────────────────────────────────────────────────
   'valorant-win64-shipping.exe':       { name: 'Valorant',            type: 'game', category: 'fps',      icon: '🎮' },
@@ -523,6 +525,7 @@ export const PROCESS_DB = {
   'autohotkey.exe':                    { name: 'AutoHotkey',          type: 'dev', category: 'utility',   icon: '⌨️' },
   'fluentterminal.exe':                { name: 'Fluent Terminal',     type: 'dev', category: 'terminal',  icon: '⌨️' },
   'hyper.exe':                         { name: 'Hyper Terminal',      type: 'dev', category: 'terminal',  icon: '⌨️' },
+  ...EXTRA_GAMES,
 };
 
 /** Type priority for when multiple processes are detected simultaneously. */
