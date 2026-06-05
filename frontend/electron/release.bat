@@ -864,6 +864,11 @@ if %BUILD_ONLY%==0 (
     )
     node bump-version.cjs %BUMP_CMD% %BUMP_VAL% 2>&1 && (
         for /f "usebackq delims=" %%v in (`node -e "console.log(JSON.parse(require('fs').readFileSync('package.json')).version)"`) do set "NEXT_VER=%%v"
+        node update-download-page.cjs %NEXT_VER% 2>&1 && (
+            echo  [OK] DownloadPage.jsx updated to v%NEXT_VER%
+        ) || (
+            echo  [WARN] Failed to update DownloadPage.jsx
+        )
         echo  [OK] Version bumped to v%NEXT_VER%
     ) || (
         echo  [!] Failed to bump version
@@ -875,7 +880,7 @@ if %BUILD_ONLY%==0 (
 :: Step 2: Git Commit
 if %BUILD_ONLY%==0 (
     echo  [2/7] Creating git commit...
-    git add package.json
+    git add package.json ../src/components/download/DownloadPage.jsx
     git commit -m "Release v%NEXT_VER% (%RELEASE_TYPE%)" && (
         echo  [OK] Commit created
     ) || (
