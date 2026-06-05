@@ -28,7 +28,7 @@ const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
 // Fallback download link for private repos (update this manually after each release)
-const FALLBACK_DOWNLOAD_URL = "https://github.com/demirrsarppkurtlarr/descall/releases/download/v2.2.20/Descall-Setup-2.2.20.exe";
+const FALLBACK_DOWNLOAD_URL = "https://github.com/demirrsarppkurtlarr/descall/releases/download/v2.3.0/Descall-Setup-2.3.0.exe";
 
 const features = [
   { icon: MessageCircle, title: "Real-time Chat", desc: "Instant messaging with typing indicators" },
@@ -130,7 +130,7 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
         // Try fallback URL for private repos
         if (FALLBACK_DOWNLOAD_URL) {
           setDownloadLinks({ windows: FALLBACK_DOWNLOAD_URL, mac: null, linux: null });
-          setLatestRelease({ tag_name: 'V2.0.0-REMAKE' });
+          setLatestRelease({ tag_name: 'v2.3.0' });
         } else {
           setReleaseError('Release not found. Please check the GitHub repository.');
         }

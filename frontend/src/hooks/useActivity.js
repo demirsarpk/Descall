@@ -72,6 +72,18 @@ function resolveActivity(processList) {
 
   if (!candidates.length) return null;
 
+  // Game always takes absolute highest priority when running
+  const game = candidates.find(c => c.type === 'game');
+  if (game) {
+    return {
+      appName:     game.name,
+      appType:     game.type,
+      displayName: buildDisplayName(game),
+      category:    game.category,
+      icon:        game.icon,
+    };
+  }
+
   candidates.sort((a, b) => {
     const ai = TYPE_PRIORITY.indexOf(a.type);
     const bi = TYPE_PRIORITY.indexOf(b.type);
