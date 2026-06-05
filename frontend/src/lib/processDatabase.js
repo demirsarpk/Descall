@@ -1,6 +1,6 @@
 /**
  * Descall Process Detection Database
- * 900+ curated entries — add new entries without touching detection logic.
+ * 1500+ curated entries — add new entries without touching detection logic.
  *
  * Schema per entry:
  *   key  : exact .exe filename, lowercase
@@ -13,6 +13,7 @@
  */
 
 import { EXTRA_GAMES } from './games500.js';
+import { EXTRA_APPS } from './apps500.js';
 
 export const PROCESS_DB = {
   // ─── FPS / TACTICAL SHOOTERS ────────────────────────────────────────────────
@@ -526,6 +527,7 @@ export const PROCESS_DB = {
   'fluentterminal.exe':                { name: 'Fluent Terminal',     type: 'dev', category: 'terminal',  icon: '⌨️' },
   'hyper.exe':                         { name: 'Hyper Terminal',      type: 'dev', category: 'terminal',  icon: '⌨️' },
   ...EXTRA_GAMES,
+  ...EXTRA_APPS,
 };
 
 /** Type priority for when multiple processes are detected simultaneously. */
