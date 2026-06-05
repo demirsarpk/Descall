@@ -182,10 +182,12 @@ export default function App() {
       setUpdateVersion(version);
       setUpdateState('downloading');
     });
-    const unsubInstalling = window.electronAPI.onUpdateInstalling(({ version }) => {
-      setUpdateVersion(version);
-      setUpdateState('installing');
-    });
+    const unsubInstalling = window.electronAPI.onUpdateInstalling
+      ? window.electronAPI.onUpdateInstalling(({ version }) => {
+          setUpdateVersion(version);
+          setUpdateState('installing');
+        })
+      : () => {};
     return () => { unsubDownloading?.(); unsubInstalling?.(); };
   }, []);
 
@@ -789,17 +791,23 @@ export default function App() {
       .then((res) => {
         const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
         const normalized = msgs.map((m) => {
-          if (m.message_type === "call_summary") {
+          // Detect call summary by message_type, type, or JSON content
+          const isCallSummary = m.message_type === "call_summary" || m.type === "call_summary";
+          const maybeJsonContent = typeof m.content === "string" && m.content.trim().startsWith("{");
+          if (isCallSummary || maybeJsonContent) {
             try {
-              const summary = typeof m.content === "string" ? JSON.parse(m.content) : m.content;
-              return {
-                ...summary,
-                id: summary.id || m.id,
-                timestamp: m.created_at || summary.endedAt || new Date().toISOString(),
-                type: "call_summary",
-              };
+              const summary = maybeJsonContent ? JSON.parse(m.content) : m.content;
+              if (summary && (summary.type === "call_summary" || summary.callType || summary.durationSeconds !== undefined)) {
+                return {
+                  ...summary,
+                  id: summary.id || m.id,
+                  timestamp: m.created_at || summary.endedAt || new Date().toISOString(),
+                  type: "call_summary",
+                };
+              }
+              // Not a call summary after all — fall through to normal message
             } catch {
-              return null;
+              // parse failed — fall through to normal message
             }
           }
           return {

@@ -4,6 +4,7 @@ import { FileText, Download } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import CallSummaryBubble from "./CallSummaryBubble";
+import VoiceMessagePlayer from "./VoiceMessagePlayer";
 import ActiveCallBanner from "../ActiveCallBanner";
 import UserProfileModal from "../social/UserProfileModal";
 
@@ -197,15 +198,12 @@ function MessageBubble({ message, isOwn, isCompact }) {
               className="message-video"
               style={{ maxWidth: 400, borderRadius: 8, display: "block" }}
             />
-          ) : message.mediaType === "audio" ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <audio
-                controls
-                src={message.mediaUrl}
-                style={{ maxWidth: 320, borderRadius: 8, display: "block", height: 40 }}
-              />
-              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Voice Message</span>
-            </div>
+          ) : message.mediaType === "audio" || message.mediaType === "voice" ? (
+            <VoiceMessagePlayer
+              audioUrl={message.mediaUrl}
+              duration={message.duration || message.durationSeconds || 0}
+              isOwn={isOwn}
+            />
           ) : (message.mediaType === "document" || message.mediaType === "file") ? (
             <a
               href={message.mediaUrl}
