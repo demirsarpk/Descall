@@ -32,6 +32,7 @@ const { socketAuthMiddleware } = require("./middleware/socketAuth");
 const { registerSocketHandlers } = require("./socket/handlers");
 const { registerActivityHandlers } = require("./socket/activityHandlers");
 const { registerGuildHandlers } = require("./socket/guildHandlers");
+const { registerGameHandlers } = require("./socket/gameHandlers");
 
 const PORT = process.env.PORT || 3000;
 
@@ -763,6 +764,7 @@ io.on('connection', (socket) => {
   if (socket.user) {
     registerActivityHandlers(io, socket);
     registerGuildHandlers(io, socket);
+    registerGameHandlers(io, socket);
   }
 });
 

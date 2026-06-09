@@ -510,6 +510,20 @@ export default function App() {
         if (cur.some((m) => m.id === normalized.id)) return prev;
         return { ...prev, [groupId]: [...cur, normalized] };
       });
+
+      // Check if message is a game command - suppress normal message display for commands
+      const trimmedContent = message.content?.trim() || '';
+      if (trimmedContent.startsWith('/')) {
+        const validGameCommands = ['/bj', '/blackjack', '/hit', '/stand', '/stay', '/double', '/credits', '/bakiye', '/balance', '/top', '/lider'];
+        const isGameCommand = validGameCommands.some(cmd => trimmedContent.toLowerCase().startsWith(cmd));
+        if (isGameCommand && message.sender?.id === myIdRef.current) {
+          // Remove the command message from display (it will be handled by game:message)
+          setGroupMessagesById((prev) => {
+            const cur = prev[groupId] || [];
+            return { ...prev, [groupId]: cur.filter(m => m.id !== message.id) };
+          });
+        }
+      }
       // Notify for messages from others in non-active group
       const isFromMe = normalized.from.id === me?.id;
       const isActiveGroup = activeGroup?.id === groupId;
@@ -526,6 +540,28 @@ export default function App() {
 
     socket.on("mention:received", ({ groupId, dmConversationId, from, text, groupName }) => {
       notificationService.mention({ groupId, dmConversationId, from, text, groupName });
+    });
+
+    // Game messages (blackjack, etc.)
+    socket.on("game:message", ({ groupId, message }) => {
+      if (!groupId || !message) return;
+      
+      const gameMessage = {
+        id: message.id,
+        from: message.sender || { id: 'game-bot', username: '🎰 Casino Bot' },
+        text: message.content || "",
+        type: message.type || 'game_message',
+        gameData: message.gameData,
+        timestamp: message.timestamp || new Date().toISOString(),
+        isGameMessage: true,
+      };
+      
+      setGroupMessagesById((prev) => {
+        const cur = prev[groupId] ?? [];
+        // Deduplicate by id
+        if (cur.some((m) => m.id === gameMessage.id)) return prev;
+        return { ...prev, [groupId]: [...cur, gameMessage] };
+      });
     });
 
     socket.on("dm:message:update", ({ msgId, convWith, deliveredAt } = {}) => {
@@ -1219,6 +1255,8 @@ export default function App() {
               groupCall.joinActiveCall(groupCall.activeCallBanner);
             }}
             onDismissActiveBanner={groupCall?.dismissActiveBanner}
+            socket={socketRef.current}
+            activeGroup={activeGroup}
           />
         </AppLayout>
         <CallOverlay call={call} groupCall={groupCall} me={me} />

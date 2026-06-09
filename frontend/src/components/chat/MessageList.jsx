@@ -7,6 +7,7 @@ import CallSummaryBubble from "./CallSummaryBubble";
 import VoiceMessagePlayer from "./VoiceMessagePlayer";
 import ActiveCallBanner from "../ActiveCallBanner";
 import UserProfileModal from "../social/UserProfileModal";
+import GameMessageBubble from "./GameMessageBubble";
 
 /**
  * COMPLETELY REBUILT MESSAGE LIST
@@ -22,6 +23,8 @@ export default function MessageList({
   friends,
   onlineUsers,
   onStartDm,
+  socket,
+  activeGroup,
 }) {
   const messagesEndRef = useRef(null);
   const [profileTarget, setProfileTarget] = useState(null);
@@ -50,6 +53,12 @@ export default function MessageList({
       if (msg.type === "active_call") {
         if (currentGroup) { grouped.push(currentGroup); currentGroup = null; }
         grouped.push({ isActiveBanner: true, banner: msg, id: msg.id });
+        return;
+      }
+      // Game messages render standalone (no grouping)
+      if (msg.isGameMessage || msg.type?.startsWith('game_')) {
+        if (currentGroup) { grouped.push(currentGroup); currentGroup = null; }
+        grouped.push({ isGame: true, gameMsg: msg, id: msg.id });
         return;
       }
 
@@ -85,6 +94,17 @@ export default function MessageList({
               banner={group.banner}
               onJoin={onJoinActiveCall}
               onDismiss={onDismissActiveBanner}
+            />
+          );
+        }
+        if (group.isGame) {
+          return (
+            <GameMessageBubble
+              key={group.id || `game-${groupIndex}`}
+              message={group.gameMsg}
+              isOwn={group.gameMsg.from?.id === currentUser?.id}
+              currentUserId={currentUser?.id}
+              socket={socket}
             />
           );
         }

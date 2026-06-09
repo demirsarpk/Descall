@@ -5,6 +5,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./context/ToastContext";
 /* DESCALL v2.0 — Complete UI rebuild - New modular CSS system */
 import "./styles.css";
+import "./styles/blackjack.css";
 
 // Apply saved theme before first paint to avoid flash
 try {
