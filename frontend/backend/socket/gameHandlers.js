@@ -191,9 +191,28 @@ async function handleGameCommand(io, socket, userId, username, groupId, fullComm
     case 'lider':
       await handleLeaderboard(io, socket, groupId);
       break;
-    
+
+    case 'help':
+    case 'yardım':
+    case 'commands':
+      await handleHelp(io, socket, userId, groupId);
+      break;
+
+    case 'jb':
+      // Common typo for /bj
+      const typoMsg = createGameMessage(
+        `🎰 **Blackjack**\n\n` +
+        `❓ "/jb" yerine "/bj" mi demiştiniz?\n\n` +
+        `🎯 **Başlamak için:** \`/bj <miktar>\`\n` +
+        `Örnek: \`/bj 100\`\n\n` +
+        `Tüm komutlar için: \`/help\``
+      );
+      socket.emit('game:message', { groupId, message: typoMsg });
+      break;
+
     default:
-      // Bilinmeyen komut - sessizce görmezden gel veya yardım mesajı gönder
+      // Bilinmeyen komut - yardım mesajı gönder
+      await handleHelp(io, socket, userId, groupId, command);
       break;
   }
 }
@@ -422,6 +441,46 @@ async function handleLeaderboard(io, socket, groupId) {
   }
 }
 
+async function handleHelp(io, socket, userId, groupId, unknownCommand = null) {
+  let content = `🎰 **CASINO BOT - YARDIM**
+
+`;
+
+  if (unknownCommand) {
+    content += `❓ Bilinmeyen komut: \`/${unknownCommand}\`
+
+`;
+  }
+
+  content += `**📋 Oyun Komutları:**
+
+` +
+    `\`/bj <miktar>\` - Blackjack oyunu başlat (örn: \`/bj 100\`)\n` +
+    `\`/hit\` - Kart çek (oyundayken)\n` +
+    `\`/stand\` - Bekle, turu bitir (oyundayken)\n` +
+    `\`/double\` - Bahisi 2x yap, 1 kart çek (9-10-11 ise)\n
+` +
+    `**📊 Bilgi Komutları:**
+
+` +
+    `\`/credits\` - Bakiye ve istatistiklerini gör\n` +
+    `\`/top\` - En zengin 10 oyuncuyu gör\n` +
+    `\`/help\` - Bu yardım mesajını göster\n
+` +
+    `**🎯 Blackjack Kuralları:**
+
+` +
+    `• 21'e ulaşmaya çalış, geçme (Bust)!\n` +
+    `• Krupiye 17'ye kadar çeker\n` +
+    `• Blackjack (A+10) 3:2 öder (+150%)\n` +
+    `• Normal kazanç 1:1 öder (+100%)\n
+` +
+    `💰 **Başlangıç bakiyesi:** 1000 credits`;
+
+  const msg = createGameMessage(content, null, 'help');
+  socket.emit('game:message', { groupId, message: msg });
+}
+
 // Mesaj dinleyicisi - normal group:message event'lerinden komutları yakalar
 function setupMessageListener(io) {
   // Bu fonksiyon server.js'de group:message handler'ına entegre edilecek
@@ -435,8 +494,8 @@ function setupMessageListener(io) {
     if (!match) return null;
 
     const [, cmd] = match;
-    const validGameCommands = ['bj', 'blackjack', 'hit', 'stand', 'stay', 'double', 'credits', 'bakiye', 'balance', 'top', 'lider'];
-    
+    const validGameCommands = ['bj', 'blackjack', 'hit', 'stand', 'stay', 'double', 'credits', 'bakiye', 'balance', 'top', 'lider', 'help', 'yardım', 'commands', 'jb'];
+
     if (!validGameCommands.includes(cmd.toLowerCase())) return null;
 
     // Bu bir oyun komutu, handle et

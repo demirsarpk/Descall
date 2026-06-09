@@ -514,7 +514,7 @@ export default function App() {
       // Check if message is a game command - suppress normal message display for commands
       const trimmedContent = message.content?.trim() || '';
       if (trimmedContent.startsWith('/')) {
-        const validGameCommands = ['/bj', '/blackjack', '/hit', '/stand', '/stay', '/double', '/credits', '/bakiye', '/balance', '/top', '/lider'];
+        const validGameCommands = ['/bj', '/blackjack', '/hit', '/stand', '/stay', '/double', '/credits', '/bakiye', '/balance', '/top', '/lider', '/help', '/yardım', '/commands', '/jb'];
         const isGameCommand = validGameCommands.some(cmd => trimmedContent.toLowerCase().startsWith(cmd));
         if (isGameCommand && message.sender?.id === myIdRef.current) {
           // Remove the command message from display (it will be handled by game:message)
