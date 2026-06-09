@@ -106,16 +106,41 @@ router.post("/accept", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "fromUserId is required" });
     }
 
-    const { error: updateError } = await supabase
+    // Check if request exists first
+    const { data: existingRequest, error: checkError } = await supabase
+      .from("friendships")
+      .select("id")
+      .eq("user_id", fromUserId)
+      .eq("friend_id", userId)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (checkError) {
+      console.error("[Friends] Check request error:", checkError);
+      return res.status(500).json({ error: "Database error checking request" });
+    }
+
+    if (!existingRequest) {
+      return res.status(404).json({ error: "Friend request not found or already processed" });
+    }
+
+    // Update the request
+    const { data: updated, error: updateError } = await supabase
       .from("friendships")
       .update({ status: "accepted" })
       .eq("user_id", fromUserId)
       .eq("friend_id", userId)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select()
+      .single();
 
     if (updateError) {
-      console.error("Accept friend error:", updateError);
+      console.error("[Friends] Accept error:", updateError);
       return res.status(500).json({ error: updateError.message || "Failed to accept friend request" });
+    }
+
+    if (!updated) {
+      return res.status(400).json({ error: "Request could not be accepted" });
     }
 
     // Sync socket memory so both sides see each other immediately
@@ -125,6 +150,13 @@ router.post("/accept", requireAuth, async (req, res) => {
     friendsMap.get(userId).add(fromUserId);
     friendsMap.get(fromUserId).add(userId);
 
+    // Also update pendingRequests map
+    const { pendingRequests } = require("../runtime/sharedState");
+    const pendingForUser = pendingRequests.get(userId);
+    if (pendingForUser && pendingForUser.has(fromUserId)) {
+      pendingForUser.delete(fromUserId);
+    }
+
     // Notify both sides to refresh their friend list
     const io = req.app.get("io");
     if (io) {
@@ -132,9 +164,10 @@ router.post("/accept", requireAuth, async (req, res) => {
       emitToUserViaIo(io, fromUserId, "friend:accepted", { by: { id: userId } });
     }
 
+    console.log("[Friends] Request accepted:", { fromUserId, userId });
     res.json({ success: true, message: "Friend request accepted" });
   } catch (err) {
-    console.error("Accept friend error:", err);
+    console.error("[Friends] Accept error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
