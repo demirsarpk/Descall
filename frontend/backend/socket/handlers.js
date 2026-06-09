@@ -364,10 +364,13 @@ function registerSocketHandlers(io) {
     });
 
     socket.on("friend:accept", async ({ fromUserId } = {}) => {
-      if (typeof fromUserId !== "string") return;
+      if (typeof fromUserId !== "string") {
+        socket.emit("friend:error", { message: "Invalid user ID" });
+        return;
+      }
 
       // Verify pending request exists in DB (handles REST-sent requests not in memory)
-      const { data: pendingRow } = await supabase
+      const { data: pendingRow, error: checkError } = await supabase
         .from("friendships")
         .select("id")
         .eq("user_id", fromUserId)
@@ -375,7 +378,17 @@ function registerSocketHandlers(io) {
         .eq("status", "pending")
         .maybeSingle();
 
-      if (!pendingRow) return;
+      if (checkError) {
+        console.error("[Friends] Accept check error:", checkError);
+        socket.emit("friend:error", { message: "Database error checking request" });
+        return;
+      }
+
+      if (!pendingRow) {
+        console.log("[Friends] No pending request found:", { fromUserId, myId });
+        socket.emit("friend:error", { message: "Friend request not found or already processed" });
+        return;
+      }
 
       // Update memory
       const theirPending = pendingRequests.get(myId);
@@ -390,7 +403,13 @@ function registerSocketHandlers(io) {
       if (fromProf?.username) usernameById.set(fromUserId, fromProf.username);
 
       // Accept in DB — only one pending row (requester → acceptor)
-      await saveFriendshipToDB(fromUserId, myId);
+      try {
+        await saveFriendshipToDB(fromUserId, myId);
+      } catch (err) {
+        console.error("[Friends] Accept save error:", err);
+        socket.emit("friend:error", { message: "Failed to save friendship" });
+        return;
+      }
 
       emitToUser(io, fromUserId, "friend:accepted", { by: { id: myId, username: me.username } });
       pushNotification(io, fromUserId, {
@@ -405,16 +424,49 @@ function registerSocketHandlers(io) {
       socket.emit("sync:state", buildSyncState(myId));
       emitToUser(io, fromUserId, "friend:list", getFriendList(fromUserId));
       emitToUser(io, fromUserId, "sync:state", buildSyncState(fromUserId));
+      
+      console.log("[Friends] Request accepted:", { fromUserId, by: myId });
     });
 
-    socket.on("friend:decline", ({ fromUserId } = {}) => {
-      if (typeof fromUserId !== "string") return;
-      const theirPending = pendingRequests.get(myId);
-      if (theirPending?.has(fromUserId)) {
-        theirPending.delete(fromUserId);
-        if (theirPending.size === 0) pendingRequests.delete(myId);
+    socket.on("friend:decline", async ({ fromUserId } = {}) => {
+      if (typeof fromUserId !== "string") {
+        socket.emit("friend:error", { message: "Invalid user ID" });
+        return;
       }
-      socket.emit("friend:requests", getPendingList(myId));
+      
+      try {
+        // First delete from database
+        const { error: deleteError } = await supabase
+          .from("friendships")
+          .delete()
+          .eq("user_id", fromUserId)
+          .eq("friend_id", myId)
+          .eq("status", "pending");
+        
+        if (deleteError) {
+          console.error("[Friends] Decline error:", deleteError);
+          socket.emit("friend:error", { message: "Failed to decline request" });
+          return;
+        }
+        
+        // Then remove from memory
+        const theirPending = pendingRequests.get(myId);
+        if (theirPending?.has(fromUserId)) {
+          theirPending.delete(fromUserId);
+          if (theirPending.size === 0) pendingRequests.delete(myId);
+        }
+        
+        // Update friend list for the sender to remove pending status
+        io.to(`user:${fromUserId}`).emit("friend:list", getFriendList(fromUserId));
+        
+        socket.emit("friend:requests", getPendingList(myId));
+        socket.emit("friend:list", getFriendList(myId));
+        
+        console.log("[Friends] Request declined:", { fromUserId, by: myId });
+      } catch (err) {
+        console.error("[Friends] Decline error:", err);
+        socket.emit("friend:error", { message: "Failed to decline request" });
+      }
     });
 
     socket.on("friend:remove", async ({ friendId } = {}) => {
