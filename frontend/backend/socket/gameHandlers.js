@@ -442,43 +442,37 @@ async function handleLeaderboard(io, socket, groupId) {
 }
 
 async function handleHelp(io, socket, userId, groupId, unknownCommand = null) {
-  let content = `🎰 **CASINO BOT - YARDIM**
-
-`;
+  const credits = await getUserCredits(userId);
+  
+  let content = '🎰 **CASINO BOT - YARDIM**\n\n';
 
   if (unknownCommand) {
-    content += `❓ Bilinmeyen komut: \`/${unknownCommand}\`
-
-`;
+    content += `❓ Bilinmeyen komut: \`/${unknownCommand}\`\n\n`;
   }
 
-  content += `**📋 Oyun Komutları:**
+  content += `💰 **Bakiyeniz:** ${credits.credits.toLocaleString()} credits\n\n`;
 
-` +
-    `\`/bj <miktar>\` - Blackjack oyunu başlat (örn: \`/bj 100\`)\n` +
-    `\`/hit\` - Kart çek (oyundayken)\n` +
-    `\`/stand\` - Bekle, turu bitir (oyundayken)\n` +
-    `\`/double\` - Bahisi 2x yap, 1 kart çek (9-10-11 ise)\n
-` +
-    `**📊 Bilgi Komutları:**
-
-` +
-    `\`/credits\` - Bakiye ve istatistiklerini gör\n` +
-    `\`/top\` - En zengin 10 oyuncuyu gör\n` +
-    `\`/help\` - Bu yardım mesajını göster\n
-` +
-    `**🎯 Blackjack Kuralları:**
-
-` +
-    `• 21'e ulaşmaya çalış, geçme (Bust)!\n` +
-    `• Krupiye 17'ye kadar çeker\n` +
-    `• Blackjack (A+10) 3:2 öder (+150%)\n` +
-    `• Normal kazanç 1:1 öder (+100%)\n
-` +
-    `💰 **Başlangıç bakiyesi:** 1000 credits`;
+  content += '📋 **Oyun Komutları:**\n';
+  content += '`/bj <miktar>` - Blackjack oyunu başlat (örn: `/bj 100`)\n';
+  content += '`/hit` - Kart çek (oyundayken)\n';
+  content += '`/stand` - Bekle, turu bitir (oyundayken)\n';
+  content += '`/double` - Bahisi 2x yap, 1 kart çek (9-10-11 ise)\n\n';
+  
+  content += '📊 **Bilgi Komutları:**\n';
+  content += '`/credits` - Bakiye ve istatistiklerini gör\n';
+  content += '`/top` - En zengin 10 oyuncuyu gör\n';
+  content += '`/help` - Bu yardım mesajını göster\n\n';
+  
+  content += '🎯 **Blackjack Kuralları:**\n';
+  content += '• 21\'e ulaşmaya çalış, geçme (Bust)!\n';
+  content += '• Krupiye 17\'ye kadar çeker\n';
+  content += '• Blackjack (A+10) 3:2 öder (+150%)\n';
+  content += '• Normal kazanç 1:1 öder (+100%)\n\n';
+  content += '� **Başlangıç bakiyesi:** 1000 credits';
 
   const msg = createGameMessage(content, null, 'help');
   socket.emit('game:message', { groupId, message: msg });
+  socket.to(`group:${groupId}`).emit('game:message', { groupId, message: msg });
 }
 
 // Mesaj dinleyicisi - normal group:message event'lerinden komutları yakalar
