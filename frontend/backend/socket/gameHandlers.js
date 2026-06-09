@@ -511,5 +511,7 @@ module.exports = {
   setupMessageListener,
   getUserCredits,
   updateCredits,
-  BOT_USER
+  BOT_USER,
+  handleGameCommand,
+  createGameMessage
 };

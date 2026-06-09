@@ -5,8 +5,13 @@
 
 const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernameById } = require("../runtime/sharedState");
 const supabase = require("../db/supabase");
+const { handleGameCommand, createGameMessage } = require("./gameHandlers");
 
 const MENTION_PATTERN = /@(\w{1,32})/g;
+
+// Game commands that should be intercepted
+const GAME_COMMANDS = ['bj', 'blackjack', 'hit', 'stand', 'stay', 'double', 'credits', 'bakiye', 'balance', 'top', 'lider', 'help', 'yardım', 'commands', 'jb'];
+const COMMAND_REGEX = /^\/(\w+)(?:\s+(\S+))?/;
 
 function extractMentionedUsernames(text) {
   if (!text) return [];
@@ -82,6 +87,33 @@ function registerGroupHandlers(io, socket, state) {
     }
 
     const trimmedContent = content?.trim() || null;
+
+    // Check if this is a game command (starts with /)
+    if (trimmedContent && trimmedContent.startsWith('/')) {
+      const match = trimmedContent.match(COMMAND_REGEX);
+      if (match) {
+        const [, cmd] = match;
+        const commandLower = cmd.toLowerCase();
+        if (GAME_COMMANDS.includes(commandLower)) {
+          // This is a game command - handle it and don't save as regular message
+          console.log(`[Game] Intercepted command: ${trimmedContent} from ${socket.user.username}`);
+          await handleGameCommand(io, socket, myId, socket.user.username, groupId, trimmedContent);
+          // Echo back with tempId so frontend knows it was processed
+          socket.emit("group:message", { 
+            groupId, 
+            message: {
+              id: `game-${Date.now()}`,
+              sender: { id: myId, username: socket.user.username },
+              content: trimmedContent,
+              isGameCommand: true,
+              created_at: new Date().toISOString()
+            }, 
+            tempId 
+          });
+          return;
+        }
+      }
+    }
 
     const { data: row, error } = await supabase
       .from("group_messages")
