@@ -105,6 +105,13 @@ export default function MessageList({
               isOwn={group.gameMsg.from?.id === currentUser?.id}
               currentUserId={currentUser?.id}
               socket={socket}
+              onGameAction={(action, data) => {
+                // Game actions are handled via socket, this is for any additional UI updates
+                if (socket && activeGroup?.id) {
+                  // The actual game action is already emitted in GameMessageBubble
+                  // This callback is for any additional side effects if needed
+                }
+              }}
             />
           );
         }

@@ -404,6 +404,24 @@ async function handleCreditsCheck(io, socket, userId, groupId) {
     `🎰 Oynamak için: \`/bj <miktar>\``;
 
   const msg = createGameMessage(content, null, 'credits_info');
+  
+  // Persist credits message to database
+  try {
+    const { error: dbError } = await supabase
+      .from('group_messages')
+      .insert({
+        group_id: groupId,
+        sender_id: userId,
+        content: content,
+        message_type: 'game_credits',
+        media_url: null,
+        media_type: null
+      });
+    if (dbError) console.error('[Game] Error saving credits message to DB:', dbError);
+  } catch (err) {
+    console.error('[Game] Exception saving credits message:', err);
+  }
+  
   socket.emit('game:message', { groupId, message: msg });
 }
 
@@ -432,6 +450,24 @@ async function handleLeaderboard(io, socket, groupId) {
     }
 
     const msg = createGameMessage(content, null, 'leaderboard');
+    
+    // Persist leaderboard message to database
+    try {
+      const { error: dbError } = await supabase
+        .from('group_messages')
+        .insert({
+          group_id: groupId,
+          sender_id: socket.user?.id || userId,
+          content: content,
+          message_type: 'game_leaderboard',
+          media_url: null,
+          media_type: null
+        });
+      if (dbError) console.error('[Game] Error saving leaderboard message to DB:', dbError);
+    } catch (err) {
+      console.error('[Game] Exception saving leaderboard message:', err);
+    }
+    
     socket.emit('game:message', { groupId, message: msg });
     socket.to(`group:${groupId}`).emit('game:message', { groupId, message: msg });
   } catch (err) {
@@ -468,9 +504,28 @@ async function handleHelp(io, socket, userId, groupId, unknownCommand = null) {
   content += '• Krupiye 17\'ye kadar çeker\n';
   content += '• Blackjack (A+10) 3:2 öder (+150%)\n';
   content += '• Normal kazanç 1:1 öder (+100%)\n\n';
-  content += '� **Başlangıç bakiyesi:** 1000 credits';
+  content += '🎰 **Başlangıç bakiyesi:** 1000 credits';
 
   const msg = createGameMessage(content, null, 'help');
+  
+  // Persist help message to database
+  try {
+    // Use the actual user who triggered the command as sender_id for DB consistency
+    const { error: dbError } = await supabase
+      .from('group_messages')
+      .insert({
+        group_id: groupId,
+        sender_id: userId,
+        content: content,
+        message_type: 'game_help',
+        media_url: null,
+        media_type: null
+      });
+    if (dbError) console.error('[Game] Error saving help message to DB:', dbError);
+  } catch (err) {
+    console.error('[Game] Exception saving help message:', err);
+  }
+  
   socket.emit('game:message', { groupId, message: msg });
   socket.to(`group:${groupId}`).emit('game:message', { groupId, message: msg });
 }

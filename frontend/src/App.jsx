@@ -554,6 +554,7 @@ export default function App() {
         gameData: message.gameData,
         timestamp: message.timestamp || new Date().toISOString(),
         isGameMessage: true,
+        groupId: groupId, // Ensure groupId is attached to the message
       };
       
       setGroupMessagesById((prev) => {
@@ -846,6 +847,26 @@ export default function App() {
               // parse failed — fall through to normal message
             }
           }
+          
+          // Detect game messages (help, credits, leaderboard)
+          const isGameMessage = m.message_type?.startsWith('game_') || m.type?.startsWith('game_');
+          if (isGameMessage) {
+            return {
+              id: m.id,
+              from: {
+                id: 'game-bot',
+                username: '🎰 Casino Bot',
+                avatarUrl: null,
+              },
+              text: m.content || "",
+              timestamp: m.created_at || new Date().toISOString(),
+              type: m.message_type || 'game_message',
+              isGameMessage: true,
+              gameData: null, // Static game messages don't have interactive gameData
+              groupId: activeGroup?.id, // Attach groupId for game messages from DB
+            };
+          }
+          
           return {
             id: m.id,
             from: {
