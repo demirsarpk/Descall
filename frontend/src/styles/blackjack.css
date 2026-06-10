@@ -1,47 +1,257 @@
 /* ==========================================
-   BLACKJACK GAME STYLES
-   Modern casino aesthetic
+   MODERN BLACKJACK CASINO UI
+   Premium animated casino experience
    ========================================== */
 
-/* Game Message Bubble */
+/* ==========================================
+   MODERN BLACKJACK CASINO UI v2.0
+   Ultra-premium animated casino experience
+   ========================================== */
+
+/* ===== CSS Variables - Premium Casino Theme ===== */
+:root {
+  /* Gold Accent Colors */
+  --casino-gold: #f59e0b;
+  --casino-gold-light: #fbbf24;
+  --casino-gold-dark: #d97706;
+  --casino-gold-gradient: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  
+  /* Action Colors */
+  --casino-green: #10b981;
+  --casino-green-light: #34d399;
+  --casino-green-dark: #059669;
+  --casino-green-gradient: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%);
+  
+  --casino-red: #ef4444;
+  --casino-red-light: #f87171;
+  --casino-red-dark: #dc2626;
+  --casino-red-gradient: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
+  
+  --casino-purple: #8b5cf6;
+  --casino-blue: #3b82f6;
+  --casino-blue-light: #60a5fa;
+  
+  /* Background Colors */
+  --casino-dark: #0f172a;
+  --casino-darker: #020617;
+  --casino-surface: rgba(30, 41, 59, 0.8);
+  --casino-surface-light: rgba(51, 65, 85, 0.6);
+  
+  /* Border & Effects */
+  --glass-border: rgba(148, 163, 184, 0.15);
+  --glass-border-hover: rgba(245, 158, 11, 0.3);
+  --casino-text: #f8fafc;
+  --casino-text-muted: #94a3b8;
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-gold: 0 0 30px rgba(245, 158, 11, 0.3);
+  --shadow-green: 0 0 30px rgba(16, 185, 129, 0.3);
+  
+  /* Transitions */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* ==========================================
+   GAME MESSAGE BUBBLE - PREMIUM GLASS
+   ========================================== */
 .game-message-bubble {
-  background: linear-gradient(135deg, #1a1f2e 0%, #0d1117 100%);
-  border: 1px solid #30363d;
-  border-radius: 16px;
-  padding: 12px 16px;
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 20px 24px;
   margin: 8px 16px;
-  max-width: 90%;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  max-width: 420px;
+  box-shadow: 
+    var(--shadow-lg),
+    0 0 0 1px rgba(245, 158, 11, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-smooth);
 }
 
-.game-message-bubble.own {
-  border-color: #238636;
-  background: linear-gradient(135deg, #0d2818 0%, #1a1f2e 100%);
+/* Shimmer Effect on Top Border */
+.game-message-bubble::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--casino-gold-light) 30%, 
+    var(--casino-gold) 50%, 
+    var(--casino-gold-light) 70%, 
+    transparent 100%
+  );
+  animation: shimmer 3s ease-in-out infinite;
 }
 
-.game-message-bubble.finished {
-  border-color: var(--result-color, #30363d);
+@keyframes shimmer {
+  0% { left: -100%; }
+  50% { left: 100%; }
+  100% { left: 100%; }
 }
 
-/* Header */
+/* Glow Animation for Lobby */
+.game-message-bubble.lobby {
+  animation: premiumGlow 4s ease-in-out infinite;
+}
+
+@keyframes premiumGlow {
+  0%, 100% { 
+    box-shadow: var(--shadow-lg), 0 0 0 1px rgba(245, 158, 11, 0.1);
+    border-color: var(--glass-border);
+  }
+  50% { 
+    box-shadow: var(--shadow-lg), 0 0 40px rgba(245, 158, 11, 0.2), 0 0 0 1px rgba(245, 158, 11, 0.25);
+    border-color: rgba(245, 158, 11, 0.25);
+  }
+}
+
+/* Win State Animations */
+.game-message-bubble.finished.win {
+  border-color: rgba(16, 185, 129, 0.5);
+  animation: winPulsePremium 2s ease-in-out infinite;
+}
+
+.game-message-bubble.finished.blackjack {
+  border-color: rgba(245, 158, 11, 0.6);
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.98) 0%, rgba(20, 15, 5, 0.98) 100%);
+  animation: blackjackFlash 1.2s ease-in-out infinite;
+}
+
+.game-message-bubble.finished.loss {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+@keyframes winPulsePremium {
+  0%, 100% { box-shadow: var(--shadow-lg), 0 0 20px rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: var(--shadow-lg), 0 0 50px rgba(16, 185, 129, 0.5); }
+}
+
+@keyframes blackjackFlash {
+  0%, 100% { 
+    box-shadow: var(--shadow-lg), 0 0 40px rgba(245, 158, 11, 0.4);
+    border-color: rgba(245, 158, 11, 0.5);
+  }
+  50% { 
+    box-shadow: var(--shadow-lg), 0 0 80px rgba(245, 158, 11, 0.6);
+    border-color: rgba(251, 191, 36, 0.7);
+  }
+}
+
+/* ==========================================
+   MODERN HEADER WITH BOT AVATAR
+   ========================================== */
 .game-bubble-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #30363d;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--glass-border);
 }
 
-.game-icon-wrapper {
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  border-radius: 8px;
+.bot-avatar {
+  width: 44px;
+  height: 44px;
+  background: var(--casino-gold-gradient);
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  animation: avatarPulse 2s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.bot-avatar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.2) 50%, transparent 60%);
+  animation: avatarShine 3s infinite;
+}
+
+@keyframes avatarPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+@keyframes avatarShine {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(100%) rotate(45deg); }
+}
+
+.game-title-section h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  background: var(--casino-gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
+}
+
+.game-title-section p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--casino-text-muted);
+}
+
+/* Status Indicator */
+.status-indicator {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+.status-indicator.active {
+  background: linear-gradient(135deg, var(--casino-green-light), var(--casino-green));
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+}
+
+.status-indicator.win {
+  background: var(--casino-green-gradient);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+}
+
+.status-indicator.blackjack {
+  background: var(--casino-gold-gradient);
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.7);
+  animation: jackpotPulse 0.8s ease-in-out infinite;
+}
+
+.status-indicator.loss {
+  background: var(--casino-red-gradient);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
+@keyframes statusPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.9; }
+}
+
+@keyframes jackpotPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 30px rgba(245, 158, 11, 0.7); }
+  50% { transform: scale(1.15); box-shadow: 0 0 50px rgba(251, 191, 36, 0.9); }
 }
 
 .game-info {
@@ -724,56 +934,541 @@
 }
 
 /* ==========================================
-   SIMPLE GAME MESSAGE (non-interactive)
+   MODERN BET SELECTOR UI
    ========================================== */
+.bet-selector-ui {
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.7));
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 20px;
+  margin: 16px 0;
+}
 
-.game-message-bubble.simple {
-  background: #161b22;
-  padding: 12px 16px;
+.bet-display {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.bet-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--casino-gold-gradient);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+  animation: betIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes betIconPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); }
+  50% { transform: scale(1.02); box-shadow: 0 6px 20px rgba(245, 158, 11, 0.5); }
+}
+
+.bet-amount-section {
+  flex: 1;
+}
+
+.bet-label {
+  display: block;
+  font-size: 12px;
+  color: var(--casino-text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.bet-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 8px 12px;
+}
+
+.bet-adjust {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: var(--casino-surface-light);
+  color: var(--casino-text);
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.bet-adjust:hover {
+  background: var(--casino-gold);
+  color: #0f172a;
+  transform: scale(1.05);
+}
+
+.bet-value {
+  flex: 1;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--casino-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Quick Bet Chips */
+.quick-bets-toggle {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  color: var(--casino-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all var(--transition-fast);
+  margin-top: 12px;
+}
+
+.quick-bets-toggle:hover {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: var(--casino-gold-light);
+}
+
+.quick-bets-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.quick-bet-chip {
+  padding: 12px 8px;
+  border: 2px solid var(--glass-border);
+  border-radius: 14px;
+  background: rgba(30, 41, 59, 0.5);
+  color: var(--casino-text);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.quick-bet-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(245, 158, 11, 0.3), transparent);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.quick-bet-chip:hover:not(:disabled) {
+  border-color: var(--casino-gold);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+.quick-bet-chip:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.quick-bet-chip.active {
+  background: var(--casino-gold-gradient);
+  border-color: var(--casino-gold);
+  color: #0f172a;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+}
+
+.quick-bet-chip.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Play Button */
+.play-btn {
+  width: 100%;
+  padding: 16px;
+  margin-top: 16px;
+  background: var(--casino-green-gradient);
+  border: none;
+  border-radius: 16px;
+  color: white;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.play-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transition: left 0.5s;
+}
+
+.play-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(16, 185, 129, 0.5);
+}
+
+.play-btn:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.play-btn:disabled {
+  background: rgba(100, 116, 139, 0.3);
+  color: var(--casino-text-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Credits Info */
+.credits-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px;
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--casino-text-muted);
+}
+
+.credits-info strong {
+  color: var(--casino-gold-light);
+  font-weight: 700;
+}
+
+/* Rules Button */
+.rules-btn {
+  width: 100%;
+  padding: 12px;
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  color: var(--casino-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all var(--transition-fast);
+}
+
+.rules-btn:hover {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: var(--casino-gold-light);
+}
+
+/* ==========================================
+   MODERN HELP & INFO MESSAGE UI
+   ========================================== */
+.game-message-bubble.simple,
+.game-message-bubble.help,
+.game-message-bubble.credits,
+.game-message-bubble.leaderboard {
+  padding: 20px 24px;
 }
 
 .game-message-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .bot-badge {
-  font-size: 10px;
-  background: #f59e0b;
-  color: #0d1117;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 700;
+  font-size: 11px;
+  background: var(--casino-gold-gradient);
+  color: #0f172a;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
 }
 
 .sender-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #f0f6fc;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--casino-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
+.sender-name::before {
+  content: '🎰';
+  font-size: 18px;
+}
+
+/* Modern Game Message Content */
 .game-message-content {
   font-size: 14px;
-  color: #c9d1d9;
-  line-height: 1.5;
+  color: var(--casino-text-muted);
+  line-height: 1.7;
 }
 
 .game-message-content strong {
-  color: #f0f6fc;
-}
-
-.game-message-content code {
-  background: #21262d;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 12px;
-  color: #f59e0b;
-}
-
-.game-message-content .mention {
-  color: #58a6ff;
+  color: var(--casino-text);
   font-weight: 600;
+}
+
+/* Premium Code Blocks for Commands */
+.game-message-content code {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.1));
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  color: var(--casino-gold-light);
+  font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+.game-message-content code:hover {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: var(--casino-gold);
+  transform: translateY(-1px);
+  display: inline-block;
+}
+
+/* Section Headers in Help */
+.game-message-content .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--casino-gold-light);
+  margin: 16px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* Credits Display Box */
+.credits-display-box {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(251, 191, 36, 0.05));
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin: 12px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  animation: creditsGlow 2s ease-in-out infinite;
+}
+
+@keyframes creditsGlow {
+  0%, 100% { box-shadow: 0 0 0 rgba(245, 158, 11, 0); }
+  50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.15); }
+}
+
+.credits-display-box .label {
+  font-size: 13px;
+  color: var(--casino-text-muted);
+}
+
+.credits-display-box .amount {
+  font-size: 24px;
+  font-weight: 800;
+  background: var(--casino-gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Command List Styling */
+.command-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.command-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  transition: all var(--transition-fast);
+}
+
+.command-item:hover {
+  background: rgba(51, 65, 85, 0.5);
+  border-color: rgba(245, 158, 11, 0.3);
+  transform: translateX(4px);
+}
+
+.command-item .cmd {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--casino-gold-light);
+  background: rgba(245, 158, 11, 0.15);
+  padding: 4px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.command-item .desc {
+  font-size: 13px;
+  color: var(--casino-text-muted);
+}
+
+/* Rules List */
+.rules-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+
+.rules-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--casino-text-muted);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.rules-list li:last-child {
+  border-bottom: none;
+}
+
+.rules-list li::before {
+  content: '▸';
+  color: var(--casino-gold);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* Leaderboard Styling */
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  transition: all var(--transition-fast);
+}
+
+.leaderboard-item:hover {
+  background: rgba(51, 65, 85, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.leaderboard-item.top-1 {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(251, 191, 36, 0.1));
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.leaderboard-item.top-2 {
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.2), rgba(203, 213, 225, 0.1));
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.leaderboard-item.top-3 {
+  background: linear-gradient(135deg, rgba(180, 83, 9, 0.2), rgba(217, 119, 6, 0.1));
+  border-color: rgba(180, 83, 9, 0.4);
+}
+
+.rank-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.rank-badge.gold {
+  background: var(--casino-gold-gradient);
+  color: #0f172a;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+}
+
+.rank-badge.silver {
+  background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+  color: #0f172a;
+}
+
+.rank-badge.bronze {
+  background: linear-gradient(135deg, #c2410c, #d97706);
+  color: white;
+}
+
+.rank-badge.normal {
+  background: rgba(30, 41, 59, 0.8);
+  color: var(--casino-text-muted);
+  border: 1px solid var(--glass-border);
+}
+
+.leaderboard-user {
+  flex: 1;
+  font-weight: 600;
+  color: var(--casino-text);
+}
+
+.leaderboard-credits {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--casino-gold-light);
 }
