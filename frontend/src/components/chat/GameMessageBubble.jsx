@@ -243,8 +243,12 @@ export default function GameMessageBubble({
     return <ModernLeaderboardMessage content={content} />;
   }
 
-  // Game Lobby View
-  if (!gameData || gameData.status === 'finished') {
+  // Game Start message - render game board immediately when game starts
+  if (type === 'game_start' && gameData) {
+    // Continue to game board rendering below
+  }
+  // Game Lobby View - only when no game or finished
+  else if (!gameData || gameData.status === 'finished') {
     return (
       <motion.div className="game-message-bubble lobby" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
         <div className="game-bubble-header">
