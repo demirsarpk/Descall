@@ -1104,4 +1104,163 @@ router.get("/errors/export", (req, res) => {
   }
 });
 
+// ==========================================
+// CASINO / CREDITS MANAGEMENT API
+// ==========================================
+
+// Get all user credits with usernames
+router.get("/credits", async (req, res) => {
+  try {
+    const { data: credits, error: creditsError } = await supabase
+      .from("user_credits")
+      .select("user_id, credits, total_won, total_lost, games_played, updated_at")
+      .order("credits", { ascending: false });
+
+    if (creditsError) throw creditsError;
+
+    // Get usernames for all users
+    const userIds = credits?.map(c => c.user_id) || [];
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, username")
+      .in("id", userIds);
+
+    if (usersError) throw usersError;
+
+    const userMap = new Map(users?.map(u => [u.id, u.username]) || []);
+
+    const enrichedCredits = credits?.map(c => ({
+      ...c,
+      username: userMap.get(c.user_id) || "Unknown"
+    })) || [];
+
+    res.json({ users: enrichedCredits });
+  } catch (error) {
+    console.error("[Admin] Error fetching credits:", error);
+    res.status(500).json({ error: "Failed to fetch credits." });
+  }
+});
+
+// Get credits statistics
+router.get("/credits/stats", async (req, res) => {
+  try {
+    const { data: credits, error } = await supabase
+      .from("user_credits")
+      .select("credits, games_played");
+
+    if (error) throw error;
+
+    const stats = {
+      totalCredits: credits?.reduce((sum, c) => sum + (c.credits || 0), 0) || 0,
+      totalPlayers: credits?.length || 0,
+      totalGames: credits?.reduce((sum, c) => sum + (c.games_played || 0), 0) || 0,
+      avgCredits: credits?.length > 0 
+        ? Math.round(credits.reduce((sum, c) => sum + (c.credits || 0), 0) / credits.length) 
+        : 0
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error("[Admin] Error fetching credit stats:", error);
+    res.status(500).json({ error: "Failed to fetch credit stats." });
+  }
+});
+
+// Get game history
+router.get("/credits/history", async (req, res) => {
+  try {
+    const limit = Math.min(500, parseInt(req.query.limit || "100", 10) || 100);
+    
+    const { data: games, error } = await supabase
+      .from("game_history")
+      .select("user_id, bet_amount, result, win_amount, played_at")
+      .order("played_at", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    // Get usernames
+    const userIds = [...new Set(games?.map(g => g.user_id) || [])];
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, username")
+      .in("id", userIds);
+
+    const userMap = new Map(users?.map(u => [u.id, u.username]) || []);
+
+    const enrichedGames = games?.map(g => ({
+      ...g,
+      username: userMap.get(g.user_id) || "Unknown"
+    })) || [];
+
+    res.json({ history: enrichedGames, games: enrichedGames });
+  } catch (error) {
+    console.error("[Admin] Error fetching game history:", error);
+    res.status(500).json({ error: "Failed to fetch game history." });
+  }
+});
+
+// Update user credits (add/remove)
+router.post("/credits/update", async (req, res) => {
+  try {
+    const { userId, amount, operation, reason } = req.body;
+
+    if (!userId || typeof amount !== "number" || amount <= 0) {
+      return res.status(400).json({ error: "Invalid userId or amount." });
+    }
+
+    if (!["add", "remove"].includes(operation)) {
+      return res.status(400).json({ error: "Operation must be 'add' or 'remove'." });
+    }
+
+    // Get current credits
+    const { data: current, error: fetchError } = await supabase
+      .from("user_credits")
+      .select("credits, total_won, total_lost")
+      .eq("user_id", userId)
+      .single();
+
+    if (fetchError && fetchError.code !== "PGRST116") {
+      throw fetchError;
+    }
+
+    const currentCredits = current?.credits || 0;
+    const newCredits = operation === "add" 
+      ? currentCredits + amount 
+      : Math.max(0, currentCredits - amount);
+
+    // Update credits
+    const { error: updateError } = await supabase
+      .from("user_credits")
+      .upsert({
+        user_id: userId,
+        credits: newCredits,
+        updated_at: new Date().toISOString()
+      });
+
+    if (updateError) throw updateError;
+
+    // Audit log
+    audit(req.user, "credits_update", userId, { 
+      operation, 
+      amount, 
+      previousBalance: currentCredits, 
+      newBalance: newCredits,
+      reason: reason || "Admin adjustment"
+    });
+
+    res.json({ 
+      success: true, 
+      userId, 
+      previousBalance: currentCredits, 
+      newBalance: newCredits,
+      operation,
+      amount
+    });
+  } catch (error) {
+    console.error("[Admin] Error updating credits:", error);
+    res.status(500).json({ error: "Failed to update credits." });
+  }
+});
+
 module.exports = router;

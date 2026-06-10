@@ -1811,15 +1811,28 @@
   flex-wrap: nowrap;
   flex-shrink: 0;
   scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  min-height: 56px;
+  align-items: center;
 }
 
 .admin-tabs::-webkit-scrollbar {
-  height: 4px;
+  height: 6px;
+}
+
+.admin-tabs::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
 }
 
 .admin-tabs::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.25);
   border-radius: 4px;
+}
+
+.admin-tabs::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .admin-tab {
@@ -3634,5 +3647,28 @@
 
 .activity-modal-submit:not(:disabled):hover {
   opacity: 0.9;
+}
+
+/* Admin Button Variants for Casino/Credits */
+.admin-btn-green {
+  background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.admin-btn-green:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+}
+
+.admin-btn-red {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.admin-btn-red:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
 }
 

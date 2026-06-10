@@ -13,7 +13,8 @@ import {
   Activity as ActivityIcon, Box, Code, GitBranch, Layers2, Monitor,
   MousePointer, Play, Pause, Square, Maximize2, Minimize2, Copy,
   ExternalLink, FileDown, Printer, Share2, Star, ThumbsUp,
-  ThumbsDown, Upload, Video, Voicemail, ZoomIn, ZoomOut, Megaphone
+  ThumbsDown, Upload, Video, Voicemail, ZoomIn, ZoomOut, Megaphone,
+  Coins, DollarSign, Wallet, Plus, Minus
 } from "lucide-react";
 import { adminFetch } from "../../api/adminHttp";
 import { API_BASE_URL } from "../../config/api";
@@ -34,6 +35,7 @@ const TABS = [
   { id: "errors", label: "Error Logs", icon: AlertCircle },
   { id: "feedback", label: "Feedback", icon: Bell },
   { id: "announcements", label: "Announcements", icon: Megaphone },
+  { id: "casino", label: "Casino", icon: Coins },
   { id: "moderation", label: "Moderation", icon: Shield },
   { id: "analytics", label: "Analytics", icon: Activity },
   { id: "system", label: "System", icon: Settings },
@@ -135,6 +137,17 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
   const [scheduledTasks, setScheduledTasks] = useState([]);
   const [cacheStats, setCacheStats] = useState(null);
   const [dbStats, setDbStats] = useState(null);
+  
+  // Casino/Credits States
+  const [userCredits, setUserCredits] = useState([]);
+  const [creditSearch, setCreditSearch] = useState("");
+  const [selectedCreditUser, setSelectedCreditUser] = useState(null);
+  const [creditAmount, setCreditAmount] = useState(1000);
+  const [creditReason, setCreditReason] = useState("");
+  const [creditOperation, setCreditOperation] = useState("add"); // 'add' or 'remove'
+  const [creditHistory, setCreditHistory] = useState([]);
+  const [creditStats, setCreditStats] = useState(null);
+  const [gameHistory, setGameHistory] = useState([]);
   
   // UI States
   const [err, setErr] = useState("");
@@ -456,6 +469,40 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
     }
   }, []);
 
+  // Load casino/credits data
+  const loadCasinoData = useCallback(async () => {
+    try {
+      const [creditsRes, historyRes, statsRes] = await Promise.all([
+        adminFetch("/credits"),
+        adminFetch("/credits/history?limit=100"),
+        adminFetch("/credits/stats")
+      ]);
+      setUserCredits(creditsRes.users || []);
+      setCreditHistory(historyRes.history || []);
+      setCreditStats(statsRes);
+      setGameHistory(historyRes.games || []);
+    } catch (e) {
+      console.error("[ADMIN] Failed to load casino data:", e);
+      throw e;
+    }
+  }, []);
+
+  // Credit management functions
+  const updateUserCredits = async (userId, amount, operation, reason) => {
+    try {
+      const res = await adminFetch("/credits/update", {
+        method: "POST",
+        body: JSON.stringify({ userId, amount, operation, reason })
+      });
+      setSuccessMessage(`Credits ${operation === 'add' ? 'added to' : 'removed from'} user successfully`);
+      await loadCasinoData(); // Refresh data
+      return res;
+    } catch (e) {
+      setErrorMessage(`Failed to update credits: ${e.message}`);
+      throw e;
+    }
+  };
+
   useEffect(() => {
     adminFetch("/snapshot")
       .then(setSnapshot)
@@ -497,6 +544,7 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
     if (tab === "audit") loadAudit().catch((e) => setErr(e.message));
     if (tab === "system") loadSystem().catch((e) => setErr(e.message));
     if (tab === "announcements") loadAnnouncements().catch((e) => setErr(e.message));
+    if (tab === "casino") loadCasinoData().catch((e) => setErr(e.message));
     // feedback and errors tabs use their own components with internal loading
   }, [tab, loadAllUsers, loadActivity, loadEngagement, loadGrowth, loadTopUsers, loadMessages, loadDm, loadAudit, loadSystem, loadAnnouncements]);
 
@@ -1757,6 +1805,279 @@ function getTimeAgo(date) {
                   ))}
               </div>
             )}
+          </section>
+        )}
+
+        {tab === "casino" && (
+          <section className="admin-section admin-section-full">
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
+                  <Coins size={22} style={{ color: "#f59e0b" }} /> Casino / Credits Management
+                </h2>
+                <p className="muted" style={{ marginTop: 4 }}>Manage user credits and view Blackjack statistics</p>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <RippleButton type="button" onClick={() => act(loadCasinoData)} disabled={busy} style={{ minWidth: 90 }}>
+                  <RefreshCw size={14} /> Refresh
+                </RippleButton>
+              </div>
+            </div>
+
+            {/* Stats Overview */}
+            {creditStats && (
+              <div className="admin-grid" style={{ marginBottom: 24 }}>
+                <div className="admin-card" style={{ background: "linear-gradient(135deg, #f59e0b22, #d9770622)", borderColor: "#f59e0b44" }}>
+                  <span style={{ color: "#f59e0b" }}>Total Credits in System</span>
+                  <strong style={{ color: "#f59e0b", fontSize: 24 }}>{(creditStats.totalCredits || 0).toLocaleString()}</strong>
+                </div>
+                <div className="admin-card">
+                  <span>Total Players</span>
+                  <strong>{creditStats.totalPlayers || 0}</strong>
+                </div>
+                <div className="admin-card">
+                  <span>Games Played</span>
+                  <strong>{creditStats.totalGames || 0}</strong>
+                </div>
+                <div className="admin-card">
+                  <span>Avg Credits/User</span>
+                  <strong>{Math.round((creditStats.totalCredits || 0) / (creditStats.totalPlayers || 1)).toLocaleString()}</strong>
+                </div>
+              </div>
+            )}
+
+            {/* Credit Management Section */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+              {/* Search and Manage Users */}
+              <div style={{ background: "var(--surface-2)", borderRadius: 14, padding: 20, border: "1px solid var(--border-2)" }}>
+                <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <Search size={18} /> Find User
+                </h3>
+                <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                  <input
+                    className="admin-input"
+                    placeholder="Search by username..."
+                    value={creditSearch}
+                    onChange={(e) => setCreditSearch(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+                
+                {/* User List */}
+                <div style={{ maxHeight: 300, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {userCredits
+                    .filter(u => !creditSearch || u.username?.toLowerCase().includes(creditSearch.toLowerCase()))
+                    .slice(0, 20)
+                    .map(user => (
+                      <motion.div
+                        key={user.user_id}
+                        onClick={() => setSelectedCreditUser(user)}
+                        style={{
+                          padding: "12px 14px",
+                          background: selectedCreditUser?.user_id === user.user_id ? "rgba(102, 120, 255, 0.2)" : "var(--surface-3)",
+                          borderRadius: 10,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          border: selectedCreditUser?.user_id === user.user_id ? "1px solid #6678ff" : "1px solid transparent",
+                        }}
+                        whileHover={{ scale: 1.01 }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ 
+                            width: 36, height: 36, borderRadius: "50%", 
+                            background: "linear-gradient(135deg, #6678ff, #7d6bff)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontWeight: 600, fontSize: 14, color: "white"
+                          }}>
+                            {user.username?.[0]?.toUpperCase() || "?"}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{user.username || "Unknown"}</div>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>ID: {user.user_id?.slice(0, 8)}...</div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontWeight: 700, fontSize: 16, color: "#f59e0b" }}>
+                            <Wallet size={14} style={{ display: "inline", marginRight: 4 }} />
+                            {user.credits?.toLocaleString() || 0}
+                          </div>
+                          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                            {user.games_played || 0} games
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  {userCredits.filter(u => !creditSearch || u.username?.toLowerCase().includes(creditSearch.toLowerCase())).length === 0 && (
+                    <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
+                      <p>No users found</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Credit Operations */}
+              <div style={{ background: "var(--surface-2)", borderRadius: 14, padding: 20, border: "1px solid var(--border-2)" }}>
+                <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <DollarSign size={18} /> Manage Credits
+                </h3>
+                
+                {selectedCreditUser ? (
+                  <div>
+                    <div style={{ 
+                      background: "var(--surface-3)", 
+                      padding: "14px 16px", 
+                      borderRadius: 10, 
+                      marginBottom: 16,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between"
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{selectedCreditUser.username}</div>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Current Balance</div>
+                      </div>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: "#f59e0b" }}>
+                        {selectedCreditUser.credits?.toLocaleString() || 0}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => setCreditOperation("add")}
+                          style={{
+                            flex: 1,
+                            padding: "10px",
+                            borderRadius: 8,
+                            border: "none",
+                            cursor: "pointer",
+                            background: creditOperation === "add" ? "#22c55e" : "var(--surface-3)",
+                            color: creditOperation === "add" ? "white" : "var(--text-1)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          <Plus size={14} style={{ display: "inline", marginRight: 6 }} />
+                          Add Credits
+                        </button>
+                        <button
+                          onClick={() => setCreditOperation("remove")}
+                          style={{
+                            flex: 1,
+                            padding: "10px",
+                            borderRadius: 8,
+                            border: "none",
+                            cursor: "pointer",
+                            background: creditOperation === "remove" ? "#ef4444" : "var(--surface-3)",
+                            color: creditOperation === "remove" ? "white" : "var(--text-1)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          <Minus size={14} style={{ display: "inline", marginRight: 6 }} />
+                          Remove Credits
+                        </button>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Amount</label>
+                        <input
+                          type="number"
+                          className="admin-input"
+                          value={creditAmount}
+                          onChange={(e) => setCreditAmount(parseInt(e.target.value) || 0)}
+                          min="1"
+                          max="1000000"
+                          style={{ width: "100%" }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Reason (optional)</label>
+                        <input
+                          className="admin-input"
+                          value={creditReason}
+                          onChange={(e) => setCreditReason(e.target.value)}
+                          placeholder="e.g., Bonus, Correction, etc."
+                          style={{ width: "100%" }}
+                        />
+                      </div>
+
+                      <RippleButton
+                        type="button"
+                        className={creditOperation === "add" ? "admin-btn-green" : "admin-btn-red"}
+                        onClick={() => act(() => updateUserCredits(selectedCreditUser.user_id, creditAmount, creditOperation, creditReason))}
+                        disabled={busy || creditAmount <= 0}
+                        style={{ width: "100%", marginTop: 8 }}
+                      >
+                        {busy ? "Processing..." : (
+                          <>{creditOperation === "add" ? <Plus size={16} /> : <Minus size={16} />} {creditOperation === "add" ? "Add" : "Remove"} {creditAmount.toLocaleString()} Credits</>
+                        )}
+                      </RippleButton>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: "center", padding: 60, color: "var(--text-muted)" }}>
+                    <Coins size={44} style={{ opacity: 0.3, marginBottom: 14 }} />
+                    <p>Select a user from the list to manage their credits</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recent Game History */}
+            <div style={{ background: "var(--surface-2)", borderRadius: 14, padding: 20, border: "1px solid var(--border-2)" }}>
+              <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
+                <History size={18} /> Recent Game History
+              </h3>
+              <div className="admin-table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Bet</th>
+                      <th>Result</th>
+                      <th>Win Amount</th>
+                      <th>Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gameHistory.slice(0, 20).map((game, idx) => (
+                      <tr key={idx}>
+                        <td>{game.username || game.user_id?.slice(0, 8)}</td>
+                        <td>{game.bet_amount?.toLocaleString() || 0}</td>
+                        <td>
+                          <span style={{
+                            padding: "4px 10px",
+                            borderRadius: 4,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            background: game.result === 'win' || game.result === 'blackjack' ? '#22c55e22' : game.result === 'loss' ? '#ef444422' : '#6b728022',
+                            color: game.result === 'win' || game.result === 'blackjack' ? '#22c55e' : game.result === 'loss' ? '#ef4444' : '#9ca3af',
+                          }}>
+                            {game.result?.toUpperCase() || 'PUSH'}
+                          </span>
+                        </td>
+                        <td style={{ color: game.win_amount > 0 ? '#22c55e' : 'var(--text-1)' }}>
+                          {game.win_amount > 0 ? '+' : ''}{game.win_amount?.toLocaleString() || 0}
+                        </td>
+                        <td style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                          {game.played_at ? new Date(game.played_at).toLocaleString() : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                    {gameHistory.length === 0 && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
+                          No games played yet
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </section>
         )}
 
