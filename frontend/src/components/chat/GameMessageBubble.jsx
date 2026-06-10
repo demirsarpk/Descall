@@ -332,6 +332,7 @@ export default function GameMessageBubble({
    MODERN HELP MESSAGE COMPONENT
    ========================================== */
 function ModernHelpMessage({ content, onCommandClick }) {
+  if (!content) return null;
   const lines = content.split('\n');
   const credits = lines.find(l => l.includes('Bakiyeniz'))?.match(/[\d,]+/)?.[0] || '0';
   
@@ -435,6 +436,7 @@ function ModernHelpMessage({ content, onCommandClick }) {
    MODERN CREDITS MESSAGE COMPONENT
    ========================================== */
 function ModernCreditsMessage({ content }) {
+  if (!content) return null;
   const credits = content.match(/([\d,]+)\s*credits?/i)?.[1] || '0';
   const totalWon = content.match(/Toplam Kazan[çc]:?\s*\*\*?(\d+)\*\*?/i)?.[1] || '0';
   const totalLost = content.match(/Toplam Kay[ıi]p:?\s*\*\*?(\d+)\*\*?/i)?.[1] || '0';
@@ -507,6 +509,7 @@ function ModernCreditsMessage({ content }) {
    MODERN LEADERBOARD MESSAGE COMPONENT
    ========================================== */
 function ModernLeaderboardMessage({ content }) {
+  if (!content) return null;
   // Parse leaderboard data from content
   const lines = content.split('\n').filter(l => l.trim());
   const title = lines[0]?.replace(/\*\*/g, '') || 'LIDER TABLOSU';
