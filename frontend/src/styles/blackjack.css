@@ -951,6 +951,27 @@
   margin-bottom: 16px;
 }
 
+.bet-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  background: var(--casino-gold-gradient);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+  animation: betIconPulse 2s ease-in-out infinite;
+}
+
+.bet-icon-wrapper svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2.5px;
+}
+
+/* Legacy class for backward compatibility */
 .bet-icon {
   width: 48px;
   height: 48px;

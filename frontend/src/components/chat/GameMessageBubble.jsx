@@ -114,10 +114,19 @@ function BetSelector({ onBet, credits, currentBet = 100 }) {
     setBet(newBet);
   };
 
+  const handlePlay = () => {
+    if (canBet && onBet) {
+      console.log('[BetSelector] Playing with bet:', bet);
+      onBet(bet);
+    }
+  };
+
   return (
     <div className="bet-selector-ui">
       <div className="bet-display">
-        <Wallet size={20} className="bet-icon" />
+        <div className="bet-icon-wrapper">
+          <Wallet size={22} />
+        </div>
         <div className="bet-amount-section">
           <span className="bet-label">Bahis Miktarı</span>
           <div className="bet-controls">
@@ -131,7 +140,7 @@ function BetSelector({ onBet, credits, currentBet = 100 }) {
       <motion.button
         whileHover={{ scale: canBet ? 1.02 : 1 }}
         whileTap={{ scale: canBet ? 0.98 : 1 }}
-        onClick={() => canBet && onBet(bet)}
+        onClick={handlePlay}
         disabled={!canBet}
         className="play-btn"
       >
