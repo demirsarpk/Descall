@@ -490,14 +490,20 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
   // Credit management functions
   const updateUserCredits = async (userId, amount, operation, reason) => {
     try {
+      // Ensure amount is a number
+      const numericAmount = parseInt(amount, 10);
+      if (isNaN(numericAmount) || numericAmount <= 0) {
+        throw new Error("Invalid amount");
+      }
       const res = await adminFetch("/credits/update", {
         method: "POST",
-        body: JSON.stringify({ userId, amount, operation, reason })
+        body: JSON.stringify({ userId, amount: numericAmount, operation, reason })
       });
       setSuccessMessage(`Credits ${operation === 'add' ? 'added to' : 'removed from'} user successfully`);
       await loadCasinoData(); // Refresh data
       return res;
     } catch (e) {
+      console.error("[Admin] Credit update error:", e);
       setErrorMessage(`Failed to update credits: ${e.message}`);
       throw e;
     }
