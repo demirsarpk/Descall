@@ -53,12 +53,15 @@ export default function ServerSidebar({
   onAcceptFriend,
   onDeclineFriend,
   onMobileClose,
+  isMobile = false,
+  dmUnread = {},
+  groupUnread = {},
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
     dms: true,
     groups: true,
-    friends: true
+    friends: true,
   });
   const [internalShowAddModal, setInternalShowAddModal] = useState(false);
   const [internalAddTab, setInternalAddTab] = useState("friend");
@@ -218,6 +221,7 @@ export default function ServerSidebar({
             {activeView === "chat" && "Chats"}
             {activeView === "dms" && "Direct Messages"}
             {activeView === "groups" && "Groups"}
+            {activeView === "friends" && "Friends"}
             {activeView === "calls" && "Calls"}
           </h2>
           <div className="sidebar-actions">
@@ -405,6 +409,8 @@ export default function ServerSidebar({
               expanded={expandedSections.dms}
               onToggle={() => toggleSection("dms")}
               onDmSelect={onDmSelect}
+              isMobile={isMobile}
+              unreadById={dmUnread}
             />
           )}
 
@@ -418,6 +424,8 @@ export default function ServerSidebar({
               onGroupSelect={onGroupSelect}
               onGroupLeft={onGroupLeft}
               onGroupRenamed={onGroupRenamed}
+              isMobile={isMobile}
+              unreadById={groupUnread}
             />
           )}
 
@@ -431,6 +439,7 @@ export default function ServerSidebar({
               friendRequests={friendRequests}
               onAcceptFriend={onAcceptFriend}
               onDeclineFriend={onDeclineFriend}
+              isMobile={isMobile}
             />
           )}
         </div>
@@ -579,12 +588,89 @@ export default function ServerSidebar({
   );
 }
 
-function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect }) {
+function SidebarSectionContent({ expanded, isMobile, children }) {
+  if (!expanded) return null;
+  if (isMobile) {
+    return <div className="section-content">{children}</div>;
+  }
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ height: 0, opacity: 0 }}
+        animate={{ height: "auto", opacity: 1 }}
+        exit={{ height: 0, opacity: 0 }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        className="section-content"
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function formatConversationTime(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) {
+      return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    }
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+    const weekAgo = new Date(now);
+    weekAgo.setDate(now.getDate() - 6);
+    if (d >= weekAgo) {
+      return d.toLocaleDateString(undefined, { weekday: "short" });
+    }
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
+function formatUnreadCount(n) {
+  const count = Number(n) || 0;
+  if (count <= 0) return null;
+  if (count > 99) return "99+";
+  return String(count);
+}
+
+function UnreadBadge({ count }) {
+  const label = formatUnreadCount(count);
+  return (
+    <AnimatePresence mode="popLayout">
+      {label && (
+        <motion.span
+          key={label}
+          className="conv-unread-badge"
+          initial={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.7 }}
+          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          aria-label={`${label} unread`}
+        >
+          {label}
+        </motion.span>
+      )}
+    </AnimatePresence>
+  );
+}
+
+const LIST_LAYOUT_TRANSITION = {
+  layout: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+  opacity: { duration: 0.2 },
+};
+
+function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect, isMobile, unreadById = {} }) {
   const safeDms = Array.isArray(dms) ? dms : [];
-  
+
   return (
     <div className="sidebar-section">
-      <button 
+      <button
         className="section-header"
         onClick={onToggle}
       >
@@ -592,47 +678,56 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
 
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="section-content"
-          >
+      <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
+        {safeDms.length === 0 ? (
+          <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
+            No conversations yet
+          </div>
+        ) : (
+          <div className="conv-list">
             {safeDms.map((dm) => {
-              const isOnline = onlineUsers?.some(u => u.id === dm.id);
+              const isOnline = onlineUsers?.some((u) => u.id === dm.id);
               const isActive = activeDmUser?.id === dm.id;
+              const unread = dm.unreadCount || unreadById[dm.id] || 0;
+              const timeLabel = formatConversationTime(dm.lastActivity);
 
               return (
                 <motion.button
                   key={dm.id}
-                  className={`dm-item ${isActive ? "active" : ""}`}
+                  layout
+                  className={`dm-item conv-row ${isActive ? "active" : ""} ${unread > 0 ? "has-unread" : ""}`}
                   onClick={() => onDmSelect?.(dm)}
                   whileHover={{ scale: 1.01 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  transition={LIST_LAYOUT_TRANSITION}
                 >
                   <div className="dm-avatar">
-                    <Avatar 
-                      name={dm.username} 
+                    <Avatar
+                      name={dm.username}
                       size={40}
                       user={dm}
                     />
                     <StatusBadge status={isOnline ? "online" : "offline"} />
                   </div>
-                  <div className="dm-info">
-                    <span className="dm-name">{dm.username}</span>
-                    {dm.lastMessage && (
-                      <span className="dm-preview">{dm.lastMessage}</span>
-                    )}
+                  <div className="dm-info conv-row-body">
+                    <div className="conv-row-top">
+                      <span className={`dm-name ${unread > 0 ? "unread" : ""}`}>{dm.username}</span>
+                      {timeLabel && (
+                        <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
+                      )}
+                    </div>
+                    <div className="conv-row-bottom">
+                      <span className={`dm-preview ${unread > 0 ? "unread" : ""}`}>
+                        {dm.lastMessage || "No messages yet"}
+                      </span>
+                      <UnreadBadge count={unread} />
+                    </div>
                   </div>
                 </motion.button>
               );
             })}
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </SidebarSectionContent>
     </div>
   );
 }
@@ -1070,7 +1165,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
   );
 }
 
-function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed }) {
+function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed, isMobile, unreadById = {} }) {
   const safeGroups = Array.isArray(groups) ? groups : [];
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(null);   // group object
@@ -1146,15 +1241,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </button>
 
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="section-content"
-            >
+        <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
               {safeGroups.length === 0 ? (
                 <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
                   No groups yet
@@ -1162,19 +1249,26 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
               ) : (
                 safeGroups.map((group) => {
                   const isActive = activeGroup?.id === group.id;
+                  const unread = group.unreadCount || unreadById[group.id] || 0;
+                  const timeLabel = formatConversationTime(group.lastActivity);
+                  const preview = group.lastMessage || `${group.memberCount || 0} members`;
 
                   return (
-                    <div
+                    <motion.div
                       key={group.id}
+                      layout
                       ref={openMenuId === group.id ? menuRef : null}
+                      className="conv-group-wrap"
+                      transition={LIST_LAYOUT_TRANSITION}
                       style={{ position: "relative" }}
                     >
                       <motion.button
-                        className={`group-item ${isActive ? "active" : ""}`}
+                        layout
+                        className={`group-item conv-row ${isActive ? "active" : ""} ${unread > 0 ? "has-unread" : ""}`}
                         onClick={() => onGroupSelect?.(group)}
                         whileHover={{ scale: 1.01 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        style={{ width: "100%", paddingRight: isActive ? 36 : undefined }}
+                        transition={LIST_LAYOUT_TRANSITION}
+                        style={{ width: "100%", paddingRight: isActive ? 40 : undefined }}
                       >
                         <div className="group-icon" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
                           {group.icon ? (
@@ -1183,9 +1277,17 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                             <span>{group.name?.charAt(0)?.toUpperCase()}</span>
                           )}
                         </div>
-                        <div className="group-info">
-                          <span className="group-name">{group.name}</span>
-                          <span className="group-members">{group.memberCount || 0} members</span>
+                        <div className="group-info conv-row-body">
+                          <div className="conv-row-top">
+                            <span className={`group-name ${unread > 0 ? "unread" : ""}`}>{group.name}</span>
+                            {timeLabel && (
+                              <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
+                            )}
+                          </div>
+                          <div className="conv-row-bottom">
+                            <span className={`group-members dm-preview ${unread > 0 ? "unread" : ""}`}>{preview}</span>
+                            {!isActive && <UnreadBadge count={unread} />}
+                          </div>
                         </div>
                       </motion.button>
 
@@ -1222,13 +1324,11 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                           />
                         )}
                       </AnimatePresence>
-                    </div>
+                    </motion.div>
                   );
                 })
               )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </SidebarSectionContent>
       </div>
 
       <AnimatePresence>
@@ -1268,7 +1368,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
   );
 }
 
-function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend }) {
+function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend, isMobile }) {
   const safeFriends = Array.isArray(friends) ? friends : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
   const pendingRequests = Array.isArray(friendRequests) ? friendRequests : [];
@@ -1299,15 +1399,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
 
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="section-content"
-          >
+      <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
             {pendingRequests.length > 0 && (
               <div className="friend-category">
                 <span className="category-label" style={{ color: "var(--warning)" }}>
@@ -1408,9 +1500,12 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                 ))}
               </div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {safeFriends.length === 0 && pendingRequests.length === 0 && (
+              <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
+                No friends yet
+              </div>
+            )}
+      </SidebarSectionContent>
     </div>
   );
 }

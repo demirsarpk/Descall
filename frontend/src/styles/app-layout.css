@@ -707,6 +707,103 @@
   max-width: 100%;
 }
 
+/* ─── Conversation list (DM + Group) reorder + unread ─── */
+.conv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.conv-row {
+  will-change: transform;
+}
+
+.conv-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.conv-row-top,
+.conv-row-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.conv-row-top .dm-name,
+.conv-row-top .group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conv-row-bottom .dm-preview,
+.conv-row-bottom .group-members {
+  flex: 1;
+  min-width: 0;
+}
+
+.conv-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.conv-time.unread {
+  color: #ed4245;
+  font-weight: 600;
+}
+
+.dm-name.unread,
+.group-name.unread {
+  font-weight: 700;
+  color: var(--text-0);
+}
+
+.dm-preview.unread {
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.conv-unread-badge {
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ed4245;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(237, 66, 69, 0.35);
+  /* Keep clear of avatar / online status on the left */
+  margin-left: 4px;
+}
+
+.conv-group-wrap {
+  will-change: transform;
+}
+
+.dm-item.has-unread,
+.group-item.has-unread {
+  background: transparent;
+}
+
 /* ─── Group Items ─── */
 .group-item {
   width: 100%;

@@ -63,6 +63,8 @@ export default function AppLayout({
   onLeaveGuild,
   onDeleteGuild,
   onRefreshGuilds,
+  dmUnread = {},
+  groupUnread = {},
 }) {
   const { isMobile } = useMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -77,6 +79,18 @@ export default function AppLayout({
 
   const closeMobileDrawer = useCallback(() => setMobileDrawerOpen(false), []);
   const openMobileDrawer = useCallback(() => setMobileDrawerOpen(true), []);
+
+  const openUserPanel = useCallback(() => {
+    setUserPanelOpen(true);
+    if (isMobile) setMobileDrawerOpen(false);
+  }, [isMobile]);
+
+  const closeUserPanel = useCallback(() => {
+    setUserPanelOpen(false);
+    if (isMobile && !activeDmUser && !activeGroup && !activeGuildChannel) {
+      setMobileDrawerOpen(true);
+    }
+  }, [isMobile, activeDmUser, activeGroup, activeGuildChannel]);
 
   useEffect(() => {
     if (!isMobile) setMobileDrawerOpen(false);
@@ -95,6 +109,13 @@ export default function AppLayout({
     return () => { document.body.style.overflow = prev; };
   }, [isMobile, mobileDrawerOpen]);
 
+  useEffect(() => {
+    if (!isMobile || !userPanelOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isMobile, userPanelOpen]);
+
   const handleDmSelect = useCallback((dm) => {
     onDmSelect?.(dm);
     if (isMobile) setMobileDrawerOpen(false);
@@ -107,7 +128,8 @@ export default function AppLayout({
 
   const handleViewChange = useCallback((view) => {
     setActiveView(view);
-  }, []);
+    if (isMobile) setMobileDrawerOpen(true);
+  }, [isMobile]);
 
   const handleMobileBack = useCallback(() => {
     if (activeDmUser) onDmSelect?.(null);
@@ -133,7 +155,7 @@ export default function AppLayout({
 
   return (
     <div
-      className={`app-root${isMobile ? " is-mobile" : ""}${mobileDrawerOpen ? " mobile-drawer-open" : ""}`}
+      className={`app-root${isMobile ? " is-mobile" : ""}${mobileDrawerOpen ? " mobile-drawer-open" : ""}${userPanelOpen ? " mobile-settings-open" : ""}`}
       data-view={activeView}
     >
       <AnimatePresence>
@@ -189,10 +211,7 @@ export default function AppLayout({
           activeView={activeView}
           onViewChange={handleViewChange}
           onAdminClick={onAdminClick}
-          onUserClick={() => {
-            setUserPanelOpen(true);
-            if (isMobile) closeMobileDrawer();
-          }}
+          onUserClick={openUserPanel}
           onAddClick={handleAddClick}
           onVoiceClick={handleVoiceClick}
           me={me}
@@ -233,6 +252,9 @@ export default function AppLayout({
             onAcceptFriend={onAcceptFriend}
             onDeclineFriend={onDeclineFriend}
             onMobileClose={isMobile ? closeMobileDrawer : undefined}
+            isMobile={isMobile}
+            dmUnread={dmUnread}
+            groupUnread={groupUnread}
           />
         )}
       </div>
@@ -253,7 +275,7 @@ export default function AppLayout({
         onVideoCall={onVideoCall}
         onGroupVoiceCall={onGroupVoiceCall}
         onGroupVideoCall={onGroupVideoCall}
-        onSettings={() => setUserPanelOpen(true)}
+        onSettings={openUserPanel}
         activeCallBanner={activeCallBanner}
         onJoinActiveCall={onJoinActiveCall}
         onDismissActiveBanner={onDismissActiveBanner}
@@ -277,7 +299,7 @@ export default function AppLayout({
         {userPanelOpen && (
           <UserPanel
             me={me}
-            onClose={() => setUserPanelOpen(false)}
+            onClose={closeUserPanel}
             onLogout={onLogout}
             onProfileUpdated={onProfileUpdated}
             onSettings={() => {}}

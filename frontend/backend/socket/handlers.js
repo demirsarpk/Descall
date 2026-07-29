@@ -593,8 +593,19 @@ function registerSocketHandlers(io) {
       });
       if (arr.length > MAX_DM_PER_CONV) arr.length = MAX_DM_PER_CONV;
       dmHistory.set(convKey(myId, toUserId), arr);
-      const unreadMap = ensureDmUnreadMap(toUserId);
-      unreadMap.set(myId, (unreadMap.get(myId) || 0) + 1);
+
+      // Unread for recipient — skip if they currently have this DM open
+      const recipientSocket = getSocketForUser(io, toUserId);
+      const recipientActivePeer = recipientSocket?.data?.activeDmPeer;
+      let unreadCount = 0;
+      if (recipientActivePeer !== myId) {
+        const unreadMap = ensureDmUnreadMap(toUserId);
+        unreadCount = (unreadMap.get(myId) || 0) + 1;
+        unreadMap.set(myId, unreadCount);
+      } else {
+        ensureDmUnreadMap(toUserId).delete(myId);
+      }
+
       const messagePayload = {
         id: messageId,
         from: sender,
@@ -609,6 +620,13 @@ function registerSocketHandlers(io) {
       emitToUser(io, toUserId, "dm:message", { ...messagePayload, convWith: myId });
       // Echo back to sender with tempId so client can replace the optimistic message
       socket.emit("dm:message", { ...messagePayload, tempId, convWith: toUserId });
+
+      // Sync unread after the message so the list can reorder first, then badge updates
+      if (recipientActivePeer !== myId) {
+        emitToUser(io, toUserId, "dm:unread:sync", { peerId: myId, count: unreadCount });
+      } else {
+        emitToUser(io, toUserId, "dm:unread:sync", { peerId: myId, count: 0 });
+      }
 
       // Emit mention:received if text contains @recipient — used by notification service
       if (text) {

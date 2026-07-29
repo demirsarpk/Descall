@@ -98,6 +98,11 @@ export default function App() {
   const [friendRequests, setFriendRequests] = useState([]);
   const [dmByUserId, setDmByUserId] = useState({});
   const [dmUnread, setDmUnread] = useState({});
+  const [groupUnread, setGroupUnread] = useState({});
+  const [dmLastActivity, setDmLastActivity] = useState({});
+  const [groupLastActivity, setGroupLastActivity] = useState({});
+  const [dmPreviews, setDmPreviews] = useState({});
+  const [groupPreviews, setGroupPreviews] = useState({});
   const [notifications, setNotifications] = useState([]);
   const [activeDmUser, setActiveDmUser] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
@@ -507,6 +512,17 @@ export default function App() {
       if (!withUserId) return;
       setDmByUserId((prev) => ({ ...prev, [withUserId]: messages ?? [] }));
       setDmHasMore((messages?.length ?? 0) >= 50);
+      const last = Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1] : null;
+      if (last) {
+        const ts = last.timestamp || last.created_at;
+        if (ts) setDmLastActivity((prev) => {
+          if (prev[withUserId] && new Date(prev[withUserId]) >= new Date(ts)) return prev;
+          return { ...prev, [withUserId]: ts };
+        });
+        const previewText = last.text
+          || (last.mediaType === "image" ? "📷 Photo" : last.mediaUrl ? "📎 Attachment" : "");
+        if (previewText) setDmPreviews((p) => (p[withUserId] ? p : { ...p, [withUserId]: previewText }));
+      }
     });
 
     socket.on("dm:page", ({ withUserId, messages, hasMore } = {}) => {
@@ -522,6 +538,12 @@ export default function App() {
     socket.on("dm:message", (message) => {
       const convWith = message?.convWith;
       if (!convWith) return;
+      const ts = message.timestamp || new Date().toISOString();
+      const previewText = message.text
+        || (message.mediaType === "image" ? "📷 Photo" : message.mediaUrl ? "📎 Attachment" : "");
+      setDmLastActivity((prev) => ({ ...prev, [convWith]: ts }));
+      if (previewText) setDmPreviews((prev) => ({ ...prev, [convWith]: previewText }));
+
       setDmByUserId((prev) => {
         const cur = prev[convWith] ?? [];
         const isSelf = message.from?.id === me?.id;
@@ -541,7 +563,7 @@ export default function App() {
       const isFromOther = message.from?.id && message.from.id !== currentUserId;
       if (isFromOther) {
         socket.emit("dm:delivered", { msgId: message.id, fromUserId: message.from.id });
-        // Play notification sound for new message (not from active conversation to avoid spam)
+        // Local unread bump if not viewing this conversation (server also syncs)
         if (activeDmRef.current?.id !== convWith) {
           audioManager.play("message");
           // Send native notification
@@ -551,6 +573,14 @@ export default function App() {
             preview: message.text?.substring(0, 100),
             conversationId: convWith
           });
+        } else {
+          setDmUnread((prev) => {
+            if (!prev[convWith]) return prev;
+            const n = { ...prev };
+            delete n[convWith];
+            return n;
+          });
+          socket.emit("dm:mark_read", { withUserId: convWith });
         }
       }
     });
@@ -592,6 +622,12 @@ export default function App() {
         return { ...prev, [groupId]: [...cur, normalized] };
       });
 
+      setGroupLastActivity((prev) => ({ ...prev, [groupId]: normalized.timestamp }));
+      if (normalized.text) {
+        const preview = `${normalized.from.username}: ${normalized.text}`;
+        setGroupPreviews((prev) => ({ ...prev, [groupId]: preview.slice(0, 80) }));
+      }
+
       // Check if message is a game command - suppress normal message display for commands
       const trimmedContent = message.content?.trim() || '';
       if (trimmedContent.startsWith('/')) {
@@ -607,8 +643,9 @@ export default function App() {
       }
       // Notify for messages from others in non-active group
       const isFromMe = normalized.from.id === me?.id;
-      const isActiveGroup = activeGroup?.id === groupId;
+      const isActiveGroup = activeGroupRef.current?.id === groupId;
       if (!isFromMe && !isActiveGroup) {
+        setGroupUnread((prev) => ({ ...prev, [groupId]: (prev[groupId] || 0) + 1 }));
         const grp = myGroupsRef.current.find((g) => g.id === groupId);
         notificationService.groupMessage({
           groupName: grp?.name || "Grup",
@@ -837,7 +874,7 @@ export default function App() {
     setSocketApi(null);
     clearToken(); clearUser(); setMe(null);
     setIsConnected(false); setOnlineUsers([]); setFriends([]); setFriendRequests([]);
-    setDmByUserId({}); setDmUnread({}); setNotifications([]);
+    setDmByUserId({}); setDmUnread({}); setGroupUnread({}); setDmLastActivity({}); setGroupLastActivity({}); setDmPreviews({}); setGroupPreviews({}); setNotifications([]);
     setActiveDmUser(null); setAuthError(""); setTypingDmUser(null); setDmHasMore(true);
     setMyGroups([]);
   };
@@ -1127,6 +1164,38 @@ export default function App() {
     return "Online";
   }, [isConnected, reconnectState]);
 
+  const sortedDms = useMemo(() => {
+    const list = (friends || []).map((f) => ({
+      ...f,
+      lastMessage: dmPreviews[f.id] || f.lastMessage || null,
+      lastActivity: dmLastActivity[f.id] || f.lastActivity || null,
+      unreadCount: dmUnread[f.id] || 0,
+    }));
+    return list.sort((a, b) => {
+      const ta = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+      const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      if ((b.unreadCount || 0) !== (a.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
+      return (a.username || "").localeCompare(b.username || "");
+    });
+  }, [friends, dmLastActivity, dmPreviews, dmUnread]);
+
+  const sortedGroups = useMemo(() => {
+    const list = (myGroups || []).map((g) => ({
+      ...g,
+      lastMessage: groupPreviews[g.id] || g.lastMessage || null,
+      lastActivity: groupLastActivity[g.id] || g.lastActivity || g.updated_at || g.created_at || null,
+      unreadCount: groupUnread[g.id] || 0,
+    }));
+    return list.sort((a, b) => {
+      const ta = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+      const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      if ((b.unreadCount || 0) !== (a.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [myGroups, groupLastActivity, groupPreviews, groupUnread]);
+
   if (!sessionChecked) return <div className="session-boot" aria-busy="true" />;
 
   // Show download page for all non-logged-in users
@@ -1169,21 +1238,34 @@ export default function App() {
           onProfileUpdated={applyProfileUpdate}
           activeDmUser={activeDmUser}
           activeGroup={activeGroup}
-          groups={myGroups}
-          dms={friends}
+          groups={sortedGroups}
+          dms={sortedDms}
           friends={friends}
           onlineUsers={onlineUsers}
           onAdminClick={() => setAdminOpen(true)}
           isAdmin={me?.is_admin || me?.username === "admin"}
           onDmSelect={(dm) => {
             setActiveDmUser(dm);
-            if (dm) setActiveGroup(null);
+            if (dm) {
+              setActiveGroup(null);
+              setDmUnread((u) => { const n = { ...u }; delete n[dm.id]; return n; });
+              socketRef.current?.emit("dm:mark_read", { withUserId: dm.id });
+              socketRef.current?.emit("dm:set_active", { withUserId: dm.id });
+            } else {
+              socketRef.current?.emit("dm:set_active", { withUserId: null });
+            }
           }}
           onGroupSelect={(group) => {
             setActiveDmUser(null);
             setActiveGroup(group);
-            if (group?.id) socketRef.current?.emit("group:join", group.id);
+            socketRef.current?.emit("dm:set_active", { withUserId: null });
+            if (group?.id) {
+              setGroupUnread((u) => { const n = { ...u }; delete n[group.id]; return n; });
+              socketRef.current?.emit("group:join", group.id);
+            }
           }}
+          dmUnread={dmUnread}
+          groupUnread={groupUnread}
           friendNotice={friendNotice}
           onRefreshGroups={fetchGroups}
           onRefresh={handleRefresh}
@@ -1222,6 +1304,13 @@ export default function App() {
                 ...prev,
                 [activeDmUser.id]: [...(prev[activeDmUser.id] ?? []), optimisticMessage],
               }));
+              setDmLastActivity((prev) => ({ ...prev, [activeDmUser.id]: optimisticMessage.timestamp }));
+              setDmPreviews((prev) => ({
+                ...prev,
+                [activeDmUser.id]: isMediaObject
+                  ? (msg.mediaType === "image" ? "📷 Photo" : "📎 Attachment")
+                  : String(msg).slice(0, 80),
+              }));
               if (isMediaObject) {
                 socketRef.current?.emit("dm:send", {
                   toUserId: activeDmUser.id,
@@ -1252,6 +1341,13 @@ export default function App() {
               setGroupMessagesById((prev) => ({
                 ...prev,
                 [activeGroup.id]: [...(prev[activeGroup.id] ?? []), optimistic],
+              }));
+              setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: optimistic.timestamp }));
+              setGroupPreviews((prev) => ({
+                ...prev,
+                [activeGroup.id]: isMediaObject
+                  ? `${me?.username || "You"}: 📎 Attachment`
+                  : `${me?.username || "You"}: ${String(msg).slice(0, 60)}`,
               }));
               if (isMediaObject) {
                 socketRef.current?.emit("group:message", {

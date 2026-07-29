@@ -257,12 +257,23 @@ export default function ChatPanel({
             <div className="empty-icon">
               {activeView === "dms" && <MessageSquare size={64} />}
               {activeView === "groups" && <Users size={64} />}
+              {activeView === "friends" && <Users size={64} />}
               {activeView === "chat" && <MessageSquare size={64} />}
               {activeView === "calls" && <Phone size={64} />}
               {activeView === "servers" && <Hash size={64} />}
             </div>
             <h2>Welcome to Descall</h2>
-            <p>Select a conversation to start chatting</p>
+            {isMobile ? (
+              <p>
+                {activeView === "friends"
+                  ? "Open the menu to see friends and who is online"
+                  : activeView === "groups"
+                  ? "Open the menu to browse your groups"
+                  : "Open the menu to select a conversation"}
+              </p>
+            ) : (
+              <p>Select a conversation to start chatting</p>
+            )}
           </div>
         )}
       </div>
