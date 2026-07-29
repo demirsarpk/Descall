@@ -91,7 +91,12 @@ export default function App() {
   const transportFallbackStepRef = useRef(0);
   const prevOnlineUsersRef = useRef([]);
   const call = useCall(socketApi);
-  const groupCall = useGroupCall(socketApi);
+  const groupCall = useGroupCall(socketApi, me?.id);
+  const callCleanupRef = useRef(null);
+  const groupCallCleanupRef = useRef(null);
+
+  useEffect(() => { callCleanupRef.current = call.cleanup; }, [call.cleanup]);
+  useEffect(() => { groupCallCleanupRef.current = groupCall.cleanup; }, [groupCall.cleanup]);
 
   useEffect(() => {
     myIdRef.current = me?.id ?? null;
@@ -299,6 +304,10 @@ export default function App() {
     socket.on("disconnect", (reason) => {
       setIsConnected(false);
       setReconnectState(reason === "io client disconnect" ? "idle" : "disconnected");
+      if (reason !== "io client disconnect") {
+        callCleanupRef.current?.();
+        groupCallCleanupRef.current?.();
+      }
     });
 
     socket.io.on("reconnect_attempt", (attempt) => {
@@ -751,6 +760,7 @@ export default function App() {
 
   const handleLogout = () => {
     call.cleanup();
+    groupCall.cleanup();
     socketRef.current?.emit("dm:set_active", { withUserId: null });
     socketRef.current?.disconnect();
     socketRef.current = null;
@@ -1117,8 +1127,8 @@ export default function App() {
           onAdminClick={() => setAdminOpen(true)}
           isAdmin={me?.is_admin || me?.username === "admin"}
           onDmSelect={(dm) => {
-            setActiveDmUser(dm);
             setActiveGroup(null);
+            handleOpenDm(dm);
           }}
           onGroupSelect={(group) => {
             setActiveDmUser(null);
@@ -1208,17 +1218,18 @@ export default function App() {
             }
           }}
           onVoiceCall={() => {
-            if (groupCall?.isInCall) return;
+            if (call?.mode || groupCall?.isInCall) return;
             if (groupCall?.activeCallBanner) { groupCall.joinActiveCall(groupCall.activeCallBanner); return; }
             if (activeDmUser && call?.startCall) call.startCall(activeDmUser, "voice");
           }}
           onVideoCall={() => {
-            if (groupCall?.isInCall) return;
+            if (call?.mode || groupCall?.isInCall) return;
             if (groupCall?.activeCallBanner) { groupCall.joinActiveCall(groupCall.activeCallBanner); return; }
             if (activeDmUser && call?.startCall) call.startCall(activeDmUser, "video");
           }}
           onGroupVoiceCall={() => {
             if (!activeGroup || !groupCall) return;
+            if (call?.mode) return;
             if (groupCall.isInCall && groupCall.activeGroupId === activeGroup.id) return;
             const banner = groupCall.activeCallBanner;
             if (banner?.groupId === activeGroup.id) {
@@ -1230,6 +1241,7 @@ export default function App() {
           }}
           onGroupVideoCall={() => {
             if (!activeGroup || !groupCall) return;
+            if (call?.mode) return;
             if (groupCall.isInCall && groupCall.activeGroupId === activeGroup.id) return;
             const banner = groupCall.activeCallBanner;
             if (banner?.groupId === activeGroup.id) {
@@ -1285,6 +1297,7 @@ export default function App() {
           incomingCall={groupCall?.incomingCall}
           onAccept={(groupId, callType, fromUser) => groupCall?.acceptGroupCall(groupId, callType, fromUser)}
           onDecline={(groupId, fromUserId, fromUser, callType) => groupCall?.declineCall(groupId, fromUserId, fromUser, callType)}
+          onDismiss={() => groupCall?.dismissIncomingCall?.()}
         />
       </div>
   );

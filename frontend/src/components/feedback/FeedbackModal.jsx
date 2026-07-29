@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
+import { API_BASE_URL } from "../../config/api";
+import {
   MessageSquare, X, Send, Image, AlertTriangle, 
   Star, CheckCircle, Flag, Loader2, ChevronRight, ChevronLeft
 } from "lucide-react";
@@ -81,7 +82,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
         const formData = new FormData();
         formData.append("file", file);
         
-        const uploadRes = await fetch("/api/media/upload", {
+        const uploadRes = await fetch(`${API_BASE_URL}/api/media/upload`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
@@ -96,7 +97,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
       }
 
       // Submit feedback
-      const response = await fetch("/api/feedback/submit", {
+      const response = await fetch(`${API_BASE_URL}/api/feedback/submit`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

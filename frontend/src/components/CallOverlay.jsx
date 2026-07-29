@@ -220,6 +220,16 @@ export default function CallOverlay({ call, groupCall, me }) {
       }}
     >
       <style>{PULSE_STYLE}</style>
+      {/* DM remote audio — required for WebRTC audio playback */}
+      {isDm && (
+        <audio
+          ref={call.remoteAudioRef}
+          autoPlay
+          playsInline
+          style={{ display: "none" }}
+          aria-hidden="true"
+        />
+      )}
       {/* ====== TOP INFO BAR ====== */}
       <div
         style={{
@@ -640,17 +650,39 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }
 }
 
 function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localAvatarUrl }) {
-  // Remote tiles only — local is rendered separately below to avoid double-render
   const remoteTiles = remoteParticipants.map((p) => ({
     id: p.id,
     username: p.username || "Member",
     avatarUrl: p.avatarUrl,
     hasVideo: p.hasVideo || p.isCameraOn,
+    stream: p.stream,
   }));
 
   const count = 1 + remoteTiles.length;
   const cols = count === 1 ? 1 : count <= 2 ? 2 : count <= 4 ? 2 : count <= 6 ? 3 : 4;
   const rows = Math.ceil(count / cols);
+
+  const makeVideoRef = (tile) => {
+    if (!tile.hasVideo) return null;
+    if (tile.stream) {
+      return (el) => {
+        if (el && tile.stream && el.srcObject !== tile.stream) {
+          el.srcObject = tile.stream;
+          el.play().catch(() => {});
+        }
+      };
+    }
+    if (isDm && tile.id === peer?.id) {
+      return (el) => {
+        if (call?.remoteVideoRef) call.remoteVideoRef.current = el;
+        if (el && call?.remoteStream && el.srcObject !== call.remoteStream) {
+          el.srcObject = call.remoteStream;
+          el.play().catch(() => {});
+        }
+      };
+    }
+    return null;
+  };
 
   return (
     <div
@@ -680,8 +712,8 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
           username={tile.username}
           avatarUrl={tile.avatarUrl}
           isSpeaking={false}
-          videoRef={null}
-          hasVideo={false}
+          videoRef={makeVideoRef(tile)}
+          hasVideo={tile.hasVideo}
           isLocal={false}
         />
       ))}
@@ -1172,7 +1204,7 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
 
       {/* Arrow pointing down to the button */}
       <div style={{
-        position: "absolute", bottom: -7, left: "50%", transform: "translateX(-50%)",
+        position: "absolute", bottom: -7, left: "50%",
         width: 14, height: 14, background: "#1e2026",
         border: "1px solid rgba(255,255,255,0.09)",
         borderTop: "none", borderLeft: "none",

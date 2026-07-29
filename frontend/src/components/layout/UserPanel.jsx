@@ -14,11 +14,19 @@ import { API_BASE_URL } from "../../config/api";
 /* ─── Helpers ─── */
 const loadSettings = () => {
   try {
-    return JSON.parse(localStorage.getItem("descall_user_settings") || "{}");
+    const userSettings = JSON.parse(localStorage.getItem("descall_user_settings") || "{}");
+    const appSettings = JSON.parse(localStorage.getItem("descall_settings") || "{}");
+    return { ...appSettings, ...userSettings, darkMode: userSettings.darkMode ?? appSettings.darkMode };
   } catch { return {}; }
 };
 const saveSettings = (obj) => {
   localStorage.setItem("descall_user_settings", JSON.stringify(obj));
+  if (obj.darkMode !== undefined) {
+    try {
+      const appSettings = JSON.parse(localStorage.getItem("descall_settings") || "{}");
+      localStorage.setItem("descall_settings", JSON.stringify({ ...appSettings, darkMode: obj.darkMode }));
+    } catch { /* ignore */ }
+  }
 };
 
 export default function UserPanel({ me, onClose, onLogout }) {

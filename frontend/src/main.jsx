@@ -9,8 +9,10 @@ import "./styles/blackjack.css";
 
 // Apply saved theme before first paint to avoid flash
 try {
+  const legacy = JSON.parse(localStorage.getItem("descall_user_settings") || "{}");
   const settings = JSON.parse(localStorage.getItem("descall_settings") || "{}");
-  document.documentElement.setAttribute("data-theme", settings.darkMode === false ? "light" : "dark");
+  const darkMode = settings.darkMode ?? legacy.darkMode;
+  document.documentElement.setAttribute("data-theme", darkMode === false ? "light" : "dark");
 } catch {
   document.documentElement.setAttribute("data-theme", "dark");
 }

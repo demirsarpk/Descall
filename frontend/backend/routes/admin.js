@@ -809,7 +809,10 @@ router.get("/feedback", requireAuth, requireAdmin, async (req, res) => {
       query = query.eq("status", status);
     }
     if (q) {
-      query = query.or(`message.ilike.%${q}%,username.ilike.%${q}%`);
+      const safeQ = String(q).replace(/[%_,.()\\]/g, "").trim();
+      if (safeQ) {
+        query = query.or(`message.ilike.%${safeQ}%,username.ilike.%${safeQ}%`);
+      }
     }
     
     // Sort

@@ -855,7 +855,7 @@ function registerSocketHandlers(io) {
       
       const convKey = [myId, toUserId].sort().join("::");
       const arr = dmHistory.get(convKey) || [];
-      const msg = arr.find(m => m.id === messageId && m.from === myId);
+      const msg = arr.find((m) => m.id === messageId && (m.from?.id === myId || m.from === myId));
       
       if (!msg) return;
       

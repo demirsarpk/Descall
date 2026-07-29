@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
+import { ICE_SERVERS } from "../config/iceServers";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -123,11 +124,6 @@ function showElectronScreenPicker(sources) {
   });
 }
 
-const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
-
 /**
  * Unified WebRTC call hook supporting:
  * - Voice calls (audio only)
@@ -172,6 +168,7 @@ export function useCall(socket) {
   const screenSenderRef = useRef(null);
   const screenSharingRef = useRef(false);
   const stopScreenShareRef = useRef(null);
+  const cleanupRef = useRef(null);
 
   useEffect(() => { peerRef.current = peer; }, [peer]);
 
@@ -232,6 +229,10 @@ export function useCall(socket) {
     audioManager.stop("incomingCall");
     audioManager.stop("outgoingCall");
   }, []);
+
+  useEffect(() => {
+    cleanupRef.current = cleanup;
+  }, [cleanup]);
 
   useEffect(() => {
     if (mode !== "active") return;
@@ -322,6 +323,11 @@ export function useCall(socket) {
         setConnectionQuality("poor");
       } else if (pc.connectionState === "failed") {
         setConnectionQuality("failed");
+        setTimeout(() => {
+          if (pcRef.current?.connectionState === "failed") {
+            cleanupRef.current?.();
+          }
+        }, 8000);
       }
     };
 
@@ -552,8 +558,17 @@ export function useCall(socket) {
         let videoTrack = localStreamRef.current?.getVideoTracks()[0];
         
         if (videoTrack) {
-          // Re-enable existing track
+          // Re-enable existing track and renegotiate so remote sees video again
           videoTrack.enabled = true;
+          if (pc.signalingState === "stable" && peerRef.current?.id && socket?.connected) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit("call:offer", {
+              toUserId: peerRef.current.id,
+              offer: pc.localDescription,
+              callType: "video",
+            });
+          }
         } else {
           // Get new video stream
           const videoStream = await navigator.mediaDevices.getUserMedia({
@@ -703,8 +718,20 @@ export function useCall(socket) {
     setScreenSharing(false);
     if (peerRef.current?.id && socket?.connected) {
       socket.emit("screen:share-stop", { toUserId: peerRef.current.id });
+      if (pc.signalingState === "stable") {
+        pc.createOffer()
+          .then((offer) => pc.setLocalDescription(offer))
+          .then(() => {
+            socket.emit("call:offer", {
+              toUserId: peerRef.current.id,
+              offer: pc.localDescription,
+              callType: callType || "voice",
+            });
+          })
+          .catch(() => {});
+      }
     }
-  }, [socket]);
+  }, [socket, callType]);
 
   // Change active microphone mid-call
   const setAudioInput = useCallback(async (deviceId) => {

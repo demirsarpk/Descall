@@ -35,6 +35,10 @@ const userLastLoginAt = new Map();
 const userSessionStartMs = new Map();
 const userOnlineAccumMs = new Map();
 const rateLimitDm = new Map();
+const rateLimitGeneral = new Map();
+const slowModeLastPost = new Map();
+const generalMessages = [];
+const generalReadAt = new Map();
 const activeGroupCalls = new Map(); // groupId -> { initiatorId, initiatorUsername, callType, participants: Set, allParticipants: Set, startTime, dbCallId }
 const screenShareSessions = new Map(); // `${groupId}:${userId}` -> dbSessionId
 // Enhanced Error Logging
@@ -143,6 +147,10 @@ module.exports = {
   userSessionStartMs,
   userOnlineAccumMs,
   rateLimitDm,
+  rateLimitGeneral,
+  slowModeLastPost,
+  generalMessages,
+  generalReadAt,
   activeGroupCalls,
   screenShareSessions,
   serverErrorLog,

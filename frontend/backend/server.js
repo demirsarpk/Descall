@@ -25,6 +25,7 @@ const guildRoutes = require("./routes/guilds");
 
 // Inline feedback - no external file needed
 const { requireAuth } = require("./middleware/auth");
+const { requireAdmin } = require("./middleware/requireAdmin");
 const supabase = require("./db/supabase");
 
 // Socket
@@ -59,36 +60,40 @@ app.use((req, res, next) => {
   next();
 });
 
-// TEMP DEBUG: list all tables in public schema
-app.get("/debug/tables", async (_req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from("information_schema.tables")
-      .select("table_name")
-      .eq("table_schema", "public");
-    if (error) {
-      // fallback: try raw SQL via rpc
-      const { data: d2, error: e2 } = await supabase.rpc("list_tables");
-      return res.json({ rpcResult: d2, rpcError: e2?.message, originalError: error?.message });
+// Debug endpoints — disabled in production
+if (process.env.NODE_ENV !== "production") {
+  app.get("/debug/tables", async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("information_schema.tables")
+        .select("table_name")
+        .eq("table_schema", "public");
+      if (error) {
+        const { data: d2, error: e2 } = await supabase.rpc("list_tables");
+        return res.json({ rpcResult: d2, rpcError: e2?.message, originalError: error?.message });
+      }
+      return res.json({ tables: data });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
     }
-    return res.json({ tables: data });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
-});
+  });
 
-// TEMP DEBUG: show first 5 rows of any table
-app.get("/debug/peek/:tableName", async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from(req.params.tableName)
-      .select("*")
-      .limit(5);
-    return res.json({ data, error: error?.message });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
-});
+  app.get("/debug/peek/:tableName", async (req, res) => {
+    try {
+      const allowed = /^[a-z_][a-z0-9_]*$/i;
+      if (!allowed.test(req.params.tableName)) {
+        return res.status(400).json({ error: "Invalid table name" });
+      }
+      const { data, error } = await supabase
+        .from(req.params.tableName)
+        .select("*")
+        .limit(5);
+      return res.json({ data, error: error?.message });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+}
 
 // Root endpoint
 app.get("/", (_req, res) => {
@@ -199,8 +204,8 @@ app.post("/api/feedback/submit", requireAuth, async (req, res) => {
   }
 });
 
-// List feedback - GET /api/feedback/list
-app.get("/api/feedback/list", requireAuth, async (req, res) => {
+// List feedback - GET /api/feedback/list (admin only)
+app.get("/api/feedback/list", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("user_feedback")
@@ -217,8 +222,8 @@ app.get("/api/feedback/list", requireAuth, async (req, res) => {
   }
 });
 
-// Mark as viewed - POST /api/feedback/:id/view
-app.post("/api/feedback/:id/view", requireAuth, async (req, res) => {
+// Mark as viewed - POST /api/feedback/:id/view (admin only)
+app.post("/api/feedback/:id/view", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -237,8 +242,8 @@ app.post("/api/feedback/:id/view", requireAuth, async (req, res) => {
   }
 });
 
-// Admin reply - POST /api/feedback/:id/reply
-app.post("/api/feedback/:id/reply", requireAuth, async (req, res) => {
+// Admin reply - POST /api/feedback/:id/reply (admin only)
+app.post("/api/feedback/:id/reply", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { message } = req.body;
@@ -282,8 +287,8 @@ app.post("/api/feedback/:id/reply", requireAuth, async (req, res) => {
   }
 });
 
-// Delete feedback - DELETE /api/feedback/:id
-app.delete("/api/feedback/:id", requireAuth, async (req, res) => {
+// Delete feedback - DELETE /api/feedback/:id (admin only)
+app.delete("/api/feedback/:id", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     

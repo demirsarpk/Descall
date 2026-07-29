@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
+import { ICE_SERVERS } from "../config/iceServers";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -122,16 +123,11 @@ function showElectronScreenPicker(sources) {
   });
 }
 
-const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
-
 /**
  * Group Call Hook - Simplified multi-peer WebRTC
  * Based on working DM call (useCall.js) with Map for multiple peers
  */
-export function useGroupCall(socket) {
+export function useGroupCall(socket, myId) {
   const [isInCall, setIsInCall] = useState(false);
   const [isInitiator, setIsInitiator] = useState(false);
   const [callType, setCallType] = useState(null);
@@ -168,10 +164,14 @@ export function useGroupCall(socket) {
   const localVideoRef = useRef(null);
   const screenVideoRef = useRef(null);
   const myIdRef = useRef(null);
+  const isInCallRef = useRef(false);
+  const pendingIceBeforePcRef = useRef(new Map());
   const timerRef = useRef(null);
   const screenSenderRef = useRef(null);
 
   useEffect(() => { socketRef.current = socket; }, [socket]);
+  useEffect(() => { myIdRef.current = myId ?? null; }, [myId]);
+  useEffect(() => { isInCallRef.current = isInCall; }, [isInCall]);
 
   // Cleanup on unmount - prevent resource leaks
   useEffect(() => {
@@ -289,6 +289,7 @@ export function useGroupCall(socket) {
       }
     });
     remoteAudioRefs.current.clear();
+    pendingIceBeforePcRef.current.clear();
 
     screenSenderRef.current = null;
 
@@ -306,6 +307,14 @@ export function useGroupCall(socket) {
 
     audioManager.stop("incomingCall");
     audioManager.stop("outgoingCall");
+  }, []);
+
+  const mergePendingIceForUser = useCallback((userId, peerData) => {
+    const queued = pendingIceBeforePcRef.current.get(userId);
+    if (!queued?.length) return;
+    pendingIceBeforePcRef.current.delete(userId);
+    if (!peerData.pendingIce) peerData.pendingIce = [];
+    peerData.pendingIce.push(...queued);
   }, []);
 
   const setupPeerConnection = useCallback((pc, stream, userId, groupId) => {
@@ -541,17 +550,8 @@ export function useGroupCall(socket) {
         localVideoRef.current.play().catch(() => {});
       }
 
-      // Set up peer connections for all group members
-      memberIds.forEach((userId) => {
-        if (userId === myIdRef.current) return;
-        
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-        const peerData = { pc, pendingIce: [] };
-        pcMapRef.current.set(userId, peerData);
-        
-        setupPeerConnection(pc, stream, userId, groupId);
-        
-      });
+      // Signaling is driven by accept/join — do not pre-create peer connections here
+      // (avoids orphaned PCs and duplicate connections when callees accept).
 
       // Ensure we're in the group socket room to receive left/ended events
       socketRef.current.emit("group:join", groupId);
@@ -907,13 +907,12 @@ export function useGroupCall(socket) {
 
   useEffect(() => {
     if (!socket) return;
-    
-    const myId = socket.user?.id;
-    myIdRef.current = myId;
+
+    const myId = myIdRef.current;
 
     const onIncoming = ({ groupId, fromUser, callType: type, groupName }) => {
       if (!groupId || !fromUser?.id || fromUser.id === myId) return;
-      if (isInCall) {
+      if (isInCallRef.current) {
         socket.emit("group:call:busy", { groupId, toUserId: fromUser.id });
         return;
       }
@@ -947,14 +946,20 @@ export function useGroupCall(socket) {
       });
 
       try {
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-        // Store fromUser so ontrack's new-entry fallback can use the real username
-        const peerData = { pc, pendingIce: [], fromUser };
-        pcMapRef.current.set(fromUserId, peerData);
-        
-        setupPeerConnection(pc, stream, fromUserId, groupId);
+        let peerData = pcMapRef.current.get(fromUserId);
+        if (!peerData?.pc) {
+          const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+          peerData = { pc, pendingIce: [], fromUser };
+          pcMapRef.current.set(fromUserId, peerData);
+          setupPeerConnection(pc, stream, fromUserId, groupId);
+          mergePendingIceForUser(fromUserId, peerData);
+        }
 
-        // Create and send offer to the callee
+        const pc = peerData.pc;
+        if (pc.signalingState !== "stable" && pc.signalingState !== "have-local-offer") {
+          return;
+        }
+
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
@@ -1059,10 +1064,12 @@ export function useGroupCall(socket) {
         pcMapRef.current.set(fromUserId, newPeerData);
         
         setupPeerConnection(pc, stream, fromUserId, groupId);
+        mergePendingIceForUser(fromUserId, newPeerData);
 
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+        await flushIce(pc, fromUserId);
         
         // Ensure all local tracks are enabled
         stream.getTracks().forEach(track => {
@@ -1104,15 +1111,13 @@ export function useGroupCall(socket) {
       
       const peerData = pcMapRef.current.get(fromUserId);
       
-      if (!peerData || !peerData.pc || !peerData.pc.remoteDescription) {
-        // Queue ICE candidate until both a real peer connection and remote
-        // description are available — do NOT create a stub entry with pc=null
-        if (peerData && peerData.pc) {
-          if (!peerData.pendingIce) peerData.pendingIce = [];
+      if (!peerData?.pc || !peerData.pc.remoteDescription) {
+        const queue = pendingIceBeforePcRef.current.get(fromUserId) || [];
+        queue.push(candidate);
+        pendingIceBeforePcRef.current.set(fromUserId, queue);
+        if (peerData?.pc && peerData.pendingIce) {
           peerData.pendingIce.push(candidate);
         }
-        // If peerData doesn't exist yet, the candidate arrives before the offer;
-        // flushIce is called from the offer handler once the PC is set up.
         return;
       }
 
@@ -1145,6 +1150,13 @@ export function useGroupCall(socket) {
       }
 
       setParticipants((prev) => prev.filter((p) => p.id !== userId));
+
+      setActiveCallBanner((prev) => {
+        if (!prev || prev.groupId !== groupId) return prev;
+        const updated = (prev.participantCount ?? 1) - 1;
+        if (updated <= 0) return null;
+        return { ...prev, participantCount: updated };
+      });
     };
 
     const onEnded = ({ groupId, summary }) => {
@@ -1164,15 +1176,6 @@ export function useGroupCall(socket) {
 
     const onActiveBanner = ({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants, startTime }) => {
       setActiveCallBanner({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants, startTime: startTime ?? Date.now() });
-    };
-
-    const onParticipantLeft = ({ groupId, userId }) => {
-      setActiveCallBanner((prev) => {
-        if (!prev || prev.groupId !== groupId) return prev;
-        const updated = (prev.participantCount ?? 1) - 1;
-        if (updated <= 0) return null;
-        return { ...prev, participantCount: updated };
-      });
     };
 
     const onDeclined = ({ groupId, fromUserId, fromUser }) => {
@@ -1253,7 +1256,7 @@ export function useGroupCall(socket) {
     // Handle server telling us to join an existing call instead of starting new
     const onJoinExisting = async ({ groupId, initiatorId, callType: existingCallType, participants: existingParticipants }) => {
       
-      if (isInCall) {
+      if (isInCallRef.current) {
         return;
       }
 
@@ -1283,7 +1286,7 @@ export function useGroupCall(socket) {
           localVideoRef.current.play().catch(() => {});
         }
 
-        // Add existing participants to our list
+        // Add existing participants — peer connections are created when offers arrive
         existingParticipants.forEach((userId) => {
           if (userId !== myId) {
             setParticipants((prev) => {
@@ -1295,13 +1298,6 @@ export function useGroupCall(socket) {
                 hasAudio: true,
               }];
             });
-
-            // Set up peer connection for each existing participant
-            const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-            const peerData = { pc, pendingIce: [] };
-            pcMapRef.current.set(userId, peerData);
-            
-            setupPeerConnection(pc, stream, userId, groupId);
           }
         });
 
@@ -1330,7 +1326,6 @@ export function useGroupCall(socket) {
     socket.on("group:call:join-existing", onJoinExisting);
     socket.on("group:call:summary", onCallSummary);
     socket.on("group:call:active-banner", onActiveBanner);
-    socket.on("group:call:left", onParticipantLeft);
     socket.on("group:call:participants", onParticipants);
 
     return () => {
@@ -1340,7 +1335,6 @@ export function useGroupCall(socket) {
       socket.off("group:call:ice", onIce);
       socket.off("group:call:offer", onOffer);
       socket.off("group:call:left", onLeft);
-      socket.off("group:call:left", onParticipantLeft);
       socket.off("group:call:ended", onEnded);
       socket.off("group:call:declined", onDeclined);
       socket.off("group:screen:started", onScreenStarted);
@@ -1352,7 +1346,7 @@ export function useGroupCall(socket) {
       socket.off("group:call:active-banner", onActiveBanner);
       socket.off("group:call:participants", onParticipants);
     };
-  }, [socket, activeGroupId, isInCall, callType, cleanup, setupPeerConnection]);
+  }, [socket, activeGroupId, callType, cleanup, setupPeerConnection, mergePendingIceForUser]);
 
   useEffect(() => {
     return () => cleanup();
@@ -1463,6 +1457,11 @@ export function useGroupCall(socket) {
     });
   }, []);
 
+  const dismissIncomingCall = useCallback(() => {
+    audioManager.stop("incomingCall");
+    setIncomingCall(null);
+  }, []);
+
   const dismissActiveBanner = useCallback(() => setActiveCallBanner(null), []);
 
   const joinActiveCall = useCallback(async (banner) => {
@@ -1492,9 +1491,6 @@ export function useGroupCall(socket) {
           if (prev.find((p) => p.id === userId)) return prev;
           return [...prev, { id: userId, username: "Member", hasVideo: type === "video", hasAudio: true }];
         });
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-        pcMapRef.current.set(userId, { pc, pendingIce: [] });
-        setupPeerConnection(pc, stream, userId, groupId);
       });
       socketRef.current.emit("group:join", groupId);
       socketRef.current.emit("group:call:join", { groupId, callType: type });
@@ -1530,6 +1526,7 @@ export function useGroupCall(socket) {
     acceptGroupCall,
     joinActiveCall,
     declineCall,
+    dismissIncomingCall,
     leaveCall,
     toggleMute,
     toggleCamera,

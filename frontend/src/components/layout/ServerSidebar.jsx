@@ -496,7 +496,7 @@ export default function ServerSidebar({
                                   marginBottom: 4
                                 }}
                               >
-                                <Avatar user={friend} size={24} />
+                                <Avatar name={friend.username} size={24} imageUrl={friend.avatarUrl || friend.avatar_url} />
                                 <span style={{ fontSize: 13 }}>{friend.username}</span>
                                 {isSelected && <span style={{ marginLeft: "auto", color: "var(--primary)" }}>✓</span>}
                               </div>

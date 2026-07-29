@@ -207,6 +207,11 @@ function registerGroupHandlers(io, socket, state) {
       return;
     }
 
+    if (!socket.rooms.has(`group:${groupId}`)) {
+      socket.emit("group:error", { message: "Join the group before starting a call." });
+      return;
+    }
+
     // Check if there's already an active call in this group
     const existingCall = activeGroupCalls.get(groupId);
     if (existingCall) {
@@ -333,6 +338,11 @@ function registerGroupHandlers(io, socket, state) {
   // Join existing call (new handler for joining active calls)
   socket.on("group:call:join", ({ groupId, callType }) => {
     if (!groupId) return;
+
+    if (!socket.rooms.has(`group:${groupId}`)) {
+      socket.emit("group:call:error", { groupId, message: "Join the group before joining a call." });
+      return;
+    }
 
     const activeCall = activeGroupCalls.get(groupId);
     if (!activeCall) {

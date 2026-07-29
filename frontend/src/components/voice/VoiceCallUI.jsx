@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Mic, MicOff, Camera, CameraOff, Monitor, 
   PhoneOff, Users, Settings, Maximize2, Minimize2,
-  Volume2, VolumeX, ScreenShare
+  Volume2, VolumeX, ScreenShare, X
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";

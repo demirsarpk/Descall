@@ -66,7 +66,7 @@ export default function UserFeedbackButton({ socket, user }) {
         const formData = new FormData();
         formData.append("file", file);
         
-        const res = await fetch("/api/media/upload", {
+        const res = await fetch(`${API_BASE_URL}/api/media/upload`, {
           method: "POST",
           body: formData,
           headers: { 

@@ -7,13 +7,13 @@ import { Avatar } from "./ui/Avatar";
  * Floating incoming group call modal — Discord/WhatsApp style.
  * Shown to every group member when someone starts a group voice/video call.
  */
-export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecline }) {
-  // Auto-dismiss after 30s without interaction
+export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecline, onDismiss }) {
+  // Auto-dismiss UI after 30s — does not send decline to server (call stays active)
   useEffect(() => {
     if (!incomingCall) return;
-    const timer = setTimeout(() => onDecline?.(incomingCall.groupId, incomingCall.fromUser?.id, incomingCall.fromUser, incomingCall.callType), 30_000);
+    const timer = setTimeout(() => onDismiss?.(), 30_000);
     return () => clearTimeout(timer);
-  }, [incomingCall, onDecline]);
+  }, [incomingCall, onDismiss]);
 
   return (
     <AnimatePresence>

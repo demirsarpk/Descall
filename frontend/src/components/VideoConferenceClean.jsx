@@ -488,7 +488,7 @@ export default function VideoConference({
                 >
                   {hasScreenShare && <div className="vc-screen-indicator">Screen</div>}
                   
-                  {stream && (p.hasVideo || p.isScreenSharing) ? (
+                  {stream && (participant.hasVideo || participant.isScreenSharing) ? (
                     <video
                       ref={(el) => {
                         if (el) {

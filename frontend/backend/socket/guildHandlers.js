@@ -4,7 +4,7 @@ const supabase = require("../db/supabase");
 
 function emitToUser(io, userId, event, payload) {
   for (const [socketId, socket] of io.sockets.sockets) {
-    if (socket.userId === userId) {
+    if (socket.user?.id === userId) {
       socket.emit(event, payload);
     }
   }
@@ -61,8 +61,17 @@ async function isGuildMember(guildId, userId) {
   return !error && !!data;
 }
 
+async function isGuildOwner(guildId, userId) {
+  const { data, error } = await supabase
+    .from("guilds")
+    .select("owner_id")
+    .eq("id", guildId)
+    .single();
+  return !error && data?.owner_id === userId;
+}
+
 function registerGuildHandlers(io, socket) {
-  const myId = socket.userId;
+  const myId = socket.user?.id;
   if (!myId) return;
 
   // Join guild rooms on connect (client sends guild IDs after connection)
