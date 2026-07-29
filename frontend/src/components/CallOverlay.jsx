@@ -6,6 +6,9 @@ import {
   Volume2, ChevronUp, Mic2
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
+import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
+import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
+import { resolveAvatarUrl } from "../lib/avatar";
 
 /*
  * Google Meet-style call overlay
@@ -83,6 +86,10 @@ export default function CallOverlay({ call, groupCall, me }) {
       ? "Incoming call..."
       : mode === "outgoing"
       ? "Calling..."
+      : call?.peerConnectionState === "reconnecting"
+      ? "Reconnecting…"
+      : call?.peerConnectionState === "connecting" || (call?.mode === "active" && !call?.remoteMediaReady)
+      ? "Connecting…"
       : callType === "video"
       ? "Video call"
       : "Voice call"
@@ -116,7 +123,7 @@ export default function CallOverlay({ call, groupCall, me }) {
       >
         <div style={{ position: "relative" }}>
           {isDm ? (
-            <Avatar name={peer?.username || "?"} size={44} user={peer} />
+            <Avatar name={peer?.username || "?"} size={44} imageUrl={resolveAvatarUrl(peer)} />
           ) : (
             <div
               style={{
@@ -189,7 +196,15 @@ export default function CallOverlay({ call, groupCall, me }) {
   // Build unified participant list — remote only (local is rendered as a dedicated tile)
   const localId = me?.id;
   const remoteParticipants = isDm
-    ? (call?.peer ? [{ id: call.peer.id, username: call.peer.username, user: call.peer, stream: call.remoteStream, hasVideo: callType === "video" && !!call.remoteStream }] : [])
+    ? (call?.peer && call?.mode === "active"
+        ? [{
+            id: call.peer.id,
+            username: call.peer.username,
+            avatarUrl: resolveAvatarUrl(call.peer),
+            stream: call.remoteStream,
+            hasVideo: callType === "video" && !!call.remoteStream,
+          }]
+        : [])
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
@@ -269,7 +284,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             hasLocalVideo={hasLocalVideo}
             cameraOn={cameraOn}
             localUsername={localUsername}
-            localUser={me}
+            localAvatarUrl={resolveAvatarUrl(me)}
           />
         ) : (
           <ParticipantGrid
@@ -286,7 +301,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             subtitle={subtitle}
             formattedDuration={formattedDuration}
             localUsername={localUsername}
-            localUser={me}
+            localAvatarUrl={resolveAvatarUrl(me)}
           />
         )}
       </div>
@@ -520,10 +535,10 @@ export default function CallOverlay({ call, groupCall, me }) {
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
               {isDm ? (
-                <PersonRow name={peer?.username || "User"} user={peer} isHost />
+                <PersonRow name={peer?.username || "User"} avatarUrl={resolveAvatarUrl(peer)} isHost />
               ) : (
                 groupCall.participants?.map((p) => (
-                  <PersonRow key={p.id} name={p.username} user={p} />
+                  <PersonRow key={p.id} name={p.username} avatarUrl={resolveAvatarUrl(p)} />
                 ))
               )}
             </div>
@@ -538,7 +553,7 @@ export default function CallOverlay({ call, groupCall, me }) {
    ParticipantTile — one rectangle in the grid or strip
    isSpeaking derived externally; videoRef only for remote video.
    ───────────────────────────────────────────────────────────────── */
-function ParticipantTile({ username, user, isSpeaking, videoRef, hasVideo, isLocal, small = false }) {
+function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, isLocal, small = false }) {
   return (
     <div
       style={{
@@ -568,7 +583,7 @@ function ParticipantTile({ username, user, isSpeaking, videoRef, hasVideo, isLoc
         />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: small ? 6 : 12 }}>
-          <Avatar name={username || "?"} size={small ? 36 : 64} user={user} />
+          <Avatar name={username || "?"} size={small ? 36 : 64} imageUrl={avatarUrl} />
           {!small && (
             <span style={{ fontSize: 13, color: "#b5bac1", fontWeight: 500 }}>{username}</span>
           )}
@@ -603,7 +618,7 @@ function ParticipantTile({ username, user, isSpeaking, videoRef, hasVideo, isLoc
 /* ─────────────────────────────────────────────────────────────────
    ParticipantGrid — adaptive grid layout when no screen share
    ───────────────────────────────────────────────────────────────── */
-function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, user }) {
+function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }) {
   const localStream = isDm ? call?.localStream : groupCall?.localStream;
 
   const videoCallbackRef = useCallback((el) => {
@@ -630,7 +645,7 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, user }) {
   return (
     <ParticipantTile
       username={username}
-      user={user}
+      avatarUrl={avatarUrl}
       isSpeaking={false}
       videoRef={hasVideo ? videoCallbackRef : null}
       hasVideo={hasVideo}
@@ -639,21 +654,31 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, user }) {
   );
 }
 
-function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localUser }) {
-  // Remote tiles only — local is rendered separately below to avoid double-render
+function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localAvatarUrl }) {
+  const dmRemote = useDmRemoteParticipant({
+    peer: isDm ? call?.peer : null,
+    mode: isDm ? call?.mode : null,
+    remoteMediaReady: isDm ? call?.remoteMediaReady : false,
+    peerConnectionState: isDm ? call?.peerConnectionState : "idle",
+    connectionQuality: isDm ? call?.connectionQuality : "unknown",
+  });
+
   const remoteTiles = remoteParticipants.map((p) => ({
     id: p.id,
     username: p.username || "Member",
-    user: p.user || p,
+    avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
     hasVideo: p.hasVideo || p.isCameraOn,
   }));
 
-  const count = 1 + remoteTiles.length;
-  const cols = count === 1 ? 1 : count <= 2 ? 2 : count <= 4 ? 2 : count <= 6 ? 3 : 4;
-  const rows = Math.ceil(count / cols);
+  const dmTwoUp = isDm && dmRemote.showSlot;
+  const count = dmTwoUp ? 2 : 1 + remoteTiles.length;
+  const cols = dmTwoUp ? 2 : count === 1 ? 1 : count <= 2 ? 2 : count <= 4 ? 2 : count <= 6 ? 3 : 4;
+  const rows = dmTwoUp ? 1 : Math.ceil(count / cols);
 
   return (
-    <div
+    <motion.div
+      layout
+      transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
       style={{
         flex: 1,
         display: "grid",
@@ -664,35 +689,55 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
         minHeight: 0,
       }}
     >
-      {/* Local tile always first */}
-      <LocalVideoTile
-        isDm={isDm}
-        call={call}
-        groupCall={groupCall}
-        hasVideo={hasLocalVideo}
-        username={localUsername}
-        user={localUser}
-      />
-      {/* Remote participant tiles */}
-      {remoteTiles.map((tile) => (
-        <ParticipantTile
-          key={tile.id}
-          username={tile.username}
-          user={tile.user}
-          isSpeaking={false}
-          videoRef={null}
-          hasVideo={false}
-          isLocal={false}
+      <motion.div layout transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }} style={{ minWidth: 0, minHeight: 0 }}>
+        <LocalVideoTile
+          isDm={isDm}
+          call={call}
+          groupCall={groupCall}
+          hasVideo={hasLocalVideo}
+          username={localUsername}
+          avatarUrl={localAvatarUrl}
         />
+      </motion.div>
+
+      {isDm && dmRemote.showSlot && (
+        <motion.div
+          layout
+          transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
+          style={{ minWidth: 0, minHeight: 0, position: "relative" }}
+        >
+          <DmRemoteParticipantSlot
+            displayPeer={dmRemote.displayPeer}
+            phase={dmRemote.phase}
+            connectionStatus={dmRemote.connectionStatus}
+            isMediaReady={dmRemote.isMediaReady}
+            hasVideo={callType === "video" && !!call?.remoteStream}
+            videoRef={call?.remoteVideoRef}
+            remoteStream={call?.remoteStream}
+          />
+        </motion.div>
+      )}
+
+      {!isDm && remoteTiles.map((tile) => (
+        <motion.div key={tile.id} layout style={{ minWidth: 0, minHeight: 0 }}>
+          <ParticipantTile
+            username={tile.username}
+            avatarUrl={tile.avatarUrl}
+            isSpeaking={false}
+            videoRef={null}
+            hasVideo={false}
+            isLocal={false}
+          />
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }
 
 /* ─────────────────────────────────────────────────────────────────
    ScreenShareLayout — selected screen large on top, strip below
    ───────────────────────────────────────────────────────────────── */
-function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localUser }) {
+function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl }) {
   const [selectedSharerIndex, setSelectedSharerIndex] = useState(0);
   const [viewerCount] = useState(0);
   // Keep refs to both the normal and expanded video elements so we can set srcObject on each
@@ -744,8 +789,8 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
 
   // Strip tiles: all participants + local self
   const stripTiles = [
-    { id: "local", username: localUsername, isLocal: true, hasVideo: hasLocalVideo, user: localUser },
-    ...remoteParticipants.map((p) => ({ id: p.id, username: p.username, user: p.user || p, isLocal: false, hasVideo: p.hasVideo || p.isCameraOn })),
+    { id: "local", username: localUsername, isLocal: true, hasVideo: hasLocalVideo, avatarUrl: localAvatarUrl },
+    ...remoteParticipants.map((p) => ({ id: p.id, username: p.username, avatarUrl: p.avatarUrl, isLocal: false, hasVideo: p.hasVideo || p.isCameraOn })),
   ];
 
   return (
@@ -898,7 +943,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             <div key={tile.id} style={{ width: 160, height: 100, flexShrink: 0 }}>
               <ParticipantTile
                 username={tile.username}
-                user={tile.user}
+                avatarUrl={tile.avatarUrl}
                 isSpeaking={tile.isSpeaking}
                 videoRef={tile.hasVideo ? videoRef : null}
                 hasVideo={tile.hasVideo}
@@ -964,7 +1009,7 @@ function TopIconBtn({ children, onClick, active }) {
   );
 }
 
-function PersonRow({ name, user, isHost }) {
+function PersonRow({ name, avatarUrl, isHost }) {
   return (
     <div
       style={{
@@ -974,7 +1019,7 @@ function PersonRow({ name, user, isHost }) {
         padding: "10px 0",
       }}
     >
-      <Avatar name={name} size={36} user={user} />
+      <Avatar name={name} size={36} imageUrl={avatarUrl} />
       <div style={{ display: "flex", flexDirection: "column" }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{name}</span>
         {isHost && <span style={{ fontSize: 11, color: "#b5bac1" }}>Host</span>}
