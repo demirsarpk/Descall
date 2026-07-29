@@ -57,3 +57,18 @@ veya Render Dashboard'dan **Manual Deploy** → **Deploy latest commit**
 
 **Deploy çok uzun sürüyor:**
 - Build cache'i temizle: Manual Deploy → Clear build cache & deploy
+
+## Google Sign-In (OAuth)
+
+1. [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → Create **OAuth client ID** (Web application).
+2. Authorized JavaScript origins:
+   - `http://localhost:5173` (Vite dev)
+   - `http://localhost:3000` (local backend serving SPA)
+   - `https://des-call.onrender.com`
+3. Add secrets (Render env group `descall-secrets`):
+   - `GOOGLE_CLIENT_ID` — same Web client ID (backend token verify)
+   - `VITE_GOOGLE_CLIENT_ID` — same value (embedded at Vite build time; optional if `/auth/google/config` is used)
+4. Run SQL migration once in Supabase SQL editor:
+   - `supabase/migrations/20260729_add_google_oauth_columns.sql`
+   - or `frontend/backend/db/googleOauthMigration.sql`
+5. Redeploy so the backend has `google-auth-library` and the new `/auth/google` route.

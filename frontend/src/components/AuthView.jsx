@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { MessageCircle, UserPlus, Lock, Mail } from "lucide-react";
+import GoogleSignInButton from "./auth/GoogleSignInButton";
 
 // Simple Descall Logo
 function DescallLogo({ size = 60 }) {
@@ -38,11 +39,10 @@ function DescallLogo({ size = 60 }) {
   );
 }
 
-export default function AuthView({ onLogin, onRegister, loading, error }) {
+export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, error }) {
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [focusedInput, setFocusedInput] = useState(null);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -89,6 +89,17 @@ export default function AuthView({ onLogin, onRegister, loading, error }) {
             <UserPlus size={18} />
             <span>Register</span>
           </button>
+        </div>
+
+        <GoogleSignInButton
+          disabled={loading}
+          onCredential={async (credential) => {
+            await onGoogleLogin?.(credential);
+          }}
+        />
+
+        <div className="auth-divider" aria-hidden="true">
+          <span>or</span>
         </div>
 
         {/* Form */}
