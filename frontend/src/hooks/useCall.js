@@ -375,7 +375,10 @@ export function useCall(socket) {
       // New incoming call
       incomingOfferRef.current = offer;
       incomingCallTypeRef.current = incomingType || "voice";
-      setPeer(fromUser);
+      setPeer({
+        ...fromUser,
+        avatarUrl: fromUser?.avatarUrl || fromUser?.avatar_url || null,
+      });
       setCallType(incomingType || "voice");
       setMode("incoming");
       notificationService.incomingCall({ from: fromUser.username, type: incomingType || "voice" });

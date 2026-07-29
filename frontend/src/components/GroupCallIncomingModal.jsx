@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, PhoneOff, Video, Users } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
+import { resolveAvatarUrl } from "../lib/avatar";
 
 /**
  * Floating incoming group call modal — Discord/WhatsApp style.
@@ -41,26 +42,38 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
             maxWidth: 420,
           }}
         >
-          {/* Pulsing icon */}
+          {/* Caller avatar */}
           <motion.div
-            animate={{ scale: [1, 1.08, 1] }}
+            animate={{ scale: [1, 1.06, 1] }}
             transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: "50%",
-              background: incomingCall.callType === "video" ? "#5865f2" : "#3ba55d",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
+            style={{ position: "relative", flexShrink: 0 }}
           >
-            {incomingCall.callType === "video" ? (
-              <Video size={24} color="#fff" />
-            ) : (
-              <Phone size={24} color="#fff" />
-            )}
+            <Avatar
+              name={incomingCall.fromUser?.username || "?"}
+              size={52}
+              imageUrl={resolveAvatarUrl(incomingCall.fromUser)}
+            />
+            <div
+              style={{
+                position: "absolute",
+                bottom: -2,
+                right: -2,
+                width: 22,
+                height: 22,
+                borderRadius: "50%",
+                background: incomingCall.callType === "video" ? "#5865f2" : "#3ba55d",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "2px solid #1e1f23",
+              }}
+            >
+              {incomingCall.callType === "video" ? (
+                <Video size={11} color="#fff" />
+              ) : (
+                <Phone size={11} color="#fff" />
+              )}
+            </div>
           </motion.div>
 
           {/* Info */}

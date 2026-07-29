@@ -6,6 +6,7 @@ import {
   Volume2, ChevronUp, Mic2
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
+import { resolveAvatarUrl } from "../lib/avatar";
 
 /*
  * Google Meet-style call overlay
@@ -116,7 +117,7 @@ export default function CallOverlay({ call, groupCall, me }) {
       >
         <div style={{ position: "relative" }}>
           {isDm ? (
-            <Avatar name={peer?.username || "?"} size={44} imageUrl={peer?.avatarUrl} />
+            <Avatar name={peer?.username || "?"} size={44} imageUrl={resolveAvatarUrl(peer)} />
           ) : (
             <div
               style={{
@@ -189,7 +190,7 @@ export default function CallOverlay({ call, groupCall, me }) {
   // Build unified participant list — remote only (local is rendered as a dedicated tile)
   const localId = me?.id;
   const remoteParticipants = isDm
-    ? (call?.peer ? [{ id: call.peer.id, username: call.peer.username, avatarUrl: call.peer.avatarUrl, stream: call.remoteStream, hasVideo: callType === "video" && !!call.remoteStream }] : [])
+    ? (call?.peer ? [{ id: call.peer.id, username: call.peer.username, avatarUrl: resolveAvatarUrl(call.peer), stream: call.remoteStream, hasVideo: callType === "video" && !!call.remoteStream }] : [])
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
@@ -269,7 +270,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             hasLocalVideo={hasLocalVideo}
             cameraOn={cameraOn}
             localUsername={localUsername}
-            localAvatarUrl={me?.avatar_url || me?.avatarUrl || null}
+            localAvatarUrl={resolveAvatarUrl(me)}
           />
         ) : (
           <ParticipantGrid
@@ -286,7 +287,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             subtitle={subtitle}
             formattedDuration={formattedDuration}
             localUsername={localUsername}
-            localAvatarUrl={me?.avatar_url || me?.avatarUrl || null}
+            localAvatarUrl={resolveAvatarUrl(me)}
           />
         )}
       </div>
@@ -520,10 +521,10 @@ export default function CallOverlay({ call, groupCall, me }) {
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
               {isDm ? (
-                <PersonRow name={peer?.username || "User"} avatarUrl={peer?.avatarUrl} isHost />
+                <PersonRow name={peer?.username || "User"} avatarUrl={resolveAvatarUrl(peer)} isHost />
               ) : (
                 groupCall.participants?.map((p) => (
-                  <PersonRow key={p.id} name={p.username} avatarUrl={p.avatarUrl} />
+                  <PersonRow key={p.id} name={p.username} avatarUrl={resolveAvatarUrl(p)} />
                 ))
               )}
             </div>
@@ -644,7 +645,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
   const remoteTiles = remoteParticipants.map((p) => ({
     id: p.id,
     username: p.username || "Member",
-    avatarUrl: p.avatarUrl,
+    avatarUrl: resolveAvatarUrl(p),
     hasVideo: p.hasVideo || p.isCameraOn,
   }));
 

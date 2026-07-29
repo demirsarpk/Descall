@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
@@ -809,36 +810,79 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
 }
 
 function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anchorRef }) {
-  const [openUpward, setOpenUpward] = useState(false);
   const menuRef = useRef(null);
+  const [position, setPosition] = useState({ top: 0, left: 0, visibility: "hidden" });
 
-  useEffect(() => {
-    if (!anchorRef?.current || !menuRef.current) return;
-    const anchorRect = anchorRef.current.getBoundingClientRect();
-    const menuHeight = menuRef.current.offsetHeight || 130;
-    const spaceBelow = window.innerHeight - anchorRect.bottom;
-    setOpenUpward(spaceBelow < menuHeight + 8);
+  useLayoutEffect(() => {
+    const anchor = anchorRef?.current;
+    const menu = menuRef.current;
+    if (!anchor || !menu) return;
+
+    const updatePosition = () => {
+      const anchorRect = anchor.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      const gap = 6;
+      const pad = 8;
+
+      let top = anchorRect.bottom + gap;
+      if (top + menuRect.height > window.innerHeight - pad) {
+        top = anchorRect.top - menuRect.height - gap;
+      }
+      top = Math.max(pad, Math.min(top, window.innerHeight - menuRect.height - pad));
+
+      let left = anchorRect.right - menuRect.width;
+      left = Math.max(pad, Math.min(left, window.innerWidth - menuRect.width - pad));
+
+      setPosition({ top, left, visibility: "visible" });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
   }, [anchorRef]);
 
-  return (
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target) && !anchorRef?.current?.contains(e.target)) {
+        onClose();
+      }
+    };
+    const handleEscape = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [onClose, anchorRef]);
+
+  return createPortal(
     <motion.div
       ref={menuRef}
-      initial={{ opacity: 0, scale: 0.92, y: openUpward ? 4 : -4 }}
+      role="menu"
+      initial={{ opacity: 0, scale: 0.94, y: -4 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.92, y: openUpward ? 4 : -4 }}
-      transition={{ duration: 0.12 }}
+      exit={{ opacity: 0, scale: 0.94, y: -4 }}
+      transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
       style={{
-        position: "absolute",
-        right: 0,
-        ...(openUpward
-          ? { bottom: "calc(100% + 2px)", top: "auto" }
-          : { top: "calc(100% + 2px)", bottom: "auto" }),
-        zIndex: 200,
-        background: "var(--surface-2)",
-        border: "1px solid var(--border-3)",
-        borderRadius: 10,
-        boxShadow: "var(--shadow-xl)",
-        minWidth: 170,
+        position: "fixed",
+        top: position.top,
+        left: position.left,
+        visibility: position.visibility,
+        zIndex: 10000,
+        background: "rgba(40, 40, 44, 0.92)",
+        backdropFilter: "blur(24px) saturate(180%)",
+        WebkitBackdropFilter: "blur(24px) saturate(180%)",
+        border: "1px solid rgba(255, 255, 255, 0.12)",
+        borderRadius: 12,
+        boxShadow: "0 12px 40px rgba(0, 0, 0, 0.45)",
+        minWidth: 180,
         overflow: "hidden",
       }}
       onClick={(e) => e.stopPropagation()}
@@ -887,7 +931,8 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anch
         <LogOut size={14} />
         Leave Group
       </button>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
