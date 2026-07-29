@@ -137,7 +137,7 @@ export default function App() {
   const transportFallbackStepRef = useRef(0);
   const prevOnlineUsersRef = useRef([]);
   const call = useCall(socketApi);
-  const groupCall = useGroupCall(socketApi);
+  const groupCall = useGroupCall(socketApi, me?.id);
 
   useEffect(() => {
     myIdRef.current = me?.id ?? null;
@@ -425,6 +425,11 @@ export default function App() {
       getMyGroups().then((raw) => {
         const groups = normalizeGroups(raw);
         setMyGroups(groups);
+        // Rejoin after groups load — connect-time rejoin often runs with empty list.
+        const ids = groups.map((g) => g.id).filter(Boolean);
+        if (ids.length > 0 && socket.connected) {
+          socket.emit("groups:rejoin", ids);
+        }
       }).catch(console.error);
       getMyGuilds().then((data) => {
         setMyGuilds(data?.guilds || []);
@@ -884,6 +889,10 @@ export default function App() {
       const raw = await getMyGroups();
       const groups = normalizeGroups(raw);
       setMyGroups(groups);
+      const ids = groups.map((g) => g.id).filter(Boolean);
+      if (ids.length > 0 && socketRef.current?.connected) {
+        socketRef.current.emit("groups:rejoin", ids);
+      }
     } catch (err) {
       setMyGroups([]);
     }
@@ -1364,12 +1373,25 @@ export default function App() {
           }}
           onVoiceCall={() => {
             if (groupCall?.isInCall) return;
-            if (groupCall?.activeCallBanner) { groupCall.joinActiveCall(groupCall.activeCallBanner); return; }
+            // Only hijack when the banner is for the currently open group chat.
+            if (
+              activeGroup &&
+              groupCall?.activeCallBanner?.groupId === activeGroup.id
+            ) {
+              groupCall.joinActiveCall(groupCall.activeCallBanner);
+              return;
+            }
             if (activeDmUser && call?.startCall) call.startCall(activeDmUser, "voice");
           }}
           onVideoCall={() => {
             if (groupCall?.isInCall) return;
-            if (groupCall?.activeCallBanner) { groupCall.joinActiveCall(groupCall.activeCallBanner); return; }
+            if (
+              activeGroup &&
+              groupCall?.activeCallBanner?.groupId === activeGroup.id
+            ) {
+              groupCall.joinActiveCall(groupCall.activeCallBanner);
+              return;
+            }
             if (activeDmUser && call?.startCall) call.startCall(activeDmUser, "video");
           }}
           onGroupVoiceCall={() => {
