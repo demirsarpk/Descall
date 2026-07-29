@@ -147,6 +147,8 @@ export function useCall(socket) {
   const [screenSharing, setScreenSharing] = useState(false);
   const [duration, setDuration] = useState(0);
   const [connectionQuality, setConnectionQuality] = useState("unknown");
+  const [peerConnectionState, setPeerConnectionState] = useState("idle");
+  const [remoteMediaReady, setRemoteMediaReady] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [screenStream, setScreenStream] = useState(null);
@@ -172,6 +174,7 @@ export function useCall(socket) {
   const screenSenderRef = useRef(null);
   const screenSharingRef = useRef(false);
   const stopScreenShareRef = useRef(null);
+  const cleanupTimerRef = useRef(null);
 
   useEffect(() => { peerRef.current = peer; }, [peer]);
 
@@ -228,10 +231,31 @@ export function useCall(socket) {
     setCameraOn(false);
     setScreenSharing(false);
     setConnectionQuality("unknown");
+    setPeerConnectionState("idle");
+    setRemoteMediaReady(false);
+    if (cleanupTimerRef.current) {
+      clearTimeout(cleanupTimerRef.current);
+      cleanupTimerRef.current = null;
+    }
     // Stop all call sounds
     audioManager.stop("incomingCall");
     audioManager.stop("outgoingCall");
   }, []);
+
+  const gracefulEnd = useCallback(() => {
+    if (modeRef.current === "active") {
+      setPeerConnectionState("disconnected");
+      setRemoteMediaReady(false);
+      setPeer(null);
+      if (cleanupTimerRef.current) clearTimeout(cleanupTimerRef.current);
+      cleanupTimerRef.current = setTimeout(() => {
+        cleanupTimerRef.current = null;
+        cleanup();
+      }, 320);
+      return;
+    }
+    cleanup();
+  }, [cleanup]);
 
   useEffect(() => {
     if (mode !== "active") return;
@@ -261,12 +285,22 @@ export function useCall(socket) {
     pendingIceRef.current = [];
   };
 
+  const markRemoteMediaReady = useCallback((stream) => {
+    if (!stream) return;
+    const tracks = stream.getTracks?.() || [];
+    if (tracks.length === 0) return;
+    const hasUsable = tracks.some((t) => t.readyState === "live" || t.readyState === "new");
+    if (hasUsable) setRemoteMediaReady(true);
+  }, []);
+
   const setupPeerConnection = useCallback((pc, stream, isInitiator) => {
+    setPeerConnectionState("connecting");
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
     pc.ontrack = (e) => {
       const rs = e.streams[0];
       setRemoteStream(rs);
+      markRemoteMediaReady(rs);
       const track = e.track;
       
       // Store remote stream for later use
@@ -284,6 +318,7 @@ export function useCall(socket) {
       // Handle muted tracks - wait for unmute
       if (track?.muted) {
         track.onunmute = () => {
+          markRemoteMediaReady(rs);
           if (track.kind === "video" && remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = rs;
             remoteVideoRef.current.play().catch((err) => {});
@@ -315,22 +350,38 @@ export function useCall(socket) {
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") {
+      const state = pc.connectionState;
+      if (state === "connected") {
         setMode("active");
         setConnectionQuality("good");
-      } else if (pc.connectionState === "disconnected") {
+        setPeerConnectionState("connected");
+      } else if (state === "connecting") {
+        setPeerConnectionState("connecting");
+        setConnectionQuality("connecting");
+      } else if (state === "disconnected") {
+        setPeerConnectionState("reconnecting");
         setConnectionQuality("poor");
-      } else if (pc.connectionState === "failed") {
+      } else if (state === "failed") {
+        setPeerConnectionState("disconnected");
         setConnectionQuality("failed");
+      } else if (state === "closed") {
+        setPeerConnectionState("disconnected");
       }
     };
 
     pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+      const ice = pc.iceConnectionState;
+      if (ice === "connected" || ice === "completed") {
         setConnectionQuality("good");
-      } else if (pc.iceConnectionState === "checking") {
+        setPeerConnectionState("connected");
+      } else if (ice === "checking") {
+        setPeerConnectionState("connecting");
         setConnectionQuality("connecting");
-      } else if (pc.iceConnectionState === "failed") {
+      } else if (ice === "disconnected") {
+        setPeerConnectionState("reconnecting");
+        setConnectionQuality("poor");
+      } else if (ice === "failed") {
+        setPeerConnectionState("disconnected");
         setConnectionQuality("failed");
       }
     };
@@ -349,7 +400,7 @@ export function useCall(socket) {
         }
       } catch { /* ignore */ }
     };
-  }, [socket, callType]);
+  }, [socket, callType, markRemoteMediaReady]);
 
   useEffect(() => {
     if (!socket) return;
@@ -404,13 +455,13 @@ export function useCall(socket) {
     };
 
     const onEnded = ({ fromUserId } = {}) => {
-      if (!fromUserId || peerRef.current?.id === fromUserId) cleanup();
+      if (!fromUserId || peerRef.current?.id === fromUserId) gracefulEnd();
     };
 
     const onCancelled = ({ fromUserId } = {}) => {
       if (!fromUserId || peerRef.current?.id === fromUserId) {
         audioManager.stop('incomingCall');
-        cleanup();
+        gracefulEnd();
       }
     };
 
@@ -429,7 +480,7 @@ export function useCall(socket) {
       socket.off('call:declined', onEnded);
       socket.off('call:cancelled', onCancelled);
     };
-  }, [socket, cleanup]);
+  }, [socket, gracefulEnd]);
 
   // Electron notification button → accept / decline
   useEffect(() => {
@@ -520,8 +571,8 @@ export function useCall(socket) {
         socket.emit('call:end', { toUserId: targetId });
       }
     }
-    cleanup();
-  }, [socket, cleanup]);
+    gracefulEnd();
+  }, [socket, gracefulEnd]);
 
   const declineIncoming = useCallback(() => {
     const targetId = peerRef.current?.id ?? peer?.id;
@@ -759,6 +810,8 @@ export function useCall(socket) {
     screenSharing,
     duration,
     connectionQuality,
+    peerConnectionState,
+    remoteMediaReady,
     localStream,
     remoteStream,
     screenStream,

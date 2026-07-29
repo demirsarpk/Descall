@@ -6,6 +6,8 @@ import {
   Volume2, ChevronUp, Mic2
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
+import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
+import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
 import { resolveAvatarUrl } from "../lib/avatar";
 
 /*
@@ -84,6 +86,10 @@ export default function CallOverlay({ call, groupCall, me }) {
       ? "Incoming call..."
       : mode === "outgoing"
       ? "Calling..."
+      : call?.peerConnectionState === "reconnecting"
+      ? "Reconnecting…"
+      : call?.peerConnectionState === "connecting" || (call?.mode === "active" && !call?.remoteMediaReady)
+      ? "Connecting…"
       : callType === "video"
       ? "Video call"
       : "Voice call"
@@ -190,7 +196,15 @@ export default function CallOverlay({ call, groupCall, me }) {
   // Build unified participant list — remote only (local is rendered as a dedicated tile)
   const localId = me?.id;
   const remoteParticipants = isDm
-    ? (call?.peer ? [{ id: call.peer.id, username: call.peer.username, avatarUrl: resolveAvatarUrl(call.peer), stream: call.remoteStream, hasVideo: callType === "video" && !!call.remoteStream }] : [])
+    ? (call?.peer && call?.mode === "active"
+        ? [{
+            id: call.peer.id,
+            username: call.peer.username,
+            avatarUrl: resolveAvatarUrl(call.peer),
+            stream: call.remoteStream,
+            hasVideo: callType === "video" && !!call.remoteStream,
+          }]
+        : [])
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
@@ -641,20 +655,30 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }
 }
 
 function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localAvatarUrl }) {
-  // Remote tiles only — local is rendered separately below to avoid double-render
+  const dmRemote = useDmRemoteParticipant({
+    peer: isDm ? call?.peer : null,
+    mode: isDm ? call?.mode : null,
+    remoteMediaReady: isDm ? call?.remoteMediaReady : false,
+    peerConnectionState: isDm ? call?.peerConnectionState : "idle",
+    connectionQuality: isDm ? call?.connectionQuality : "unknown",
+  });
+
   const remoteTiles = remoteParticipants.map((p) => ({
     id: p.id,
     username: p.username || "Member",
-    avatarUrl: resolveAvatarUrl(p),
+    avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
     hasVideo: p.hasVideo || p.isCameraOn,
   }));
 
-  const count = 1 + remoteTiles.length;
-  const cols = count === 1 ? 1 : count <= 2 ? 2 : count <= 4 ? 2 : count <= 6 ? 3 : 4;
-  const rows = Math.ceil(count / cols);
+  const dmTwoUp = isDm && dmRemote.showSlot;
+  const count = dmTwoUp ? 2 : 1 + remoteTiles.length;
+  const cols = dmTwoUp ? 2 : count === 1 ? 1 : count <= 2 ? 2 : count <= 4 ? 2 : count <= 6 ? 3 : 4;
+  const rows = dmTwoUp ? 1 : Math.ceil(count / cols);
 
   return (
-    <div
+    <motion.div
+      layout
+      transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
       style={{
         flex: 1,
         display: "grid",
@@ -665,28 +689,48 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
         minHeight: 0,
       }}
     >
-      {/* Local tile always first */}
-      <LocalVideoTile
-        isDm={isDm}
-        call={call}
-        groupCall={groupCall}
-        hasVideo={hasLocalVideo}
-        username={localUsername}
-        avatarUrl={localAvatarUrl}
-      />
-      {/* Remote participant tiles */}
-      {remoteTiles.map((tile) => (
-        <ParticipantTile
-          key={tile.id}
-          username={tile.username}
-          avatarUrl={tile.avatarUrl}
-          isSpeaking={false}
-          videoRef={null}
-          hasVideo={false}
-          isLocal={false}
+      <motion.div layout transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }} style={{ minWidth: 0, minHeight: 0 }}>
+        <LocalVideoTile
+          isDm={isDm}
+          call={call}
+          groupCall={groupCall}
+          hasVideo={hasLocalVideo}
+          username={localUsername}
+          avatarUrl={localAvatarUrl}
         />
+      </motion.div>
+
+      {isDm && dmRemote.showSlot && (
+        <motion.div
+          layout
+          transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
+          style={{ minWidth: 0, minHeight: 0, position: "relative" }}
+        >
+          <DmRemoteParticipantSlot
+            displayPeer={dmRemote.displayPeer}
+            phase={dmRemote.phase}
+            connectionStatus={dmRemote.connectionStatus}
+            isMediaReady={dmRemote.isMediaReady}
+            hasVideo={callType === "video" && !!call?.remoteStream}
+            videoRef={call?.remoteVideoRef}
+            remoteStream={call?.remoteStream}
+          />
+        </motion.div>
+      )}
+
+      {!isDm && remoteTiles.map((tile) => (
+        <motion.div key={tile.id} layout style={{ minWidth: 0, minHeight: 0 }}>
+          <ParticipantTile
+            username={tile.username}
+            avatarUrl={tile.avatarUrl}
+            isSpeaking={false}
+            videoRef={null}
+            hasVideo={false}
+            isLocal={false}
+          />
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }
 
