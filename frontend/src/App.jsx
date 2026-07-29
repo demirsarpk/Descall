@@ -1118,12 +1118,12 @@ export default function App() {
           isAdmin={me?.is_admin || me?.username === "admin"}
           onDmSelect={(dm) => {
             setActiveDmUser(dm);
-            setActiveGroup(null);
+            if (dm) setActiveGroup(null);
           }}
           onGroupSelect={(group) => {
             setActiveDmUser(null);
             setActiveGroup(group);
-            socketRef.current?.emit("group:join", group.id);
+            if (group?.id) socketRef.current?.emit("group:join", group.id);
           }}
           friendNotice={friendNotice}
           onRefreshGroups={fetchGroups}

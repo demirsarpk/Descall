@@ -9,8 +9,10 @@ import ServerSidebar from "./ServerSidebar";
 import ServerIconBar from "../servers/ServerIconBar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
+import MobileAppLayout from "./MobileAppLayout";
 import ActivitySidebar from "../activity/ActivitySidebar";
 import { useActivity } from "../../hooks/useActivity";
+import { useMobile } from "../../hooks/useMobile";
 import { Avatar } from "../ui/Avatar";
 
 /**
@@ -69,6 +71,7 @@ export default function AppLayout({
   onDeleteGuild,
   onRefreshGuilds,
 }) {
+  const { isMobile } = useMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
   const [userPanelOpen, setUserPanelOpen] = useState(false);
@@ -77,6 +80,63 @@ export default function AppLayout({
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
 
   const activity = useActivity({ socket, me, friends });
+
+  if (isMobile) {
+    return (
+      <MobileAppLayout
+        me={me}
+        socket={socket}
+        onLogout={onLogout}
+        activeDmUser={activeDmUser}
+        activeGroup={activeGroup}
+        groups={groups}
+        dms={dms}
+        friends={friends}
+        onlineUsers={onlineUsers}
+        onDmSelect={onDmSelect}
+        onGroupSelect={onGroupSelect}
+        onSendMessage={onSendMessage}
+        onVoiceCall={onVoiceCall}
+        onVideoCall={onVideoCall}
+        onGroupVoiceCall={onGroupVoiceCall}
+        onGroupVideoCall={onGroupVideoCall}
+        onAdminClick={onAdminClick}
+        isAdmin={isAdmin}
+        onRefreshGroups={onRefreshGroups}
+        onGroupCreated={onGroupCreated}
+        onGroupLeft={onGroupLeft}
+        onGroupRenamed={onGroupRenamed}
+        onRefresh={onRefresh}
+        friendNotice={friendNotice}
+        activeCallBanner={activeCallBanner}
+        onJoinActiveCall={onJoinActiveCall}
+        onDismissActiveBanner={onDismissActiveBanner}
+        friendRequests={friendRequests}
+        onAcceptFriend={onAcceptFriend}
+        onDeclineFriend={onDeclineFriend}
+        notifPermission={notifPermission}
+        onRequestNotifPermission={onRequestNotifPermission}
+        typingDmUser={typingDmUser}
+        typingGroupUsers={typingGroupUsers}
+        onTypingDmStart={onTypingDmStart}
+        onTypingDmStop={onTypingDmStop}
+        onTypingGroupStart={onTypingGroupStart}
+        onTypingGroupStop={onTypingGroupStop}
+        guilds={guilds}
+        activeGuild={activeGuild}
+        activeGuildChannel={activeGuildChannel}
+        onGuildSelect={onGuildSelect}
+        onGuildChannelSelect={onGuildChannelSelect}
+        onCreateGuild={onCreateGuild}
+        onJoinGuild={onJoinGuild}
+        onLeaveGuild={onLeaveGuild}
+        onDeleteGuild={onDeleteGuild}
+        onRefreshGuilds={onRefreshGuilds}
+      >
+        {children}
+      </MobileAppLayout>
+    );
+  }
 
   const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
   const showNotifBanner = !isElectron && !notifBannerDismissed && notifPermission === 'default';
