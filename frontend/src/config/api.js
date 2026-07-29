@@ -1,6 +1,6 @@
 // API URL configuration
 // Priority: env variable > window override > production fallback
-const PRODUCTION_URL = "https://descall-qzkg.onrender.com";
+const PRODUCTION_URL = "https://descall.onrender.com";
 
 function resolveApiUrl() {
   // 1. Vite environment variable (build-time) - must be non-empty
