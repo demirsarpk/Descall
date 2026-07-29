@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, PhoneOff, Video, Users } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
-import { resolveAvatarUrl } from "../lib/avatar";
 
 /**
  * Floating incoming group call modal — Discord/WhatsApp style.
@@ -51,7 +50,7 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
             <Avatar
               name={incomingCall.fromUser?.username || "?"}
               size={52}
-              imageUrl={resolveAvatarUrl(incomingCall.fromUser)}
+              user={incomingCall.fromUser}
             />
             <div
               style={{

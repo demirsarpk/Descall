@@ -59,7 +59,7 @@ export default function MessageBubble({
             onClick={() => onOpenProfile?.(message)}
             title="Profile"
           >
-            <Avatar name={message.username || "?"} size={40} imageUrl={message.avatarUrl} />
+            <Avatar name={message.username || "?"} size={40} user={message.from || { avatarUrl: message.avatarUrl, username: message.username }} />
           </button>
         </div>
       ) : (

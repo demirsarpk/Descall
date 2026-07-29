@@ -22,7 +22,6 @@ import RippleButton from "../ui/RippleButton";
 import AdminFeedback from "./AdminFeedback";
 import AdminErrorLogs from "./AdminErrorLogs";
 import { Avatar } from "../ui/Avatar";
-import { resolveAvatarUrl } from "../../lib/avatar";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
@@ -876,11 +875,7 @@ function getTimeAgo(date) {
                           </div>
                           <div className="timeline-content">
                             <div className="user-info">
-                              <img 
-                                src={user.avatar_url || "/default-avatar.png"} 
-                                alt={user.username}
-                                className="user-avatar"
-                              />
+                              <Avatar user={user} name={user.username} size={36} />
                               <div className="user-details">
                                 <span className="username">{user.username}</span>
                                 <span className="user-id">{user.id.slice(0, 8)}...</span>
@@ -933,11 +928,7 @@ function getTimeAgo(date) {
                           </div>
                           <div className="timeline-content">
                             <div className="user-info">
-                              <img 
-                                src={user.avatar_url || "/default-avatar.png"} 
-                                alt={user.username}
-                                className="user-avatar"
-                              />
+                              <Avatar user={user} name={user.username} size={36} />
                               <div className="user-details">
                                 <span className="username">
                                   {user.username}
@@ -1234,11 +1225,7 @@ function getTimeAgo(date) {
                   <div className={`rank-badge ${index < 3 ? 'top-three' : ''}`}>
                     {index + 1}
                   </div>
-                  <img 
-                    src={user.avatar_url || "/default-avatar.png"} 
-                    alt={user.username}
-                    className="user-avatar"
-                  />
+                  <Avatar user={user} name={user.username} size={40} />
                   <div className="user-details">
                     <span className="username">{user.username}</span>
                     <span className="user-meta">
@@ -1292,7 +1279,7 @@ function getTimeAgo(date) {
                 {users.map((u) => (
                   <motion.tr key={u.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <td>
-                      <Avatar name={u.username} size={36} imageUrl={resolveAvatarUrl(u)} />
+                      <Avatar name={u.username} size={36} user={u} />
                     </td>
                     <td>{u.username}</td>
                     <td className="mono">{u.id.slice(0, 8)}…</td>

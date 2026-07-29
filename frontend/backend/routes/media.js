@@ -4,6 +4,7 @@ const express = require("express");
 const multer = require("multer");
 const { requireAuth } = require("../middleware/auth");
 const supabase = require("../db/supabase");
+const { cacheUserProfile, broadcastUserProfileUpdate, toPublicUser } = require("../lib/userProfile");
 
 const router = express.Router();
 
@@ -112,14 +113,24 @@ router.post("/avatar", upload.single("avatar"), async (req, res) => {
 
     const { error } = await supabase
       .from("users")
-      .update({ avatar_url: url })
+      .update({ avatar_url: url, updated_at: new Date().toISOString() })
       .eq("id", userId);
 
     if (error) {
       return res.status(500).json({ error: "Failed to update avatar." });
     }
 
-    res.json({ avatarUrl: url });
+    const profile = cacheUserProfile({
+      id: userId,
+      username: req.user.username,
+      avatar_url: url,
+      updated_at: new Date().toISOString(),
+    });
+
+    const io = req.app.get("io");
+    if (io) await broadcastUserProfileUpdate(io, userId);
+
+    res.json({ avatarUrl: url, user: toPublicUser(profile) });
   } catch (err) {
     console.error("[MEDIA] Avatar upload error:", err);
     res.status(500).json({ error: "Avatar upload failed." });

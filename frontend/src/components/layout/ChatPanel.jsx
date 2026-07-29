@@ -121,7 +121,7 @@ export default function ChatPanel({
               <Avatar 
                 name={activeDmUser.username} 
                 size={40}
-                imageUrl={activeDmUser.avatarUrl}
+                user={activeDmUser}
               />
               <StatusBadge status={onlineUsers?.some(u => u.id === activeDmUser.id) ? "online" : "offline"} />
             </div>
@@ -320,7 +320,7 @@ export default function ChatPanel({
           {(activeGroup?.members?.length > 0 ? activeGroup.members : activeDmUser ? [activeDmUser] : []).map((m) => (
             <div key={m.id} className="member-row">
               <div className="member-avatar-wrap">
-                <Avatar name={m.username} size={32} imageUrl={m.avatarUrl} />
+                <Avatar name={m.username} size={32} user={m} />
                 <StatusBadge status={onlineUsers?.some((u) => u.id === m.id) ? "online" : "offline"} />
               </div>
               <span className="member-name">{m.username}</span>

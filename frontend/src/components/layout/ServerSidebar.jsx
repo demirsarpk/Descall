@@ -617,7 +617,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
                     <Avatar 
                       name={dm.username} 
                       size={40}
-                      imageUrl={dm.avatarUrl}
+                      user={dm}
                     />
                     <StatusBadge status={isOnline ? "online" : "offline"} />
                   </div>
@@ -773,19 +773,8 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
                 onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = "var(--surface-2)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
-                <div style={{
-                  width: 34, height: 34, borderRadius: "50%",
-                  background: "var(--primary-soft)", flexShrink: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  overflow: "hidden",
-                }}>
-                  {friend.avatarUrl ? (
-                    <img src={friend.avatarUrl} alt={friend.username} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
-                  ) : (
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>
-                      {friend.username?.charAt(0)?.toUpperCase()}
-                    </span>
-                  )}
+                <div style={{ flexShrink: 0 }}>
+                  <Avatar name={friend.username} size={34} user={friend} />
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{friend.username}</span>
                 <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4,
@@ -1334,7 +1323,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                     }}
                   >
                     <div className="friend-avatar" style={{ flexShrink: 0 }}>
-                      <Avatar name={req.username} size={32} imageUrl={req.avatarUrl} />
+                      <Avatar name={req.username} size={32} user={req} />
                     </div>
                     <span className="friend-name" style={{ flex: 1, fontSize: 13 }}>{req.username}</span>
                     <button
@@ -1385,7 +1374,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                       <Avatar 
                         name={friend.username} 
                         size={32}
-                        imageUrl={friend.avatarUrl}
+                        user={friend}
                       />
                       <StatusBadge status="online" />
                     </div>
@@ -1410,7 +1399,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                       <Avatar
                         name={friend.username}
                         size={32}
-                        imageUrl={friend.avatarUrl}
+                        user={friend}
                       />
                       <StatusBadge status="offline" />
                     </div>

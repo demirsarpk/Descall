@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { resolveAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 
 const PALETTES = ["#5865f2", "#57f287", "#fee75c", "#eb459e", "#ed4245", "#9b59b6", "#3498db"];
 
@@ -9,12 +10,22 @@ export function hashString(s) {
   return Math.abs(h);
 }
 
-export function Avatar({ name = "?", size = 36, imageUrl, onClick }) {
+export function Avatar({ name, size = 36, imageUrl, user, onClick }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
-  const letter = (name && name[0] ? name[0] : "?").toUpperCase();
-  const bg = PALETTES[hashString(name || "") % PALETTES.length];
-  const showImage = imageUrl && !failed;
+
+  const displayName = name || resolveDisplayName(user);
+  const letter = (displayName && displayName[0] ? displayName[0] : "?").toUpperCase();
+  const bg = PALETTES[hashString(displayName || "") % PALETTES.length];
+
+  const source = user || (imageUrl ? { avatarUrl: imageUrl } : null);
+  const resolvedUrl = source ? resolveAvatarUrl(source) : null;
+  const showImage = resolvedUrl && !failed;
+
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [resolvedUrl]);
 
   return (
     <motion.div
@@ -46,7 +57,7 @@ export function Avatar({ name = "?", size = 36, imageUrl, onClick }) {
             </span>
           )}
           <img
-            src={imageUrl}
+            src={resolvedUrl}
             alt=""
             className="ui-avatar-img"
             loading="lazy"
@@ -68,3 +79,5 @@ export function Avatar({ name = "?", size = 36, imageUrl, onClick }) {
     </motion.div>
   );
 }
+
+export default Avatar;

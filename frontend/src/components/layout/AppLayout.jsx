@@ -17,6 +17,7 @@ export default function AppLayout({
   me,
   socket,
   onLogout,
+  onProfileUpdated,
   activeDmUser,
   activeGroup,
   groups,
@@ -278,6 +279,7 @@ export default function AppLayout({
             me={me}
             onClose={() => setUserPanelOpen(false)}
             onLogout={onLogout}
+            onProfileUpdated={onProfileUpdated}
             onSettings={() => {}}
           />
         )}

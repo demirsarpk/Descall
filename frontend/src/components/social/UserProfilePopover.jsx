@@ -25,7 +25,7 @@ export default function UserProfilePopover({ open, onClose, user, onlineUsers })
         >
           <div className="profile-banner" />
           <div className="profile-main">
-            <Avatar name={user.username} size={72} imageUrl={user.avatarUrl} />
+            <Avatar name={user.username} size={72} user={user} />
             <div>
               <div className="profile-name">{user.username}</div>
               <div className="profile-status-line">

@@ -136,7 +136,7 @@ export default function MessageList({
                   <Avatar
                     name={group.user?.username || "Unknown"}
                     size={40}
-                    imageUrl={group.user?.avatarUrl}
+                    user={group.user}
                   />
                   <StatusBadge status={onlineUsers?.some(u => u.id === group.user?.id) ? "online" : "offline"} />
                 </div>

@@ -65,7 +65,7 @@ function GuildMessageBubble({
     >
       {!compact ? (
         <div className="msg-avatar-wrap">
-          <Avatar name={sender.username || "?"} size={40} imageUrl={sender.avatar_url} />
+          <Avatar name={sender.username || "?"} size={40} user={sender} />
         </div>
       ) : (
         <div className="msg-avatar-spacer" aria-hidden />

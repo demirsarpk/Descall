@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, Video, Users, LogIn, X } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
-import { resolveAvatarUrl } from "../lib/avatar";
 
 /**
  * Ongoing call bubble — same shape as CallSummaryBubble but green/live.
@@ -57,7 +56,7 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
             <Avatar
               name={banner.initiatorUsername || "?"}
               size={44}
-              imageUrl={resolveAvatarUrl(banner)}
+              user={banner}
             />
           </div>
 

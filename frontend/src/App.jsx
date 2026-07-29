@@ -24,6 +24,13 @@ import {
   setToken,
   setUser,
 } from "./lib/storage";
+import {
+  normalizeUser,
+  patchUserInList,
+  patchDmMessagesAvatar,
+  patchGroupMessagesAvatar,
+  patchUserAvatar,
+} from "./lib/userProfile";
 import audioManager, { initAudioManager } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
 import AdminPanel from "./components/admin/AdminPanel";
@@ -45,11 +52,45 @@ function normalizeGroups(payload) {
   return [];
 }
 
+function normalizeGroupMessage(m) {
+  if (!m) return null;
+  if (m.sender_id === "game-bot" || m.message_type?.startsWith?.("game_")) {
+    return {
+      id: m.id,
+      from: { id: "game-bot", username: "🎰 Casino Bot", avatarUrl: null },
+      text: m.content || "",
+      timestamp: m.created_at || new Date().toISOString(),
+      type: m.message_type || "game_message",
+      isGameMessage: true,
+      gameData: null,
+      groupId: m.group_id,
+    };
+  }
+  const sender = normalizeUser(m.sender || {
+    id: m.sender?.id || m.sender_id,
+    username: m.sender?.username || "Unknown",
+    avatar_url: m.sender?.avatar_url,
+    updated_at: m.sender?.updated_at,
+  });
+  return {
+    id: m.id,
+    from: sender,
+    username: sender?.username || "Unknown",
+    avatarUrl: sender?.avatarUrl,
+    text: m.content || "",
+    timestamp: m.created_at || new Date().toISOString(),
+    mediaUrl: m.media_url,
+    mediaType: m.media_type,
+    originalName: m.original_name,
+    size: m.file_size,
+  };
+}
+
 export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [me, setMe] = useState(() => getUser());
+  const [me, setMe] = useState(() => normalizeUser(getUser()));
   const [isConnected, setIsConnected] = useState(false);
   const [myStatus, setMyStatus] = useState("online");
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -113,6 +154,36 @@ export default function App() {
     myGuildsRef.current = myGuilds;
   }, [myGuilds]);
 
+  const commitSessionUser = useCallback((user) => {
+    const normalized = normalizeUser(user);
+    setMe(normalized);
+    if (normalized) setUser(normalized);
+    else clearUser();
+    return normalized;
+  }, []);
+
+  const applyProfileUpdate = useCallback((user) => {
+    const normalized = normalizeUser(user);
+    if (!normalized?.id) return;
+    const { id, avatarUrl, avatarVersion } = normalized;
+
+    if (me?.id === id || getUser()?.id === id) {
+      commitSessionUser(normalized);
+    }
+
+    setFriends((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
+    setFriendRequests((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
+    setOnlineUsers((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
+    setActiveDmUser((prev) => (prev?.id === id ? patchUserAvatar(prev, avatarUrl, avatarVersion) : prev));
+    setNotifications((prev) => prev.map((n) => {
+      const fromId = n.meta?.fromUserId || n.meta?.userId || n.fromUserId;
+      if (fromId !== id) return n;
+      return { ...n, avatarUrl, avatar_url: avatarUrl };
+    }));
+    setDmByUserId((prev) => patchDmMessagesAvatar(prev, id, avatarUrl, avatarVersion));
+    setGroupMessagesById((prev) => patchGroupMessagesAvatar(prev, id, avatarUrl, avatarVersion));
+  }, [commitSessionUser, me?.id]);
+
   useEffect(() => {
     setTypingDmUser(null);
   }, [activeDmUser?.id]);
@@ -151,8 +222,7 @@ export default function App() {
       try {
               const { user } = await getMe(token);
         if (!cancelled) {
-          setUser(user);
-          setMe(user);
+          commitSessionUser(user);
         }
       } catch (err) {
         if (!cancelled) {
@@ -213,8 +283,7 @@ export default function App() {
       (async () => {
         try {
           const { user } = await getMe(token);
-          setMe(user);
-          setUser(user);
+          commitSessionUser(user);
         } catch {
           // Ignore error
         }
@@ -222,8 +291,14 @@ export default function App() {
     };
     
     socketApi.on("user:updated", handleUserUpdated);
-    return () => { socketApi.off("user:updated", handleUserUpdated); };
-  }, [socketApi]);
+    socketApi.on("user:profile:updated", ({ user }) => {
+      if (user) applyProfileUpdate(user);
+    });
+    return () => {
+      socketApi.off("user:updated", handleUserUpdated);
+      socketApi.off("user:profile:updated");
+    };
+  }, [socketApi, commitSessionUser, applyProfileUpdate]);
 
   // Refresh me when admin panel closes with changes
   useEffect(() => {
@@ -233,15 +308,14 @@ export default function App() {
     (async () => {
       try {
         const { user } = await getMe(token);
-        setMe(user);
-        setUser(user);
+        commitSessionUser(user);
       } catch {
         // Ignore error
       } finally {
         setAdminChanged(false);
       }
     })();
-  }, [adminChanged]);
+  }, [adminChanged, commitSessionUser]);
 
   // Refresh user data from backend
   const refreshMe = useCallback(async () => {
@@ -249,8 +323,7 @@ export default function App() {
     if (!token) return;
     try {
       const { user } = await getMe(token);
-      setMe(user);
-      setUser(user);
+      commitSessionUser(user);
       return user;
     } catch (err) {
     }
@@ -386,7 +459,7 @@ export default function App() {
     });
 
     socket.on("users:update", (users) => {
-      const newUsers = users ?? [];
+      const newUsers = (users ?? []).map((u) => normalizeUser(u));
       const prevIds = new Set(prevOnlineUsersRef.current.map((u) => u.id));
       const friendsSet = new Set(friends.map((f) => f.id));
 
@@ -408,15 +481,19 @@ export default function App() {
       setOnlineUsers(newUsers);
     });
 
-    socket.on("friend:list", (list) => setFriends(list ?? []));
-    socket.on("friend:requests", (list) => setFriendRequests(list ?? []));
+    socket.on("friend:list", (list) => setFriends((list ?? []).map((u) => normalizeUser(u))));
+    socket.on("friend:requests", (list) => setFriendRequests((list ?? []).map((u) => normalizeUser(u))));
     socket.on("friend:request:incoming", ({ from }) => {
       if (!from) return;
-      setFriendRequests((prev) => prev.some((req) => req.id === from.id) ? prev : [...prev, from]);
+      const normalized = normalizeUser(from);
+      setFriendRequests((prev) => prev.some((req) => req.id === normalized.id) ? prev : [...prev, normalized]);
       // Notification for incoming friend request
       notificationService.friendRequest({ from: from.username, fromId: from.id });
     });
     socket.on("friend:accepted", () => { socket.emit("friend:list"); });
+    socket.on("user:profile:updated", ({ user }) => {
+      if (user) applyProfileUpdate(user);
+    });
     socket.on("friend:error", ({ message } = {}) => {
       setFriendNotice(message || "Friend action failed.");
       setTimeout(() => setFriendNotice(""), 4000);
@@ -487,13 +564,17 @@ export default function App() {
     // Group messages listener
     socket.on("group:message", ({ groupId, message, tempId }) => {
       if (!groupId || !message) return;
+      const sender = normalizeUser(message.sender || {
+        id: message.sender_id,
+        username: message.sender?.username || "Unknown",
+        avatar_url: message.sender?.avatar_url,
+        updated_at: message.sender?.updated_at,
+      });
       const normalized = {
         id: message.id,
-        from: {
-          id: message.sender?.id || message.sender_id,
-          username: message.sender?.username || "Unknown",
-          avatarUrl: message.sender?.avatar_url,
-        },
+        from: sender,
+        username: sender?.username || "Unknown",
+        avatarUrl: sender?.avatarUrl,
         text: message.content || "",
         timestamp: message.created_at || new Date().toISOString(),
         mediaUrl: message.media_url,
@@ -725,8 +806,7 @@ export default function App() {
       const data = await login(payload);
       transportFallbackStepRef.current = 0;
       setToken(data.token);
-      setUser(data.user);
-      setMe(data.user);
+      commitSessionUser(data.user);
     } catch (error) {
       setAuthError(error.message);
       throw error;
@@ -797,16 +877,7 @@ export default function App() {
       getGroupMessages(grp.id)
         .then((res) => {
           const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
-          const normalized = msgs.map((m) => ({
-            id: m.id,
-            from: { id: m.sender?.id || m.sender_id, username: m.sender?.username || "Unknown", avatarUrl: m.sender?.avatar_url },
-            text: m.content || "",
-            timestamp: m.created_at || new Date().toISOString(),
-            mediaUrl: m.media_url,
-            mediaType: m.media_type,
-            originalName: m.original_name,
-            size: m.file_size,
-          }));
+          const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
           setGroupMessagesById((prev) => ({ ...prev, [grp.id]: normalized }));
         })
         .catch(console.error);
@@ -867,20 +938,7 @@ export default function App() {
             };
           }
           
-          return {
-            id: m.id,
-            from: {
-              id: m.sender?.id || m.sender_id,
-              username: m.sender?.username || "Unknown",
-              avatarUrl: m.sender?.avatar_url,
-            },
-            text: m.content || "",
-            timestamp: m.created_at || new Date().toISOString(),
-            mediaUrl: m.media_url,
-            mediaType: m.media_type,
-            originalName: m.original_name,
-            size: m.file_size,
-          };
+          return normalizeGroupMessage(m);
         }).filter(Boolean);
         setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
       })
@@ -1108,6 +1166,7 @@ export default function App() {
           me={me}
           socket={socketApi}
           onLogout={handleLogout}
+          onProfileUpdated={applyProfileUpdate}
           activeDmUser={activeDmUser}
           activeGroup={activeGroup}
           groups={myGroups}
@@ -1181,7 +1240,7 @@ export default function App() {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
               const optimistic = {
                 id: tempId,
-                from: { id: me?.id, username: me?.username, avatarUrl: me?.avatar_url },
+                from: normalizeUser({ id: me?.id, username: me?.username, avatarUrl: me?.avatarUrl, updated_at: me?.updated_at }),
                 text: isMediaObject ? "" : msg,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
                 mediaType: isMediaObject ? msg.mediaType : undefined,

@@ -2,6 +2,14 @@
 
 const supabase = require("../db/supabase");
 const {
+  loadUserProfile,
+  cacheUserProfile,
+  broadcastUserProfileUpdate,
+  enrichFriendEntry,
+  toPublicUser,
+  getCachedPublicUser,
+} = require("../lib/userProfile");
+const {
   presence,
   socketToUser,
   friends,
@@ -71,9 +79,38 @@ function pushNotification(io, userId, n) {
 function broadcastUsers(io) {
   const list = [];
   for (const [id, p] of presence) {
-    list.push({ id, username: p.username, status: p.status || "online" });
+    const cached = getCachedPublicUser(id);
+    list.push({
+      id,
+      username: cached?.username || p.username,
+      status: p.status || "online",
+      avatarUrl: cached?.avatarUrl || p.avatar_url || null,
+      avatar_url: cached?.avatarUrl || p.avatar_url || null,
+      avatarVersion: cached?.avatarVersion || cached?.updated_at || null,
+      updated_at: cached?.updated_at || null,
+    });
   }
   io.emit("users:update", list);
+}
+
+function messageSender(userId, fallbackUsername, fallbackAvatar) {
+  const cached = getCachedPublicUser(userId);
+  if (cached) {
+    return {
+      id: userId,
+      username: cached.username,
+      avatarUrl: cached.avatarUrl,
+      avatar_url: cached.avatarUrl,
+      avatarVersion: cached.avatarVersion,
+      updated_at: cached.updated_at,
+    };
+  }
+  return {
+    id: userId,
+    username: fallbackUsername,
+    avatarUrl: fallbackAvatar || null,
+    avatar_url: fallbackAvatar || null,
+  };
 }
 
 function getSocketForUser(io, userId) {
@@ -87,15 +124,7 @@ function getFriendList(userId) {
   if (!set) return [];
   const out = [];
   for (const fid of set) {
-    const p = presence.get(fid);
-    const lastSeen = lastSeenByUserId.get(fid) || null;
-    const uname = usernameById.get(fid) || p?.username || "?";
-    out.push({
-      id: fid,
-      username: uname,
-      status: p ? p.status || "online" : "offline",
-      lastSeen: p ? null : lastSeen,
-    });
+    out.push(enrichFriendEntry(fid));
   }
   return out.sort((a, b) => a.username.localeCompare(b.username));
 }
@@ -103,7 +132,7 @@ function getFriendList(userId) {
 function getPendingList(userId) {
   const m = pendingRequests.get(userId);
   if (!m) return [];
-  return Array.from(m.values());
+  return Array.from(m.keys()).map((id) => enrichFriendEntry(id));
 }
 
 function emitToUser(io, userId, event, payload) {
@@ -167,7 +196,7 @@ async function loadFriendsFromDB(userId) {
     // Batch-fetch usernames
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, username")
+      .select("id, username, avatar_url, display_name, updated_at")
       .in("id", friendIds);
 
     if (usersError) console.error("[FRIENDS] loadFriendsFromDB users fetch error:", usersError);
@@ -176,6 +205,7 @@ async function loadFriendsFromDB(userId) {
     for (const u of (users || [])) {
       friendSet.add(u.id);
       usernameById.set(u.id, u.username);
+      cacheUserProfile(u);
     }
 
     friends.set(userId, friendSet);
@@ -206,7 +236,7 @@ async function loadPendingRequestsFromDB(userId) {
     const senderIds = rows.map((r) => r.user_id);
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, username")
+      .select("id, username, avatar_url, display_name, updated_at")
       .in("id", senderIds);
 
     if (usersError) {
@@ -217,8 +247,13 @@ async function loadPendingRequestsFromDB(userId) {
     const pending = ensurePending(userId);
     for (const u of (users || [])) {
       if (!pending.has(u.id)) {
-        pending.set(u.id, { id: u.id, username: u.username });
+        pending.set(u.id, {
+          id: u.id,
+          username: u.username,
+          avatarUrl: u.avatar_url || null,
+        });
         usernameById.set(u.id, u.username);
+        cacheUserProfile(u);
       }
     }
   } catch (e) {
@@ -288,24 +323,17 @@ function registerSocketHandlers(io) {
     socketToUser.set(socket.id, myId);
     socket.data.activeDmPeer = null;
 
-    // Load avatar from DB for voice/call UI
-    supabase
-      .from("users")
-      .select("avatar_url")
-      .eq("id", myId)
-      .single()
-      .then(({ data }) => {
-        if (data?.avatar_url) {
-          me.avatar_url = data.avatar_url;
-          socket.user.avatar_url = data.avatar_url;
-          const p = presence.get(myId);
-          if (p) {
-            p.avatar_url = data.avatar_url;
-            presence.set(myId, p);
-          }
-        }
-      })
-      .catch(() => {});
+    // Load full profile from DB (avatar, display name, etc.)
+    loadUserProfile(myId).then((profile) => {
+      if (!profile) return;
+      me.avatar_url = profile.avatar_url;
+      socket.user.avatar_url = profile.avatar_url;
+      const p = presence.get(myId);
+      if (p) {
+        p.avatar_url = profile.avatar_url;
+        presence.set(myId, p);
+      }
+    }).catch(() => {});
 
     setupAdminSocket(io, socket);
 
@@ -369,7 +397,7 @@ function registerSocketHandlers(io) {
         theirPending.set(myId, { id: myId, username: me.username });
         usernameById.set(myId, me.username);
         emitToUser(io, target.id, "friend:request:incoming", {
-          from: { id: myId, username: me.username },
+          from: enrichFriendEntry(myId),
         });
         pushNotification(io, target.id, {
           type: "friend_request",
@@ -550,9 +578,10 @@ function registerSocketHandlers(io) {
       socket.data.activeDmPeer = toUserId;
       const messageId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const arr = dmHistory.get(convKey(myId, toUserId)) || [];
+      const sender = messageSender(myId, me.username, me.avatar_url || socket.user?.avatar_url);
       arr.push({
         id: messageId,
-        from: { id: myId, username: me.username },
+        from: sender,
         to: { id: toUserId },
         text: text || "",
         mediaUrl,
@@ -568,7 +597,7 @@ function registerSocketHandlers(io) {
       unreadMap.set(myId, (unreadMap.get(myId) || 0) + 1);
       const messagePayload = {
         id: messageId,
-        from: { id: myId, username: me.username },
+        from: sender,
         text,
         mediaUrl,
         mediaType,

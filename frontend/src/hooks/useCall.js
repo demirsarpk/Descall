@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { patchUserAvatar } from "../lib/userProfile";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
 
@@ -414,12 +415,19 @@ export function useCall(socket) {
       }
     };
 
+    const onProfileUpdated = ({ user } = {}) => {
+      if (!user?.id) return;
+      setPeer((prev) => (prev?.id === user.id ? patchUserAvatar(prev, user.avatarUrl || user.avatar_url, user.avatarVersion || user.updated_at) : prev));
+    };
+
     socket.on('call:offer', onOffer);
     socket.on('call:answer', onAnswer);
     socket.on('call:ice-candidate', onIce);
     socket.on('call:ended', onEnded);
     socket.on('call:declined', onEnded);
     socket.on('call:cancelled', onCancelled);
+
+    socket.on('user:profile:updated', onProfileUpdated);
 
     return () => {
       socket.off('call:offer', onOffer);
@@ -428,6 +436,7 @@ export function useCall(socket) {
       socket.off('call:ended', onEnded);
       socket.off('call:declined', onEnded);
       socket.off('call:cancelled', onCancelled);
+      socket.off('user:profile:updated', onProfileUpdated);
     };
   }, [socket, cleanup]);
 

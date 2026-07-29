@@ -5,8 +5,9 @@ const { signToken } = require("../config/jwt");
 const { requireAuth } = require("../middleware/auth");
 const { userLastLoginAt } = require("../runtime/sharedState");
 
-const router = express.Router();
+const { toPublicUser } = require("../lib/userProfile");
 
+const router = express.Router();
 const BCRYPT_ROUNDS = 12;
 
 function validateUsername(username) {
@@ -141,7 +142,7 @@ router.get("/me", requireAuth, async (req, res) => {
   try {
     const { data: user, error } = await supabase
       .from("users")
-      .select("id, username, avatar_url, is_admin")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at")
       .eq("id", req.user.id)
       .single();
     
@@ -149,7 +150,7 @@ router.get("/me", requireAuth, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
     
-    return res.status(200).json({ user });
+    return res.status(200).json({ user: toPublicUser(user) });
   } catch (err) {
     console.error("[AUTH] /me error:", err);
     return res.status(500).json({ error: "Internal server error" });

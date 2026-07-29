@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
+import { patchUserAvatar } from "../lib/userProfile";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -1319,6 +1320,19 @@ export function useGroupCall(socket) {
       }
     };
 
+    const onProfileUpdated = ({ user } = {}) => {
+      if (!user?.id) return;
+      const avatarUrl = user.avatarUrl || user.avatar_url;
+      const avatarVersion = user.avatarVersion || user.updated_at;
+      setParticipants((prev) => prev.map((p) =>
+        p.id === user.id ? patchUserAvatar(p, avatarUrl, avatarVersion) : p
+      ));
+      setIncomingCall((prev) => {
+        if (!prev?.fromUser || prev.fromUser.id !== user.id) return prev;
+        return { ...prev, fromUser: patchUserAvatar(prev.fromUser, avatarUrl, avatarVersion) };
+      });
+    };
+
     socket.on("group:call:incoming", onIncoming);
     socket.on("group:call:accepted", onAccept);
     socket.on("group:call:answer", onAnswer);
@@ -1336,6 +1350,7 @@ export function useGroupCall(socket) {
     socket.on("group:call:active-banner", onActiveBanner);
     socket.on("group:call:banner-update", onBannerUpdate);
     socket.on("group:call:participants", onParticipants);
+    socket.on("user:profile:updated", onProfileUpdated);
 
     return () => {
       socket.off("group:call:incoming", onIncoming);
@@ -1355,6 +1370,7 @@ export function useGroupCall(socket) {
       socket.off("group:call:active-banner", onActiveBanner);
       socket.off("group:call:banner-update", onBannerUpdate);
       socket.off("group:call:participants", onParticipants);
+      socket.off("user:profile:updated", onProfileUpdated);
     };
   }, [socket, activeGroupId, isInCall, callType, cleanup, setupPeerConnection]);
 

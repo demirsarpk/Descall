@@ -30,6 +30,7 @@ const supabase = require("./db/supabase");
 // Socket
 const { socketAuthMiddleware } = require("./middleware/socketAuth");
 const { registerSocketHandlers } = require("./socket/handlers");
+const { cacheUserProfile, broadcastUserProfileUpdate, toPublicUser } = require("./lib/userProfile");
 const { registerActivityHandlers } = require("./socket/activityHandlers");
 const { registerGuildHandlers } = require("./socket/guildHandlers");
 const { registerGameHandlers } = require("./socket/gameHandlers");
@@ -314,6 +315,9 @@ app.put("/api/user/profile", requireAuth, async (req, res) => {
     if (bubbleStyle !== undefined) updateData.bubble_style = bubbleStyle;
     if (avatarUrl !== undefined) updateData.avatar_url = avatarUrl;
     if (bannerUrl !== undefined) updateData.banner_url = bannerUrl;
+    if (avatarUrl !== undefined || displayName !== undefined || bio !== undefined || customStatus !== undefined) {
+      updateData.updated_at = new Date().toISOString();
+    }
     
     const { data, error } = await supabase
       .from("users")
@@ -323,8 +327,12 @@ app.put("/api/user/profile", requireAuth, async (req, res) => {
       .single();
     
     if (error) return res.status(500).json({ success: false, error: error.message });
-    
-    return res.json({ success: true, user: data });
+
+    cacheUserProfile(data);
+    const io = req.app.get("io");
+    if (io) await broadcastUserProfileUpdate(io, req.user.id);
+
+    return res.json({ success: true, user: toPublicUser(cacheUserProfile(data)) });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }

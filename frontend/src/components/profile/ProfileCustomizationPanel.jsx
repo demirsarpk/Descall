@@ -1,5 +1,4 @@
-import { useState, useRef } from "react";
-import { getToken } from "../../lib/storage";
+import { Avatar } from "../ui/Avatar";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Palette,
@@ -488,13 +487,7 @@ export default function ProfileCustomizationPanel({
                   <label>Profile Photo</label>
                   <div className="profile-photo-section">
                     <div className="profile-photo-preview">
-                      {me?.avatar_url ? (
-                        <img src={me.avatar_url} alt="Profile" />
-                      ) : (
-                        <div className="profile-photo-placeholder">
-                          {me?.username?.charAt(0).toUpperCase() || "U"}
-                        </div>
-                      )}
+                      <Avatar name={me?.username || "User"} size={80} user={me} />
                     </div>
                     <button
                       className="upload-btn"

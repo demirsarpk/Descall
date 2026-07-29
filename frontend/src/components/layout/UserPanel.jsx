@@ -8,8 +8,9 @@ import {
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
-import { getToken } from "../../lib/storage";
+import { getToken, setUser } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
+import { normalizeUser } from "../../lib/userProfile";
 
 /* ─── Helpers ─── */
 const loadSettings = () => {
@@ -21,7 +22,7 @@ const saveSettings = (obj) => {
   localStorage.setItem("descall_user_settings", JSON.stringify(obj));
 };
 
-export default function UserPanel({ me, onClose, onLogout }) {
+export default function UserPanel({ me, onClose, onLogout, onProfileUpdated }) {
   const [activeTab, setActiveTab] = useState("overview");
   const stored = loadSettings();
 
@@ -29,8 +30,8 @@ export default function UserPanel({ me, onClose, onLogout }) {
   const [displayName, setDisplayName] = useState(me?.displayName || me?.username || "");
   const [bio, setBio] = useState(me?.bio || "");
   const [customStatus, setCustomStatus] = useState(me?.customStatus || "");
-  const [avatarUrl, setAvatarUrl] = useState(me?.avatarUrl || "");
-  const [bannerUrl, setBannerUrl] = useState(me?.bannerUrl || "");
+  const [avatarUrl, setAvatarUrl] = useState(me?.avatarUrl || me?.avatar_url || "");
+  const [bannerUrl, setBannerUrl] = useState(me?.bannerUrl || me?.banner_url || "");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState("");
@@ -128,7 +129,24 @@ export default function UserPanel({ me, onClose, onLogout }) {
 
   useEffect(() => () => stopMicTest(), [stopMicTest]);
 
+  useEffect(() => {
+    if (!me) return;
+    setDisplayName(me.displayName || me.display_name || me.username || "");
+    setBio(me.bio || "");
+    setCustomStatus(me.customStatus || me.custom_status || "");
+    setAvatarUrl(me.avatarUrl || me.avatar_url || "");
+    setBannerUrl(me.bannerUrl || me.banner_url || "");
+  }, [me?.id, me?.avatarUrl, me?.avatar_url, me?.updated_at]);
+
   /* Profile save */
+  const applyProfileLocally = (user) => {
+    const normalized = normalizeUser(user);
+    if (!normalized) return;
+    setUser(normalized);
+    onProfileUpdated?.(normalized);
+    return normalized;
+  };
+
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     setProfileError("");
@@ -140,6 +158,17 @@ export default function UserPanel({ me, onClose, onLogout }) {
         body: JSON.stringify({ displayName, bio, customStatus, avatarUrl, bannerUrl }),
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const updated = applyProfileLocally(data.user || {
+          ...me,
+          displayName,
+          bio,
+          customStatus,
+          avatarUrl,
+          bannerUrl,
+          updated_at: new Date().toISOString(),
+        });
+        if (updated?.avatarUrl) setAvatarUrl(updated.avatarUrl);
         setProfileSaved(true);
         setTimeout(() => setProfileSaved(false), 2000);
       } else {
@@ -163,17 +192,26 @@ export default function UserPanel({ me, onClose, onLogout }) {
     setAvatarUploading(true);
     setProfileError("");
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("avatar", file);
     try {
       const token = getToken();
-      const res = await fetch(`${API_BASE_URL}/api/media/upload`, {
+      const res = await fetch(`${API_BASE_URL}/api/media/avatar`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       const data = await res.json();
-      if (data.url) {
-        setAvatarUrl(data.url);
+      if (data.avatarUrl) {
+        setAvatarUrl(data.avatarUrl);
+        if (data.user) {
+          applyProfileLocally(data.user);
+        } else {
+          applyProfileLocally({
+            ...me,
+            avatarUrl: data.avatarUrl,
+            updated_at: new Date().toISOString(),
+          });
+        }
       } else {
         setProfileError(data.error || "Upload failed");
         setTimeout(() => setProfileError(""), 3000);
@@ -241,7 +279,7 @@ export default function UserPanel({ me, onClose, onLogout }) {
       <div className="profile-card">
         <div className="profile-banner" style={bannerUrl ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}} />
         <div className="profile-avatar-wrapper">
-          <Avatar name={me?.username || "User"} size={72} imageUrl={avatarUrl || me?.avatarUrl} />
+          <Avatar name={me?.username || "User"} size={72} user={{ ...me, avatarUrl: avatarUrl || me?.avatarUrl }} />
           <div className="profile-status-ring">
             <StatusBadge status="online" />
           </div>
@@ -324,7 +362,7 @@ export default function UserPanel({ me, onClose, onLogout }) {
                     onClick={() => !avatarUploading && fileInputRef.current?.click()}
                     title="Click to change photo"
                   >
-                    <Avatar name={me?.username || "User"} size={64} imageUrl={avatarUrl || me?.avatarUrl} />
+                    <Avatar name={me?.username || "User"} size={64} user={{ ...me, avatarUrl: avatarUrl || me?.avatarUrl }} />
                     <div className="avatar-picker-overlay">
                       {avatarUploading ? (
                         <motion.div
