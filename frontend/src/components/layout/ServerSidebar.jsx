@@ -52,6 +52,7 @@ export default function ServerSidebar({
   friendRequests,
   onAcceptFriend,
   onDeclineFriend,
+  onMobileClose,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
@@ -220,6 +221,11 @@ export default function ServerSidebar({
             {activeView === "calls" && "Calls"}
           </h2>
           <div className="sidebar-actions">
+            {onMobileClose && (
+              <button type="button" className="icon-btn mobile-sidebar-close" onClick={onMobileClose} title="Close">
+                <X size={18} />
+              </button>
+            )}
             <button
               className="icon-btn"
               title="Refresh"
