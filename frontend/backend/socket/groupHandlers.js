@@ -201,7 +201,7 @@ function registerGroupHandlers(io, socket, state) {
   });
 
   // Start group call
-  socket.on("group:call:start", ({ groupId, callType, memberIds = [] }) => {
+  socket.on("group:call:start", async ({ groupId, callType, memberIds = [] } = {}) => {
     if (!groupId || !callType) {
       appendErrorLog("group:call:start", "Missing required parameters", { groupId, callType }, myId, socket.user?.username);
       return;
@@ -223,8 +223,29 @@ function registerGroupHandlers(io, socket, state) {
 
     console.log(`[GroupCall] ${myId} started ${callType} call in group ${groupId}`);
 
+    // Resolve targets: client memberIds, else DB group_members (never rely only on room).
+    let targets = Array.isArray(memberIds)
+      ? [...new Set(memberIds)].filter((id) => id && id !== myId)
+      : [];
+    if (targets.length === 0) {
+      try {
+        const { data: rows, error } = await supabase
+          .from("group_members")
+          .select("user_id")
+          .eq("group_id", groupId);
+        if (error) {
+          console.error("[GroupCall] member lookup failed:", error.message);
+        } else {
+          targets = (rows || [])
+            .map((r) => r.user_id)
+            .filter((id) => id && id !== myId);
+        }
+      } catch (err) {
+        console.error("[GroupCall] member lookup error:", err);
+      }
+    }
+
     // Persist call start to DB
-    let dbCallId = null;
     supabase
       .from("group_calls")
       .insert({ group_id: groupId, started_by: myId, call_type: callType, status: "active" })
@@ -233,11 +254,10 @@ function registerGroupHandlers(io, socket, state) {
       .then(({ data, error }) => {
         if (error) console.error("[GroupCall] DB insert error:", error.message);
         else {
-          dbCallId = data.id;
           const call = activeGroupCalls.get(groupId);
-          if (call) call.dbCallId = dbCallId;
+          if (call) call.dbCallId = data.id;
           // Insert initiator as first participant
-          supabase.from("group_call_participants").insert({ call_id: dbCallId, user_id: myId }).then(() => {});
+          supabase.from("group_call_participants").insert({ call_id: data.id, user_id: myId }).then(() => {});
         }
       });
 
@@ -262,30 +282,22 @@ function registerGroupHandlers(io, socket, state) {
       callType,
     };
 
-    // Prefer direct user-targeted delivery (DM call style reliability).
-    if (Array.isArray(memberIds) && memberIds.length > 0) {
-      const uniqueTargets = [...new Set(memberIds)].filter((id) => id && id !== myId);
-      uniqueTargets.forEach((targetUserId) => {
-        io.to(`user:${targetUserId}`).emit("group:call:incoming", payload);
-      });
-      
-      // Also broadcast to the group room for participant sync
-      io.to(`group:${groupId}`).emit("group:call:started", {
-        groupId,
-        fromUserId: myId,
-        fromUser: {
-          id: myId,
-          username: socket.user.username,
-          avatar_url: socket.user.avatar_url,
-        },
-        callType,
-      });
-      
-      return;
-    }
-
-    // Fallback room broadcast if member list is not available.
+    // Dual delivery: per-user rooms (online members) + group room (open chats).
+    targets.forEach((targetUserId) => {
+      io.to(`user:${targetUserId}`).emit("group:call:incoming", payload);
+    });
     socket.to(`group:${groupId}`).emit("group:call:incoming", payload);
+
+    io.to(`group:${groupId}`).emit("group:call:started", {
+      groupId,
+      fromUserId: myId,
+      fromUser: {
+        id: myId,
+        username: socket.user.username,
+        avatar_url: socket.user.avatar_url,
+      },
+      callType,
+    });
   });
 
   // Accept call and send offer

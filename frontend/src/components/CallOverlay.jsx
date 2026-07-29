@@ -88,6 +88,115 @@ export default function CallOverlay({ call, groupCall, me }) {
       : "Voice call"
     : `${(groupCall.participants?.filter((p) => p.id !== me?.id).length ?? 0) + 1} participants`;
 
+  /* ---------- Incoming DM: floating accept/decline popup ---------- */
+  if (isDm && mode === "incoming") {
+    return (
+      <AnimatePresence>
+        <motion.div
+          key="dm-incoming-call"
+          initial={{ opacity: 0, y: -80, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -80, scale: 0.92 }}
+          transition={{ type: "spring", damping: 22, stiffness: 260 }}
+          style={{
+            position: "fixed",
+            top: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 10000,
+            background: "linear-gradient(135deg, #1e1f23 0%, #2b2d33 100%)",
+            borderRadius: 18,
+            padding: "20px 24px",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.07)",
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            minWidth: 340,
+            maxWidth: 420,
+          }}
+        >
+          <motion.div
+            animate={{ scale: [1, 1.08, 1] }}
+            transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: callType === "video" ? "#5865f2" : "#3ba55d",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            {callType === "video" ? <Video size={24} color="#fff" /> : <Phone size={24} color="#fff" />}
+          </motion.div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: "#b5bac1", marginBottom: 2 }}>
+              {callType === "video" ? "Incoming video call" : "Incoming voice call"}
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#fff",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {peer?.username || "Someone"} is calling
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => call.declineIncoming?.()}
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: "50%",
+                background: "#ed4245",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+              title="Decline"
+            >
+              <PhoneOff size={20} />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => call.acceptIncoming?.()}
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: "50%",
+                background: "#3ba55d",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+              title="Accept"
+            >
+              <Phone size={20} />
+            </motion.button>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
   /* ---------- Minimized widget ---------- */
   if (minimized) {
     return (

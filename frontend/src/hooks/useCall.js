@@ -335,18 +335,20 @@ export function useCall(socket) {
       }
     };
 
-    // Handle renegotiation for both initiator and responder
+    // Handle renegotiation for screen/camera changes after call is active.
+    // Skip while dialing — startCall already sends the initial offer; a second
+    // offer from negotiationneeded can race and confuse the callee popup.
     pc.onnegotiationneeded = async () => {
       try {
+        if (modeRef.current !== "active") return;
+        if (!peerRef.current?.id || !socket?.connected) return;
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        if (peerRef.current?.id && socket?.connected) {
-          socket.emit("call:offer", {
-            toUserId: peerRef.current.id,
-            offer: pc.localDescription,
-            callType: callType || "voice",
-          });
-        }
+        socket.emit("call:offer", {
+          toUserId: peerRef.current.id,
+          offer: pc.localDescription,
+          callType: callType || "voice",
+        });
       } catch { /* ignore */ }
     };
   }, [socket, callType]);
@@ -369,6 +371,22 @@ export function useCall(socket) {
           socket.emit("call:answer", { toUserId: fromUser.id, answer: pc.localDescription });
           await flushIce(pc);
         } catch (err) { console.error("[WebRTC] Renegotiation failed:", err); }
+        return;
+      }
+
+      // Already ringing / dialing this peer → refresh SDP, keep popup
+      if (
+        peerRef.current?.id === fromUser.id &&
+        (modeRef.current === "incoming" || modeRef.current === "outgoing")
+      ) {
+        incomingOfferRef.current = offer;
+        if (incomingType) incomingCallTypeRef.current = incomingType;
+        return;
+      }
+
+      // Busy with another call — do not steal the UI
+      if (modeRef.current === "active" || modeRef.current === "outgoing" || modeRef.current === "incoming") {
+        socket.emit("call:decline", { toUserId: fromUser.id });
         return;
       }
       
@@ -411,12 +429,21 @@ export function useCall(socket) {
       }
     };
 
+    const onUnreachable = ({ toUserId } = {}) => {
+      if (!toUserId || peerRef.current?.id !== toUserId) return;
+      if (modeRef.current === "outgoing") {
+        audioManager.stop("outgoingCall");
+        cleanup();
+      }
+    };
+
     socket.on('call:offer', onOffer);
     socket.on('call:answer', onAnswer);
     socket.on('call:ice-candidate', onIce);
     socket.on('call:ended', onEnded);
     socket.on('call:declined', onEnded);
     socket.on('call:cancelled', onCancelled);
+    socket.on('call:unreachable', onUnreachable);
 
     return () => {
       socket.off('call:offer', onOffer);
@@ -425,6 +452,7 @@ export function useCall(socket) {
       socket.off('call:ended', onEnded);
       socket.off('call:declined', onEnded);
       socket.off('call:cancelled', onCancelled);
+      socket.off('call:unreachable', onUnreachable);
     };
   }, [socket, cleanup]);
 

@@ -107,9 +107,19 @@ function getPendingList(userId) {
 }
 
 function emitToUser(io, userId, event, payload) {
+  if (!userId) return;
+  // Prefer durable per-user room so call invites survive presence-map races
+  // and multi-tab sessions (socket always joins `user:${id}` on connect).
+  const room = `user:${userId}`;
+  const roomSet = io.sockets?.adapter?.rooms?.get(room);
+  if (roomSet && roomSet.size > 0) {
+    io.to(room).emit(event, payload);
+    return;
+  }
   const p = presence.get(userId);
-  if (!p?.socketId) return;
-  io.to(p.socketId).emit(event, payload);
+  if (p?.socketId) {
+    io.to(p.socketId).emit(event, payload);
+  }
 }
 
 function buildSyncState(userId) {
@@ -651,6 +661,13 @@ function registerSocketHandlers(io) {
 
     socket.on("call:offer", ({ toUserId, offer, callType } = {}) => {
       if (typeof toUserId !== "string" || !offer) return;
+      const room = io.sockets?.adapter?.rooms?.get(`user:${toUserId}`);
+      const presenceHit = Boolean(presence.get(toUserId)?.socketId);
+      if ((!room || room.size === 0) && !presenceHit) {
+        console.warn(`[Call] offer dropped — callee offline: ${toUserId}`);
+        socket.emit("call:unreachable", { toUserId });
+        return;
+      }
       emitToUser(io, toUserId, "call:offer", {
         fromUser: { id: myId, username: me.username },
         offer,
@@ -927,12 +944,33 @@ function registerSocketHandlers(io) {
     });
 
     socket.on("disconnect", () => {
+      socketToUser.delete(socket.id);
+
+      // Keep presence if another tab/socket for this user is still connected.
+      // (Socket.IO has already removed this socket from rooms by disconnect time.)
+      const remaining = io.sockets?.adapter?.rooms?.get(`user:${myId}`);
+      if (remaining && remaining.size > 0) {
+        const nextSocketId = remaining.values().next().value;
+        const prev = presence.get(myId);
+        if (prev) {
+          presence.set(myId, { ...prev, socketId: nextSocketId, status: prev.status || "online" });
+        } else {
+          presence.set(myId, {
+            username: me.username,
+            status: "online",
+            socketId: nextSocketId,
+          });
+        }
+        broadcastUsers(io);
+        notifyAdminRoom(io, { type: "presence", online: presence.size });
+        return;
+      }
+
       const sessStart = userSessionStartMs.get(myId);
       if (sessStart) {
         userOnlineAccumMs.set(myId, (userOnlineAccumMs.get(myId) || 0) + (Date.now() - sessStart));
       }
       userSessionStartMs.delete(myId);
-      socketToUser.delete(socket.id);
       const p = presence.get(myId);
       if (p?.username) usernameById.set(myId, p.username);
       lastSeenByUserId.set(myId, new Date().toISOString());

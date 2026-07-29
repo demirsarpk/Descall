@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
+import { getUser } from "../lib/storage";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -131,7 +132,7 @@ const ICE_SERVERS = [
  * Group Call Hook - Simplified multi-peer WebRTC
  * Based on working DM call (useCall.js) with Map for multiple peers
  */
-export function useGroupCall(socket) {
+export function useGroupCall(socket, currentUserId = null) {
   const [isInCall, setIsInCall] = useState(false);
   const [isInitiator, setIsInitiator] = useState(false);
   const [callType, setCallType] = useState(null);
@@ -170,8 +171,28 @@ export function useGroupCall(socket) {
   const myIdRef = useRef(null);
   const timerRef = useRef(null);
   const screenSenderRef = useRef(null);
+  const isInCallRef = useRef(false);
+  const callTypeRef = useRef(null);
+  const incomingDedupeRef = useRef(new Map()); // groupId -> ts
 
   useEffect(() => { socketRef.current = socket; }, [socket]);
+
+  useEffect(() => {
+    isInCallRef.current = isInCall;
+  }, [isInCall]);
+
+  useEffect(() => {
+    callTypeRef.current = callType;
+  }, [callType]);
+
+  useEffect(() => {
+    if (currentUserId) {
+      myIdRef.current = currentUserId;
+      return;
+    }
+    const stored = getUser()?.id;
+    if (stored) myIdRef.current = stored;
+  }, [currentUserId]);
 
   // Cleanup on unmount - prevent resource leaks
   useEffect(() => {
@@ -568,7 +589,7 @@ export function useGroupCall(socket) {
       setActiveCallBanner({
         groupId,
         initiatorId: myIdRef.current,
-        initiatorUsername: socketRef.current?.user?.username || "You",
+        initiatorUsername: getUser()?.username || socketRef.current?.user?.username || "You",
         callType: type,
         participantCount: 1,
         participants: [myIdRef.current],
@@ -907,20 +928,39 @@ export function useGroupCall(socket) {
 
   useEffect(() => {
     if (!socket) return;
-    
-    const myId = socket.user?.id;
-    myIdRef.current = myId;
 
-    const onIncoming = ({ groupId, fromUser, callType: type, groupName }) => {
-      if (!groupId || !fromUser?.id || fromUser.id === myId) return;
-      if (isInCall) {
+    const onIncoming = ({ groupId, fromUser, callType: type, groupName } = {}) => {
+      const myId = myIdRef.current;
+      if (!groupId || !fromUser?.id) return;
+      if (myId && fromUser.id === myId) return;
+
+      // Deduplicate dual delivery (user room + group room)
+      const now = Date.now();
+      const prevAt = incomingDedupeRef.current.get(groupId) || 0;
+      if (now - prevAt < 2500) return;
+      incomingDedupeRef.current.set(groupId, now);
+
+      if (isInCallRef.current) {
         socket.emit("group:call:busy", { groupId, toUserId: fromUser.id });
         return;
       }
-      setIncomingCall({ groupId, fromUser, callType: type });
+
+      setIncomingCall({ groupId, fromUser, callType: type || "voice" });
       audioManager.play("incomingCall", { loop: true });
       notificationService.groupCall({ groupName: groupName || "Grup", from: fromUser.username });
     };
+
+    socket.on("group:call:incoming", onIncoming);
+    return () => {
+      socket.off("group:call:incoming", onIncoming);
+    };
+  }, [socket]);
+
+  useEffect(() => {
+    if (!socket) return;
+    
+    const myId = myIdRef.current || currentUserId || getUser()?.id || null;
+    if (myId) myIdRef.current = myId;
 
     const onAccept = async ({ groupId, fromUserId, fromUser }) => {
       if (!fromUserId) return;
@@ -941,7 +981,7 @@ export function useGroupCall(socket) {
           id: fromUserId,
           username: fromUser?.username || fromUser?.displayName || "Member",
           avatarUrl: fromUser?.avatar_url,
-          hasVideo: callType === "video",
+          hasVideo: callTypeRef.current === "video",
           hasAudio: true,
         }];
       });
@@ -962,7 +1002,7 @@ export function useGroupCall(socket) {
           groupId,
           toUserId: fromUserId,
           offer: pc.localDescription,
-          callType: callType || "voice",
+          callType: callTypeRef.current || "voice",
         });
 
       } catch (err) {
@@ -971,7 +1011,7 @@ export function useGroupCall(socket) {
 
     // Handle when a new participant joins an existing call
     const onParticipantJoined = async ({ groupId, fromUserId, fromUser }) => {
-      if (!fromUserId || fromUserId === myId) return;
+      if (!fromUserId || fromUserId === myIdRef.current) return;
 
       // Update username if we already have this participant with 'Member' placeholder
       setParticipants((prev) => prev.map((p) =>
@@ -1008,7 +1048,7 @@ export function useGroupCall(socket) {
           groupId,
           toUserId: fromUserId,
           offer: pc.localDescription,
-          callType: callType || "voice",
+          callType: callTypeRef.current || "voice",
         });
 
       } catch (err) {
@@ -1236,15 +1276,15 @@ export function useGroupCall(socket) {
       });
     };
 
-    const onCallStarted = ({ groupId, fromUserId, fromUser, callType }) => {
-      if (!fromUserId || fromUserId === myId) return;
+    const onCallStarted = ({ groupId, fromUserId, fromUser, callType: startedType }) => {
+      if (!fromUserId || fromUserId === myIdRef.current) return;
       setParticipants((prev) => {
         if (prev.find((p) => p.id === fromUserId)) return prev;
         return [...prev, {
           id: fromUserId,
           username: fromUser?.username || fromUser?.displayName || "Member",
           avatarUrl: fromUser?.avatar_url,
-          hasVideo: callType === "video",
+          hasVideo: startedType === "video",
           hasAudio: true,
         }];
       });
@@ -1253,7 +1293,7 @@ export function useGroupCall(socket) {
     // Handle server telling us to join an existing call instead of starting new
     const onJoinExisting = async ({ groupId, initiatorId, callType: existingCallType, participants: existingParticipants }) => {
       
-      if (isInCall) {
+      if (isInCallRef.current) {
         return;
       }
 
@@ -1315,7 +1355,6 @@ export function useGroupCall(socket) {
       }
     };
 
-    socket.on("group:call:incoming", onIncoming);
     socket.on("group:call:accepted", onAccept);
     socket.on("group:call:answer", onAnswer);
     socket.on("group:call:ice", onIce);
@@ -1334,7 +1373,6 @@ export function useGroupCall(socket) {
     socket.on("group:call:participants", onParticipants);
 
     return () => {
-      socket.off("group:call:incoming", onIncoming);
       socket.off("group:call:accepted", onAccept);
       socket.off("group:call:answer", onAnswer);
       socket.off("group:call:ice", onIce);
@@ -1352,7 +1390,7 @@ export function useGroupCall(socket) {
       socket.off("group:call:active-banner", onActiveBanner);
       socket.off("group:call:participants", onParticipants);
     };
-  }, [socket, activeGroupId, isInCall, callType, cleanup, setupPeerConnection]);
+  }, [socket, cleanup, setupPeerConnection, currentUserId]);
 
   useEffect(() => {
     return () => cleanup();
