@@ -53,12 +53,13 @@ export default function ServerSidebar({
   onAcceptFriend,
   onDeclineFriend,
   onMobileClose,
+  isMobile = false,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
     dms: true,
     groups: true,
-    friends: true
+    friends: true,
   });
   const [internalShowAddModal, setInternalShowAddModal] = useState(false);
   const [internalAddTab, setInternalAddTab] = useState("friend");
@@ -218,6 +219,7 @@ export default function ServerSidebar({
             {activeView === "chat" && "Chats"}
             {activeView === "dms" && "Direct Messages"}
             {activeView === "groups" && "Groups"}
+            {activeView === "friends" && "Friends"}
             {activeView === "calls" && "Calls"}
           </h2>
           <div className="sidebar-actions">
@@ -405,6 +407,7 @@ export default function ServerSidebar({
               expanded={expandedSections.dms}
               onToggle={() => toggleSection("dms")}
               onDmSelect={onDmSelect}
+              isMobile={isMobile}
             />
           )}
 
@@ -418,6 +421,7 @@ export default function ServerSidebar({
               onGroupSelect={onGroupSelect}
               onGroupLeft={onGroupLeft}
               onGroupRenamed={onGroupRenamed}
+              isMobile={isMobile}
             />
           )}
 
@@ -431,6 +435,7 @@ export default function ServerSidebar({
               friendRequests={friendRequests}
               onAcceptFriend={onAcceptFriend}
               onDeclineFriend={onDeclineFriend}
+              isMobile={isMobile}
             />
           )}
         </div>
@@ -579,7 +584,27 @@ export default function ServerSidebar({
   );
 }
 
-function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect }) {
+function SidebarSectionContent({ expanded, isMobile, children }) {
+  if (!expanded) return null;
+  if (isMobile) {
+    return <div className="section-content">{children}</div>;
+  }
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ height: 0, opacity: 0 }}
+        animate={{ height: "auto", opacity: 1 }}
+        exit={{ height: 0, opacity: 0 }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        className="section-content"
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect, isMobile }) {
   const safeDms = Array.isArray(dms) ? dms : [];
   
   return (
@@ -592,16 +617,13 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
 
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="section-content"
-          >
-            {safeDms.map((dm) => {
+      <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
+            {safeDms.length === 0 ? (
+              <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
+                No conversations yet
+              </div>
+            ) : (
+            safeDms.map((dm) => {
               const isOnline = onlineUsers?.some(u => u.id === dm.id);
               const isActive = activeDmUser?.id === dm.id;
 
@@ -629,10 +651,9 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
                   </div>
                 </motion.button>
               );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
+            })
+            )}
+      </SidebarSectionContent>
     </div>
   );
 }
@@ -1081,7 +1102,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
   );
 }
 
-function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed }) {
+function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed, isMobile }) {
   const safeGroups = Array.isArray(groups) ? groups : [];
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(null);   // group object
@@ -1157,15 +1178,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </button>
 
-        <AnimatePresence>
-          {expanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="section-content"
-            >
+        <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
               {safeGroups.length === 0 ? (
                 <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
                   No groups yet
@@ -1237,9 +1250,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                   );
                 })
               )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        </SidebarSectionContent>
       </div>
 
       <AnimatePresence>
@@ -1279,7 +1290,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
   );
 }
 
-function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend }) {
+function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend, isMobile }) {
   const safeFriends = Array.isArray(friends) ? friends : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
   const pendingRequests = Array.isArray(friendRequests) ? friendRequests : [];
@@ -1310,15 +1321,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
 
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="section-content"
-          >
+      <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
             {pendingRequests.length > 0 && (
               <div className="friend-category">
                 <span className="category-label" style={{ color: "var(--warning)" }}>
@@ -1419,9 +1422,12 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                 ))}
               </div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {safeFriends.length === 0 && pendingRequests.length === 0 && (
+              <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
+                No friends yet
+              </div>
+            )}
+      </SidebarSectionContent>
     </div>
   );
 }
