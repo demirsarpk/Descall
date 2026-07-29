@@ -1,21 +1,38 @@
-services:
-  - type: web
-    name: descall
-    runtime: node
-    buildCommand: cd frontend && npm install && npm run build && cd backend && npm install
-    startCommand: cd frontend/backend && node server.js
+# Descall — Render Blueprint
+# Default URL: https://descall.onrender.com
+# If that name is already taken on Render, change `name` below to `des-call`
+# (URL becomes https://des-call.onrender.com) and update VITE_API_BASE_URL to match.
+
+envVarGroups:
+  - name: descall-secrets
     envVars:
-      - key: NODE_VERSION
-        value: 18
-      - key: PORT
-        value: 3000
-      - key: ALLOW_ALL_ORIGINS
-        value: "true"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: JWT_SECRET
         sync: false
+
+services:
+  - type: web
+    name: descall
+    runtime: node
+    region: frankfurt
+    plan: free
+    branch: main
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    buildCommand: cd frontend && npm install && npm run build:prod && cd backend && npm install
+    startCommand: cd frontend/backend && node server.js
+    envVars:
+      - fromGroup: descall-secrets
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: ALLOW_ALL_ORIGINS
+        value: "true"
       - key: VITE_API_BASE_URL
-        value: "https://descall-qzkg.onrender.com"
+        value: https://descall.onrender.com

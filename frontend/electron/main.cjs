@@ -234,7 +234,7 @@ function createMainWindow() {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           "default-src 'self'; " +
-          "connect-src 'self' https://descall-qzkg.onrender.com https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://descall-qzkg.onrender.com http://localhost:5173 https://api.github.com; " +
+          "connect-src 'self' https://descall.onrender.com https://des-call.onrender.com https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://descall.onrender.com wss://des-call.onrender.com http://localhost:5173 https://api.github.com; " +
           "img-src 'self' https://*.supabase.co https://*.supabase.in https://*.githubusercontent.com data: blob:; " +
           "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +

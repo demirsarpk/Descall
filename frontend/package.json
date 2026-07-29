@@ -8,7 +8,7 @@
   "homepage": "./",
   "scripts": {
     "dev": "vite",
-    "build": "set VITE_API_BASE_URL=https://descall-qzkg.onrender.com && vite build",
+    "build": "vite build",
     "build:prod": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
