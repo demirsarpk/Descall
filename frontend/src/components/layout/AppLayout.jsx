@@ -62,6 +62,8 @@ export default function AppLayout({
   onLeaveGuild,
   onDeleteGuild,
   onRefreshGuilds,
+  dmUnread = {},
+  groupUnread = {},
 }) {
   const { isMobile } = useMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -250,6 +252,8 @@ export default function AppLayout({
             onDeclineFriend={onDeclineFriend}
             onMobileClose={isMobile ? closeMobileDrawer : undefined}
             isMobile={isMobile}
+            dmUnread={dmUnread}
+            groupUnread={groupUnread}
           />
         )}
       </div>
