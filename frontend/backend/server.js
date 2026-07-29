@@ -90,11 +90,11 @@ app.get("/debug/peek/:tableName", async (req, res) => {
   }
 });
 
-// Root endpoint
-app.get("/", (_req, res) => {
+// API status (not served at / — root serves the React app)
+app.get("/api/status", (_req, res) => {
   res.json({
     status: "ok",
-    message: "Descall Backend v3.0 - Feedback System Ready",
+    message: "Descall API",
     timestamp: new Date().toISOString(),
     version: "3.0.0"
   });
@@ -726,17 +726,40 @@ console.log("  - /api/admin/make-admin/:userId");
 console.log("  - /api/admin/remove-admin/:userId");
 console.log("  - /api/admin/users");
 console.log("  - /api/test (no auth)");
+console.log("  - /api/status");
 console.log("  - /health");
 
 // Static files
 app.use("/media/files", express.static(path.join(__dirname, "uploads")));
 
-// Serve frontend in production
+// Serve React frontend (Vite build output: frontend/dist)
+const fs = require("fs");
 const distPath = path.join(__dirname, "..", "dist");
-if (require("fs").existsSync(distPath)) {
+const indexPath = path.join(distPath, "index.html");
+const hasFrontend = fs.existsSync(indexPath);
+
+const API_PREFIXES = [
+  "/api", "/auth", "/admin", "/media", "/groups",
+  "/friends", "/guilds", "/reactions", "/health", "/debug",
+];
+
+if (hasFrontend) {
+  console.log("[STATIC] Serving frontend from:", distPath);
   app.use(express.static(distPath));
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
+  app.get("*", (req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (API_PREFIXES.some((prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`))) {
+      return next();
+    }
+    res.sendFile(indexPath);
+  });
+} else {
+  console.warn("[STATIC] frontend/dist/index.html not found — run: cd frontend && npm run build:prod");
+  app.get("/", (_req, res) => {
+    res.status(503).json({
+      status: "error",
+      message: "Frontend not built. Deploy must run: cd frontend && npm install --include=dev && npm run build:prod",
+    });
   });
 }
 
