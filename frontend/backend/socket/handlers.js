@@ -25,7 +25,7 @@ const {
   appendErrorLog,
 } = require("../runtime/sharedState");
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
-const { registerGroupHandlers } = require("./groupHandlers");
+const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 
 function ensureSet(map, key) {
   if (!map.has(key)) map.set(key, new Set());
@@ -282,10 +282,30 @@ function registerSocketHandlers(io) {
       username: me.username,
       status: "online",
       socketId: socket.id,
+      avatar_url: me.avatar_url || null,
     });
     socket.join(`user:${myId}`);
     socketToUser.set(socket.id, myId);
     socket.data.activeDmPeer = null;
+
+    // Load avatar from DB for voice/call UI
+    supabase
+      .from("users")
+      .select("avatar_url")
+      .eq("id", myId)
+      .single()
+      .then(({ data }) => {
+        if (data?.avatar_url) {
+          me.avatar_url = data.avatar_url;
+          socket.user.avatar_url = data.avatar_url;
+          const p = presence.get(myId);
+          if (p) {
+            p.avatar_url = data.avatar_url;
+            presence.set(myId, p);
+          }
+        }
+      })
+      .catch(() => {});
 
     setupAdminSocket(io, socket);
 
@@ -652,7 +672,12 @@ function registerSocketHandlers(io) {
     socket.on("call:offer", ({ toUserId, offer, callType } = {}) => {
       if (typeof toUserId !== "string" || !offer) return;
       emitToUser(io, toUserId, "call:offer", {
-        fromUser: { id: myId, username: me.username },
+        fromUser: {
+          id: myId,
+          username: me.username,
+          avatar_url: me.avatar_url || socket.user?.avatar_url || null,
+          avatarUrl: me.avatar_url || socket.user?.avatar_url || null,
+        },
         offer,
         callType: callType || "voice",
       });
@@ -926,7 +951,9 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
+      await removeUserFromAllGroupCalls(io, myId, socket);
+
       const sessStart = userSessionStartMs.get(myId);
       if (sessStart) {
         userOnlineAccumMs.set(myId, (userOnlineAccumMs.get(myId) || 0) + (Date.now() - sessStart));

@@ -975,8 +975,12 @@ export function useGroupCall(socket) {
 
       // Update username if we already have this participant with 'Member' placeholder
       setParticipants((prev) => prev.map((p) =>
-        p.id === fromUserId && (!p.username || p.username === "Member")
-          ? { ...p, username: fromUser?.username || fromUser?.displayName || p.username }
+        p.id === fromUserId
+          ? {
+              ...p,
+              username: fromUser?.username || fromUser?.displayName || p.username,
+              avatarUrl: fromUser?.avatar_url || fromUser?.avatarUrl || p.avatarUrl,
+            }
           : p
       ));
       
@@ -1156,6 +1160,7 @@ export function useGroupCall(socket) {
 
     const onCallSummary = ({ groupId, summary }) => {
       if (!groupId || !summary) return;
+      setActiveCallBanner((prev) => (prev?.groupId === groupId ? null : prev));
       setCallSummaries((prev) => ({
         ...prev,
         [groupId]: [...(prev[groupId] ?? []), summary],
@@ -1166,12 +1171,11 @@ export function useGroupCall(socket) {
       setActiveCallBanner({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants, startTime: startTime ?? Date.now() });
     };
 
-    const onParticipantLeft = ({ groupId, userId }) => {
+    const onBannerUpdate = ({ groupId, banner }) => {
       setActiveCallBanner((prev) => {
-        if (!prev || prev.groupId !== groupId) return prev;
-        const updated = (prev.participantCount ?? 1) - 1;
-        if (updated <= 0) return null;
-        return { ...prev, participantCount: updated };
+        if (banner) return banner;
+        if (prev?.groupId === groupId) return null;
+        return prev;
       });
     };
 
@@ -1330,7 +1334,7 @@ export function useGroupCall(socket) {
     socket.on("group:call:join-existing", onJoinExisting);
     socket.on("group:call:summary", onCallSummary);
     socket.on("group:call:active-banner", onActiveBanner);
-    socket.on("group:call:left", onParticipantLeft);
+    socket.on("group:call:banner-update", onBannerUpdate);
     socket.on("group:call:participants", onParticipants);
 
     return () => {
@@ -1340,7 +1344,6 @@ export function useGroupCall(socket) {
       socket.off("group:call:ice", onIce);
       socket.off("group:call:offer", onOffer);
       socket.off("group:call:left", onLeft);
-      socket.off("group:call:left", onParticipantLeft);
       socket.off("group:call:ended", onEnded);
       socket.off("group:call:declined", onDeclined);
       socket.off("group:screen:started", onScreenStarted);
@@ -1350,6 +1353,7 @@ export function useGroupCall(socket) {
       socket.off("group:call:join-existing", onJoinExisting);
       socket.off("group:call:summary", onCallSummary);
       socket.off("group:call:active-banner", onActiveBanner);
+      socket.off("group:call:banner-update", onBannerUpdate);
       socket.off("group:call:participants", onParticipants);
     };
   }, [socket, activeGroupId, isInCall, callType, cleanup, setupPeerConnection]);
