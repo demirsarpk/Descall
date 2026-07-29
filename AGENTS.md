@@ -9,6 +9,7 @@
 - `useGroupCall(socket, currentUserId)` needs the logged-in user id — `socket.user` is **not** set on the client.
 - After loading groups, always emit `groups:rejoin` so members are in group rooms for banners/fallback invites.
 - Group start looks up `group_members` in DB when client `memberIds` is empty.
+- Group screen share defaults to **720p @ ~20fps** with RTP `maxBitrate` / `maintain-framerate` (`src/lib/webrtcScreenShare.js`). Mesh encodes per peer — avoid 1080p+/60fps.
 
 ### Auth / services
 - Custom JWT + Supabase DB/storage (service role). See `README.md` / `frontend/package.json` for run scripts.

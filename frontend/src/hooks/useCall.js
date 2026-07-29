@@ -2,6 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { patchUserAvatar } from "../lib/userProfile";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
+import {
+  buildDisplayMediaConstraints,
+  buildElectronDesktopConstraints,
+  optimizeScreenShareSender,
+  optimizeScreenShareTrack,
+  resolveScreenCaptureSize,
+} from "../lib/webrtcScreenShare";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -699,6 +706,7 @@ export function useCall(socket) {
       return;
     }
     try {
+      const { width, height, fps } = resolveScreenCaptureSize({ resolution: "720p", fps: 20 });
       let screenStream;
 
       if (window.electronAPI?.isElectron) {
@@ -713,31 +721,25 @@ export function useCall(socket) {
         const sourceId = await showElectronScreenPicker(sources);
         console.log('[ScreenShare] picked sourceId:', sourceId);
         if (!sourceId) return;
-        screenStream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: sourceId,
-              minWidth: 1280,
-              maxWidth: 1920,
-              minHeight: 720,
-              maxHeight: 1080,
-            },
-          },
-        });
+        screenStream = await navigator.mediaDevices.getUserMedia(
+          buildElectronDesktopConstraints(sourceId, { width, height, fps })
+        );
       } else {
         console.log('[ScreenShare] web path — getDisplayMedia');
-        screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: { cursor: "always", width: 1920, height: 1080 },
-          audio: false,
-        });
+        screenStream = await navigator.mediaDevices.getDisplayMedia(
+          buildDisplayMediaConstraints({ width, height, fps })
+        );
       }
 
       const screenTrack = screenStream.getVideoTracks()[0];
+      await optimizeScreenShareTrack(screenTrack, { width, height, fps });
       
       // Add screen track - this triggers onnegotiationneeded
       const screenSender = pc.addTrack(screenTrack, screenStream);
+      await optimizeScreenShareSender(screenSender, {
+        maxBitrate: 1_500_000,
+        maxFramerate: fps,
+      });
       screenSenderRef.current = screenSender;
       screenStreamRef.current = screenStream;
       setScreenStream(screenStream);
