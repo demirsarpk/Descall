@@ -51,6 +51,15 @@ export default function CallOverlay({ call, groupCall, me }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showAudioPanel]);
 
+  // Auto-decline unanswered DM incoming calls (match group modal)
+  useEffect(() => {
+    if (call?.mode !== "incoming") return;
+    const timer = setTimeout(() => {
+      call.declineIncoming?.();
+    }, 30_000);
+    return () => clearTimeout(timer);
+  }, [call?.mode, call?.peer?.id]);
+
   const isDmActive = call?.mode !== null && call?.mode !== undefined;
   const isGroupActive = groupCall?.isInCall;
   const active = isDmActive || isGroupActive;
@@ -877,7 +886,15 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
           autoPlay
           playsInline
           muted={activeSharer?.isLocal}
-          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            display: "block",
+            // Promote to compositor layer — reduces paint jank on remote screen share
+            transform: "translateZ(0)",
+            willChange: "contents",
+          }}
         />
 
         {/* Sharer name label — top-left */}
@@ -942,7 +959,13 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
               autoPlay
               playsInline
               muted={activeSharer?.isLocal}
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                transform: "translateZ(0)",
+                willChange: "contents",
+              }}
             />
             <div style={{ position: "absolute", top: 16, left: 16, display: "flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,0.7)", borderRadius: 8, padding: "6px 14px" }}>
               <Monitor size={14} color="#3ba55d" />

@@ -2,6 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
 import { getUser } from "../lib/storage";
+import {
+  GROUP_SCREEN_DEFAULT_QUALITY,
+  buildDisplayMediaConstraints,
+  buildElectronDesktopConstraints,
+  optimizeScreenShareSender,
+  optimizeScreenShareTrack,
+  resolveScreenCaptureSize,
+  screenBitrateForPeerCount,
+} from "../lib/webrtcScreenShare";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -155,10 +164,7 @@ export function useGroupCall(socket, currentUserId = null) {
   const [selectedAudioOutput, setSelectedAudioOutput] = useState("");
   
   // Screen sharing quality settings
-  const [screenQuality, setScreenQuality] = useState({
-    resolution: '1080p', // '720p' | '1080p'
-    fps: 30, // 30 | 60 | 120 | 240
-  });
+  const [screenQuality, setScreenQuality] = useState(GROUP_SCREEN_DEFAULT_QUALITY);
 
   const socketRef = useRef(socket);
   const localStreamRef = useRef(null);
@@ -174,8 +180,13 @@ export function useGroupCall(socket, currentUserId = null) {
   const isInCallRef = useRef(false);
   const callTypeRef = useRef(null);
   const incomingDedupeRef = useRef(new Map()); // groupId -> ts
+  const screenQualityRef = useRef(screenQuality);
 
   useEffect(() => { socketRef.current = socket; }, [socket]);
+
+  useEffect(() => {
+    screenQualityRef.current = screenQuality;
+  }, [screenQuality]);
 
   useEffect(() => {
     isInCallRef.current = isInCall;
@@ -343,14 +354,19 @@ export function useGroupCall(socket, currentUserId = null) {
         ? rawStream
         : new MediaStream([track]);
 
-      // Screen share detection: video track whose stream carries no audio,
-      // OR whose label explicitly mentions the screen/display surface
-      const isScreenTrack = track.kind === "video" &&
-        (track.label?.toLowerCase().includes("screen") ||
-         track.label?.toLowerCase().includes("display") ||
-         track.label?.toLowerCase().includes("window") ||
-         track.label?.toLowerCase().includes("tab") ||
-         incomingStream.getAudioTracks().length === 0);
+  // Screen share: labeled desktop/window tracks, or a video-only stream
+  // (camera usually shares the mic stream; screen is a separate MediaStream).
+  const label = (track.label || "").toLowerCase();
+  const peerExpectsScreen = Boolean(pcMapRef.current.get(userId)?.expectScreenShare);
+  const isScreenTrack = track.kind === "video" && (
+    peerExpectsScreen ||
+    label.includes("screen") ||
+    label.includes("display") ||
+    label.includes("window") ||
+    label.includes("tab") ||
+    label.includes("web contents") ||
+    incomingStream.getAudioTracks().length === 0
+  );
 
       if (track.kind === "audio") {
         // Audio always belongs to the main participant stream
@@ -379,6 +395,10 @@ export function useGroupCall(socket, currentUserId = null) {
           setParticipants((prev) => {
             if (userId === myIdRef.current) return prev;
             const exists = prev.find((p) => p.id === userId);
+            // Avoid re-render thrash (black flashes / FPS drops) when stream is unchanged
+            if (exists?.isScreenSharing && exists?.screenStream === incomingStream) {
+              return prev;
+            }
             if (exists) {
               return prev.map((p) => p.id === userId
                 ? { ...p, screenStream: incomingStream, isScreenSharing: true }
@@ -770,19 +790,10 @@ export function useGroupCall(socket, currentUserId = null) {
         console.log('[GroupScreenShare] abort: already sharing');
         return;
       }
-      
-      // Calculate resolution based on setting with optimized performance
-      const resolutionMap = {
-        '480p': { width: 854, height: 480 },
-        '720p': { width: 1280, height: 720 },
-        '1080p': { width: 1920, height: 1080 },
-        '1440p': { width: 2560, height: 1440 },
-        '2160p': { width: 3840, height: 2160 },
-        'custom': { width: 1920, height: 1080 }, // Default to 1080p for custom
-      };
-      
-      const { width, height } = resolutionMap[effectiveQuality.resolution] || resolutionMap['1080p'];
-      const frameRate = effectiveQuality.fps || 30;
+
+      const { width, height, fps: frameRate } = resolveScreenCaptureSize(effectiveQuality);
+      const peerCount = Math.max(1, pcMapRef.current.size);
+      const maxBitrate = screenBitrateForPeerCount(peerCount, effectiveQuality.resolution || "720p");
       
       let stream;
 
@@ -798,38 +809,18 @@ export function useGroupCall(socket, currentUserId = null) {
         const sourceId = await showElectronScreenPicker(sources);
         console.log('[GroupScreenShare] picked sourceId:', sourceId);
         if (!sourceId) return;
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: sourceId,
-              minWidth: width,
-              maxWidth: width,
-              minHeight: height,
-              maxHeight: height,
-            },
-          },
-        });
+        stream = await navigator.mediaDevices.getUserMedia(
+          buildElectronDesktopConstraints(sourceId, { width, height, fps: frameRate })
+        );
       } else {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { 
-            cursor: "always",
-            displaySurface: "monitor",
-            width: { ideal: width, max: width },
-            height: { ideal: height, max: height },
-            frameRate: { ideal: frameRate, max: frameRate },
-            resizeMode: "crop-and-scale",
-            aspectRatio: width / height
-          },
-          audio: false,
-        });
+        stream = await navigator.mediaDevices.getDisplayMedia(
+          buildDisplayMediaConstraints({ width, height, fps: frameRate })
+        );
       }
       
       const screenTrack = stream.getVideoTracks()[0];
-      
-      // Store original track settings for restoration
-      const originalConstraints = screenTrack.getConstraints();
+      await optimizeScreenShareTrack(screenTrack, { width, height, fps: frameRate });
+
       screenStreamRef.current = stream;
       setScreenStream(stream);
       
@@ -841,6 +832,10 @@ export function useGroupCall(socket, currentUserId = null) {
           const sender = peerData.pc.addTrack(screenTrack, stream);
           // Store per-peer so stopScreenShare can removeTrack precisely
           peerData.screenSender = sender;
+          await optimizeScreenShareSender(sender, {
+            maxBitrate,
+            maxFramerate: frameRate,
+          });
 
           const offer = await peerData.pc.createOffer();
           await peerData.pc.setLocalDescription(offer);
@@ -848,7 +843,7 @@ export function useGroupCall(socket, currentUserId = null) {
             groupId: activeGroupId,
             toUserId: userId,
             offer: peerData.pc.localDescription,
-            callType: callType || "voice",
+            callType: callTypeRef.current || callType || "voice",
           });
         } catch (err) {
           console.error(`[GroupCall] Screen share addTrack failed for ${userId}:`, err);
@@ -875,7 +870,7 @@ export function useGroupCall(socket, currentUserId = null) {
       if (err.name === 'NotAllowedError') {
       }
     }
-  }, [isScreenSharing, activeGroupId, screenQuality]);
+  }, [isScreenSharing, activeGroupId, screenQuality, callType]);
 
   const stopScreenShare = useCallback(async () => {
     if (!isScreenSharing) return;
@@ -1039,6 +1034,14 @@ export function useGroupCall(socket, currentUserId = null) {
         if (screenTrack && screenTrack.readyState === "live") {
           const sender = pc.addTrack(screenTrack, screenStreamRef.current);
           peerData.screenSender = sender;
+          const q = resolveScreenCaptureSize(screenQualityRef.current);
+          await optimizeScreenShareSender(sender, {
+            maxBitrate: screenBitrateForPeerCount(
+              pcMapRef.current.size,
+              screenQualityRef.current?.resolution
+            ),
+            maxFramerate: q.fps,
+          });
         }
 
         const offer = await pc.createOffer();
@@ -1240,12 +1243,16 @@ export function useGroupCall(socket, currentUserId = null) {
     };
 
     const onScreenStarted = ({ groupId, fromUserId }) => {
+      const peerData = pcMapRef.current.get(fromUserId);
+      if (peerData) peerData.expectScreenShare = true;
       setParticipants((prev) => prev.map((p) => 
         p.id === fromUserId ? { ...p, isScreenSharing: true } : p
       ));
     };
 
     const onScreenStopped = ({ groupId, fromUserId }) => {
+      const peerData = pcMapRef.current.get(fromUserId);
+      if (peerData) peerData.expectScreenShare = false;
       setParticipants((prev) => prev.map((p) =>
         p.id === fromUserId ? { ...p, isScreenSharing: false, screenStream: null } : p
       ));
