@@ -45,9 +45,27 @@ export default function MessageList({
 
     msgs.forEach((msg, index) => {
       // Call summary and active call bubbles break grouping — render standalone
-      if (msg.type === "call_summary") {
+      // Also recover legacy rows that were stored/rendered as raw JSON text.
+      let summaryMsg = msg;
+      if (msg?.type !== "call_summary" && typeof msg?.text === "string" && msg.text.trim().startsWith("{")) {
+        try {
+          const parsed = JSON.parse(msg.text);
+          if (parsed && (parsed.type === "call_summary" || parsed.callType || parsed.durationSeconds !== undefined)) {
+            summaryMsg = {
+              ...parsed,
+              id: parsed.id || msg.id,
+              timestamp: msg.timestamp || parsed.endedAt,
+              type: "call_summary",
+            };
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (summaryMsg.type === "call_summary") {
         if (currentGroup) { grouped.push(currentGroup); currentGroup = null; }
-        grouped.push({ isSummary: true, summary: msg, id: msg.id });
+        grouped.push({ isSummary: true, summary: summaryMsg, id: summaryMsg.id });
         return;
       }
       if (msg.type === "active_call") {

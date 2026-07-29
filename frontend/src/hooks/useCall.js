@@ -496,12 +496,14 @@ export function useCall(socket) {
       setPeer((prev) => (prev?.id === user.id ? patchUserAvatar(prev, user.avatarUrl || user.avatar_url, user.avatarVersion || user.updated_at) : prev));
     };
 
-    const onUnreachable = ({ toUserId } = {}) => {
+    const onUnreachable = ({ toUserId, reason } = {}) => {
       if (!toUserId || peerRef.current?.id !== toUserId) return;
-      if (modeRef.current === "outgoing") {
-        audioManager.stop("outgoingCall");
-        cleanup();
-      }
+      if (modeRef.current !== "outgoing") return;
+      // Soft fail: keep the outgoing UI briefly so a flaky presence check
+      // doesn't instantly hang up. Caller can cancel manually.
+      console.warn("[Call] Callee unreachable:", toUserId, reason || "");
+      setConnectionQuality("failed");
+      setPeerConnectionState("disconnected");
     };
 
     socket.on('call:offer', onOffer);
@@ -539,7 +541,12 @@ export function useCall(socket) {
   }, []);
 
   const startCall = useCallback(async (friend, type = "voice") => {
-    if (!friend?.id || !socket) return;
+    const peerId = friend?.id || friend?.userId;
+    if (!peerId || !socket) return;
+    if (modeRef.current === "outgoing" || modeRef.current === "active" || modeRef.current === "incoming") {
+      console.warn("[Call] startCall ignored — already in a call:", modeRef.current);
+      return;
+    }
     try {
       const constraints = type === "video"
         ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
@@ -548,10 +555,17 @@ export function useCall(socket) {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
       setLocalStream(stream);
-      setPeer(friend);
+
+      // Sync peerRef immediately — unreachable/decline can arrive before React commit
+      const peerObj = { ...friend, id: peerId };
+      peerRef.current = peerObj;
+      setPeer(peerObj);
       setCallType(type);
       setMode("outgoing");
+      modeRef.current = "outgoing";
       setCameraOn(type === "video");
+      setConnectionQuality("connecting");
+      setPeerConnectionState("connecting");
 
       if (localVideoRef.current && type === "video") {
         localVideoRef.current.srcObject = stream;
@@ -564,8 +578,9 @@ export function useCall(socket) {
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      socket.emit("call:offer", { toUserId: friend.id, offer: pc.localDescription, callType: type });
-    } catch {
+      socket.emit("call:offer", { toUserId: String(peerId), offer: pc.localDescription, callType: type });
+    } catch (err) {
+      console.error("[Call] startCall failed:", err?.name || err?.message || err);
       cleanup();
     }
   }, [socket, cleanup, setupPeerConnection]);

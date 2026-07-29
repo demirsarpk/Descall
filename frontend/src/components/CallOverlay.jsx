@@ -94,7 +94,9 @@ export default function CallOverlay({ call, groupCall, me }) {
     ? mode === "incoming"
       ? "Incoming call..."
       : mode === "outgoing"
-      ? "Calling..."
+      ? (call?.connectionQuality === "failed"
+          ? "User may be offline — waiting…"
+          : "Calling...")
       : call?.peerConnectionState === "reconnecting"
       ? "Reconnecting…"
       : call?.peerConnectionState === "connecting" || (call?.mode === "active" && !call?.remoteMediaReady)

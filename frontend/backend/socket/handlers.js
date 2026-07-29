@@ -728,14 +728,15 @@ function registerSocketHandlers(io) {
 
     socket.on("call:offer", ({ toUserId, offer, callType } = {}) => {
       if (typeof toUserId !== "string" || !offer) return;
-      const room = io.sockets?.adapter?.rooms?.get(`user:${toUserId}`);
-      const presenceHit = Boolean(presence.get(toUserId)?.socketId);
-      if ((!room || room.size === 0) && !presenceHit) {
-        console.warn(`[Call] offer dropped — callee offline: ${toUserId}`);
-        socket.emit("call:unreachable", { toUserId });
-        return;
-      }
-      emitToUser(io, toUserId, "call:offer", {
+      const targetId = toUserId.trim();
+      if (!targetId) return;
+
+      // Always attempt delivery via durable user room + presence fallback.
+      const room = io.sockets?.adapter?.rooms?.get(`user:${targetId}`);
+      const presenceHit = Boolean(presence.get(targetId)?.socketId);
+      const delivered = (room && room.size > 0) || presenceHit;
+
+      emitToUser(io, targetId, "call:offer", {
         fromUser: {
           id: myId,
           username: me.username,
@@ -745,6 +746,16 @@ function registerSocketHandlers(io) {
         offer,
         callType: callType || "voice",
       });
+
+      // Inform caller only when we truly have no socket for the callee.
+      // Do not block the offer attempt — emitToUser is best-effort.
+      if (!delivered) {
+        console.warn(`[Call] offer — callee may be offline: ${targetId}`);
+        socket.emit("call:unreachable", {
+          toUserId: targetId,
+          reason: "offline_or_no_socket",
+        });
+      }
     });
 
     socket.on("call:answer", ({ toUserId, answer } = {}) => {

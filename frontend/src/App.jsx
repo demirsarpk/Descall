@@ -54,6 +54,38 @@ function normalizeGroups(payload) {
 
 function normalizeGroupMessage(m) {
   if (!m) return null;
+
+  // Persisted / API call summaries (message_type or type, content JSON or summary obj)
+  const isCallSummary =
+    m.message_type === "call_summary" ||
+    m.type === "call_summary" ||
+    (typeof m.content === "string" && m.content.includes('"call_summary"')) ||
+    (typeof m.text === "string" && m.text.includes('"call_summary"'));
+
+  if (isCallSummary) {
+    let summary = m.summary;
+    if (!summary) {
+      const raw = typeof m.content === "string" ? m.content : typeof m.text === "string" ? m.text : null;
+      if (raw) {
+        try {
+          summary = JSON.parse(raw);
+        } catch {
+          summary = null;
+        }
+      } else if (m.content && typeof m.content === "object") {
+        summary = m.content;
+      }
+    }
+    if (summary && (summary.type === "call_summary" || summary.callType || summary.durationSeconds !== undefined)) {
+      return {
+        ...summary,
+        id: summary.id || m.id,
+        timestamp: m.created_at || summary.endedAt || m.timestamp || new Date().toISOString(),
+        type: "call_summary",
+      };
+    }
+  }
+
   if (m.sender_id === "game-bot" || m.message_type?.startsWith?.("game_")) {
     return {
       id: m.id,
@@ -944,48 +976,7 @@ export default function App() {
     getGroupMessages(activeGroup.id)
       .then((res) => {
         const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
-        const normalized = msgs.map((m) => {
-          // Detect call summary by message_type, type, or JSON content
-          const isCallSummary = m.message_type === "call_summary" || m.type === "call_summary";
-          const maybeJsonContent = typeof m.content === "string" && m.content.trim().startsWith("{");
-          if (isCallSummary || maybeJsonContent) {
-            try {
-              const summary = maybeJsonContent ? JSON.parse(m.content) : m.content;
-              if (summary && (summary.type === "call_summary" || summary.callType || summary.durationSeconds !== undefined)) {
-                return {
-                  ...summary,
-                  id: summary.id || m.id,
-                  timestamp: m.created_at || summary.endedAt || new Date().toISOString(),
-                  type: "call_summary",
-                };
-              }
-              // Not a call summary after all — fall through to normal message
-            } catch {
-              // parse failed — fall through to normal message
-            }
-          }
-          
-          // Detect game messages (help, credits, leaderboard)
-          const isGameMessage = m.message_type?.startsWith('game_') || m.type?.startsWith('game_');
-          if (isGameMessage) {
-            return {
-              id: m.id,
-              from: {
-                id: 'game-bot',
-                username: '🎰 Casino Bot',
-                avatarUrl: null,
-              },
-              text: m.content || "",
-              timestamp: m.created_at || new Date().toISOString(),
-              type: m.message_type || 'game_message',
-              isGameMessage: true,
-              gameData: null, // Static game messages don't have interactive gameData
-              groupId: activeGroup?.id, // Attach groupId for game messages from DB
-            };
-          }
-          
-          return normalizeGroupMessage(m);
-        }).filter(Boolean);
+        const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
         setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
       })
       .catch((err) => console.error("[App] fetch group messages error:", err));
@@ -1004,6 +995,7 @@ export default function App() {
       socketRef.current?.emit("dm:set_active", { withUserId: null });
       return;
     }
+    setActiveGroup(null);
     setActiveDmUser(friend);
     setDmUnread((u) => { const n = { ...u }; delete n[friend.id]; return n; });
     socketRef.current?.emit("dm:mark_read", { withUserId: friend.id });
