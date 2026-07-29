@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Phone, Video, MoreVertical, Users, Hash,
-  Settings, Bell, Search, Plus, MessageSquare, X, ChevronDown, ChevronRight
+  Phone, Video, Users, Hash,
+  Settings, Search, MessageSquare, X, ChevronDown, ChevronRight, Menu, ChevronLeft
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -44,6 +44,10 @@ export default function ChatPanel({
   onTypingDmStop,
   onTypingGroupStart,
   onTypingGroupStop,
+  isMobile = false,
+  onMenuClick,
+  onMobileBack,
+  showMobileBack = false,
   children
 }) {
   const messagesRef = useRef(null);
@@ -102,6 +106,16 @@ export default function ChatPanel({
         {/* Header — hidden on activity view since ActivityView has its own header */}
         <header className="panel-header" style={activeView === "activity" ? { display: 'none' } : {}}>
         <div className="header-left">
+          {isMobile && (
+            <button
+              type="button"
+              className="icon-btn mobile-nav-btn"
+              onClick={showMobileBack ? onMobileBack : onMenuClick}
+              aria-label={showMobileBack ? "Back to list" : "Open menu"}
+            >
+              {showMobileBack ? <ChevronLeft size={22} /> : <Menu size={20} />}
+            </button>
+          )}
           {activeDmUser && (
             <div className="header-avatar">
               <Avatar 
