@@ -12,6 +12,7 @@
 @import './styles/settings.css';
 @import './styles/servers.css';
 @import './styles/mobile.css';
+@import './styles/mobile-glass.css';
 
 /* ============================================
    OLD CSS REMOVED — Using new modular system
