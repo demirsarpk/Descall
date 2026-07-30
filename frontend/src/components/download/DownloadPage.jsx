@@ -1,10 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Download, 
   Monitor,
-  Smartphone,
-  Terminal,
   CheckCircle2, 
   Loader2,
   Sparkles,
@@ -17,18 +15,15 @@ import {
   Users,
   ChevronRight,
   Github,
-  Star,
   LogIn,
   X
 } from 'lucide-react';
 import TitleBar from '../TitleBar';
 import './DownloadPage.css';
 
+/** Must match GitHub repo that publishes Descall-Setup-*.exe (release workflow). */
 const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
-
-// Fallback download link for private repos (update this manually after each release)
-const FALLBACK_DOWNLOAD_URL = "https://github.com/demirrsarppkurtlarr/descall/releases/download/v2.3.1/Descall-Setup-2.3.1.exe";
 
 const features = [
   { icon: MessageCircle, title: "Real-time Chat", desc: "Instant messaging with typing indicators" },
@@ -37,57 +32,30 @@ const features = [
   { icon: Users, title: "Group Chats", desc: "Create groups with unlimited members" },
 ];
 
-const platforms = [
-  { 
-    id: 'windows', 
-    name: 'Windows', 
-    icon: Monitor, 
-    file: 'Descall-Setup.exe',
-    size: '~150 MB',
-    color: '#0078D4'
-  },
-  { 
-    id: 'mac', 
-    name: 'macOS', 
-    icon: Smartphone, 
-    file: 'Descall.dmg',
-    size: '~165 MB',
-    color: '#000000'
-  },
-  { 
-    id: 'linux', 
-    name: 'Linux', 
-    icon: Terminal, 
-    file: 'Descall.AppImage',
-    size: '~170 MB',
-    color: '#25D366'
-  },
-];
-
-const stats = [
-  { value: "10K+", label: "Downloads" },
-  { value: "4.9", label: "Rating" },
-  { value: "50+", label: "Countries" },
-];
+function pickWindowsExeUrl(release) {
+  if (!release?.assets?.length) return null;
+  const assets = release.assets;
+  const setupExe = assets.find((a) => {
+    const n = a.name.toLowerCase();
+    return n.endsWith('.exe') && (n.includes('setup') || n.includes('descall'));
+  });
+  if (setupExe?.browser_download_url) return setupExe.browser_download_url;
+  const anyExe = assets.find((a) => a.name.toLowerCase().endsWith('.exe'));
+  return anyExe?.browser_download_url || null;
+}
 
 export default function DownloadPage({ onLogin, onRegister, authLoading, authError }) {
-  const [selectedPlatform, setSelectedPlatform] = useState('windows');
-  const [downloading, setDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [isInstalled, setIsInstalled] = useState(false);
   const [latestRelease, setLatestRelease] = useState(null);
+  const [windowsDownloadUrl, setWindowsDownloadUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [releaseError, setReleaseError] = useState(null);
-  const [downloadLinks, setDownloadLinks] = useState({ windows: null, mac: null, linux: null });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const downloadIntervalRef = useRef(null);
 
   useEffect(() => {
-    detectPlatform();
     fetchLatestRelease();
   }, []);
 
@@ -124,99 +92,47 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
   }, []);
 
   const fetchLatestRelease = async () => {
+    setLoading(true);
+    setReleaseError(null);
     try {
-      const response = await fetch(GITHUB_API);
-      if (response.status === 404) {
-        // Try fallback URL for private repos
-        if (FALLBACK_DOWNLOAD_URL) {
-          setDownloadLinks({ windows: FALLBACK_DOWNLOAD_URL, mac: null, linux: null });
-          setLatestRelease({ tag_name: 'v2.3.0' });
-        } else {
-          setReleaseError('Release not found. Please check the GitHub repository.');
-        }
-        setLoading(false);
-        return;
+      const response = await fetch(GITHUB_API, {
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+      if (!response.ok) {
+        throw new Error(response.status === 404 ? 'Henüz yayınlanmış sürüm yok.' : 'GitHub API hatası');
       }
-      if (!response.ok) throw new Error('Failed to fetch release');
       const data = await response.json();
-      
       setLatestRelease(data);
-      
-      // Parse assets for download links
-      const links = { windows: null, mac: null, linux: null };
-      
-      if (data.assets && Array.isArray(data.assets)) {
-        data.assets.forEach(asset => {
-          const name = asset.name.toLowerCase();
-          if (name.includes('setup') && name.endsWith('.exe')) {
-            links.windows = asset.browser_download_url;
-          } else if (name.includes('dmg') || name.includes('mac')) {
-            links.mac = asset.browser_download_url;
-          } else if (name.includes('appimage') || name.includes('deb') || name.includes('linux')) {
-            links.linux = asset.browser_download_url;
-          }
-        });
+      const url = pickWindowsExeUrl(data);
+      if (!url) {
+        setReleaseError('Bu sürümde Windows kurulum dosyası (.exe) bulunamadı.');
       }
-      
-      setDownloadLinks(links);
+      setWindowsDownloadUrl(url);
     } catch (error) {
-      setReleaseError('Unable to fetch release. Please try again later.');
+      setReleaseError(error.message || 'Sürüm bilgisi alınamadı. Daha sonra tekrar deneyin.');
+      setWindowsDownloadUrl(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const detectPlatform = () => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    if (userAgent.includes('win')) setSelectedPlatform('windows');
-    else if (userAgent.includes('mac')) setSelectedPlatform('mac');
-    else if (userAgent.includes('linux')) setSelectedPlatform('linux');
-  };
-
-  const handleDownload = async () => {
-    const downloadUrl = downloadLinks[selectedPlatform];
-    
-    if (!downloadUrl) {
-      setReleaseError('Setup file not available yet. Please check back later.');
+  const handleDownload = () => {
+    if (!windowsDownloadUrl) {
+      setReleaseError('İndirme bağlantısı hazır değil.');
       return;
     }
-
-    setDownloading(true);
-    setDownloadProgress(0);
-
-    // Simulate download progress
-    downloadIntervalRef.current = setInterval(() => {
-      setDownloadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(downloadIntervalRef.current);
-          setIsInstalled(true);
-          setDownloading(false);
-          return 100;
-        }
-        return prev + Math.random() * 15;
-      });
-    }, 200);
-
-    // Open download link
-    window.open(downloadUrl, '_blank');
+    window.location.href = windowsDownloadUrl;
   };
 
-  // Cleanup interval on unmount
-  useEffect(() => {
-    return () => {
-      if (downloadIntervalRef.current) {
-        clearInterval(downloadIntervalRef.current);
-      }
-    };
-  }, []);
-
-  const currentPlatform = platforms.find(p => p.id === selectedPlatform);
+  const versionLabel = latestRelease?.tag_name || (loading ? '…' : '—');
+  const publishedAt = latestRelease?.published_at
+    ? new Date(latestRelease.published_at).toLocaleDateString('tr-TR')
+    : null;
 
   return (
     <>
       <TitleBar />
       <div className="download-page">
-        {/* Animated Background */}
       <div className="download-bg">
         <div className="gradient-orb orb-1" />
         <div className="gradient-orb orb-2" />
@@ -224,7 +140,6 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
         <div className="grid-pattern" />
       </div>
 
-      {/* Hero Section */}
       <section className="download-hero">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -239,7 +154,7 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
             transition={{ delay: 0.3, type: "spring" }}
           >
             <Sparkles size={14} />
-            <span>{latestRelease?.tag_name || 'Loading...'} Now Available</span>
+            <span>{versionLabel} — Windows masaüstü</span>
           </motion.div>
 
           <motion.h1 
@@ -248,175 +163,118 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            Descall Desktop
-            <span className="gradient-text"> Experience</span>
+            Descall for Windows
           </motion.h1>
 
           <motion.p 
             className="hero-subtitle"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.35 }}
           >
-            The ultimate chat application for your desktop. 
-            Fast, secure, and beautifully designed.
+            Electron masaüstü uygulaması yalnızca Windows için derlenir. Her GitHub sürümünde indirme bağlantısı otomatik güncellenir.
           </motion.p>
 
-          {/* Login Button */}
           <motion.button
-            className="login-btn"
-            onClick={() => {
-              setShowLogin(true);
-              setIsRegistering(false);
-              setUsername('');
-              setPassword('');
-            }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.45 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            className="login-cta"
+            onClick={() => setShowLogin(true)}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
           >
             <LogIn size={18} />
             <span>Sign In</span>
           </motion.button>
-
-          {/* Stats */}
-          <motion.div 
-            className="stats-row"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            {stats.map((stat, index) => (
-              <motion.div 
-                key={stat.label}
-                className="stat-item"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.6 + index * 0.1 }}
-              >
-                <span className="stat-value">{stat.value}</span>
-                <span className="stat-label">{stat.label}</span>
-              </motion.div>
-            ))}
-          </motion.div>
         </motion.div>
 
-        {/* Download Card */}
         <motion.div 
           className="download-card"
           initial={{ opacity: 0, y: 40, rotateX: 10 }}
           animate={{ opacity: 1, y: 0, rotateX: 0 }}
           transition={{ delay: 0.7, duration: 0.8 }}
         >
-          {/* Platform Selector */}
-          <div className="platform-tabs">
-            {platforms.map((platform) => (
-              <motion.button
-                key={platform.id}
-                className={`platform-tab ${selectedPlatform === platform.id ? 'active' : ''}`}
-                onClick={() => setSelectedPlatform(platform.id)}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+          <div className="platform-info" style={{ paddingTop: 8 }}>
+            <div className="platform-header">
+              <div 
+                className="platform-icon-large"
+                style={{ background: '#0078D4' }}
               >
-                <platform.icon size={20} />
-                <span>{platform.name}</span>
-              </motion.button>
-            ))}
+                <Monitor size={32} color="white" />
+              </div>
+              <div className="platform-details">
+                <h3>Descall for Windows</h3>
+                <p>
+                  {loading ? 'Sürüm kontrol ediliyor…' : `Kurulum: ${latestRelease?.name || versionLabel}`}
+                  {publishedAt ? ` • ${publishedAt}` : ''}
+                </p>
+              </div>
+            </div>
+
+            <div className="requirements">
+              <div className="req-item">
+                <CheckCircle2 size={16} />
+                <span>Windows 10 / 11 (64-bit)</span>
+              </div>
+              <div className="req-item">
+                <CheckCircle2 size={16} />
+                <span>macOS ve Linux — yalnızca web uygulaması</span>
+              </div>
+              <div className="req-item">
+                <CheckCircle2 size={16} />
+                <span>~500 MB boş disk</span>
+              </div>
+            </div>
+
+            {releaseError && (
+              <div className="release-error">{releaseError}</div>
+            )}
+
+            <motion.button
+              className={`download-btn ${!windowsDownloadUrl ? 'downloading' : ''}`}
+              onClick={handleDownload}
+              disabled={loading || !windowsDownloadUrl}
+              whileHover={windowsDownloadUrl ? { scale: 1.02 } : {}}
+              whileTap={windowsDownloadUrl ? { scale: 0.98 } : {}}
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={20} className="spin" />
+                  <span>Sürüm yükleniyor…</span>
+                </>
+              ) : (
+                <>
+                  <Download size={20} />
+                  <span>Windows için indir ({versionLabel})</span>
+                  <ChevronRight size={18} className="arrow" />
+                </>
+              )}
+            </motion.button>
           </div>
 
-          {/* Selected Platform Info */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={selectedPlatform}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="platform-info"
-            >
-              <div className="platform-header">
-                <div 
-                  className="platform-icon-large"
-                  style={{ background: currentPlatform.color }}
-                >
-                  <currentPlatform.icon size={32} color="white" />
-                </div>
-                <div className="platform-details">
-                  <h3>Descall for {currentPlatform.name}</h3>
-                  <p>{currentPlatform.file} • {currentPlatform.size}</p>
-                </div>
-              </div>
-
-              {/* Requirements */}
-              <div className="requirements">
-                <div className="req-item">
-                  <CheckCircle2 size={16} />
-                  <span>
-                    {selectedPlatform === 'windows' && 'Windows 10/11 or newer'}
-                    {selectedPlatform === 'mac' && 'macOS 10.15 or newer'}
-                    {selectedPlatform === 'linux' && 'Ubuntu 18.04+ / Debian 10+'}
-                  </span>
-                </div>
-                <div className="req-item">
-                  <CheckCircle2 size={16} />
-                  <span>64-bit processor</span>
-                </div>
-                <div className="req-item">
-                  <CheckCircle2 size={16} />
-                  <span>500 MB free space</span>
-                </div>
-              </div>
-
-              {/* Download Button */}
-              {releaseError && (
-                <div className="release-error">{releaseError}</div>
-              )}
-              <motion.button
-                className={`download-btn ${downloading ? 'downloading' : ''} ${isInstalled ? 'installed' : ''}`}
-                onClick={handleDownload}
-                disabled={downloading || isInstalled}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                {downloading ? (
-                  <>
-                    <Loader2 size={20} className="spin" />
-                    <span>Downloading... {Math.round(downloadProgress)}%</span>
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-fill" 
-                        style={{ width: `${downloadProgress}%` }}
-                      />
-                    </div>
-                  </>
-                ) : isInstalled ? (
-                  <>
-                    <CheckCircle2 size={20} />
-                    <span>Download Started</span>
-                  </>
-                ) : (
-                  <>
-                    <Download size={20} />
-                    <span>Download for {currentPlatform.name}</span>
-                    <ChevronRight size={18} className="arrow" />
-                  </>
-                )}
-              </motion.button>
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Additional Links */}
           <div className="additional-links">
-            {/* Add manual download links here if needed */}
-            <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
-              Download links will be available soon
-            </span>
+            <a
+              href={`https://github.com/${GITHUB_REPO}/releases/latest`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="github-link"
+            >
+              <Github size={16} />
+              <span>GitHub Releases — tüm sürümler</span>
+            </a>
+            {!loading && (
+              <button
+                type="button"
+                className="github-link"
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                onClick={() => fetchLatestRelease()}
+              >
+                <Zap size={16} />
+                <span>Bağlantıyı yenile</span>
+              </button>
+            )}
           </div>
         </motion.div>
       </section>
 
-      {/* Features Section */}
       <section className="features-section">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -433,14 +291,13 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
             <motion.div
               key={feature.title}
               className="feature-card"
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: index * 0.1 }}
-              whileHover={{ y: -5 }}
             >
               <div className="feature-icon">
-                <feature.icon size={28} />
+                <feature.icon size={24} />
               </div>
               <h3>{feature.title}</h3>
               <p>{feature.desc}</p>
@@ -449,130 +306,80 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
         </div>
       </section>
 
-      {/* Trust Section */}
       <section className="trust-section">
-        <div className="trust-grid">
-          <motion.div 
-            className="trust-item"
-            whileHover={{ scale: 1.05 }}
-          >
-            <Shield size={32} />
-            <h4>End-to-End Security</h4>
-            <p>Your conversations are encrypted and secure</p>
-          </motion.div>
-          <motion.div 
-            className="trust-item"
-            whileHover={{ scale: 1.05 }}
-          >
-            <Zap size={32} />
-            <h4>Lightning Fast</h4>
-            <p>Built for speed with native performance</p>
-          </motion.div>
-          <motion.div 
-            className="trust-item"
-            whileHover={{ scale: 1.05 }}
-          >
-            <Globe size={32} />
-            <h4>Global Network</h4>
-            <p>Connect with anyone, anywhere in the world</p>
-          </motion.div>
+        <div className="trust-badges">
+          <div className="trust-badge">
+            <Shield size={20} />
+            <span>Secure</span>
+          </div>
+          <div className="trust-badge">
+            <Globe size={20} />
+            <span>Global</span>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="download-footer">
-        <p>© 2026 Descall. All rights reserved.</p>
-      </footer>
-
-      {/* Login Modal */}
       <AnimatePresence>
-      {showLogin && (
-        <motion.div 
-          className="login-modal-overlay" 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setShowLogin(false)}
-        >
-          <motion.div 
-            className="login-modal"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            onClick={(e) => e.stopPropagation()}
+        {showLogin && (
+          <motion.div
+            className="login-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowLogin(false)}
           >
-            <button className="modal-close" onClick={() => setShowLogin(false)}>
-              <X size={20} />
-            </button>
-            
-            <h2>{isRegistering ? 'Create Account' : 'Welcome Back'}</h2>
-            <p>{isRegistering ? 'Join Descall today' : 'Sign in to your account'}</p>
-            
-            {authError && <div className="auth-error">{authError}</div>}
-            
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              setIsSubmitting(true);
-              try {
-                if (isRegistering) {
-                  await onRegister?.({ username, password });
-                } else {
-                  await onLogin?.({ username, password });
-                }
-                // Close modal on success
-                setShowLogin(false);
-                setUsername('');
-                setPassword('');
-              } catch (err) {
-                // Keep modal open to show error
-              } finally {
-                setIsSubmitting(false);
-              }
-            }}>
-              <div className="form-group">
-                <label>Username</label>
-                <input 
-                  type="text" 
+            <motion.div
+              className="login-modal"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button className="modal-close" onClick={() => setShowLogin(false)}>
+                <X size={20} />
+              </button>
+              <h2>{isRegistering ? 'Create Account' : 'Welcome Back'}</h2>
+              {authError && <div className="auth-error">{authError}</div>}
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setIsSubmitting(true);
+                  try {
+                    if (isRegistering) await onRegister?.(username, password);
+                    else await onLogin?.(username, password);
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter username"
                   required
                 />
-              </div>
-              
-              <div className="form-group">
-                <label>Password</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
+                  placeholder="Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
                   required
                 />
-              </div>
-              
+                <button type="submit" disabled={authLoading || isSubmitting}>
+                  {authLoading || isSubmitting ? <Loader2 className="spin" size={18} /> : (isRegistering ? 'Register' : 'Login')}
+                </button>
+              </form>
               <button
-                type="submit"
-                className="submit-btn"
-                disabled={isSubmitting || authLoading}
-              >
-                {(isSubmitting || authLoading) ? 'Loading...' : (isRegistering ? 'Create Account' : 'Sign In')}
-              </button>
-            </form>
-            
-            <div className="auth-switch">
-              {isRegistering ? 'Already have an account?' : "Don't have an account?"}
-              <button 
                 type="button"
-                className="switch-btn"
-                onClick={() => setIsRegistering(!isRegistering)}
+                className="toggle-auth"
+                onClick={() => setIsRegistering((v) => !v)}
               >
-                {isRegistering ? 'Sign In' : 'Create Account'}
+                {isRegistering ? 'Already have an account? Login' : 'Need an account? Register'}
               </button>
-            </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
+        )}
       </AnimatePresence>
       </div>
     </>

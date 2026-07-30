@@ -3,12 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor,
   Minus, Maximize2, Users, MessageSquare, Hand, MoreVertical, Check, X as XIcon,
-  Volume2, ChevronUp, Mic2
+  Volume2, ChevronUp, Mic2, SlidersHorizontal
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
 import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
 import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
 import { resolveAvatarUrl } from "../lib/avatar";
+import ScreenShareQualityPanel from "./voice/ScreenShareQualityPanel";
 
 /*
  * Google Meet-style call overlay
@@ -28,9 +29,11 @@ export default function CallOverlay({ call, groupCall, me }) {
   const [handRaised, setHandRaised] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showAudioPanel, setShowAudioPanel] = useState(false);
+  const [showScreenQuality, setShowScreenQuality] = useState(false);
   const [copiedInfo, setCopiedInfo] = useState(false);
   const moreMenuRef = useRef(null);
   const audioPanelRef = useRef(null);
+  const screenQualityAnchorRef = useRef(null);
 
   useEffect(() => {
     if (!showMoreMenu) return;
@@ -73,6 +76,7 @@ export default function CallOverlay({ call, groupCall, me }) {
       setShowParticipants(false);
       setShowChat(false);
       setScreenExpanded(false);
+      setShowScreenQuality(false);
     }
   }, [active]);
 
@@ -469,19 +473,67 @@ export default function CallOverlay({ call, groupCall, me }) {
               {cameraOn ? <Video size={22} /> : <VideoOff size={22} />}
             </CircleBtn>
 
-            <CircleBtn
-              color={screenSharing ? "#3ba55d" : "#3c4043"}
-              onClick={() => {
-                if (isDm) {
-                  screenSharing ? call.stopScreenShare() : call.startScreenShare();
-                } else {
-                  groupCall.isScreenSharing ? groupCall.stopScreenShare() : groupCall.startScreenShare();
+            <div ref={screenQualityAnchorRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
+              <CircleBtn
+                color={screenSharing ? "#3ba55d" : "#3c4043"}
+                onClick={() => {
+                  if (isDm) {
+                    if (screenSharing) call.stopScreenShare();
+                    else setShowScreenQuality((v) => !v);
+                  } else {
+                    if (groupCall.isScreenSharing) groupCall.stopScreenShare();
+                    else setShowScreenQuality((v) => !v);
+                  }
+                }}
+                title={screenSharing ? "Stop presenting" : "Present screen"}
+              >
+                <Monitor size={22} />
+              </CircleBtn>
+              {(screenSharing || showScreenQuality) && (
+                <button
+                  type="button"
+                  title="Ekran kalitesi"
+                  onClick={() => setShowScreenQuality((v) => !v)}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: showScreenQuality ? "rgba(88,101,242,0.35)" : "rgba(0,0,0,0.35)",
+                    color: "#e8e8ec",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <SlidersHorizontal size={14} />
+                </button>
+              )}
+              <ScreenShareQualityPanel
+                open={showScreenQuality}
+                onClose={() => setShowScreenQuality(false)}
+                anchorRef={screenQualityAnchorRef}
+                isGroupCall={!isDm}
+                participantCount={
+                  isDm
+                    ? 2
+                    : (groupCall.participants?.length ?? 0) + 1
                 }
-              }}
-              title={screenSharing ? "Stop presenting" : "Present screen"}
-            >
-              <Monitor size={22} />
-            </CircleBtn>
+                screenQuality={isDm ? call.screenQuality : groupCall.screenQuality}
+                setScreenQuality={isDm ? call.setScreenQuality : groupCall.setScreenQuality}
+                isScreenSharing={screenSharing}
+                onStartWithQuality={async (q) => {
+                  if (isDm) await call.startScreenShare(q);
+                  else await groupCall.startScreenShare(q);
+                }}
+                onRestartWithQuality={async (q) => {
+                  if (isDm) await call.restartScreenShareWithQuality(q);
+                  else await groupCall.restartScreenShareWithQuality(q);
+                }}
+              />
+            </div>
 
             <motion.button
               onClick={() => setHandRaised((v) => !v)}
