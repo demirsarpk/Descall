@@ -23,6 +23,7 @@ const friendsRoutes = require("./routes/friends");
 const activityRoutes = require("./routes/activity");
 const guildRoutes = require("./routes/guilds");
 const webrtcRoutes = require("./routes/webrtc");
+const appReleaseRoutes = require("./routes/appRelease");
 const errorRoutes = require("./routes/errors");
 const state = require("./runtime/sharedState");
 
@@ -149,6 +150,7 @@ app.use("/api/activity", activityRoutes);
 app.use("/api/guilds", guildRoutes);
 app.use("/api/webrtc", webrtcRoutes);
 app.use("/api/errors", errorRoutes);
+app.use("/api/app", appReleaseRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)
