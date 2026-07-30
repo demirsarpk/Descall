@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AuthView from "./components/AuthView";
 import AppLayout from "./components/layout/AppLayout";
 import DownloadPage from "./components/download/DownloadPage";
-import { getMe, login, register } from "./api/auth";
+import { getMe, login, loginWithGoogle, register } from "./api/auth";
 import { getMyGroups, getGroupMessages } from "./api/groups";
 import {
   getMyGuilds,
@@ -14,6 +14,7 @@ import {
 } from "./api/guilds";
 import { createSocket } from "./socket";
 import { API_BASE_URL } from "./config/api";
+import { preloadIceServers } from "./lib/iceConfig";
 import { useCall } from "./hooks/useCall";
 import { useGroupCall } from "./hooks/useGroupCall";
 import {
@@ -24,6 +25,13 @@ import {
   setToken,
   setUser,
 } from "./lib/storage";
+import {
+  normalizeUser,
+  patchUserInList,
+  patchDmMessagesAvatar,
+  patchGroupMessagesAvatar,
+  patchUserAvatar,
+} from "./lib/userProfile";
 import audioManager, { initAudioManager } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
 import AdminPanel from "./components/admin/AdminPanel";
@@ -45,11 +53,77 @@ function normalizeGroups(payload) {
   return [];
 }
 
+function normalizeGroupMessage(m) {
+  if (!m) return null;
+
+  // Persisted / API call summaries (message_type or type, content JSON or summary obj)
+  const isCallSummary =
+    m.message_type === "call_summary" ||
+    m.type === "call_summary" ||
+    (typeof m.content === "string" && m.content.includes('"call_summary"')) ||
+    (typeof m.text === "string" && m.text.includes('"call_summary"'));
+
+  if (isCallSummary) {
+    let summary = m.summary;
+    if (!summary) {
+      const raw = typeof m.content === "string" ? m.content : typeof m.text === "string" ? m.text : null;
+      if (raw) {
+        try {
+          summary = JSON.parse(raw);
+        } catch {
+          summary = null;
+        }
+      } else if (m.content && typeof m.content === "object") {
+        summary = m.content;
+      }
+    }
+    if (summary && (summary.type === "call_summary" || summary.callType || summary.durationSeconds !== undefined)) {
+      return {
+        ...summary,
+        id: summary.id || m.id,
+        timestamp: m.created_at || summary.endedAt || m.timestamp || new Date().toISOString(),
+        type: "call_summary",
+      };
+    }
+  }
+
+  if (m.sender_id === "game-bot" || m.message_type?.startsWith?.("game_")) {
+    return {
+      id: m.id,
+      from: { id: "game-bot", username: "🎰 Casino Bot", avatarUrl: null },
+      text: m.content || "",
+      timestamp: m.created_at || new Date().toISOString(),
+      type: m.message_type || "game_message",
+      isGameMessage: true,
+      gameData: null,
+      groupId: m.group_id,
+    };
+  }
+  const sender = normalizeUser(m.sender || {
+    id: m.sender?.id || m.sender_id,
+    username: m.sender?.username || "Unknown",
+    avatar_url: m.sender?.avatar_url,
+    updated_at: m.sender?.updated_at,
+  });
+  return {
+    id: m.id,
+    from: sender,
+    username: sender?.username || "Unknown",
+    avatarUrl: sender?.avatarUrl,
+    text: m.content || "",
+    timestamp: m.created_at || new Date().toISOString(),
+    mediaUrl: m.media_url,
+    mediaType: m.media_type,
+    originalName: m.original_name,
+    size: m.file_size,
+  };
+}
+
 export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [me, setMe] = useState(() => getUser());
+  const [me, setMe] = useState(() => normalizeUser(getUser()));
   const [isConnected, setIsConnected] = useState(false);
   const [myStatus, setMyStatus] = useState("online");
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -57,6 +131,11 @@ export default function App() {
   const [friendRequests, setFriendRequests] = useState([]);
   const [dmByUserId, setDmByUserId] = useState({});
   const [dmUnread, setDmUnread] = useState({});
+  const [groupUnread, setGroupUnread] = useState({});
+  const [dmLastActivity, setDmLastActivity] = useState({});
+  const [groupLastActivity, setGroupLastActivity] = useState({});
+  const [dmPreviews, setDmPreviews] = useState({});
+  const [groupPreviews, setGroupPreviews] = useState({});
   const [notifications, setNotifications] = useState([]);
   const [activeDmUser, setActiveDmUser] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
@@ -94,6 +173,10 @@ export default function App() {
   const groupCall = useGroupCall(socketApi, me?.id);
 
   useEffect(() => {
+    preloadIceServers().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     myIdRef.current = me?.id ?? null;
   }, [me?.id]);
 
@@ -112,6 +195,36 @@ export default function App() {
   useEffect(() => {
     myGuildsRef.current = myGuilds;
   }, [myGuilds]);
+
+  const commitSessionUser = useCallback((user) => {
+    const normalized = normalizeUser(user);
+    setMe(normalized);
+    if (normalized) setUser(normalized);
+    else clearUser();
+    return normalized;
+  }, []);
+
+  const applyProfileUpdate = useCallback((user) => {
+    const normalized = normalizeUser(user);
+    if (!normalized?.id) return;
+    const { id, avatarUrl, avatarVersion } = normalized;
+
+    if (me?.id === id || getUser()?.id === id) {
+      commitSessionUser(normalized);
+    }
+
+    setFriends((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
+    setFriendRequests((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
+    setOnlineUsers((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
+    setActiveDmUser((prev) => (prev?.id === id ? patchUserAvatar(prev, avatarUrl, avatarVersion) : prev));
+    setNotifications((prev) => prev.map((n) => {
+      const fromId = n.meta?.fromUserId || n.meta?.userId || n.fromUserId;
+      if (fromId !== id) return n;
+      return { ...n, avatarUrl, avatar_url: avatarUrl };
+    }));
+    setDmByUserId((prev) => patchDmMessagesAvatar(prev, id, avatarUrl, avatarVersion));
+    setGroupMessagesById((prev) => patchGroupMessagesAvatar(prev, id, avatarUrl, avatarVersion));
+  }, [commitSessionUser, me?.id]);
 
   useEffect(() => {
     setTypingDmUser(null);
@@ -151,8 +264,7 @@ export default function App() {
       try {
               const { user } = await getMe(token);
         if (!cancelled) {
-          setUser(user);
-          setMe(user);
+          commitSessionUser(user);
         }
       } catch (err) {
         if (!cancelled) {
@@ -213,8 +325,7 @@ export default function App() {
       (async () => {
         try {
           const { user } = await getMe(token);
-          setMe(user);
-          setUser(user);
+          commitSessionUser(user);
         } catch {
           // Ignore error
         }
@@ -222,8 +333,14 @@ export default function App() {
     };
     
     socketApi.on("user:updated", handleUserUpdated);
-    return () => { socketApi.off("user:updated", handleUserUpdated); };
-  }, [socketApi]);
+    socketApi.on("user:profile:updated", ({ user }) => {
+      if (user) applyProfileUpdate(user);
+    });
+    return () => {
+      socketApi.off("user:updated", handleUserUpdated);
+      socketApi.off("user:profile:updated");
+    };
+  }, [socketApi, commitSessionUser, applyProfileUpdate]);
 
   // Refresh me when admin panel closes with changes
   useEffect(() => {
@@ -233,15 +350,14 @@ export default function App() {
     (async () => {
       try {
         const { user } = await getMe(token);
-        setMe(user);
-        setUser(user);
+        commitSessionUser(user);
       } catch {
         // Ignore error
       } finally {
         setAdminChanged(false);
       }
     })();
-  }, [adminChanged]);
+  }, [adminChanged, commitSessionUser]);
 
   // Refresh user data from backend
   const refreshMe = useCallback(async () => {
@@ -249,8 +365,7 @@ export default function App() {
     if (!token) return;
     try {
       const { user } = await getMe(token);
-      setMe(user);
-      setUser(user);
+      commitSessionUser(user);
       return user;
     } catch (err) {
     }
@@ -391,7 +506,7 @@ export default function App() {
     });
 
     socket.on("users:update", (users) => {
-      const newUsers = users ?? [];
+      const newUsers = (users ?? []).map((u) => normalizeUser(u));
       const prevIds = new Set(prevOnlineUsersRef.current.map((u) => u.id));
       const friendsSet = new Set(friends.map((f) => f.id));
 
@@ -413,15 +528,19 @@ export default function App() {
       setOnlineUsers(newUsers);
     });
 
-    socket.on("friend:list", (list) => setFriends(list ?? []));
-    socket.on("friend:requests", (list) => setFriendRequests(list ?? []));
+    socket.on("friend:list", (list) => setFriends((list ?? []).map((u) => normalizeUser(u))));
+    socket.on("friend:requests", (list) => setFriendRequests((list ?? []).map((u) => normalizeUser(u))));
     socket.on("friend:request:incoming", ({ from }) => {
       if (!from) return;
-      setFriendRequests((prev) => prev.some((req) => req.id === from.id) ? prev : [...prev, from]);
+      const normalized = normalizeUser(from);
+      setFriendRequests((prev) => prev.some((req) => req.id === normalized.id) ? prev : [...prev, normalized]);
       // Notification for incoming friend request
       notificationService.friendRequest({ from: from.username, fromId: from.id });
     });
     socket.on("friend:accepted", () => { socket.emit("friend:list"); });
+    socket.on("user:profile:updated", ({ user }) => {
+      if (user) applyProfileUpdate(user);
+    });
     socket.on("friend:error", ({ message } = {}) => {
       setFriendNotice(message || "Friend action failed.");
       setTimeout(() => setFriendNotice(""), 4000);
@@ -435,6 +554,17 @@ export default function App() {
       if (!withUserId) return;
       setDmByUserId((prev) => ({ ...prev, [withUserId]: messages ?? [] }));
       setDmHasMore((messages?.length ?? 0) >= 50);
+      const last = Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1] : null;
+      if (last) {
+        const ts = last.timestamp || last.created_at;
+        if (ts) setDmLastActivity((prev) => {
+          if (prev[withUserId] && new Date(prev[withUserId]) >= new Date(ts)) return prev;
+          return { ...prev, [withUserId]: ts };
+        });
+        const previewText = last.text
+          || (last.mediaType === "image" ? "📷 Photo" : last.mediaUrl ? "📎 Attachment" : "");
+        if (previewText) setDmPreviews((p) => (p[withUserId] ? p : { ...p, [withUserId]: previewText }));
+      }
     });
 
     socket.on("dm:page", ({ withUserId, messages, hasMore } = {}) => {
@@ -450,6 +580,12 @@ export default function App() {
     socket.on("dm:message", (message) => {
       const convWith = message?.convWith;
       if (!convWith) return;
+      const ts = message.timestamp || new Date().toISOString();
+      const previewText = message.text
+        || (message.mediaType === "image" ? "📷 Photo" : message.mediaUrl ? "📎 Attachment" : "");
+      setDmLastActivity((prev) => ({ ...prev, [convWith]: ts }));
+      if (previewText) setDmPreviews((prev) => ({ ...prev, [convWith]: previewText }));
+
       setDmByUserId((prev) => {
         const cur = prev[convWith] ?? [];
         const isSelf = message.from?.id === me?.id;
@@ -469,7 +605,7 @@ export default function App() {
       const isFromOther = message.from?.id && message.from.id !== currentUserId;
       if (isFromOther) {
         socket.emit("dm:delivered", { msgId: message.id, fromUserId: message.from.id });
-        // Play notification sound for new message (not from active conversation to avoid spam)
+        // Local unread bump if not viewing this conversation (server also syncs)
         if (activeDmRef.current?.id !== convWith) {
           audioManager.play("message");
           // Send native notification
@@ -479,6 +615,14 @@ export default function App() {
             preview: message.text?.substring(0, 100),
             conversationId: convWith
           });
+        } else {
+          setDmUnread((prev) => {
+            if (!prev[convWith]) return prev;
+            const n = { ...prev };
+            delete n[convWith];
+            return n;
+          });
+          socket.emit("dm:mark_read", { withUserId: convWith });
         }
       }
     });
@@ -492,13 +636,17 @@ export default function App() {
     // Group messages listener
     socket.on("group:message", ({ groupId, message, tempId }) => {
       if (!groupId || !message) return;
+      const sender = normalizeUser(message.sender || {
+        id: message.sender_id,
+        username: message.sender?.username || "Unknown",
+        avatar_url: message.sender?.avatar_url,
+        updated_at: message.sender?.updated_at,
+      });
       const normalized = {
         id: message.id,
-        from: {
-          id: message.sender?.id || message.sender_id,
-          username: message.sender?.username || "Unknown",
-          avatarUrl: message.sender?.avatar_url,
-        },
+        from: sender,
+        username: sender?.username || "Unknown",
+        avatarUrl: sender?.avatarUrl,
         text: message.content || "",
         timestamp: message.created_at || new Date().toISOString(),
         mediaUrl: message.media_url,
@@ -516,6 +664,12 @@ export default function App() {
         return { ...prev, [groupId]: [...cur, normalized] };
       });
 
+      setGroupLastActivity((prev) => ({ ...prev, [groupId]: normalized.timestamp }));
+      if (normalized.text) {
+        const preview = `${normalized.from.username}: ${normalized.text}`;
+        setGroupPreviews((prev) => ({ ...prev, [groupId]: preview.slice(0, 80) }));
+      }
+
       // Check if message is a game command - suppress normal message display for commands
       const trimmedContent = message.content?.trim() || '';
       if (trimmedContent.startsWith('/')) {
@@ -531,8 +685,9 @@ export default function App() {
       }
       // Notify for messages from others in non-active group
       const isFromMe = normalized.from.id === me?.id;
-      const isActiveGroup = activeGroup?.id === groupId;
+      const isActiveGroup = activeGroupRef.current?.id === groupId;
       if (!isFromMe && !isActiveGroup) {
+        setGroupUnread((prev) => ({ ...prev, [groupId]: (prev[groupId] || 0) + 1 }));
         const grp = myGroupsRef.current.find((g) => g.id === groupId);
         notificationService.groupMessage({
           groupName: grp?.name || "Grup",
@@ -730,6 +885,23 @@ export default function App() {
       const data = await login(payload);
       transportFallbackStepRef.current = 0;
       setToken(data.token);
+      commitSessionUser(data.user);
+    } catch (error) {
+      setAuthError(error.message);
+      throw error;
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async (credential) => {
+    try {
+      setAuthLoading(true);
+      setAuthError("");
+      await verifyBackendEndpoint();
+      const data = await loginWithGoogle(credential);
+      transportFallbackStepRef.current = 0;
+      setToken(data.token);
       setUser(data.user);
       setMe(data.user);
     } catch (error) {
@@ -762,7 +934,7 @@ export default function App() {
     setSocketApi(null);
     clearToken(); clearUser(); setMe(null);
     setIsConnected(false); setOnlineUsers([]); setFriends([]); setFriendRequests([]);
-    setDmByUserId({}); setDmUnread({}); setNotifications([]);
+    setDmByUserId({}); setDmUnread({}); setGroupUnread({}); setDmLastActivity({}); setGroupLastActivity({}); setDmPreviews({}); setGroupPreviews({}); setNotifications([]);
     setActiveDmUser(null); setAuthError(""); setTypingDmUser(null); setDmHasMore(true);
     setMyGroups([]);
   };
@@ -806,16 +978,7 @@ export default function App() {
       getGroupMessages(grp.id)
         .then((res) => {
           const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
-          const normalized = msgs.map((m) => ({
-            id: m.id,
-            from: { id: m.sender?.id || m.sender_id, username: m.sender?.username || "Unknown", avatarUrl: m.sender?.avatar_url },
-            text: m.content || "",
-            timestamp: m.created_at || new Date().toISOString(),
-            mediaUrl: m.media_url,
-            mediaType: m.media_type,
-            originalName: m.original_name,
-            size: m.file_size,
-          }));
+          const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
           setGroupMessagesById((prev) => ({ ...prev, [grp.id]: normalized }));
         })
         .catch(console.error);
@@ -836,61 +999,7 @@ export default function App() {
     getGroupMessages(activeGroup.id)
       .then((res) => {
         const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
-        const normalized = msgs.map((m) => {
-          // Detect call summary by message_type, type, or JSON content
-          const isCallSummary = m.message_type === "call_summary" || m.type === "call_summary";
-          const maybeJsonContent = typeof m.content === "string" && m.content.trim().startsWith("{");
-          if (isCallSummary || maybeJsonContent) {
-            try {
-              const summary = maybeJsonContent ? JSON.parse(m.content) : m.content;
-              if (summary && (summary.type === "call_summary" || summary.callType || summary.durationSeconds !== undefined)) {
-                return {
-                  ...summary,
-                  id: summary.id || m.id,
-                  timestamp: m.created_at || summary.endedAt || new Date().toISOString(),
-                  type: "call_summary",
-                };
-              }
-              // Not a call summary after all — fall through to normal message
-            } catch {
-              // parse failed — fall through to normal message
-            }
-          }
-          
-          // Detect game messages (help, credits, leaderboard)
-          const isGameMessage = m.message_type?.startsWith('game_') || m.type?.startsWith('game_');
-          if (isGameMessage) {
-            return {
-              id: m.id,
-              from: {
-                id: 'game-bot',
-                username: '🎰 Casino Bot',
-                avatarUrl: null,
-              },
-              text: m.content || "",
-              timestamp: m.created_at || new Date().toISOString(),
-              type: m.message_type || 'game_message',
-              isGameMessage: true,
-              gameData: null, // Static game messages don't have interactive gameData
-              groupId: activeGroup?.id, // Attach groupId for game messages from DB
-            };
-          }
-          
-          return {
-            id: m.id,
-            from: {
-              id: m.sender?.id || m.sender_id,
-              username: m.sender?.username || "Unknown",
-              avatarUrl: m.sender?.avatar_url,
-            },
-            text: m.content || "",
-            timestamp: m.created_at || new Date().toISOString(),
-            mediaUrl: m.media_url,
-            mediaType: m.media_type,
-            originalName: m.original_name,
-            size: m.file_size,
-          };
-        }).filter(Boolean);
+        const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
         setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
       })
       .catch((err) => console.error("[App] fetch group messages error:", err));
@@ -909,6 +1018,7 @@ export default function App() {
       socketRef.current?.emit("dm:set_active", { withUserId: null });
       return;
     }
+    setActiveGroup(null);
     setActiveDmUser(friend);
     setDmUnread((u) => { const n = { ...u }; delete n[friend.id]; return n; });
     socketRef.current?.emit("dm:mark_read", { withUserId: friend.id });
@@ -1078,6 +1188,38 @@ export default function App() {
     return "Online";
   }, [isConnected, reconnectState]);
 
+  const sortedDms = useMemo(() => {
+    const list = (friends || []).map((f) => ({
+      ...f,
+      lastMessage: dmPreviews[f.id] || f.lastMessage || null,
+      lastActivity: dmLastActivity[f.id] || f.lastActivity || null,
+      unreadCount: dmUnread[f.id] || 0,
+    }));
+    return list.sort((a, b) => {
+      const ta = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+      const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      if ((b.unreadCount || 0) !== (a.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
+      return (a.username || "").localeCompare(b.username || "");
+    });
+  }, [friends, dmLastActivity, dmPreviews, dmUnread]);
+
+  const sortedGroups = useMemo(() => {
+    const list = (myGroups || []).map((g) => ({
+      ...g,
+      lastMessage: groupPreviews[g.id] || g.lastMessage || null,
+      lastActivity: groupLastActivity[g.id] || g.lastActivity || g.updated_at || g.created_at || null,
+      unreadCount: groupUnread[g.id] || 0,
+    }));
+    return list.sort((a, b) => {
+      const ta = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+      const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      if ((b.unreadCount || 0) !== (a.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [myGroups, groupLastActivity, groupPreviews, groupUnread]);
+
   if (!sessionChecked) return <div className="session-boot" aria-busy="true" />;
 
   // Show download page for all non-logged-in users
@@ -1086,6 +1228,7 @@ export default function App() {
       <DownloadPage 
         onLogin={handleLogin}
         onRegister={handleRegister}
+        onGoogleLogin={handleGoogleLogin}
         authLoading={authLoading}
         authError={authError}
       />
@@ -1117,23 +1260,37 @@ export default function App() {
           me={me}
           socket={socketApi}
           onLogout={handleLogout}
+          onProfileUpdated={applyProfileUpdate}
           activeDmUser={activeDmUser}
           activeGroup={activeGroup}
-          groups={myGroups}
-          dms={friends}
+          groups={sortedGroups}
+          dms={sortedDms}
           friends={friends}
           onlineUsers={onlineUsers}
           onAdminClick={() => setAdminOpen(true)}
           isAdmin={me?.is_admin || me?.username === "admin"}
           onDmSelect={(dm) => {
             setActiveDmUser(dm);
-            setActiveGroup(null);
+            if (dm) {
+              setActiveGroup(null);
+              setDmUnread((u) => { const n = { ...u }; delete n[dm.id]; return n; });
+              socketRef.current?.emit("dm:mark_read", { withUserId: dm.id });
+              socketRef.current?.emit("dm:set_active", { withUserId: dm.id });
+            } else {
+              socketRef.current?.emit("dm:set_active", { withUserId: null });
+            }
           }}
           onGroupSelect={(group) => {
             setActiveDmUser(null);
             setActiveGroup(group);
-            socketRef.current?.emit("group:join", group.id);
+            socketRef.current?.emit("dm:set_active", { withUserId: null });
+            if (group?.id) {
+              setGroupUnread((u) => { const n = { ...u }; delete n[group.id]; return n; });
+              socketRef.current?.emit("group:join", group.id);
+            }
           }}
+          dmUnread={dmUnread}
+          groupUnread={groupUnread}
           friendNotice={friendNotice}
           onRefreshGroups={fetchGroups}
           onRefresh={handleRefresh}
@@ -1172,6 +1329,13 @@ export default function App() {
                 ...prev,
                 [activeDmUser.id]: [...(prev[activeDmUser.id] ?? []), optimisticMessage],
               }));
+              setDmLastActivity((prev) => ({ ...prev, [activeDmUser.id]: optimisticMessage.timestamp }));
+              setDmPreviews((prev) => ({
+                ...prev,
+                [activeDmUser.id]: isMediaObject
+                  ? (msg.mediaType === "image" ? "📷 Photo" : "📎 Attachment")
+                  : String(msg).slice(0, 80),
+              }));
               if (isMediaObject) {
                 socketRef.current?.emit("dm:send", {
                   toUserId: activeDmUser.id,
@@ -1190,7 +1354,7 @@ export default function App() {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
               const optimistic = {
                 id: tempId,
-                from: { id: me?.id, username: me?.username, avatarUrl: me?.avatar_url },
+                from: normalizeUser({ id: me?.id, username: me?.username, avatarUrl: me?.avatarUrl, updated_at: me?.updated_at }),
                 text: isMediaObject ? "" : msg,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
                 mediaType: isMediaObject ? msg.mediaType : undefined,
@@ -1202,6 +1366,13 @@ export default function App() {
               setGroupMessagesById((prev) => ({
                 ...prev,
                 [activeGroup.id]: [...(prev[activeGroup.id] ?? []), optimistic],
+              }));
+              setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: optimistic.timestamp }));
+              setGroupPreviews((prev) => ({
+                ...prev,
+                [activeGroup.id]: isMediaObject
+                  ? `${me?.username || "You"}: 📎 Attachment`
+                  : `${me?.username || "You"}: ${String(msg).slice(0, 60)}`,
               }));
               if (isMediaObject) {
                 socketRef.current?.emit("group:message", {

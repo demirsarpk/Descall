@@ -278,6 +278,9 @@ class AudioManager {
     const audio = this.sounds[type];
     if (!audio) return;
 
+    const wasLooping = this.activeLoops.has(type);
+    const wasPlaying = !audio.paused || wasLooping;
+
     // Stop the audio
     audio.pause();
     audio.currentTime = 0;
@@ -285,7 +288,9 @@ class AudioManager {
     // Remove from active loops
     this.activeLoops.delete(type);
 
-    console.log(`[AudioManager] Stopped: ${type}`);
+    if (wasPlaying) {
+      console.log(`[AudioManager] Stopped: ${type}`);
+    }
   }
 
   /**

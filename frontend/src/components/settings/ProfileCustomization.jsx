@@ -7,6 +7,7 @@ import {
   Download, Mail, Smartphone, Eye, EyeOff, AlertCircle
 } from "lucide-react";
 import RippleButton from "../ui/RippleButton";
+import { Avatar } from "../ui/Avatar";
 import { API_BASE_URL } from "../../config/api";
 import { uploadFile } from "../../api/media";
 
@@ -248,10 +249,7 @@ export default function ProfileCustomization({ me, onUpdate }) {
             {/* Avatar */}
             <div className="pc-avatar-section">
               <div className="pc-avatar-preview">
-                <img 
-                  src={profile.avatarUrl || "/default-avatar.png"} 
-                  alt="Avatar"
-                />
+                <Avatar name={profile.displayName || profile.username || "User"} size={96} user={profile} />
                 <button onClick={() => fileInputRef.current?.click()}>
                   <Camera size={16} />
                 </button>
@@ -606,7 +604,7 @@ export default function ProfileCustomization({ me, onUpdate }) {
                 <ul className="pc-blocked-list">
                   {profile.blockedUsers.map(user => (
                     <li key={user.id}>
-                      <img src={user.avatarUrl} alt={user.username} />
+                      <Avatar name={user.username} size={32} user={user} />
                       <span>{user.username}</span>
                       <button>Unblock</button>
                     </li>

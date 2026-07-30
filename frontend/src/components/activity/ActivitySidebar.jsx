@@ -32,7 +32,7 @@ function PresenceCard({ friend, presence, onlineUsers }) {
       style={{ borderLeftColor: accentColor || 'transparent' }}
     >
       <div className="activity-presence-avatar">
-        <Avatar name={friend.username} imageUrl={friend.avatarUrl} size={36} />
+        <Avatar name={friend.username} user={friend} size={36} />
         <StatusBadge status={isOnline ? 'online' : 'offline'} />
       </div>
       <div className="activity-presence-info">

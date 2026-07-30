@@ -15,6 +15,19 @@ export function login(payload) {
   });
 }
 
+export function loginWithGoogle(credential) {
+  return httpRequest(API_ROUTES.google, {
+    method: "POST",
+    body: JSON.stringify({ credential }),
+  });
+}
+
+export function getGoogleAuthConfig() {
+  return httpRequest(API_ROUTES.googleConfig, {
+    method: "GET",
+  });
+}
+
 export function getMe(token) {
   return httpRequest(API_ROUTES.me, {
     method: "GET",

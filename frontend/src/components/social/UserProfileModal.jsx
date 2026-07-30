@@ -243,7 +243,7 @@ export default function UserProfileModal({
                 }}
               >
                 <div style={{ position: "relative", display: "inline-flex" }}>
-                  <Avatar name={displayUsername} size={72} imageUrl={displayAvatar} />
+                  <Avatar name={displayUsername} size={72} user={profile || { avatarUrl: displayAvatar, username: displayUsername }} />
                   <div style={{ position: "absolute", bottom: 3, right: 3 }}>
                     <StatusBadge status={status} size={14} />
                   </div>
@@ -348,11 +348,7 @@ export default function UserProfileModal({
                             color: "var(--text-1)",
                           }}
                         >
-                          {f.avatarUrl ? (
-                            <img src={f.avatarUrl} alt={f.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          ) : (
-                            f.username[0].toUpperCase()
-                          )}
+                          <Avatar name={f.username} size={24} user={f} />
                         </div>
                       ))}
                     </div>

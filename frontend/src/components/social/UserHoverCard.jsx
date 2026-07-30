@@ -34,7 +34,7 @@ export default function UserHoverCard({ user, style }) {
     >
       <div className="uhc-banner" />
       <div className="uhc-body">
-        <Avatar name={user.username} size={56} imageUrl={user.avatarUrl} />
+        <Avatar name={user.username} size={56} user={user} />
         <div className="uhc-text">
           <div className="uhc-name">{user.username}</div>
           <div className={`uhc-status ${st.className}`}>

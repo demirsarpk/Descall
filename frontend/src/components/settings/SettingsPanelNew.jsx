@@ -125,7 +125,7 @@ function AccountSection({ me }) {
       <div className="profile-card-large">
         <div className="profile-banner" />
         <div className="profile-avatar-large">
-          <Avatar name={me?.username || "User"} size={80} imageUrl={me?.avatarUrl} />
+          <Avatar name={me?.username || "User"} size={80} user={me} />
         </div>
         <div className="profile-info">
           <h4 className="profile-username">{me?.username || "User"}</h4>

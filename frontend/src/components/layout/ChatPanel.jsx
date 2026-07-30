@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Phone, Video, MoreVertical, Users, Hash,
-  Settings, Bell, Search, Plus, MessageSquare, X, ChevronDown, ChevronRight
+  Phone, Video, Users, Hash,
+  Settings, Search, MessageSquare, X, ChevronDown, ChevronRight, Menu, ChevronLeft
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -44,6 +44,10 @@ export default function ChatPanel({
   onTypingDmStop,
   onTypingGroupStart,
   onTypingGroupStop,
+  isMobile = false,
+  onMenuClick,
+  onMobileBack,
+  showMobileBack = false,
   children
 }) {
   const messagesRef = useRef(null);
@@ -102,12 +106,22 @@ export default function ChatPanel({
         {/* Header — hidden on activity view since ActivityView has its own header */}
         <header className="panel-header" style={activeView === "activity" ? { display: 'none' } : {}}>
         <div className="header-left">
+          {isMobile && (
+            <button
+              type="button"
+              className="icon-btn mobile-nav-btn"
+              onClick={showMobileBack ? onMobileBack : onMenuClick}
+              aria-label={showMobileBack ? "Back to list" : "Open menu"}
+            >
+              {showMobileBack ? <ChevronLeft size={22} /> : <Menu size={20} />}
+            </button>
+          )}
           {activeDmUser && (
             <div className="header-avatar">
               <Avatar 
                 name={activeDmUser.username} 
                 size={40}
-                imageUrl={activeDmUser.avatarUrl}
+                user={activeDmUser}
               />
               <StatusBadge status={onlineUsers?.some(u => u.id === activeDmUser.id) ? "online" : "offline"} />
             </div>
@@ -243,12 +257,23 @@ export default function ChatPanel({
             <div className="empty-icon">
               {activeView === "dms" && <MessageSquare size={64} />}
               {activeView === "groups" && <Users size={64} />}
+              {activeView === "friends" && <Users size={64} />}
               {activeView === "chat" && <MessageSquare size={64} />}
               {activeView === "calls" && <Phone size={64} />}
               {activeView === "servers" && <Hash size={64} />}
             </div>
             <h2>Welcome to Descall</h2>
-            <p>Select a conversation to start chatting</p>
+            {isMobile ? (
+              <p>
+                {activeView === "friends"
+                  ? "Open the menu to see friends and who is online"
+                  : activeView === "groups"
+                  ? "Open the menu to browse your groups"
+                  : "Open the menu to select a conversation"}
+              </p>
+            ) : (
+              <p>Select a conversation to start chatting</p>
+            )}
           </div>
         )}
       </div>
@@ -306,7 +331,7 @@ export default function ChatPanel({
           {(activeGroup?.members?.length > 0 ? activeGroup.members : activeDmUser ? [activeDmUser] : []).map((m) => (
             <div key={m.id} className="member-row">
               <div className="member-avatar-wrap">
-                <Avatar name={m.username} size={32} imageUrl={m.avatarUrl} />
+                <Avatar name={m.username} size={32} user={m} />
                 <StatusBadge status={onlineUsers?.some((u) => u.id === m.id) ? "online" : "offline"} />
               </div>
               <span className="member-name">{m.username}</span>

@@ -95,7 +95,7 @@ export default function NavigationRail({
             <Avatar
               name={me?.username || "User"}
               size={36}
-              imageUrl={me?.avatarUrl}
+              user={me}
             />
             <span className="rail-user-status-dot" />
           </div>

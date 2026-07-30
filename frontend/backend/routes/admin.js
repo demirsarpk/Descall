@@ -195,9 +195,11 @@ router.delete("/users/:id", async (req, res) => {
   }
 });
 
-router.post("/users/:id/ban", (req, res) => {
+router.post("/users/:id/ban", async (req, res) => {
   const id = req.params.id;
   if (id === req.user.id) return res.status(400).json({ error: "Cannot ban yourself." });
+  const { error } = await supabase.from("users").update({ is_banned: true }).eq("id", id);
+  if (error) console.warn("[ban] DB update failed (is_banned column may be missing):", error.message);
   state.bannedUserIds.add(id);
   kickUser(getIo(req), {
     actorId: req.user.id,
@@ -210,9 +212,12 @@ router.post("/users/:id/ban", (req, res) => {
   res.json({ ok: true });
 });
 
-router.post("/users/:id/unban", (req, res) => {
-  state.bannedUserIds.delete(req.params.id);
-  audit(req.user, "unban", req.params.id, {});
+router.post("/users/:id/unban", async (req, res) => {
+  const id = req.params.id;
+  const { error } = await supabase.from("users").update({ is_banned: false }).eq("id", id);
+  if (error) console.warn("[unban] DB update failed:", error.message);
+  state.bannedUserIds.delete(id);
+  audit(req.user, "unban", id, {});
   notifyAdminRoom(getIo(req), { type: "unban", userId: req.params.id });
   res.json({ ok: true });
 });
@@ -241,7 +246,7 @@ router.patch("/users/:id/status", (req, res) => {
   res.json({ ok: true });
 });
 
-router.post("/users/bulk", (req, res) => {
+router.post("/users/bulk", async (req, res) => {
   const { userIds, action } = req.body || {};
   if (!Array.isArray(userIds)) return res.status(400).json({ error: "userIds array required." });
   const io = getIo(req);
@@ -249,10 +254,12 @@ router.post("/users/bulk", (req, res) => {
   for (const id of userIds) {
     if (typeof id !== "string" || id === req.user.id) continue;
     if (action === "ban") {
+      await supabase.from("users").update({ is_banned: true }).eq("id", id);
       state.bannedUserIds.add(id);
       kickUser(io, { actorId: req.user.id, actorUsername: req.user.username, targetUserId: id, reason: "Bulk ban" });
       n++;
     } else if (action === "unban") {
+      await supabase.from("users").update({ is_banned: false }).eq("id", id);
       state.bannedUserIds.delete(id);
       n++;
     } else if (action === "kick") {
@@ -422,6 +429,7 @@ router.get("/system", (_req, res) => {
     config: state.systemConfig,
     profanityCount: state.profanityWords.size,
     flaggedCount: state.flaggedMessages.length,
+    bannedUserIds: [...state.bannedUserIds],
   });
 });
 

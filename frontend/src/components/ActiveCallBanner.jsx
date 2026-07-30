@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Phone, Video, Users, LogIn, X } from "lucide-react";
+import { Avatar } from "./ui/Avatar";
 
 /**
  * Ongoing call bubble — same shape as CallSummaryBubble but green/live.
@@ -39,7 +40,9 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
             display: "inline-flex",
             alignItems: "center",
             gap: 14,
-            background: "var(--surface-2, #2b2d33)",
+            background: "rgba(40, 40, 44, 0.88)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
             border: "1px solid rgba(59,165,93,0.35)",
             borderRadius: 14,
             padding: "12px 18px",
@@ -48,38 +51,12 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
             position: "relative",
           }}
         >
-          {/* Icon block — green */}
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
-              background: "rgba(59,165,93,0.18)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-              position: "relative",
-            }}
-          >
-            {isVideo ? (
-              <Video size={22} color="#3ba55d" />
-            ) : (
-              <Phone size={22} color="#3ba55d" />
-            )}
-            {/* Live pulse dot */}
-            <motion.div
-              animate={{ scale: [1, 1.5, 1], opacity: [1, 0.4, 1] }}
-              transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
-              style={{
-                position: "absolute",
-                top: 6,
-                right: 6,
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "#3ba55d",
-              }}
+          {/* Initiator avatar */}
+          <div style={{ flexShrink: 0 }}>
+            <Avatar
+              name={banner.initiatorUsername || "?"}
+              size={44}
+              user={banner}
             />
           </div>
 

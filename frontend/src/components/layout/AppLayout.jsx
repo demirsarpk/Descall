@@ -1,28 +1,23 @@
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  MessageSquare, Users, Settings, Bell, 
-  LogOut, User, Search, Plus, BellOff, X
-} from "lucide-react";
+import { Bell, X } from "lucide-react";
 import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
-import ServerIconBar from "../servers/ServerIconBar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
 import ActivitySidebar from "../activity/ActivitySidebar";
 import { useActivity } from "../../hooks/useActivity";
-import { Avatar } from "../ui/Avatar";
+import { useMobile } from "../../hooks/useMobile";
 
 /**
- * COMPLETELY REBUILT MAIN LAYOUT
- * Discord-inspired grid system
- * No old layout remnants
+ * Single shared layout — desktop grid, mobile drawer adaptation.
  */
 export default function AppLayout({
   children,
   me,
   socket,
   onLogout,
+  onProfileUpdated,
   activeDmUser,
   activeGroup,
   groups,
@@ -68,18 +63,83 @@ export default function AppLayout({
   onLeaveGuild,
   onDeleteGuild,
   onRefreshGuilds,
+  dmUnread = {},
+  groupUnread = {},
 }) {
+  const { isMobile } = useMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
   const [userPanelOpen, setUserPanelOpen] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTab, setAddTab] = useState("friend");
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const activity = useActivity({ socket, me, friends });
 
-  const isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
-  const showNotifBanner = !isElectron && !notifBannerDismissed && notifPermission === 'default';
+  const closeMobileDrawer = useCallback(() => setMobileDrawerOpen(false), []);
+  const openMobileDrawer = useCallback(() => setMobileDrawerOpen(true), []);
+
+  const openUserPanel = useCallback(() => {
+    setUserPanelOpen(true);
+    if (isMobile) setMobileDrawerOpen(false);
+  }, [isMobile]);
+
+  const closeUserPanel = useCallback(() => {
+    setUserPanelOpen(false);
+    if (isMobile && !activeDmUser && !activeGroup && !activeGuildChannel) {
+      setMobileDrawerOpen(true);
+    }
+  }, [isMobile, activeDmUser, activeGroup, activeGuildChannel]);
+
+  useEffect(() => {
+    if (!isMobile) setMobileDrawerOpen(false);
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (isMobile && !activeDmUser && !activeGroup && !activeGuildChannel) {
+      setMobileDrawerOpen(true);
+    }
+  }, [isMobile, activeDmUser, activeGroup, activeGuildChannel]);
+
+  useEffect(() => {
+    if (!isMobile || !mobileDrawerOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isMobile, mobileDrawerOpen]);
+
+  useEffect(() => {
+    if (!isMobile || !userPanelOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isMobile, userPanelOpen]);
+
+  const handleDmSelect = useCallback((dm) => {
+    onDmSelect?.(dm);
+    if (isMobile) setMobileDrawerOpen(false);
+  }, [onDmSelect, isMobile]);
+
+  const handleGroupSelect = useCallback((group) => {
+    onGroupSelect?.(group);
+    if (isMobile) setMobileDrawerOpen(false);
+  }, [onGroupSelect, isMobile]);
+
+  const handleViewChange = useCallback((view) => {
+    setActiveView(view);
+    if (isMobile) setMobileDrawerOpen(true);
+  }, [isMobile]);
+
+  const handleMobileBack = useCallback(() => {
+    if (activeDmUser) onDmSelect?.(null);
+    if (activeGroup) onGroupSelect?.(null);
+    openMobileDrawer();
+  }, [activeDmUser, activeGroup, onDmSelect, onGroupSelect, openMobileDrawer]);
+
+  const isElectron = typeof window !== "undefined" && !!window.electronAPI?.isElectron;
+  const showNotifBanner = !isElectron && !notifBannerDismissed && notifPermission === "default";
+  const inConversation = !!(activeDmUser || activeGroup);
 
   const handleAddClick = () => {
     if (activeView === "groups") setAddTab("group");
@@ -89,130 +149,116 @@ export default function AppLayout({
   };
 
   const handleVoiceClick = () => {
-    if (activeDmUser && onVoiceCall) {
-      onVoiceCall();
-    } else if (activeGroup && onGroupVoiceCall) {
-      onGroupVoiceCall();
-    }
+    if (activeDmUser && onVoiceCall) onVoiceCall();
+    else if (activeGroup && onGroupVoiceCall) onGroupVoiceCall();
   };
 
   return (
-    <div className="app-root" data-view={activeView}>
-      {/* Web notification permission banner */}
+    <div
+      className={`app-root${isMobile ? " is-mobile" : ""}${mobileDrawerOpen ? " mobile-drawer-open" : ""}${userPanelOpen ? " mobile-settings-open" : ""}`}
+      data-view={activeView}
+    >
       <AnimatePresence>
         {showNotifBanner && (
           <motion.div
             initial={{ y: -48, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -48, opacity: 0 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 380 }}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              zIndex: 99999,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 12,
-              padding: '10px 16px',
-              background: 'var(--primary)',
-              color: 'white',
-              fontSize: 13,
-              fontWeight: 500,
-            }}
+            transition={{ type: "spring", damping: 28, stiffness: 380 }}
+            className="app-notif-banner"
           >
             <Bell size={15} style={{ flexShrink: 0 }} />
             <span>Mesaj, arama ve mention bildirimleri almak için izin verin</span>
             <button
+              type="button"
+              className="app-notif-banner-btn"
               onClick={async () => {
                 await onRequestNotifPermission?.();
                 setNotifBannerDismissed(true);
-              }}
-              style={{
-                padding: '5px 14px',
-                borderRadius: 6,
-                border: 'none',
-                background: 'rgba(255,255,255,0.22)',
-                color: 'white',
-                fontWeight: 600,
-                fontSize: 12,
-                cursor: 'pointer',
-                flexShrink: 0,
               }}
             >
               İzin Ver
             </button>
             <button
+              type="button"
+              className="app-notif-banner-dismiss"
               onClick={() => setNotifBannerDismissed(true)}
-              style={{
-                marginLeft: 4,
-                background: 'none',
-                border: 'none',
-                color: 'rgba(255,255,255,0.7)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                padding: 4,
-                flexShrink: 0,
-              }}
             >
               <X size={14} />
             </button>
           </motion.div>
         )}
       </AnimatePresence>
-      {/* Navigation Rail - Leftmost vertical bar */}
-      <NavigationRail
-        activeView={activeView}
-        onViewChange={setActiveView}
-        onAdminClick={onAdminClick}
-        onUserClick={() => setUserPanelOpen(!userPanelOpen)}
-        onAddClick={handleAddClick}
-        onVoiceClick={handleVoiceClick}
-        me={me}
-        isAdmin={isAdmin}
-      />
 
-      {/* Activity sidebar replaces ServerSidebar when activity view is active */}
-      {activeView === "activity" ? (
-        <ActivitySidebar
-          friends={friends}
-          friendPresence={activity.friendPresence}
-          onlineUsers={onlineUsers}
+      {/* Mobile drawer backdrop */}
+      <AnimatePresence>
+        {isMobile && mobileDrawerOpen && (
+          <motion.button
+            type="button"
+            className="mobile-drawer-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            aria-label="Close menu"
+            onClick={closeMobileDrawer}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar shell: nav rail + list sidebar (same components as desktop) */}
+      <div className={`app-sidebar-shell${mobileDrawerOpen ? " open" : ""}`}>
+        <NavigationRail
+          activeView={activeView}
+          onViewChange={handleViewChange}
+          onAdminClick={onAdminClick}
+          onUserClick={openUserPanel}
+          onAddClick={handleAddClick}
+          onVoiceClick={handleVoiceClick}
+          me={me}
+          isAdmin={isAdmin}
         />
-      ) : (
-      <ServerSidebar
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        activeView={activeView}
-        activeDmUser={activeDmUser}
-        activeGroup={activeGroup}
-        groups={groups}
-        dms={dms}
-        friends={friends}
-        onlineUsers={onlineUsers}
-        socket={socket}
-        onDmSelect={onDmSelect}
-        onGroupSelect={onGroupSelect}
-        showAddModal={showAddModal}
-        setShowAddModal={setShowAddModal}
-        addTab={addTab}
-        setAddTab={setAddTab}
-        onFriendSelect={onDmSelect}
-        onRefreshGroups={onRefreshGroups}
-        onGroupCreated={onGroupCreated}
-        onGroupLeft={onGroupLeft}
-        onGroupRenamed={onGroupRenamed}
-        onRefresh={onRefresh}
-        friendRequests={friendRequests}
-        onAcceptFriend={onAcceptFriend}
-        onDeclineFriend={onDeclineFriend}
-      />
-      )}
 
-      {/* Main Chat Panel - Center content area */}
+        {activeView === "activity" ? (
+          <ActivitySidebar
+            friends={friends}
+            friendPresence={activity.friendPresence}
+            onlineUsers={onlineUsers}
+          />
+        ) : (
+          <ServerSidebar
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            activeView={activeView}
+            activeDmUser={activeDmUser}
+            activeGroup={activeGroup}
+            groups={groups}
+            dms={dms}
+            friends={friends}
+            onlineUsers={onlineUsers}
+            socket={socket}
+            onDmSelect={handleDmSelect}
+            onGroupSelect={handleGroupSelect}
+            showAddModal={showAddModal}
+            setShowAddModal={setShowAddModal}
+            addTab={addTab}
+            setAddTab={setAddTab}
+            onFriendSelect={handleDmSelect}
+            onRefreshGroups={onRefreshGroups}
+            onGroupCreated={onGroupCreated}
+            onGroupLeft={onGroupLeft}
+            onGroupRenamed={onGroupRenamed}
+            onRefresh={onRefresh}
+            friendRequests={friendRequests}
+            onAcceptFriend={onAcceptFriend}
+            onDeclineFriend={onDeclineFriend}
+            onMobileClose={isMobile ? closeMobileDrawer : undefined}
+            isMobile={isMobile}
+            dmUnread={dmUnread}
+            groupUnread={groupUnread}
+          />
+        )}
+      </div>
+
       <ChatPanel
         activeView={activeView}
         activeDmUser={activeDmUser}
@@ -229,7 +275,7 @@ export default function AppLayout({
         onVideoCall={onVideoCall}
         onGroupVoiceCall={onGroupVoiceCall}
         onGroupVideoCall={onGroupVideoCall}
-        onSettings={() => setUserPanelOpen(true)}
+        onSettings={openUserPanel}
         activeCallBanner={activeCallBanner}
         onJoinActiveCall={onJoinActiveCall}
         onDismissActiveBanner={onDismissActiveBanner}
@@ -241,22 +287,25 @@ export default function AppLayout({
         onTypingDmStop={onTypingDmStop}
         onTypingGroupStart={onTypingGroupStart}
         onTypingGroupStop={onTypingGroupStop}
+        isMobile={isMobile}
+        onMenuClick={openMobileDrawer}
+        onMobileBack={handleMobileBack}
+        showMobileBack={isMobile && inConversation}
       >
         {children}
       </ChatPanel>
 
-      {/* User Panel - Right sidebar (optional) */}
       <AnimatePresence>
         {userPanelOpen && (
-          <UserPanel 
+          <UserPanel
             me={me}
-            onClose={() => setUserPanelOpen(false)}
+            onClose={closeUserPanel}
             onLogout={onLogout}
+            onProfileUpdated={onProfileUpdated}
             onSettings={() => {}}
           />
         )}
       </AnimatePresence>
-
     </div>
   );
 }

@@ -1,0 +1,130 @@
+/**
+ * Server-side user profile cache and broadcast helpers.
+ */
+const supabase = require("../db/supabase");
+const { friends, presence, usernameById, lastSeenByUserId } = require("../runtime/sharedState");
+
+/** userId -> { id, username, avatar_url, display_name, updated_at } */
+const userProfileById = new Map();
+
+function normalizeProfileRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    username: row.username,
+    avatar_url: row.avatar_url || null,
+    display_name: row.display_name || null,
+    updated_at: row.updated_at || new Date().toISOString(),
+  };
+}
+
+function toPublicUser(profile) {
+  if (!profile) return null;
+  return {
+    id: profile.id,
+    username: profile.username,
+    avatarUrl: profile.avatar_url || null,
+    avatar_url: profile.avatar_url || null,
+    displayName: profile.display_name || null,
+    bio: profile.bio || null,
+    customStatus: profile.custom_status || null,
+    bannerUrl: profile.banner_url || null,
+    is_admin: profile.is_admin,
+    avatarVersion: profile.updated_at,
+    updated_at: profile.updated_at,
+    created_at: profile.created_at,
+  };
+}
+
+async function loadUserProfile(userId) {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, username, avatar_url, display_name, updated_at")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data) return userProfileById.get(userId) || null;
+
+  const profile = normalizeProfileRow(data);
+  userProfileById.set(userId, profile);
+  if (profile.username) usernameById.set(userId, profile.username);
+  return profile;
+}
+
+function cacheUserProfile(row) {
+  const profile = normalizeProfileRow(row);
+  if (!profile?.id) return null;
+  userProfileById.set(profile.id, profile);
+  if (profile.username) usernameById.set(profile.id, profile.username);
+  return profile;
+}
+
+function getCachedPublicUser(userId) {
+  return toPublicUser(userProfileById.get(userId));
+}
+
+function getAvatarUrl(userId) {
+  return userProfileById.get(userId)?.avatar_url || null;
+}
+
+async function broadcastUserProfileUpdate(io, userId) {
+  const profile = await loadUserProfile(userId);
+  if (!profile) return;
+
+  const p = presence.get(userId);
+  if (p) {
+    p.avatar_url = profile.avatar_url;
+    presence.set(userId, p);
+  }
+
+  const payload = { user: toPublicUser(profile) };
+
+  io.to(`user:${userId}`).emit("user:profile:updated", payload);
+
+  const friendSet = friends.get(userId);
+  if (friendSet) {
+    for (const fid of friendSet) {
+      io.to(`user:${fid}`).emit("user:profile:updated", payload);
+    }
+  }
+
+  const list = [];
+  for (const [id, pres] of presence) {
+    const cached = userProfileById.get(id);
+    list.push({
+      id,
+      username: pres.username,
+      status: pres.status || "online",
+      avatarUrl: cached?.avatar_url || pres.avatar_url || null,
+      avatar_url: cached?.avatar_url || pres.avatar_url || null,
+    });
+  }
+  io.emit("users:update", list);
+}
+
+function enrichFriendEntry(userId) {
+  const p = presence.get(userId);
+  const cached = userProfileById.get(userId);
+  const lastSeen = lastSeenByUserId.get(userId) || null;
+  return {
+    id: userId,
+    username: cached?.username || usernameById.get(userId) || p?.username || "?",
+    avatarUrl: cached?.avatar_url || p?.avatar_url || null,
+    status: p ? p.status || "online" : "offline",
+    lastSeen: p ? null : lastSeen,
+    avatarVersion: cached?.updated_at || null,
+    updated_at: cached?.updated_at || null,
+  };
+}
+
+module.exports = {
+  userProfileById,
+  loadUserProfile,
+  cacheUserProfile,
+  getCachedPublicUser,
+  getAvatarUrl,
+  toPublicUser,
+  broadcastUserProfileUpdate,
+  enrichFriendEntry,
+};

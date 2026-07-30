@@ -2,6 +2,14 @@
 
 const supabase = require("../db/supabase");
 const {
+  loadUserProfile,
+  cacheUserProfile,
+  broadcastUserProfileUpdate,
+  enrichFriendEntry,
+  toPublicUser,
+  getCachedPublicUser,
+} = require("../lib/userProfile");
+const {
   presence,
   socketToUser,
   friends,
@@ -25,7 +33,7 @@ const {
   appendErrorLog,
 } = require("../runtime/sharedState");
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
-const { registerGroupHandlers } = require("./groupHandlers");
+const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 
 function ensureSet(map, key) {
   if (!map.has(key)) map.set(key, new Set());
@@ -71,9 +79,38 @@ function pushNotification(io, userId, n) {
 function broadcastUsers(io) {
   const list = [];
   for (const [id, p] of presence) {
-    list.push({ id, username: p.username, status: p.status || "online" });
+    const cached = getCachedPublicUser(id);
+    list.push({
+      id,
+      username: cached?.username || p.username,
+      status: p.status || "online",
+      avatarUrl: cached?.avatarUrl || p.avatar_url || null,
+      avatar_url: cached?.avatarUrl || p.avatar_url || null,
+      avatarVersion: cached?.avatarVersion || cached?.updated_at || null,
+      updated_at: cached?.updated_at || null,
+    });
   }
   io.emit("users:update", list);
+}
+
+function messageSender(userId, fallbackUsername, fallbackAvatar) {
+  const cached = getCachedPublicUser(userId);
+  if (cached) {
+    return {
+      id: userId,
+      username: cached.username,
+      avatarUrl: cached.avatarUrl,
+      avatar_url: cached.avatarUrl,
+      avatarVersion: cached.avatarVersion,
+      updated_at: cached.updated_at,
+    };
+  }
+  return {
+    id: userId,
+    username: fallbackUsername,
+    avatarUrl: fallbackAvatar || null,
+    avatar_url: fallbackAvatar || null,
+  };
 }
 
 function getSocketForUser(io, userId) {
@@ -87,15 +124,7 @@ function getFriendList(userId) {
   if (!set) return [];
   const out = [];
   for (const fid of set) {
-    const p = presence.get(fid);
-    const lastSeen = lastSeenByUserId.get(fid) || null;
-    const uname = usernameById.get(fid) || p?.username || "?";
-    out.push({
-      id: fid,
-      username: uname,
-      status: p ? p.status || "online" : "offline",
-      lastSeen: p ? null : lastSeen,
-    });
+    out.push(enrichFriendEntry(fid));
   }
   return out.sort((a, b) => a.username.localeCompare(b.username));
 }
@@ -103,7 +132,7 @@ function getFriendList(userId) {
 function getPendingList(userId) {
   const m = pendingRequests.get(userId);
   if (!m) return [];
-  return Array.from(m.values());
+  return Array.from(m.keys()).map((id) => enrichFriendEntry(id));
 }
 
 function emitToUser(io, userId, event, payload) {
@@ -177,7 +206,7 @@ async function loadFriendsFromDB(userId) {
     // Batch-fetch usernames
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, username")
+      .select("id, username, avatar_url, display_name, updated_at")
       .in("id", friendIds);
 
     if (usersError) console.error("[FRIENDS] loadFriendsFromDB users fetch error:", usersError);
@@ -186,6 +215,7 @@ async function loadFriendsFromDB(userId) {
     for (const u of (users || [])) {
       friendSet.add(u.id);
       usernameById.set(u.id, u.username);
+      cacheUserProfile(u);
     }
 
     friends.set(userId, friendSet);
@@ -216,7 +246,7 @@ async function loadPendingRequestsFromDB(userId) {
     const senderIds = rows.map((r) => r.user_id);
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, username")
+      .select("id, username, avatar_url, display_name, updated_at")
       .in("id", senderIds);
 
     if (usersError) {
@@ -227,8 +257,13 @@ async function loadPendingRequestsFromDB(userId) {
     const pending = ensurePending(userId);
     for (const u of (users || [])) {
       if (!pending.has(u.id)) {
-        pending.set(u.id, { id: u.id, username: u.username });
+        pending.set(u.id, {
+          id: u.id,
+          username: u.username,
+          avatarUrl: u.avatar_url || null,
+        });
         usernameById.set(u.id, u.username);
+        cacheUserProfile(u);
       }
     }
   } catch (e) {
@@ -292,10 +327,23 @@ function registerSocketHandlers(io) {
       username: me.username,
       status: "online",
       socketId: socket.id,
+      avatar_url: me.avatar_url || null,
     });
     socket.join(`user:${myId}`);
     socketToUser.set(socket.id, myId);
     socket.data.activeDmPeer = null;
+
+    // Load full profile from DB (avatar, display name, etc.)
+    loadUserProfile(myId).then((profile) => {
+      if (!profile) return;
+      me.avatar_url = profile.avatar_url;
+      socket.user.avatar_url = profile.avatar_url;
+      const p = presence.get(myId);
+      if (p) {
+        p.avatar_url = profile.avatar_url;
+        presence.set(myId, p);
+      }
+    }).catch(() => {});
 
     setupAdminSocket(io, socket);
 
@@ -359,7 +407,7 @@ function registerSocketHandlers(io) {
         theirPending.set(myId, { id: myId, username: me.username });
         usernameById.set(myId, me.username);
         emitToUser(io, target.id, "friend:request:incoming", {
-          from: { id: myId, username: me.username },
+          from: enrichFriendEntry(myId),
         });
         pushNotification(io, target.id, {
           type: "friend_request",
@@ -540,9 +588,10 @@ function registerSocketHandlers(io) {
       socket.data.activeDmPeer = toUserId;
       const messageId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const arr = dmHistory.get(convKey(myId, toUserId)) || [];
+      const sender = messageSender(myId, me.username, me.avatar_url || socket.user?.avatar_url);
       arr.push({
         id: messageId,
-        from: { id: myId, username: me.username },
+        from: sender,
         to: { id: toUserId },
         text: text || "",
         mediaUrl,
@@ -554,11 +603,22 @@ function registerSocketHandlers(io) {
       });
       if (arr.length > MAX_DM_PER_CONV) arr.length = MAX_DM_PER_CONV;
       dmHistory.set(convKey(myId, toUserId), arr);
-      const unreadMap = ensureDmUnreadMap(toUserId);
-      unreadMap.set(myId, (unreadMap.get(myId) || 0) + 1);
+
+      // Unread for recipient — skip if they currently have this DM open
+      const recipientSocket = getSocketForUser(io, toUserId);
+      const recipientActivePeer = recipientSocket?.data?.activeDmPeer;
+      let unreadCount = 0;
+      if (recipientActivePeer !== myId) {
+        const unreadMap = ensureDmUnreadMap(toUserId);
+        unreadCount = (unreadMap.get(myId) || 0) + 1;
+        unreadMap.set(myId, unreadCount);
+      } else {
+        ensureDmUnreadMap(toUserId).delete(myId);
+      }
+
       const messagePayload = {
         id: messageId,
-        from: { id: myId, username: me.username },
+        from: sender,
         text,
         mediaUrl,
         mediaType,
@@ -570,6 +630,13 @@ function registerSocketHandlers(io) {
       emitToUser(io, toUserId, "dm:message", { ...messagePayload, convWith: myId });
       // Echo back to sender with tempId so client can replace the optimistic message
       socket.emit("dm:message", { ...messagePayload, tempId, convWith: toUserId });
+
+      // Sync unread after the message so the list can reorder first, then badge updates
+      if (recipientActivePeer !== myId) {
+        emitToUser(io, toUserId, "dm:unread:sync", { peerId: myId, count: unreadCount });
+      } else {
+        emitToUser(io, toUserId, "dm:unread:sync", { peerId: myId, count: 0 });
+      }
 
       // Emit mention:received if text contains @recipient — used by notification service
       if (text) {
@@ -661,18 +728,34 @@ function registerSocketHandlers(io) {
 
     socket.on("call:offer", ({ toUserId, offer, callType } = {}) => {
       if (typeof toUserId !== "string" || !offer) return;
-      const room = io.sockets?.adapter?.rooms?.get(`user:${toUserId}`);
-      const presenceHit = Boolean(presence.get(toUserId)?.socketId);
-      if ((!room || room.size === 0) && !presenceHit) {
-        console.warn(`[Call] offer dropped — callee offline: ${toUserId}`);
-        socket.emit("call:unreachable", { toUserId });
-        return;
-      }
-      emitToUser(io, toUserId, "call:offer", {
-        fromUser: { id: myId, username: me.username },
+      const targetId = toUserId.trim();
+      if (!targetId) return;
+
+      // Always attempt delivery via durable user room + presence fallback.
+      const room = io.sockets?.adapter?.rooms?.get(`user:${targetId}`);
+      const presenceHit = Boolean(presence.get(targetId)?.socketId);
+      const delivered = (room && room.size > 0) || presenceHit;
+
+      emitToUser(io, targetId, "call:offer", {
+        fromUser: {
+          id: myId,
+          username: me.username,
+          avatar_url: me.avatar_url || socket.user?.avatar_url || null,
+          avatarUrl: me.avatar_url || socket.user?.avatar_url || null,
+        },
         offer,
         callType: callType || "voice",
       });
+
+      // Inform caller only when we truly have no socket for the callee.
+      // Do not block the offer attempt — emitToUser is best-effort.
+      if (!delivered) {
+        console.warn(`[Call] offer — callee may be offline: ${targetId}`);
+        socket.emit("call:unreachable", {
+          toUserId: targetId,
+          reason: "offline_or_no_socket",
+        });
+      }
     });
 
     socket.on("call:answer", ({ toUserId, answer } = {}) => {
@@ -943,11 +1026,11 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
+      await removeUserFromAllGroupCalls(io, myId, socket);
       socketToUser.delete(socket.id);
 
       // Keep presence if another tab/socket for this user is still connected.
-      // (Socket.IO has already removed this socket from rooms by disconnect time.)
       const remaining = io.sockets?.adapter?.rooms?.get(`user:${myId}`);
       if (remaining && remaining.size > 0) {
         const nextSocketId = remaining.values().next().value;

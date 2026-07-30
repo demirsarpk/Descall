@@ -241,7 +241,7 @@ export default function ServerList({
 
             {/* User panel at bottom */}
             <div className="guild-user-panel">
-              <Avatar name={me?.username || "User"} size={32} imageUrl={me?.avatarUrl} />
+              <Avatar name={me?.username || "User"} size={32} user={me} />
               <div className="guild-user-info">
                 <span className="guild-user-name">{me?.username}</span>
                 <span className="guild-user-status">Online</span>
