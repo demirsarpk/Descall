@@ -6,6 +6,17 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version_bump:
+        description: "Optional — only when cutting a release from main without a local tag (patch/minor/major)"
+        required: false
+        default: "none"
+        type: choice
+        options:
+          - none
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write

@@ -50,6 +50,7 @@ router.get("/latest-release", async (_req, res) => {
     res.set("Cache-Control", "public, max-age=120");
     res.json({
       tagName: release.tag_name,
+      version: String(release.tag_name || "").replace(/^v/i, ""),
       name: release.name,
       publishedAt: release.published_at,
       htmlUrl: release.html_url,
