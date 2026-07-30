@@ -40,6 +40,10 @@ services:
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: "7d"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
       # --- Runtime ---
       - key: NODE_VERSION
         value: "20"

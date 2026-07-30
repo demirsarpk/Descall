@@ -19,6 +19,7 @@ import {
   X
 } from 'lucide-react';
 import TitleBar from '../TitleBar';
+import GoogleSignInButton from '../auth/GoogleSignInButton';
 import './DownloadPage.css';
 
 /** Must match GitHub repo that publishes Descall-Setup-*.exe (release workflow). */
@@ -44,7 +45,7 @@ function pickWindowsExeUrl(release) {
   return anyExe?.browser_download_url || null;
 }
 
-export default function DownloadPage({ onLogin, onRegister, authLoading, authError }) {
+export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authLoading, authError }) {
   const [latestRelease, setLatestRelease] = useState(null);
   const [windowsDownloadUrl, setWindowsDownloadUrl] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -335,18 +336,47 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <button className="modal-close" onClick={() => setShowLogin(false)}>
+              <button type="button" className="modal-close" onClick={() => setShowLogin(false)}>
                 <X size={20} />
               </button>
               <h2>{isRegistering ? 'Create Account' : 'Welcome Back'}</h2>
+              <p>{isRegistering ? 'Join Descall today' : 'Sign in to your account'}</p>
               {authError && <div className="auth-error">{authError}</div>}
+
+              <GoogleSignInButton
+                disabled={isSubmitting || authLoading}
+                onCredential={async (credential) => {
+                  setIsSubmitting(true);
+                  try {
+                    await onGoogleLogin?.(credential);
+                    setShowLogin(false);
+                    setUsername('');
+                    setPassword('');
+                  } catch {
+                    /* App sets authError */
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+              />
+
+              <div className="auth-divider" aria-hidden="true">
+                <span>or</span>
+              </div>
+
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
                   setIsSubmitting(true);
                   try {
-                    if (isRegistering) await onRegister?.(username, password);
-                    else await onLogin?.(username, password);
+                    const payload = { username, password };
+                    if (isRegistering) await onRegister?.(payload);
+                    else await onLogin?.(payload);
+                    setShowLogin(false);
+                    setUsername('');
+                    setPassword('');
+                  } catch {
+                    /* keep modal open */
                   } finally {
                     setIsSubmitting(false);
                   }

@@ -2,6 +2,12 @@
 
 ## Cursor Cloud specific instructions
 
+### Auth
+- Descall uses **custom JWT** (`JWT_SECRET`); Supabase is DB/storage only (service role), not Supabase Auth.
+- Google Sign-In: GIS ID token → `POST /auth/google` → same app JWT. Requires `GOOGLE_CLIENT_ID` (and ideally `VITE_GOOGLE_CLIENT_ID` at frontend build). If client ID is missing, the UI shows “not configured” and password auth still works.
+- Before Google login works end-to-end, apply `supabase/migrations/20260729_add_google_oauth_columns.sql` (adds `email`, `google_id`, `auth_provider`; makes `password_hash` nullable).
+- Google-only accounts have `password_hash = null`; password login returns a message to use Google.
+
 ### Voice / group calls
 - DM calls signal with `call:offer` → accept/reject UI is `CallOverlay` (`mode === "incoming"`).
 - Group calls signal with `group:call:incoming` → accept/reject UI is `GroupCallIncomingModal`.
@@ -16,5 +22,6 @@
 - **Client errors** POST to `/api/errors` (mounted in `server.js`). `/debug/*` routes are disabled in production unless `ENABLE_DEBUG_ROUTES=true`.
 - **Bans** persist in `users.is_banned` (migration `20250730_add_users_is_banned.sql`); loaded on server boot into `bannedUserIds`.
 
-### Auth / services
-- Custom JWT + Supabase DB/storage (service role). See `README.md` / `frontend/package.json` for run scripts.
+### Services
+- Backend: `frontend/backend` (Express + Socket.IO). Frontend Vite app is served from backend `dist` in production; local UI via Vite. See `README.md` / `frontend/package.json` scripts.
+- Secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` (required); `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` (optional until OAuth is enabled).
