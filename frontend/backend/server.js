@@ -22,6 +22,9 @@ const reactionRoutes = require("./routes/reactions");
 const friendsRoutes = require("./routes/friends");
 const activityRoutes = require("./routes/activity");
 const guildRoutes = require("./routes/guilds");
+const webrtcRoutes = require("./routes/webrtc");
+const errorRoutes = require("./routes/errors");
+const state = require("./runtime/sharedState");
 
 // Inline feedback - no external file needed
 const { requireAuth } = require("./middleware/auth");
@@ -30,6 +33,7 @@ const supabase = require("./db/supabase");
 // Socket
 const { socketAuthMiddleware } = require("./middleware/socketAuth");
 const { registerSocketHandlers } = require("./socket/handlers");
+const { cacheUserProfile, broadcastUserProfileUpdate, toPublicUser } = require("./lib/userProfile");
 const { registerActivityHandlers } = require("./socket/activityHandlers");
 const { registerGuildHandlers } = require("./socket/guildHandlers");
 const { registerGameHandlers } = require("./socket/gameHandlers");
@@ -53,14 +57,19 @@ app.set("io", io);
 app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
 
-// Debug - log all requests
-app.use((req, res, next) => {
-  console.log(`[REQ] ${req.method} ${req.path}`);
-  next();
-});
+// Debug - log all requests (skip noise in production)
+if (process.env.NODE_ENV !== "production") {
+  app.use((req, res, next) => {
+    console.log(`[REQ] ${req.method} ${req.path}`);
+    next();
+  });
+}
+
+const debugRoutesEnabled =
+  process.env.NODE_ENV !== "production" || process.env.ENABLE_DEBUG_ROUTES === "true";
 
 // TEMP DEBUG: list all tables in public schema
-app.get("/debug/tables", async (_req, res) => {
+if (debugRoutesEnabled) app.get("/debug/tables", async (_req, res) => {
   try {
     const { data, error } = await supabase
       .from("information_schema.tables")
@@ -78,7 +87,7 @@ app.get("/debug/tables", async (_req, res) => {
 });
 
 // TEMP DEBUG: show first 5 rows of any table
-app.get("/debug/peek/:tableName", async (req, res) => {
+if (debugRoutesEnabled) app.get("/debug/peek/:tableName", async (req, res) => {
   try {
     const { data, error } = await supabase
       .from(req.params.tableName)
@@ -90,11 +99,11 @@ app.get("/debug/peek/:tableName", async (req, res) => {
   }
 });
 
-// Root endpoint
-app.get("/", (_req, res) => {
+// API status (not served at / — root serves the React app)
+app.get("/api/status", (_req, res) => {
   res.json({
     status: "ok",
-    message: "Descall Backend v3.0 - Feedback System Ready",
+    message: "Descall API",
     timestamp: new Date().toISOString(),
     version: "3.0.0"
   });
@@ -138,6 +147,8 @@ app.use("/api/reactions", reactionRoutes);
 app.use("/api/friends", friendsRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/guilds", guildRoutes);
+app.use("/api/webrtc", webrtcRoutes);
+app.use("/api/errors", errorRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)
@@ -314,6 +325,9 @@ app.put("/api/user/profile", requireAuth, async (req, res) => {
     if (bubbleStyle !== undefined) updateData.bubble_style = bubbleStyle;
     if (avatarUrl !== undefined) updateData.avatar_url = avatarUrl;
     if (bannerUrl !== undefined) updateData.banner_url = bannerUrl;
+    if (avatarUrl !== undefined || displayName !== undefined || bio !== undefined || customStatus !== undefined) {
+      updateData.updated_at = new Date().toISOString();
+    }
     
     const { data, error } = await supabase
       .from("users")
@@ -323,8 +337,12 @@ app.put("/api/user/profile", requireAuth, async (req, res) => {
       .single();
     
     if (error) return res.status(500).json({ success: false, error: error.message });
-    
-    return res.json({ success: true, user: data });
+
+    cacheUserProfile(data);
+    const io = req.app.get("io");
+    if (io) await broadcastUserProfileUpdate(io, req.user.id);
+
+    return res.json({ success: true, user: toPublicUser(cacheUserProfile(data)) });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -726,17 +744,40 @@ console.log("  - /api/admin/make-admin/:userId");
 console.log("  - /api/admin/remove-admin/:userId");
 console.log("  - /api/admin/users");
 console.log("  - /api/test (no auth)");
+console.log("  - /api/status");
 console.log("  - /health");
 
 // Static files
 app.use("/media/files", express.static(path.join(__dirname, "uploads")));
 
-// Serve frontend in production
+// Serve React frontend (Vite build output: frontend/dist)
+const fs = require("fs");
 const distPath = path.join(__dirname, "..", "dist");
-if (require("fs").existsSync(distPath)) {
+const indexPath = path.join(distPath, "index.html");
+const hasFrontend = fs.existsSync(indexPath);
+
+const API_PREFIXES = [
+  "/api", "/auth", "/admin", "/media", "/groups",
+  "/friends", "/guilds", "/reactions", "/health", "/debug",
+];
+
+if (hasFrontend) {
+  console.log("[STATIC] Serving frontend from:", distPath);
   app.use(express.static(distPath));
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
+  app.get("*", (req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    if (API_PREFIXES.some((prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`))) {
+      return next();
+    }
+    res.sendFile(indexPath);
+  });
+} else {
+  console.warn("[STATIC] frontend/dist/index.html not found — run: cd frontend && npm run build:prod");
+  app.get("/", (_req, res) => {
+    res.status(503).json({
+      status: "error",
+      message: "Frontend not built. Deploy must run: cd frontend && npm install --include=dev && npm run build:prod",
+    });
   });
 }
 
@@ -776,6 +817,23 @@ console.log("  SUPABASE_URL:", !!process.env.SUPABASE_URL);
 console.log("  SUPABASE_SERVICE_ROLE_KEY:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
 console.log("  JWT_SECRET:", !!process.env.JWT_SECRET);
 
-httpServer.listen(PORT, () => {
+async function loadBannedUsersFromDb() {
+  try {
+    const { data, error } = await supabase.from("users").select("id").eq("is_banned", true);
+    if (error) {
+      console.warn("[boot] Could not load banned users:", error.message);
+      return;
+    }
+    for (const row of data || []) {
+      if (row?.id) state.bannedUserIds.add(String(row.id));
+    }
+    console.log("[boot] Loaded banned users:", state.bannedUserIds.size);
+  } catch (e) {
+    console.warn("[boot] loadBannedUsersFromDb:", e.message);
+  }
+}
+
+httpServer.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
+  await loadBannedUsersFromDb();
 });

@@ -25,6 +25,7 @@ Descall-Setup.exe
 .env
 .env.local
 .env.*.local
+render.env
 
 # IDE
 .vscode/

@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
+import { patchUserAvatar } from "../lib/userProfile";
+import { getUser } from "../lib/storage";
+import {
+  GROUP_SCREEN_DEFAULT_QUALITY,
+  buildDisplayMediaConstraints,
+  buildElectronDesktopConstraints,
+  optimizeScreenShareSender,
+  optimizeScreenShareTrack,
+  resolveScreenCaptureSize,
+  screenBitrateForPeerCount,
+} from "../lib/webrtcScreenShare";
+import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -122,16 +134,11 @@ function showElectronScreenPicker(sources) {
   });
 }
 
-const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
-
 /**
  * Group Call Hook - Simplified multi-peer WebRTC
  * Based on working DM call (useCall.js) with Map for multiple peers
  */
-export function useGroupCall(socket) {
+export function useGroupCall(socket, currentUserId = null) {
   const [isInCall, setIsInCall] = useState(false);
   const [isInitiator, setIsInitiator] = useState(false);
   const [callType, setCallType] = useState(null);
@@ -154,10 +161,7 @@ export function useGroupCall(socket) {
   const [selectedAudioOutput, setSelectedAudioOutput] = useState("");
   
   // Screen sharing quality settings
-  const [screenQuality, setScreenQuality] = useState({
-    resolution: '1080p', // '720p' | '1080p'
-    fps: 30, // 30 | 60 | 120 | 240
-  });
+  const [screenQuality, setScreenQuality] = useState(GROUP_SCREEN_DEFAULT_QUALITY);
 
   const socketRef = useRef(socket);
   const localStreamRef = useRef(null);
@@ -170,8 +174,37 @@ export function useGroupCall(socket) {
   const myIdRef = useRef(null);
   const timerRef = useRef(null);
   const screenSenderRef = useRef(null);
+  const isInCallRef = useRef(false);
+  const callTypeRef = useRef(null);
+  const incomingDedupeRef = useRef(new Map()); // groupId -> ts
+  const screenQualityRef = useRef(screenQuality);
+
+  useEffect(() => {
+    preloadIceServers().catch(() => {});
+  }, []);
 
   useEffect(() => { socketRef.current = socket; }, [socket]);
+
+  useEffect(() => {
+    screenQualityRef.current = screenQuality;
+  }, [screenQuality]);
+
+  useEffect(() => {
+    isInCallRef.current = isInCall;
+  }, [isInCall]);
+
+  useEffect(() => {
+    callTypeRef.current = callType;
+  }, [callType]);
+
+  useEffect(() => {
+    if (currentUserId) {
+      myIdRef.current = currentUserId;
+      return;
+    }
+    const stored = getUser()?.id;
+    if (stored) myIdRef.current = stored;
+  }, [currentUserId]);
 
   // Cleanup on unmount - prevent resource leaks
   useEffect(() => {
@@ -322,14 +355,19 @@ export function useGroupCall(socket) {
         ? rawStream
         : new MediaStream([track]);
 
-      // Screen share detection: video track whose stream carries no audio,
-      // OR whose label explicitly mentions the screen/display surface
-      const isScreenTrack = track.kind === "video" &&
-        (track.label?.toLowerCase().includes("screen") ||
-         track.label?.toLowerCase().includes("display") ||
-         track.label?.toLowerCase().includes("window") ||
-         track.label?.toLowerCase().includes("tab") ||
-         incomingStream.getAudioTracks().length === 0);
+  // Screen share: labeled desktop/window tracks, or a video-only stream
+  // (camera usually shares the mic stream; screen is a separate MediaStream).
+  const label = (track.label || "").toLowerCase();
+  const peerExpectsScreen = Boolean(pcMapRef.current.get(userId)?.expectScreenShare);
+  const isScreenTrack = track.kind === "video" && (
+    peerExpectsScreen ||
+    label.includes("screen") ||
+    label.includes("display") ||
+    label.includes("window") ||
+    label.includes("tab") ||
+    label.includes("web contents") ||
+    incomingStream.getAudioTracks().length === 0
+  );
 
       if (track.kind === "audio") {
         // Audio always belongs to the main participant stream
@@ -358,6 +396,10 @@ export function useGroupCall(socket) {
           setParticipants((prev) => {
             if (userId === myIdRef.current) return prev;
             const exists = prev.find((p) => p.id === userId);
+            // Avoid re-render thrash (black flashes / FPS drops) when stream is unchanged
+            if (exists?.isScreenSharing && exists?.screenStream === incomingStream) {
+              return prev;
+            }
             if (exists) {
               return prev.map((p) => p.id === userId
                 ? { ...p, screenStream: incomingStream, isScreenSharing: true }
@@ -545,7 +587,7 @@ export function useGroupCall(socket) {
       memberIds.forEach((userId) => {
         if (userId === myIdRef.current) return;
         
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         const peerData = { pc, pendingIce: [] };
         pcMapRef.current.set(userId, peerData);
         
@@ -568,7 +610,7 @@ export function useGroupCall(socket) {
       setActiveCallBanner({
         groupId,
         initiatorId: myIdRef.current,
-        initiatorUsername: socketRef.current?.user?.username || "You",
+        initiatorUsername: getUser()?.username || socketRef.current?.user?.username || "You",
         callType: type,
         participantCount: 1,
         participants: [myIdRef.current],
@@ -749,19 +791,10 @@ export function useGroupCall(socket) {
         console.log('[GroupScreenShare] abort: already sharing');
         return;
       }
-      
-      // Calculate resolution based on setting with optimized performance
-      const resolutionMap = {
-        '480p': { width: 854, height: 480 },
-        '720p': { width: 1280, height: 720 },
-        '1080p': { width: 1920, height: 1080 },
-        '1440p': { width: 2560, height: 1440 },
-        '2160p': { width: 3840, height: 2160 },
-        'custom': { width: 1920, height: 1080 }, // Default to 1080p for custom
-      };
-      
-      const { width, height } = resolutionMap[effectiveQuality.resolution] || resolutionMap['1080p'];
-      const frameRate = effectiveQuality.fps || 30;
+
+      const { width, height, fps: frameRate } = resolveScreenCaptureSize(effectiveQuality);
+      const peerCount = Math.max(1, pcMapRef.current.size);
+      const maxBitrate = screenBitrateForPeerCount(peerCount, effectiveQuality.resolution || "720p");
       
       let stream;
 
@@ -777,38 +810,18 @@ export function useGroupCall(socket) {
         const sourceId = await showElectronScreenPicker(sources);
         console.log('[GroupScreenShare] picked sourceId:', sourceId);
         if (!sourceId) return;
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            mandatory: {
-              chromeMediaSource: 'desktop',
-              chromeMediaSourceId: sourceId,
-              minWidth: width,
-              maxWidth: width,
-              minHeight: height,
-              maxHeight: height,
-            },
-          },
-        });
+        stream = await navigator.mediaDevices.getUserMedia(
+          buildElectronDesktopConstraints(sourceId, { width, height, fps: frameRate })
+        );
       } else {
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { 
-            cursor: "always",
-            displaySurface: "monitor",
-            width: { ideal: width, max: width },
-            height: { ideal: height, max: height },
-            frameRate: { ideal: frameRate, max: frameRate },
-            resizeMode: "crop-and-scale",
-            aspectRatio: width / height
-          },
-          audio: false,
-        });
+        stream = await navigator.mediaDevices.getDisplayMedia(
+          buildDisplayMediaConstraints({ width, height, fps: frameRate })
+        );
       }
       
       const screenTrack = stream.getVideoTracks()[0];
-      
-      // Store original track settings for restoration
-      const originalConstraints = screenTrack.getConstraints();
+      await optimizeScreenShareTrack(screenTrack, { width, height, fps: frameRate });
+
       screenStreamRef.current = stream;
       setScreenStream(stream);
       
@@ -820,6 +833,10 @@ export function useGroupCall(socket) {
           const sender = peerData.pc.addTrack(screenTrack, stream);
           // Store per-peer so stopScreenShare can removeTrack precisely
           peerData.screenSender = sender;
+          await optimizeScreenShareSender(sender, {
+            maxBitrate,
+            maxFramerate: frameRate,
+          });
 
           const offer = await peerData.pc.createOffer();
           await peerData.pc.setLocalDescription(offer);
@@ -827,7 +844,7 @@ export function useGroupCall(socket) {
             groupId: activeGroupId,
             toUserId: userId,
             offer: peerData.pc.localDescription,
-            callType: callType || "voice",
+            callType: callTypeRef.current || callType || "voice",
           });
         } catch (err) {
           console.error(`[GroupCall] Screen share addTrack failed for ${userId}:`, err);
@@ -854,7 +871,7 @@ export function useGroupCall(socket) {
       if (err.name === 'NotAllowedError') {
       }
     }
-  }, [isScreenSharing, activeGroupId, screenQuality]);
+  }, [isScreenSharing, activeGroupId, screenQuality, callType]);
 
   const stopScreenShare = useCallback(async () => {
     if (!isScreenSharing) return;
@@ -905,22 +922,57 @@ export function useGroupCall(socket) {
     }
   }, [activeGroupId, isScreenSharing]);
 
+  const restartScreenShareWithQuality = useCallback(
+    async (nextQuality) => {
+      if (!isScreenSharing) {
+        setScreenQuality(nextQuality);
+        screenQualityRef.current = nextQuality;
+        return;
+      }
+      await stopScreenShare();
+      await new Promise((r) => setTimeout(r, 150));
+      setScreenQuality(nextQuality);
+      screenQualityRef.current = nextQuality;
+      await startScreenShare(nextQuality);
+    },
+    [isScreenSharing, startScreenShare, stopScreenShare]
+  );
+
   useEffect(() => {
     if (!socket) return;
-    
-    const myId = socket.user?.id;
-    myIdRef.current = myId;
 
-    const onIncoming = ({ groupId, fromUser, callType: type, groupName }) => {
-      if (!groupId || !fromUser?.id || fromUser.id === myId) return;
-      if (isInCall) {
+    const onIncoming = ({ groupId, fromUser, callType: type, groupName } = {}) => {
+      const myId = myIdRef.current;
+      if (!groupId || !fromUser?.id) return;
+      if (myId && fromUser.id === myId) return;
+
+      // Deduplicate dual delivery (user room + group room)
+      const now = Date.now();
+      const prevAt = incomingDedupeRef.current.get(groupId) || 0;
+      if (now - prevAt < 2500) return;
+      incomingDedupeRef.current.set(groupId, now);
+
+      if (isInCallRef.current) {
         socket.emit("group:call:busy", { groupId, toUserId: fromUser.id });
         return;
       }
-      setIncomingCall({ groupId, fromUser, callType: type });
+
+      setIncomingCall({ groupId, fromUser, callType: type || "voice" });
       audioManager.play("incomingCall", { loop: true });
       notificationService.groupCall({ groupName: groupName || "Grup", from: fromUser.username });
     };
+
+    socket.on("group:call:incoming", onIncoming);
+    return () => {
+      socket.off("group:call:incoming", onIncoming);
+    };
+  }, [socket]);
+
+  useEffect(() => {
+    if (!socket) return;
+    
+    const myId = myIdRef.current || currentUserId || getUser()?.id || null;
+    if (myId) myIdRef.current = myId;
 
     const onAccept = async ({ groupId, fromUserId, fromUser }) => {
       if (!fromUserId) return;
@@ -941,13 +993,13 @@ export function useGroupCall(socket) {
           id: fromUserId,
           username: fromUser?.username || fromUser?.displayName || "Member",
           avatarUrl: fromUser?.avatar_url,
-          hasVideo: callType === "video",
+          hasVideo: callTypeRef.current === "video",
           hasAudio: true,
         }];
       });
 
       try {
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         // Store fromUser so ontrack's new-entry fallback can use the real username
         const peerData = { pc, pendingIce: [], fromUser };
         pcMapRef.current.set(fromUserId, peerData);
@@ -962,7 +1014,7 @@ export function useGroupCall(socket) {
           groupId,
           toUserId: fromUserId,
           offer: pc.localDescription,
-          callType: callType || "voice",
+          callType: callTypeRef.current || "voice",
         });
 
       } catch (err) {
@@ -971,12 +1023,16 @@ export function useGroupCall(socket) {
 
     // Handle when a new participant joins an existing call
     const onParticipantJoined = async ({ groupId, fromUserId, fromUser }) => {
-      if (!fromUserId || fromUserId === myId) return;
+      if (!fromUserId || fromUserId === myIdRef.current) return;
 
       // Update username if we already have this participant with 'Member' placeholder
       setParticipants((prev) => prev.map((p) =>
-        p.id === fromUserId && (!p.username || p.username === "Member")
-          ? { ...p, username: fromUser?.username || fromUser?.displayName || p.username }
+        p.id === fromUserId
+          ? {
+              ...p,
+              username: fromUser?.username || fromUser?.displayName || p.username,
+              avatarUrl: fromUser?.avatar_url || fromUser?.avatarUrl || p.avatarUrl,
+            }
           : p
       ));
       
@@ -986,7 +1042,7 @@ export function useGroupCall(socket) {
       if (pcMapRef.current.has(fromUserId)) return;
 
       try {
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         // Store fromUser so ontrack's new-entry fallback can use the real username
         const peerData = { pc, pendingIce: [], fromUser };
         pcMapRef.current.set(fromUserId, peerData);
@@ -999,6 +1055,14 @@ export function useGroupCall(socket) {
         if (screenTrack && screenTrack.readyState === "live") {
           const sender = pc.addTrack(screenTrack, screenStreamRef.current);
           peerData.screenSender = sender;
+          const q = resolveScreenCaptureSize(screenQualityRef.current);
+          await optimizeScreenShareSender(sender, {
+            maxBitrate: screenBitrateForPeerCount(
+              pcMapRef.current.size,
+              screenQualityRef.current?.resolution
+            ),
+            maxFramerate: q.fps,
+          });
         }
 
         const offer = await pc.createOffer();
@@ -1008,7 +1072,7 @@ export function useGroupCall(socket) {
           groupId,
           toUserId: fromUserId,
           offer: pc.localDescription,
-          callType: callType || "voice",
+          callType: callTypeRef.current || "voice",
         });
 
       } catch (err) {
@@ -1054,7 +1118,7 @@ export function useGroupCall(socket) {
           return;
         }
         
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         const newPeerData = { pc, pendingIce: [] };
         pcMapRef.current.set(fromUserId, newPeerData);
         
@@ -1156,6 +1220,7 @@ export function useGroupCall(socket) {
 
     const onCallSummary = ({ groupId, summary }) => {
       if (!groupId || !summary) return;
+      setActiveCallBanner((prev) => (prev?.groupId === groupId ? null : prev));
       setCallSummaries((prev) => ({
         ...prev,
         [groupId]: [...(prev[groupId] ?? []), summary],
@@ -1166,12 +1231,11 @@ export function useGroupCall(socket) {
       setActiveCallBanner({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants, startTime: startTime ?? Date.now() });
     };
 
-    const onParticipantLeft = ({ groupId, userId }) => {
+    const onBannerUpdate = ({ groupId, banner }) => {
       setActiveCallBanner((prev) => {
-        if (!prev || prev.groupId !== groupId) return prev;
-        const updated = (prev.participantCount ?? 1) - 1;
-        if (updated <= 0) return null;
-        return { ...prev, participantCount: updated };
+        if (banner) return banner;
+        if (prev?.groupId === groupId) return null;
+        return prev;
       });
     };
 
@@ -1200,12 +1264,16 @@ export function useGroupCall(socket) {
     };
 
     const onScreenStarted = ({ groupId, fromUserId }) => {
+      const peerData = pcMapRef.current.get(fromUserId);
+      if (peerData) peerData.expectScreenShare = true;
       setParticipants((prev) => prev.map((p) => 
         p.id === fromUserId ? { ...p, isScreenSharing: true } : p
       ));
     };
 
     const onScreenStopped = ({ groupId, fromUserId }) => {
+      const peerData = pcMapRef.current.get(fromUserId);
+      if (peerData) peerData.expectScreenShare = false;
       setParticipants((prev) => prev.map((p) =>
         p.id === fromUserId ? { ...p, isScreenSharing: false, screenStream: null } : p
       ));
@@ -1236,15 +1304,15 @@ export function useGroupCall(socket) {
       });
     };
 
-    const onCallStarted = ({ groupId, fromUserId, fromUser, callType }) => {
-      if (!fromUserId || fromUserId === myId) return;
+    const onCallStarted = ({ groupId, fromUserId, fromUser, callType: startedType }) => {
+      if (!fromUserId || fromUserId === myIdRef.current) return;
       setParticipants((prev) => {
         if (prev.find((p) => p.id === fromUserId)) return prev;
         return [...prev, {
           id: fromUserId,
           username: fromUser?.username || fromUser?.displayName || "Member",
           avatarUrl: fromUser?.avatar_url,
-          hasVideo: callType === "video",
+          hasVideo: startedType === "video",
           hasAudio: true,
         }];
       });
@@ -1253,7 +1321,7 @@ export function useGroupCall(socket) {
     // Handle server telling us to join an existing call instead of starting new
     const onJoinExisting = async ({ groupId, initiatorId, callType: existingCallType, participants: existingParticipants }) => {
       
-      if (isInCall) {
+      if (isInCallRef.current) {
         return;
       }
 
@@ -1297,7 +1365,7 @@ export function useGroupCall(socket) {
             });
 
             // Set up peer connection for each existing participant
-            const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+            const pc = new RTCPeerConnection({ iceServers: getIceServers() });
             const peerData = { pc, pendingIce: [] };
             pcMapRef.current.set(userId, peerData);
             
@@ -1315,7 +1383,19 @@ export function useGroupCall(socket) {
       }
     };
 
-    socket.on("group:call:incoming", onIncoming);
+    const onProfileUpdated = ({ user } = {}) => {
+      if (!user?.id) return;
+      const avatarUrl = user.avatarUrl || user.avatar_url;
+      const avatarVersion = user.avatarVersion || user.updated_at;
+      setParticipants((prev) => prev.map((p) =>
+        p.id === user.id ? patchUserAvatar(p, avatarUrl, avatarVersion) : p
+      ));
+      setIncomingCall((prev) => {
+        if (!prev?.fromUser || prev.fromUser.id !== user.id) return prev;
+        return { ...prev, fromUser: patchUserAvatar(prev.fromUser, avatarUrl, avatarVersion) };
+      });
+    };
+
     socket.on("group:call:accepted", onAccept);
     socket.on("group:call:answer", onAnswer);
     socket.on("group:call:ice", onIce);
@@ -1330,17 +1410,16 @@ export function useGroupCall(socket) {
     socket.on("group:call:join-existing", onJoinExisting);
     socket.on("group:call:summary", onCallSummary);
     socket.on("group:call:active-banner", onActiveBanner);
-    socket.on("group:call:left", onParticipantLeft);
+    socket.on("group:call:banner-update", onBannerUpdate);
     socket.on("group:call:participants", onParticipants);
+    socket.on("user:profile:updated", onProfileUpdated);
 
     return () => {
-      socket.off("group:call:incoming", onIncoming);
       socket.off("group:call:accepted", onAccept);
       socket.off("group:call:answer", onAnswer);
       socket.off("group:call:ice", onIce);
       socket.off("group:call:offer", onOffer);
       socket.off("group:call:left", onLeft);
-      socket.off("group:call:left", onParticipantLeft);
       socket.off("group:call:ended", onEnded);
       socket.off("group:call:declined", onDeclined);
       socket.off("group:screen:started", onScreenStarted);
@@ -1350,9 +1429,11 @@ export function useGroupCall(socket) {
       socket.off("group:call:join-existing", onJoinExisting);
       socket.off("group:call:summary", onCallSummary);
       socket.off("group:call:active-banner", onActiveBanner);
+      socket.off("group:call:banner-update", onBannerUpdate);
       socket.off("group:call:participants", onParticipants);
+      socket.off("user:profile:updated", onProfileUpdated);
     };
-  }, [socket, activeGroupId, isInCall, callType, cleanup, setupPeerConnection]);
+  }, [socket, cleanup, setupPeerConnection, currentUserId]);
 
   useEffect(() => {
     return () => cleanup();
@@ -1492,7 +1573,7 @@ export function useGroupCall(socket) {
           if (prev.find((p) => p.id === userId)) return prev;
           return [...prev, { id: userId, username: "Member", hasVideo: type === "video", hasAudio: true }];
         });
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         pcMapRef.current.set(userId, { pc, pendingIce: [] });
         setupPeerConnection(pc, stream, userId, groupId);
       });
@@ -1535,6 +1616,7 @@ export function useGroupCall(socket) {
     toggleCamera,
     startScreenShare,
     stopScreenShare,
+    restartScreenShareWithQuality,
     replaceTrack,
     formatDuration,
     cleanup,

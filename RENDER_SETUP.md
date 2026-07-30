@@ -1,62 +1,50 @@
-# Render Deploy Ayarları
+# Render Deploy — Descall (des-call)
 
-## Sorun: GitHub Push → Render Deploy Olmuyor
+**Canlı URL:** https://des-call.onrender.com
 
-### Çözüm 1: Render Dashboard'dan Auto Deploy Aç
+## 1. İlk kurulum (Blueprint)
 
-1. https://dashboard.render.com/ adresine git
-2. Descall Backend service'ini aç
-3. **Settings** sekmesine tıkla
-4. **Auto Deploy** bölümünde: **Yes**
-5. **Save Changes**
+1. [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint**
+2. GitHub repo: `demirrsarppkurtlarr/Descall` → branch `main`
+3. Render **otomatik sorar** (ilk kurulumda):
+   - `SUPABASE_URL` — Supabase Project URL
+   - `SUPABASE_SERVICE_ROLE_KEY` — service_role anahtarı
+4. `JWT_SECRET` otomatik üretilir (`generateValue: true`)
+5. **Apply** → deploy başlar
 
-### Çözüm 2: Deploy Hook ile Manuel Trigger (Daha Güvenilir)
+### Supabase değerlerini nereden alırsın?
 
-#### Adım 1: Deploy Hook URL Al
+1. [Supabase Dashboard](https://supabase.com/dashboard) → projeni seç
+2. **Settings** → **API**
+3. Kopyala:
 
-1. Render Dashboard → Descall Backend → Settings
-2. **Deploy Hook** bölümünde **Create Deploy Hook** butonu
-3. İsim: `github-auto-deploy`
-4. URL'i kopyala (şuna benzer):
-   ```
-   https://api.render.com/v1/services/srv-XXXX/deploys
-   ```
+| Render değişkeni | Supabase alanı |
+|------------------|----------------|
+| `SUPABASE_URL` | **Project URL** (`https://xxx.supabase.co`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | **service_role** (secret) |
 
-#### Adım 2: GitHub Secret Ekle
+> **Dikkat:** `anon` / `public` key kullanma — sadece `service_role`.
 
-1. GitHub Repo → Settings → Secrets and variables → Actions
-2. **New repository secret**
-3. Name: `RENDER_DEPLOY_HOOK_URL`
-4. Secret: (yukarıdaki URL'i yapıştır)
-5. **Add secret**
+## 2. Kurulum sihirbazı (önerilen)
 
-✅ Artık her push yapıldığında otomatik deploy olacak!
-
-### Çözüm 3: Manuel Deploy (Acil Durumlar)
+Terminalde repo kökünden:
 
 ```bash
-# Deploy hook URL ile
-curl -X POST https://api.render.com/v1/services/srv-XXXX/deploys
+npm run setup:render
 ```
 
-veya Render Dashboard'dan **Manual Deploy** → **Deploy latest commit**
+Sorular:
+- Supabase URL
+- Service role key (gizli giriş)
+- JWT secret (otomatik üret veya elle gir)
 
-## Dashboard URL
-- **Render:** https://dashboard.render.com/
-- **GitHub Repo:** https://github.com/demirrsarppkurtlarr/Descall
+Çıktı: `render.env` dosyası → Render Dashboard → **Environment** → **Add from .env** → yapıştır → **Save & Deploy**
 
-## Troubleshooting
+Alternatif: `render.env.example` dosyasını doldurup aynı şekilde yapıştır.
 
-**"Deploy hook failed" hatası:**
-- Hook URL'in doğru olduğundan emin ol
-- Service ID değişmiş olabilir, yeni hook oluştur
+## 3. Veritabanı migration
 
-**"Build failed" hatası:**
-- Render Logs sekmesinden detayları gör
-- Genelde `npm install` veya başlangıç komutu hatası
-
-**Deploy çok uzun sürüyor:**
-- Build cache'i temizle: Manual Deploy → Clear build cache & deploy
+Supabase SQL Editor'da `supabase/migrations/` klasöründeki dosyaları sırayla çalıştır (veya Supabase CLI ile push).
 
 ## Google Sign-In (OAuth)
 
@@ -65,10 +53,44 @@ veya Render Dashboard'dan **Manual Deploy** → **Deploy latest commit**
    - `http://localhost:5173` (Vite dev)
    - `http://localhost:3000` (local backend serving SPA)
    - `https://des-call.onrender.com`
-3. Add secrets (Render env group `descall-secrets`):
+3. Render **Environment** (service `des-call`):
    - `GOOGLE_CLIENT_ID` — same Web client ID (backend token verify)
-   - `VITE_GOOGLE_CLIENT_ID` — same value (embedded at Vite build time; optional if `/auth/google/config` is used)
+   - `VITE_GOOGLE_CLIENT_ID` — same value (embedded at Vite build time)
 4. Run SQL migration once in Supabase SQL editor:
    - `supabase/migrations/20260729_add_google_oauth_columns.sql`
-   - or `frontend/backend/db/googleOauthMigration.sql`
-5. Redeploy so the backend has `google-auth-library` and the new `/auth/google` route.
+5. Redeploy so the backend has `google-auth-library` and the `/auth/google` route.
+
+## 4. Ortam değişkenleri özeti
+
+| Değişken | Zorunlu | Açıklama |
+|----------|---------|----------|
+| `SUPABASE_URL` | Evet | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Evet | Backend DB erişimi |
+| `JWT_SECRET` | Evet | Oturum imzalama (Render üretebilir) |
+| `JWT_EXPIRES_IN` | Hayır | Varsayılan `7d` |
+| `VITE_API_BASE_URL` | Evet | `https://des-call.onrender.com` |
+| `GOOGLE_CLIENT_ID` | Hayır | Google OAuth (backend) |
+| `VITE_GOOGLE_CLIENT_ID` | Hayır | Google OAuth (frontend build) |
+| `PORT` | Hayır | Render otomatik `3000` |
+
+## 5. Sorun giderme
+
+**Build: `vite: not found`**
+- `npm install --include=dev` build komutunda olmalı (render.yaml'da mevcut)
+
+**`Missing SUPABASE_URL`**
+- Environment sekmesinde değerleri kontrol et
+- `npm run setup:render` ile yeniden oluştur
+
+**Deploy olmuyor**
+- Settings → **Auto Deploy: Yes**
+- veya Manual Deploy → Deploy latest commit
+
+**Deploy çok uzun sürüyor**
+- Manual Deploy → Clear build cache & deploy
+
+## Linkler
+
+- Render: https://dashboard.render.com/
+- GitHub: https://github.com/demirrsarppkurtlarr/Descall
+- Supabase API ayarları: https://supabase.com/dashboard/project/_/settings/api

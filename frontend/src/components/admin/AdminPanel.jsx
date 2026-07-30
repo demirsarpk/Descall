@@ -21,6 +21,7 @@ import { API_BASE_URL } from "../../config/api";
 import RippleButton from "../ui/RippleButton";
 import AdminFeedback from "./AdminFeedback";
 import AdminErrorLogs from "./AdminErrorLogs";
+import { Avatar } from "../ui/Avatar";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
@@ -874,11 +875,7 @@ function getTimeAgo(date) {
                           </div>
                           <div className="timeline-content">
                             <div className="user-info">
-                              <img 
-                                src={user.avatar_url || "/default-avatar.png"} 
-                                alt={user.username}
-                                className="user-avatar"
-                              />
+                              <Avatar user={user} name={user.username} size={36} />
                               <div className="user-details">
                                 <span className="username">{user.username}</span>
                                 <span className="user-id">{user.id.slice(0, 8)}...</span>
@@ -931,11 +928,7 @@ function getTimeAgo(date) {
                           </div>
                           <div className="timeline-content">
                             <div className="user-info">
-                              <img 
-                                src={user.avatar_url || "/default-avatar.png"} 
-                                alt={user.username}
-                                className="user-avatar"
-                              />
+                              <Avatar user={user} name={user.username} size={36} />
                               <div className="user-details">
                                 <span className="username">
                                   {user.username}
@@ -1232,11 +1225,7 @@ function getTimeAgo(date) {
                   <div className={`rank-badge ${index < 3 ? 'top-three' : ''}`}>
                     {index + 1}
                   </div>
-                  <img 
-                    src={user.avatar_url || "/default-avatar.png"} 
-                    alt={user.username}
-                    className="user-avatar"
-                  />
+                  <Avatar user={user} name={user.username} size={40} />
                   <div className="user-details">
                     <span className="username">{user.username}</span>
                     <span className="user-meta">
@@ -1277,9 +1266,11 @@ function getTimeAgo(date) {
             <table className="admin-table">
               <thead>
                 <tr>
+                  <th></th>
                   <th>Username</th>
                   <th>ID</th>
                   <th>Status</th>
+                  <th>Joined</th>
                   <th>Admin</th>
                   <th>Actions</th>
                 </tr>
@@ -1287,14 +1278,20 @@ function getTimeAgo(date) {
               <tbody>
                 {users.map((u) => (
                   <motion.tr key={u.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <td>
+                      <Avatar name={u.username} size={36} user={u} />
+                    </td>
                     <td>{u.username}</td>
                     <td className="mono">{u.id.slice(0, 8)}…</td>
                     <td className="admin-status">
                       {u.isOnline ? (
-                        <span className="status-badge online">Online</span>
+                        <span className="admin-badge online">Online</span>
                       ) : (
-                        <span className="status-badge offline">Offline</span>
+                        <span className="admin-badge offline">Offline</span>
                       )}
+                    </td>
+                    <td style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
                     </td>
                     <td className="admin-status">
                       {u.is_admin ? (

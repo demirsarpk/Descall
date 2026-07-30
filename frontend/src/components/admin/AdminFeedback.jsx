@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { adminFetch } from "../../api/adminHttp";
 import RippleButton from "../ui/RippleButton";
+import { Avatar } from "../ui/Avatar";
 
 const CATEGORIES = [
   { id: "bug", label: "Bug Report", color: "#f23f43", icon: AlertTriangle },
@@ -357,11 +358,7 @@ export default function AdminFeedback({ socket }) {
                   
                   <div className="feedback-user">
                     <div className="user-avatar">
-                      {f.user?.avatar_url ? (
-                        <img src={f.user.avatar_url} alt="" />
-                      ) : (
-                        <User size={16} />
-                      )}
+                      <Avatar user={f.user} name={f.user?.username || "?"} size={28} />
                     </div>
                     <span className="username">{f.user?.username || "Unknown"}</span>
                     <span className="timestamp">{new Date(f.created_at).toLocaleString()}</span>
@@ -429,11 +426,7 @@ export default function AdminFeedback({ socket }) {
 
               <div className="detail-user-info">
                 <div className="user-avatar large">
-                  {selectedFeedback.user?.avatar_url ? (
-                    <img src={selectedFeedback.user.avatar_url} alt="" />
-                  ) : (
-                    <User size={24} />
-                  )}
+                  <Avatar user={selectedFeedback.user} name={selectedFeedback.user?.username || "?"} size={48} />
                 </div>
                 <div className="user-details">
                   <span className="username">{selectedFeedback.user?.username || "Unknown"}</span>
@@ -480,11 +473,7 @@ export default function AdminFeedback({ socket }) {
                   {selectedFeedback.replies.map((reply, i) => (
                     <div key={i} className={`reply-item ${reply.isAdmin ? "admin" : ""}`}>
                       <div className="reply-avatar">
-                        {reply.user?.avatar_url ? (
-                          <img src={reply.user.avatar_url} alt="" />
-                        ) : (
-                          <User size={16} />
-                        )}
+                        <Avatar user={reply.user} name={reply.user?.username || "?"} size={28} />
                       </div>
                       <div className="reply-content">
                         <div className="reply-header">

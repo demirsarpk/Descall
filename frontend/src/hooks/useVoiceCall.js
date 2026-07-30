@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-
-const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
+import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 
 export function useVoiceCall(socket) {
   const [mode, setMode] = useState(null);
@@ -17,6 +13,10 @@ export function useVoiceCall(socket) {
   const incomingOfferRef = useRef(null);
   const peerRef = useRef(null);
   const timerRef = useRef(null);
+
+  useEffect(() => {
+    preloadIceServers().catch(() => {});
+  }, []);
 
   useEffect(() => {
     peerRef.current = peer;
@@ -140,7 +140,7 @@ export function useVoiceCall(socket) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localStreamRef.current = stream;
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection({ iceServers: getIceServers() });
       pcRef.current = pc;
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
       pc.ontrack = (e) => {
@@ -180,7 +180,7 @@ export function useVoiceCall(socket) {
         localStreamRef.current = stream;
         setPeer(friend);
         setMode("outgoing");
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         pcRef.current = pc;
         stream.getTracks().forEach((t) => pc.addTrack(t, stream));
         pc.ontrack = (e) => {

@@ -1,22 +1,22 @@
 # Descall — Render Blueprint (FREE tier)
 # URL: https://des-call.onrender.com
+#
+# İlk Blueprint kurulumunda Render şunları sorar (sync: false):
+#   - SUPABASE_URL
+#   - SUPABASE_SERVICE_ROLE_KEY
+# JWT_SECRET otomatik üretilir (generateValue).
+#
+# Supabase değerlerini bulmak için:
+#   Dashboard → Project → Settings → API
+#   - Project URL  → SUPABASE_URL
+#   - service_role → SUPABASE_SERVICE_ROLE_KEY (anon key DEĞİL)
+#
+# Yerel kurulum / toplu import için:
+#   node scripts/setup-render-env.mjs
+#   veya render.env.example dosyasını doldurup Render'a yapıştır
 
 previews:
   generation: off
-
-envVarGroups:
-  - name: descall-secrets
-    envVars:
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: VITE_GOOGLE_CLIENT_ID
-        sync: false
 
 services:
   - type: web
@@ -27,11 +27,24 @@ services:
     branch: main
     autoDeployTrigger: commit
     healthCheckPath: /health
-    # --include=dev: vite is a devDependency; NODE_ENV=production skips it otherwise
     buildCommand: cd frontend && npm install --include=dev && npm run build:prod && cd backend && npm install
     startCommand: cd frontend/backend && NODE_ENV=production node server.js
     envVars:
-      - fromGroup: descall-secrets
+      # --- Supabase (Render ilk kurulumda sorar) ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # --- Auth ---
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "7d"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+      # --- Runtime ---
       - key: NODE_VERSION
         value: "20"
       - key: PORT

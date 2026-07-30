@@ -56,7 +56,7 @@ export default function VoiceCallUI({
               <Avatar 
                 name={peer?.username || "Unknown"} 
                 size={48}
-                imageUrl={peer?.avatarUrl}
+                user={peer}
               />
               <StatusBadge status="online" />
             </div>
@@ -110,7 +110,7 @@ export default function VoiceCallUI({
                   <Avatar 
                     name={peer?.username || "Unknown"} 
                     size={120}
-                    imageUrl={peer?.avatarUrl}
+                    user={peer}
                   />
                 </div>
                 <div className="voice-waves">
@@ -183,7 +183,7 @@ export default function VoiceCallUI({
                 </div>
                 <div className="participants-list">
                   <div className="participant-item">
-                    <Avatar name={peer?.username} size={32} imageUrl={peer?.avatarUrl} />
+                    <Avatar name={peer?.username} size={32} user={peer} />
                     <span>{peer?.username}</span>
                   </div>
                   <div className="participant-item">

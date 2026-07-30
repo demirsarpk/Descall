@@ -3,9 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor,
   Minus, Maximize2, Users, MessageSquare, Hand, MoreVertical, Check, X as XIcon,
-  Volume2, ChevronUp, Mic2
+  Volume2, ChevronUp, Mic2, SlidersHorizontal
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
+import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
+import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
+import { resolveAvatarUrl } from "../lib/avatar";
+import ScreenShareQualityPanel from "./voice/ScreenShareQualityPanel";
 
 /*
  * Google Meet-style call overlay
@@ -25,9 +29,11 @@ export default function CallOverlay({ call, groupCall, me }) {
   const [handRaised, setHandRaised] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showAudioPanel, setShowAudioPanel] = useState(false);
+  const [showScreenQuality, setShowScreenQuality] = useState(false);
   const [copiedInfo, setCopiedInfo] = useState(false);
   const moreMenuRef = useRef(null);
   const audioPanelRef = useRef(null);
+  const screenQualityAnchorRef = useRef(null);
 
   useEffect(() => {
     if (!showMoreMenu) return;
@@ -51,6 +57,15 @@ export default function CallOverlay({ call, groupCall, me }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showAudioPanel]);
 
+  // Auto-decline unanswered DM incoming calls (match group modal)
+  useEffect(() => {
+    if (call?.mode !== "incoming") return;
+    const timer = setTimeout(() => {
+      call.declineIncoming?.();
+    }, 30_000);
+    return () => clearTimeout(timer);
+  }, [call?.mode, call?.peer?.id]);
+
   const isDmActive = call?.mode !== null && call?.mode !== undefined;
   const isGroupActive = groupCall?.isInCall;
   const active = isDmActive || isGroupActive;
@@ -61,6 +76,7 @@ export default function CallOverlay({ call, groupCall, me }) {
       setShowParticipants(false);
       setShowChat(false);
       setScreenExpanded(false);
+      setShowScreenQuality(false);
     }
   }, [active]);
 
@@ -82,11 +98,126 @@ export default function CallOverlay({ call, groupCall, me }) {
     ? mode === "incoming"
       ? "Incoming call..."
       : mode === "outgoing"
-      ? "Calling..."
+      ? (call?.connectionQuality === "failed"
+          ? "User may be offline — waiting…"
+          : "Calling...")
+      : call?.peerConnectionState === "reconnecting"
+      ? "Reconnecting…"
+      : call?.peerConnectionState === "connecting" || (call?.mode === "active" && !call?.remoteMediaReady)
+      ? "Connecting…"
       : callType === "video"
       ? "Video call"
       : "Voice call"
     : `${(groupCall.participants?.filter((p) => p.id !== me?.id).length ?? 0) + 1} participants`;
+
+  /* ---------- Incoming DM: floating accept/decline popup ---------- */
+  if (isDm && mode === "incoming") {
+    return (
+      <AnimatePresence>
+        <motion.div
+          key="dm-incoming-call"
+          initial={{ opacity: 0, y: -80, scale: 0.92 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -80, scale: 0.92 }}
+          transition={{ type: "spring", damping: 22, stiffness: 260 }}
+          style={{
+            position: "fixed",
+            top: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 10000,
+            background: "linear-gradient(135deg, #1e1f23 0%, #2b2d33 100%)",
+            borderRadius: 18,
+            padding: "20px 24px",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.07)",
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            minWidth: 340,
+            maxWidth: 420,
+          }}
+        >
+          <motion.div
+            animate={{ scale: [1, 1.08, 1] }}
+            transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: callType === "video" ? "#5865f2" : "#3ba55d",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            {callType === "video" ? <Video size={24} color="#fff" /> : <Phone size={24} color="#fff" />}
+          </motion.div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: "#b5bac1", marginBottom: 2 }}>
+              {callType === "video" ? "Incoming video call" : "Incoming voice call"}
+            </div>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#fff",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {peer?.username || "Someone"} is calling
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => call.declineIncoming?.()}
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: "50%",
+                background: "#ed4245",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+              title="Decline"
+            >
+              <PhoneOff size={20} />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => call.acceptIncoming?.()}
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: "50%",
+                background: "#3ba55d",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+              title="Accept"
+            >
+              <Phone size={20} />
+            </motion.button>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
 
   /* ---------- Minimized widget ---------- */
   if (minimized) {
@@ -116,7 +247,7 @@ export default function CallOverlay({ call, groupCall, me }) {
       >
         <div style={{ position: "relative" }}>
           {isDm ? (
-            <Avatar name={peer?.username || "?"} size={44} imageUrl={peer?.avatarUrl} />
+            <Avatar name={peer?.username || "?"} size={44} imageUrl={resolveAvatarUrl(peer)} />
           ) : (
             <div
               style={{
@@ -189,7 +320,15 @@ export default function CallOverlay({ call, groupCall, me }) {
   // Build unified participant list — remote only (local is rendered as a dedicated tile)
   const localId = me?.id;
   const remoteParticipants = isDm
-    ? (call?.peer ? [{ id: call.peer.id, username: call.peer.username, avatarUrl: call.peer.avatarUrl, stream: call.remoteStream, hasVideo: callType === "video" && !!call.remoteStream }] : [])
+    ? (call?.peer && call?.mode === "active"
+        ? [{
+            id: call.peer.id,
+            username: call.peer.username,
+            avatarUrl: resolveAvatarUrl(call.peer),
+            stream: call.remoteStream,
+            hasVideo: callType === "video" && !!call.remoteStream,
+          }]
+        : [])
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
@@ -269,7 +408,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             hasLocalVideo={hasLocalVideo}
             cameraOn={cameraOn}
             localUsername={localUsername}
-            localAvatarUrl={me?.avatar_url || me?.avatarUrl || null}
+            localAvatarUrl={resolveAvatarUrl(me)}
           />
         ) : (
           <ParticipantGrid
@@ -286,7 +425,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             subtitle={subtitle}
             formattedDuration={formattedDuration}
             localUsername={localUsername}
-            localAvatarUrl={me?.avatar_url || me?.avatarUrl || null}
+            localAvatarUrl={resolveAvatarUrl(me)}
           />
         )}
       </div>
@@ -334,19 +473,67 @@ export default function CallOverlay({ call, groupCall, me }) {
               {cameraOn ? <Video size={22} /> : <VideoOff size={22} />}
             </CircleBtn>
 
-            <CircleBtn
-              color={screenSharing ? "#3ba55d" : "#3c4043"}
-              onClick={() => {
-                if (isDm) {
-                  screenSharing ? call.stopScreenShare() : call.startScreenShare();
-                } else {
-                  groupCall.isScreenSharing ? groupCall.stopScreenShare() : groupCall.startScreenShare();
+            <div ref={screenQualityAnchorRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
+              <CircleBtn
+                color={screenSharing ? "#3ba55d" : "#3c4043"}
+                onClick={() => {
+                  if (isDm) {
+                    if (screenSharing) call.stopScreenShare();
+                    else setShowScreenQuality((v) => !v);
+                  } else {
+                    if (groupCall.isScreenSharing) groupCall.stopScreenShare();
+                    else setShowScreenQuality((v) => !v);
+                  }
+                }}
+                title={screenSharing ? "Stop presenting" : "Present screen"}
+              >
+                <Monitor size={22} />
+              </CircleBtn>
+              {(screenSharing || showScreenQuality) && (
+                <button
+                  type="button"
+                  title="Ekran kalitesi"
+                  onClick={() => setShowScreenQuality((v) => !v)}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 8,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: showScreenQuality ? "rgba(88,101,242,0.35)" : "rgba(0,0,0,0.35)",
+                    color: "#e8e8ec",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <SlidersHorizontal size={14} />
+                </button>
+              )}
+              <ScreenShareQualityPanel
+                open={showScreenQuality}
+                onClose={() => setShowScreenQuality(false)}
+                anchorRef={screenQualityAnchorRef}
+                isGroupCall={!isDm}
+                participantCount={
+                  isDm
+                    ? 2
+                    : (groupCall.participants?.length ?? 0) + 1
                 }
-              }}
-              title={screenSharing ? "Stop presenting" : "Present screen"}
-            >
-              <Monitor size={22} />
-            </CircleBtn>
+                screenQuality={isDm ? call.screenQuality : groupCall.screenQuality}
+                setScreenQuality={isDm ? call.setScreenQuality : groupCall.setScreenQuality}
+                isScreenSharing={screenSharing}
+                onStartWithQuality={async (q) => {
+                  if (isDm) await call.startScreenShare(q);
+                  else await groupCall.startScreenShare(q);
+                }}
+                onRestartWithQuality={async (q) => {
+                  if (isDm) await call.restartScreenShareWithQuality(q);
+                  else await groupCall.restartScreenShareWithQuality(q);
+                }}
+              />
+            </div>
 
             <motion.button
               onClick={() => setHandRaised((v) => !v)}
@@ -520,10 +707,10 @@ export default function CallOverlay({ call, groupCall, me }) {
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
               {isDm ? (
-                <PersonRow name={peer?.username || "User"} avatarUrl={peer?.avatarUrl} isHost />
+                <PersonRow name={peer?.username || "User"} avatarUrl={resolveAvatarUrl(peer)} isHost />
               ) : (
                 groupCall.participants?.map((p) => (
-                  <PersonRow key={p.id} name={p.username} avatarUrl={p.avatarUrl} />
+                  <PersonRow key={p.id} name={p.username} avatarUrl={resolveAvatarUrl(p)} />
                 ))
               )}
             </div>
@@ -640,20 +827,30 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }
 }
 
 function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localAvatarUrl }) {
-  // Remote tiles only — local is rendered separately below to avoid double-render
+  const dmRemote = useDmRemoteParticipant({
+    peer: isDm ? call?.peer : null,
+    mode: isDm ? call?.mode : null,
+    remoteMediaReady: isDm ? call?.remoteMediaReady : false,
+    peerConnectionState: isDm ? call?.peerConnectionState : "idle",
+    connectionQuality: isDm ? call?.connectionQuality : "unknown",
+  });
+
   const remoteTiles = remoteParticipants.map((p) => ({
     id: p.id,
     username: p.username || "Member",
-    avatarUrl: p.avatarUrl,
+    avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
     hasVideo: p.hasVideo || p.isCameraOn,
   }));
 
-  const count = 1 + remoteTiles.length;
-  const cols = count === 1 ? 1 : count <= 2 ? 2 : count <= 4 ? 2 : count <= 6 ? 3 : 4;
-  const rows = Math.ceil(count / cols);
+  const dmTwoUp = isDm && dmRemote.showSlot;
+  const count = dmTwoUp ? 2 : 1 + remoteTiles.length;
+  const cols = dmTwoUp ? 2 : count === 1 ? 1 : count <= 2 ? 2 : count <= 4 ? 2 : count <= 6 ? 3 : 4;
+  const rows = dmTwoUp ? 1 : Math.ceil(count / cols);
 
   return (
-    <div
+    <motion.div
+      layout
+      transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
       style={{
         flex: 1,
         display: "grid",
@@ -664,28 +861,48 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
         minHeight: 0,
       }}
     >
-      {/* Local tile always first */}
-      <LocalVideoTile
-        isDm={isDm}
-        call={call}
-        groupCall={groupCall}
-        hasVideo={hasLocalVideo}
-        username={localUsername}
-        avatarUrl={localAvatarUrl}
-      />
-      {/* Remote participant tiles */}
-      {remoteTiles.map((tile) => (
-        <ParticipantTile
-          key={tile.id}
-          username={tile.username}
-          avatarUrl={tile.avatarUrl}
-          isSpeaking={false}
-          videoRef={null}
-          hasVideo={false}
-          isLocal={false}
+      <motion.div layout transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }} style={{ minWidth: 0, minHeight: 0 }}>
+        <LocalVideoTile
+          isDm={isDm}
+          call={call}
+          groupCall={groupCall}
+          hasVideo={hasLocalVideo}
+          username={localUsername}
+          avatarUrl={localAvatarUrl}
         />
+      </motion.div>
+
+      {isDm && dmRemote.showSlot && (
+        <motion.div
+          layout
+          transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
+          style={{ minWidth: 0, minHeight: 0, position: "relative" }}
+        >
+          <DmRemoteParticipantSlot
+            displayPeer={dmRemote.displayPeer}
+            phase={dmRemote.phase}
+            connectionStatus={dmRemote.connectionStatus}
+            isMediaReady={dmRemote.isMediaReady}
+            hasVideo={callType === "video" && !!call?.remoteStream}
+            videoRef={call?.remoteVideoRef}
+            remoteStream={call?.remoteStream}
+          />
+        </motion.div>
+      )}
+
+      {!isDm && remoteTiles.map((tile) => (
+        <motion.div key={tile.id} layout style={{ minWidth: 0, minHeight: 0 }}>
+          <ParticipantTile
+            username={tile.username}
+            avatarUrl={tile.avatarUrl}
+            isSpeaking={false}
+            videoRef={null}
+            hasVideo={false}
+            isLocal={false}
+          />
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   );
 }
 
@@ -768,7 +985,15 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
           autoPlay
           playsInline
           muted={activeSharer?.isLocal}
-          style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            display: "block",
+            // Promote to compositor layer — reduces paint jank on remote screen share
+            transform: "translateZ(0)",
+            willChange: "contents",
+          }}
         />
 
         {/* Sharer name label — top-left */}
@@ -833,7 +1058,13 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
               autoPlay
               playsInline
               muted={activeSharer?.isLocal}
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                transform: "translateZ(0)",
+                willChange: "contents",
+              }}
             />
             <div style={{ position: "absolute", top: 16, left: 16, display: "flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,0.7)", borderRadius: 8, padding: "6px 14px" }}>
               <Monitor size={14} color="#3ba55d" />

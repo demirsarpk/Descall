@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "postinstall": "echo 'Install handled by Render Blueprint'",
-    "start": "echo 'Use render.yaml configuration'"
+    "start": "echo 'Use render.yaml configuration'",
+    "setup:render": "node scripts/setup-render-env.mjs"
   },
   "engines": {
     "node": ">=18"
