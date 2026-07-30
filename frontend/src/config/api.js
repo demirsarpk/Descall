@@ -21,5 +21,7 @@ export const API_BASE_URL = resolveApiUrl();
 export const API_ROUTES = {
   login: "/auth/login",
   register: "/auth/register",
+  google: "/auth/google",
+  googleConfig: "/auth/google/config",
   me: "/auth/me",
 };

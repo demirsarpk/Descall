@@ -22,6 +22,7 @@ import {
   X
 } from 'lucide-react';
 import TitleBar from '../TitleBar';
+import GoogleSignInButton from '../auth/GoogleSignInButton';
 import './DownloadPage.css';
 
 const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
@@ -70,7 +71,7 @@ const stats = [
   { value: "50+", label: "Countries" },
 ];
 
-export default function DownloadPage({ onLogin, onRegister, authLoading, authError }) {
+export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authLoading, authError }) {
   const [selectedPlatform, setSelectedPlatform] = useState('windows');
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -510,6 +511,27 @@ export default function DownloadPage({ onLogin, onRegister, authLoading, authErr
             
             {authError && <div className="auth-error">{authError}</div>}
             
+            <GoogleSignInButton
+              disabled={isSubmitting || authLoading}
+              onCredential={async (credential) => {
+                setIsSubmitting(true);
+                try {
+                  await onGoogleLogin?.(credential);
+                  setShowLogin(false);
+                  setUsername('');
+                  setPassword('');
+                } catch (err) {
+                  // Keep modal open; App sets authError
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+            />
+
+            <div className="auth-divider" aria-hidden="true">
+              <span>or</span>
+            </div>
+
             <form onSubmit={async (e) => {
               e.preventDefault();
               setIsSubmitting(true);

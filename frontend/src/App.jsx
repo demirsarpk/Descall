@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AuthView from "./components/AuthView";
 import AppLayout from "./components/layout/AppLayout";
 import DownloadPage from "./components/download/DownloadPage";
-import { getMe, login, register } from "./api/auth";
+import { getMe, login, loginWithGoogle, register } from "./api/auth";
 import { getMyGroups, getGroupMessages } from "./api/groups";
 import {
   getMyGuilds,
@@ -735,6 +735,24 @@ export default function App() {
     }
   };
 
+  const handleGoogleLogin = async (credential) => {
+    try {
+      setAuthLoading(true);
+      setAuthError("");
+      await verifyBackendEndpoint();
+      const data = await loginWithGoogle(credential);
+      transportFallbackStepRef.current = 0;
+      setToken(data.token);
+      setUser(data.user);
+      setMe(data.user);
+    } catch (error) {
+      setAuthError(error.message);
+      throw error;
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleRegister = async (payload) => {
     try {
       setAuthLoading(true);
@@ -1077,6 +1095,7 @@ export default function App() {
       <DownloadPage 
         onLogin={handleLogin}
         onRegister={handleRegister}
+        onGoogleLogin={handleGoogleLogin}
         authLoading={authLoading}
         authError={authError}
       />
