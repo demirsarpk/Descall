@@ -22,6 +22,9 @@ const reactionRoutes = require("./routes/reactions");
 const friendsRoutes = require("./routes/friends");
 const activityRoutes = require("./routes/activity");
 const guildRoutes = require("./routes/guilds");
+const webrtcRoutes = require("./routes/webrtc");
+const errorRoutes = require("./routes/errors");
+const state = require("./runtime/sharedState");
 
 // Inline feedback - no external file needed
 const { requireAuth } = require("./middleware/auth");
@@ -54,14 +57,19 @@ app.set("io", io);
 app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
 
-// Debug - log all requests
-app.use((req, res, next) => {
-  console.log(`[REQ] ${req.method} ${req.path}`);
-  next();
-});
+// Debug - log all requests (skip noise in production)
+if (process.env.NODE_ENV !== "production") {
+  app.use((req, res, next) => {
+    console.log(`[REQ] ${req.method} ${req.path}`);
+    next();
+  });
+}
+
+const debugRoutesEnabled =
+  process.env.NODE_ENV !== "production" || process.env.ENABLE_DEBUG_ROUTES === "true";
 
 // TEMP DEBUG: list all tables in public schema
-app.get("/debug/tables", async (_req, res) => {
+if (debugRoutesEnabled) app.get("/debug/tables", async (_req, res) => {
   try {
     const { data, error } = await supabase
       .from("information_schema.tables")
@@ -79,7 +87,7 @@ app.get("/debug/tables", async (_req, res) => {
 });
 
 // TEMP DEBUG: show first 5 rows of any table
-app.get("/debug/peek/:tableName", async (req, res) => {
+if (debugRoutesEnabled) app.get("/debug/peek/:tableName", async (req, res) => {
   try {
     const { data, error } = await supabase
       .from(req.params.tableName)
@@ -139,6 +147,8 @@ app.use("/api/reactions", reactionRoutes);
 app.use("/api/friends", friendsRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/guilds", guildRoutes);
+app.use("/api/webrtc", webrtcRoutes);
+app.use("/api/errors", errorRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)
@@ -807,6 +817,23 @@ console.log("  SUPABASE_URL:", !!process.env.SUPABASE_URL);
 console.log("  SUPABASE_SERVICE_ROLE_KEY:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
 console.log("  JWT_SECRET:", !!process.env.JWT_SECRET);
 
-httpServer.listen(PORT, () => {
+async function loadBannedUsersFromDb() {
+  try {
+    const { data, error } = await supabase.from("users").select("id").eq("is_banned", true);
+    if (error) {
+      console.warn("[boot] Could not load banned users:", error.message);
+      return;
+    }
+    for (const row of data || []) {
+      if (row?.id) state.bannedUserIds.add(String(row.id));
+    }
+    console.log("[boot] Loaded banned users:", state.bannedUserIds.size);
+  } catch (e) {
+    console.warn("[boot] loadBannedUsersFromDb:", e.message);
+  }
+}
+
+httpServer.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
+  await loadBannedUsersFromDb();
 });

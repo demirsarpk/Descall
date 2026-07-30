@@ -12,6 +12,7 @@ import {
   resolveScreenCaptureSize,
   screenBitrateForPeerCount,
 } from "../lib/webrtcScreenShare";
+import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -133,11 +134,6 @@ function showElectronScreenPicker(sources) {
   });
 }
 
-const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
-
 /**
  * Group Call Hook - Simplified multi-peer WebRTC
  * Based on working DM call (useCall.js) with Map for multiple peers
@@ -182,6 +178,10 @@ export function useGroupCall(socket, currentUserId = null) {
   const callTypeRef = useRef(null);
   const incomingDedupeRef = useRef(new Map()); // groupId -> ts
   const screenQualityRef = useRef(screenQuality);
+
+  useEffect(() => {
+    preloadIceServers().catch(() => {});
+  }, []);
 
   useEffect(() => { socketRef.current = socket; }, [socket]);
 
@@ -587,7 +587,7 @@ export function useGroupCall(socket, currentUserId = null) {
       memberIds.forEach((userId) => {
         if (userId === myIdRef.current) return;
         
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         const peerData = { pc, pendingIce: [] };
         pcMapRef.current.set(userId, peerData);
         
@@ -922,6 +922,22 @@ export function useGroupCall(socket, currentUserId = null) {
     }
   }, [activeGroupId, isScreenSharing]);
 
+  const restartScreenShareWithQuality = useCallback(
+    async (nextQuality) => {
+      if (!isScreenSharing) {
+        setScreenQuality(nextQuality);
+        screenQualityRef.current = nextQuality;
+        return;
+      }
+      await stopScreenShare();
+      await new Promise((r) => setTimeout(r, 150));
+      setScreenQuality(nextQuality);
+      screenQualityRef.current = nextQuality;
+      await startScreenShare(nextQuality);
+    },
+    [isScreenSharing, startScreenShare, stopScreenShare]
+  );
+
   useEffect(() => {
     if (!socket) return;
 
@@ -983,7 +999,7 @@ export function useGroupCall(socket, currentUserId = null) {
       });
 
       try {
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         // Store fromUser so ontrack's new-entry fallback can use the real username
         const peerData = { pc, pendingIce: [], fromUser };
         pcMapRef.current.set(fromUserId, peerData);
@@ -1026,7 +1042,7 @@ export function useGroupCall(socket, currentUserId = null) {
       if (pcMapRef.current.has(fromUserId)) return;
 
       try {
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         // Store fromUser so ontrack's new-entry fallback can use the real username
         const peerData = { pc, pendingIce: [], fromUser };
         pcMapRef.current.set(fromUserId, peerData);
@@ -1102,7 +1118,7 @@ export function useGroupCall(socket, currentUserId = null) {
           return;
         }
         
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         const newPeerData = { pc, pendingIce: [] };
         pcMapRef.current.set(fromUserId, newPeerData);
         
@@ -1349,7 +1365,7 @@ export function useGroupCall(socket, currentUserId = null) {
             });
 
             // Set up peer connection for each existing participant
-            const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+            const pc = new RTCPeerConnection({ iceServers: getIceServers() });
             const peerData = { pc, pendingIce: [] };
             pcMapRef.current.set(userId, peerData);
             
@@ -1557,7 +1573,7 @@ export function useGroupCall(socket, currentUserId = null) {
           if (prev.find((p) => p.id === userId)) return prev;
           return [...prev, { id: userId, username: "Member", hasVideo: type === "video", hasAudio: true }];
         });
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
         pcMapRef.current.set(userId, { pc, pendingIce: [] });
         setupPeerConnection(pc, stream, userId, groupId);
       });
@@ -1600,6 +1616,7 @@ export function useGroupCall(socket, currentUserId = null) {
     toggleCamera,
     startScreenShare,
     stopScreenShare,
+    restartScreenShareWithQuality,
     replaceTrack,
     formatDuration,
     cleanup,

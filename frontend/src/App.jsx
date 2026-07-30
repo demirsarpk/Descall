@@ -14,6 +14,7 @@ import {
 } from "./api/guilds";
 import { createSocket } from "./socket";
 import { API_BASE_URL } from "./config/api";
+import { preloadIceServers } from "./lib/iceConfig";
 import { useCall } from "./hooks/useCall";
 import { useGroupCall } from "./hooks/useGroupCall";
 import {
@@ -170,6 +171,10 @@ export default function App() {
   const prevOnlineUsersRef = useRef([]);
   const call = useCall(socketApi);
   const groupCall = useGroupCall(socketApi, me?.id);
+
+  useEffect(() => {
+    preloadIceServers().catch(() => {});
+  }, []);
 
   useEffect(() => {
     myIdRef.current = me?.id ?? null;

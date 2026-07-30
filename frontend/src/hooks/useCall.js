@@ -8,7 +8,9 @@ import {
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
   resolveScreenCaptureSize,
+  GROUP_SCREEN_DEFAULT_QUALITY,
 } from "../lib/webrtcScreenShare";
+import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -131,11 +133,6 @@ function showElectronScreenPicker(sources) {
   });
 }
 
-const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-];
-
 /**
  * Unified WebRTC call hook supporting:
  * - Voice calls (audio only)
@@ -164,6 +161,16 @@ export function useCall(socket) {
   const [audioOutputDevices, setAudioOutputDevices] = useState([]);
   const [selectedAudioInput, setSelectedAudioInput] = useState("");
   const [selectedAudioOutput, setSelectedAudioOutput] = useState("");
+  const [screenQuality, setScreenQuality] = useState(GROUP_SCREEN_DEFAULT_QUALITY);
+  const screenQualityRef = useRef(screenQuality);
+
+  useEffect(() => {
+    screenQualityRef.current = screenQuality;
+  }, [screenQuality]);
+
+  useEffect(() => {
+    preloadIceServers().catch(() => {});
+  }, []);
 
   const pcRef = useRef(null);
   const modeRef = useRef(mode);
@@ -572,7 +579,7 @@ export function useCall(socket) {
         localVideoRef.current.play().catch(() => {});
       }
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection({ iceServers: getIceServers() });
       pcRef.current = pc;
       setupPeerConnection(pc, stream, true);
 
@@ -605,7 +612,7 @@ export function useCall(socket) {
         localVideoRef.current.play().catch(() => {});
       }
 
-      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      const pc = new RTCPeerConnection({ iceServers: getIceServers() });
       pcRef.current = pc;
       setupPeerConnection(pc, stream, false);
 
@@ -713,7 +720,7 @@ export function useCall(socket) {
     stopScreenShareRef.current = stopScreenShare;
   });
 
-  const startScreenShare = useCallback(async () => {
+  const startScreenShare = useCallback(async (qualityOverride) => {
     console.log('[ScreenShare] startScreenShare called');
     const pc = pcRef.current;
     if (!pc || screenSharingRef.current) {
@@ -721,7 +728,8 @@ export function useCall(socket) {
       return;
     }
     try {
-      const { width, height, fps } = resolveScreenCaptureSize({ resolution: "720p", fps: 20 });
+      const effectiveQuality = qualityOverride || screenQualityRef.current || GROUP_SCREEN_DEFAULT_QUALITY;
+      const { width, height, fps } = resolveScreenCaptureSize(effectiveQuality);
       let screenStream;
 
       if (window.electronAPI?.isElectron) {
@@ -814,6 +822,21 @@ export function useCall(socket) {
     }
   }, [socket]);
 
+  const restartScreenShareWithQuality = useCallback(
+    async (nextQuality) => {
+      if (!screenSharingRef.current) {
+        setScreenQuality(nextQuality);
+        return;
+      }
+      stopScreenShare();
+      await new Promise((r) => setTimeout(r, 120));
+      setScreenQuality(nextQuality);
+      screenQualityRef.current = nextQuality;
+      await startScreenShare(nextQuality);
+    },
+    [startScreenShare, stopScreenShare]
+  );
+
   // Change active microphone mid-call
   const setAudioInput = useCallback(async (deviceId) => {
     setSelectedAudioInput(deviceId);
@@ -881,6 +904,9 @@ export function useCall(socket) {
     toggleCamera,
     startScreenShare,
     stopScreenShare,
+    screenQuality,
+    setScreenQuality,
+    restartScreenShareWithQuality,
     cleanup,
     audioInputDevices,
     audioOutputDevices,
