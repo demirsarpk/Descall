@@ -24,7 +24,7 @@ const https = require("https");
 
 // ── Config ─────────────────────────────────────────────────────────────────
 const OWNER      = "demirrsarppkurtlarr";
-const REPO       = "descall";
+const REPO       = "Descall";
 const PKG_PATH   = path.join(__dirname, "package.json");
 const DIST_DIR   = path.join(__dirname, "dist");
 
@@ -134,7 +134,12 @@ function bumpVersion(current, type) {
   if (!noBump) {
     pkg.version = newVer;
     fs.writeFileSync(PKG_PATH, JSON.stringify(pkg, null, 2) + "\n", "utf8");
-    console.log(`[release] 📦  Version bumped: ${oldVer} → ${newVer}`);
+    console.log(`[release] 📦  Version bumped: ${oldVer} → ${newVer} (${bumpType})`);
+    try {
+      execSync(`node sync-version.cjs ${newVer}`, { cwd: __dirname, stdio: "inherit" });
+    } catch (e) {
+      console.warn("[release] ⚠️  sync-version.cjs failed:", e.message);
+    }
   } else {
     console.log(`[release] 📦  Using existing version: ${newVer}`);
   }
@@ -179,11 +184,16 @@ function bumpVersion(current, type) {
     await githubRequest("DELETE", `/repos/${OWNER}/${REPO}/git/refs/tags/${tagName}`);
   }
 
+  const bumpLabel =
+    bumpType === "major" ? "Major release (breaking changes)"
+    : bumpType === "minor" ? "Minor release (new features)"
+    : "Patch release (fixes and small updates)";
+
   const createRes = await githubRequest("POST", `/repos/${OWNER}/${REPO}/releases`, {
     tag_name:         tagName,
     target_commitish: "main",
     name:             `Descall ${newVer}`,
-    body:             `## Descall ${newVer}\n\nAutomated release — built and published by release script.`,
+    body:             `## Descall ${newVer}\n\n**${bumpLabel}**\n\nAutomated Electron desktop release.\n\n- Windows: \`Descall-Setup-${newVer}.exe\`\n- Website download page picks up this tag automatically via \`/api/app/latest-release\`.`,
     draft:            false,
     prerelease:       false,
   });
@@ -214,35 +224,21 @@ function bumpVersion(current, type) {
     console.log(`[release] ✅  ${label} uploaded.`);
   }
 
-  // 6. Update DownloadPage.jsx fallback download URL
-  const downloadPagePath = path.join(__dirname, "..", "src", "components", "download", "DownloadPage.jsx");
-  const newFallbackUrl = `https://github.com/${OWNER}/${REPO}/releases/download/v${newVer}/Descall-Setup-${newVer}.exe`;
-  try {
-    const pageContent = fs.readFileSync(downloadPagePath, "utf8");
-    const updated = pageContent.replace(
-      /FALLBACK_DOWNLOAD_URL\s*=\s*"[^"]+"/,
-      `FALLBACK_DOWNLOAD_URL = "${newFallbackUrl}"`
-    );
-    if (updated !== pageContent) {
-      fs.writeFileSync(downloadPagePath, updated, "utf8");
-      console.log(`[release] 📝  DownloadPage.jsx fallback URL updated to v${newVer}`);
-    }
-  } catch (err) {
-    console.warn("[release] ⚠️   Could not update DownloadPage.jsx:", err.message);
-  }
-
-  // 7. Commit bumped package.json + DownloadPage and push
+  // 6. Commit synced versions (site reads GitHub latest — no hardcoded fallback URL)
   if (!noBump) {
     console.log("[release] 📤  Committing version bump and pushing…");
     try {
-      execSync(`git add "${PKG_PATH}"`, { cwd: path.join(__dirname, ".."), stdio: "inherit" });
-      execSync(`git add "${downloadPagePath}"`, { cwd: path.join(__dirname, ".."), stdio: "inherit" });
-      execSync(`git commit -m "chore: bump electron version to ${newVer}"`, { cwd: path.join(__dirname, ".."), stdio: "inherit" });
-      execSync("git push", { cwd: path.join(__dirname, ".."), stdio: "inherit" });
+      const repoRoot = path.join(__dirname, "..", "..");
+      execSync(`git add "${PKG_PATH}"`, { cwd: repoRoot, stdio: "inherit" });
+      execSync(`git add "${path.join(__dirname, "..", "package.json")}"`, { cwd: repoRoot, stdio: "inherit" });
+      execSync(`git add "${path.join(repoRoot, "package.json")}"`, { cwd: repoRoot, stdio: "inherit" });
+      execSync(`git commit -m "chore(electron): release v${newVer} (${bumpType})"`, { cwd: repoRoot, stdio: "inherit" });
+      execSync("git push", { cwd: repoRoot, stdio: "inherit" });
     } catch (err) {
       console.warn("[release] ⚠️   Git push failed (non-fatal):", err.message);
     }
   }
 
   console.log(`\n[release] 🎉  Done! Descall ${newVer} is live at:\n           ${htmlUrl}\n`);
+  console.log(`[release] ℹ️   Landing page will show "${tagName} available" after /api/app/latest-release refreshes.\n`);
 })();

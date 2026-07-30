@@ -24,6 +24,7 @@ import {
 import TitleBar from '../TitleBar';
 import GoogleSignInButton from '../auth/GoogleSignInButton';
 import { fetchLatestDesktopRelease } from '../../lib/githubRelease';
+import { formatReleaseLabel } from '../../lib/releaseVersion';
 import './DownloadPage.css';
 
 const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
@@ -185,6 +186,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
   };
 
   const currentPlatform = platforms.find(p => p.id === selectedPlatform);
+  const releaseLabel = formatReleaseLabel(latestRelease?.tag_name);
 
   return (
     <>
@@ -213,7 +215,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             transition={{ delay: 0.3, type: "spring" }}
           >
             <Sparkles size={14} />
-            <span>{loading ? 'Checking for updates…' : (latestRelease?.tag_name ? `${latestRelease.tag_name} available` : 'Latest release')}</span>
+            <span>{loading ? 'Checking for updates…' : (releaseLabel ? `${releaseLabel} available` : 'Latest release')}</span>
           </motion.div>
 
           <motion.h1 
@@ -320,7 +322,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                   <h3>Descall for {currentPlatform.name}</h3>
                   <p>
                     {selectedPlatform === 'windows'
-                      ? `${currentPlatform.file}${latestRelease?.tag_name ? ` • ${latestRelease.tag_name}` : ''} • ${currentPlatform.size}`
+                      ? `${currentPlatform.file}${releaseLabel ? ` • ${releaseLabel}` : ''} • ${currentPlatform.size}`
                       : `${currentPlatform.file} • Web app`}
                   </p>
                 </div>
