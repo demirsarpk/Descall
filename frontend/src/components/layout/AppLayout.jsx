@@ -116,6 +116,15 @@ export default function AppLayout({
     return () => { document.body.style.overflow = prev; };
   }, [isMobile, userPanelOpen]);
 
+  useEffect(() => {
+    if (!userPanelOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") closeUserPanel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [userPanelOpen, closeUserPanel]);
+
   const handleDmSelect = useCallback((dm) => {
     onDmSelect?.(dm);
     if (isMobile) setMobileDrawerOpen(false);
@@ -297,13 +306,25 @@ export default function AppLayout({
 
       <AnimatePresence>
         {userPanelOpen && (
-          <UserPanel
-            me={me}
-            onClose={closeUserPanel}
-            onLogout={onLogout}
-            onProfileUpdated={onProfileUpdated}
-            onSettings={() => {}}
-          />
+          <>
+            <motion.button
+              type="button"
+              className="user-panel-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              aria-label="Close settings"
+              onClick={closeUserPanel}
+            />
+            <UserPanel
+              me={me}
+              onClose={closeUserPanel}
+              onLogout={onLogout}
+              onProfileUpdated={onProfileUpdated}
+              onSettings={() => {}}
+            />
+          </>
         )}
       </AnimatePresence>
     </div>

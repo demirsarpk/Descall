@@ -588,24 +588,9 @@ export default function ServerSidebar({
   );
 }
 
-function SidebarSectionContent({ expanded, isMobile, children }) {
+function SidebarSectionContent({ expanded, children }) {
   if (!expanded) return null;
-  if (isMobile) {
-    return <div className="section-content">{children}</div>;
-  }
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ height: 0, opacity: 0 }}
-        animate={{ height: "auto", opacity: 1 }}
-        exit={{ height: 0, opacity: 0 }}
-        transition={{ duration: 0.2, ease: "easeInOut" }}
-        className="section-content"
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
-  );
+  return <div className="section-content">{children}</div>;
 }
 
 function formatConversationTime(iso) {
@@ -678,7 +663,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
 
-      <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
+      <SidebarSectionContent expanded={expanded}>
         {safeDms.length === 0 ? (
           <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
             No conversations yet
@@ -1241,7 +1226,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
           {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </button>
 
-        <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
+        <SidebarSectionContent expanded={expanded}>
               {safeGroups.length === 0 ? (
                 <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
                   No groups yet
@@ -1399,7 +1384,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
         {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
       </button>
 
-      <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
+      <SidebarSectionContent expanded={expanded}>
             {pendingRequests.length > 0 && (
               <div className="friend-category">
                 <span className="category-label" style={{ color: "var(--warning)" }}>
