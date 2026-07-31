@@ -915,9 +915,23 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
   // Keep refs to both the normal and expanded video elements so we can set srcObject on each
   const normalVideoRef = useRef(null);
   const expandedVideoRef = useRef(null);
+  const prevSharerCountRef = useRef(0);
+
+  // When a new sharer appears (dual screen share), auto-focus the newest one
+  useEffect(() => {
+    const n = allScreenSharers.length;
+    if (n > prevSharerCountRef.current) {
+      setSelectedSharerIndex(n - 1);
+    } else if (n > 0 && selectedSharerIndex > n - 1) {
+      setSelectedSharerIndex(n - 1);
+    }
+    prevSharerCountRef.current = n;
+  }, [allScreenSharers.length, selectedSharerIndex]);
 
   // Clamp index if sharers list shrinks
-  const safeIndex = Math.min(selectedSharerIndex, allScreenSharers.length - 1);
+  const safeIndex = allScreenSharers.length
+    ? Math.min(Math.max(selectedSharerIndex, 0), allScreenSharers.length - 1)
+    : 0;
   const activeSharer = allScreenSharers[safeIndex] ?? allScreenSharers[0];
 
   // Derive the stream to display for the active sharer
@@ -926,27 +940,41 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null);
 
   const attachStream = useCallback((el, stream) => {
-    if (!el || !stream) return;
+    if (!el) return;
+    if (!stream) {
+      if (el.srcObject) el.srcObject = null;
+      return;
+    }
     // Only reassign srcObject when the stream reference actually changes —
     // reassigning the same stream causes the browser to reload the video
     // element producing a black flash on every React render.
     if (el.srcObject !== stream) {
       el.srcObject = stream;
     }
-    // If any video track is still muted (ICE not yet connected), register
-    // onunmute to call play() without touching srcObject (no reload = no flash).
+    // If any video track is still muted (ICE not yet connected), chain onunmute
+    // so we don't clobber useGroupCall's applyScreenStream handler.
     const videoTracks = stream.getVideoTracks();
     const playWhenReady = () => el.play().catch(() => {});
     if (videoTracks.some((t) => t.muted || t.readyState !== "live")) {
-      videoTracks.forEach((t) => { t.onunmute = playWhenReady; });
-    } else {
-      el.play().catch(() => {});
+      videoTracks.forEach((t) => {
+        const prev = t.onunmute;
+        t.onunmute = (ev) => {
+          try {
+            if (typeof prev === "function") prev.call(t, ev);
+          } catch {
+            /* ignore */
+          }
+          playWhenReady();
+        };
+      });
     }
+    playWhenReady();
   }, []);
 
-  // Only re-attach when the stream reference changes (new peer / new share)
-  useEffect(() => {
-    attachStream(normalVideoRef.current, screenStream);
+  // Re-attach via callback ref so remounts from key=sharerId always bind the stream
+  const normalVideoCallbackRef = useCallback((el) => {
+    normalVideoRef.current = el;
+    if (el) attachStream(el, screenStream);
   }, [screenStream, attachStream]);
 
   // Callback ref for expanded video — fires immediately when the element mounts
@@ -980,11 +1008,13 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
         }}
         onClick={() => setScreenExpanded((v) => !v)}
       >
+        {/* key forces remount when switching sharers — prevents stuck black frames */}
         <video
-          ref={normalVideoRef}
+          key={activeSharer?.id || "none"}
+          ref={normalVideoCallbackRef}
           autoPlay
           playsInline
-          muted={activeSharer?.isLocal}
+          muted={Boolean(activeSharer?.isLocal)}
           style={{
             width: "100%",
             height: "100%",
@@ -995,6 +1025,23 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             willChange: "contents",
           }}
         />
+
+        {!screenStream && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#b5bac1",
+              fontSize: 14,
+              pointerEvents: "none",
+            }}
+          >
+            Waiting for screen…
+          </div>
+        )}
 
         {/* Sharer name label — top-left */}
         <div
@@ -1054,10 +1101,11 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             onClick={(e) => { e.stopPropagation(); setScreenExpanded(false); }}
           >
             <video
+              key={`exp-${activeSharer?.id || "none"}`}
               ref={expandedVideoCallbackRef}
               autoPlay
               playsInline
-              muted={activeSharer?.isLocal}
+              muted={Boolean(activeSharer?.isLocal)}
               style={{
                 width: "100%",
                 height: "100%",

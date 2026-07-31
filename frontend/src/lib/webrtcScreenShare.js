@@ -103,3 +103,54 @@ export function buildElectronDesktopConstraints(sourceId, { width, height, fps }
     },
   };
 }
+
+/**
+ * Decide whether an incoming remote video track is screen share vs camera.
+ *
+ * IMPORTANT: Do not treat a synthetic MediaStream([videoTrack]) fallback
+ * (when e.streams[0] is missing during renegotiation) as screen — that
+ * mis-wires camera frames into screenStream and leaves the real second
+ * share black / stuck.
+ */
+export function isRemoteScreenVideoTrack(
+  track,
+  {
+    rawStream = null,
+    peerExpectsScreen = false,
+    mainRemoteStream = null,
+    participantHasCameraVideo = false,
+  } = {}
+) {
+  if (!track || track.kind !== "video") return false;
+
+  const label = (track.label || "").toLowerCase();
+  if (
+    peerExpectsScreen ||
+    label.includes("screen") ||
+    label.includes("display") ||
+    label.includes("window") ||
+    label.includes("tab") ||
+    label.includes("web contents") ||
+    label.includes("desktop") ||
+    label.includes("monitor") ||
+    label.includes("primary")
+  ) {
+    return true;
+  }
+
+  // Distinct MediaStream from the mic/camera bundle → screen share stream
+  if (rawStream && mainRemoteStream && rawStream.id !== mainRemoteStream.id) {
+    return true;
+  }
+
+  // Already showing camera; another video-only stream is screen
+  if (
+    participantHasCameraVideo &&
+    rawStream &&
+    rawStream.getAudioTracks().length === 0
+  ) {
+    return true;
+  }
+
+  return false;
+}
