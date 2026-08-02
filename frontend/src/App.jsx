@@ -702,27 +702,42 @@ export default function App() {
       notificationService.mention({ groupId, dmConversationId, from, text, groupName });
     });
 
-    // Game messages (blackjack, etc.)
-    socket.on("game:message", ({ groupId, message }) => {
+    // Game messages (blackjack, etc.) — upsert by game hand id so HIT/STAND update in place
+    const upsertGameMessage = (groupId, message) => {
       if (!groupId || !message) return;
-      
       const gameMessage = {
         id: message.id,
-        from: message.sender || { id: 'game-bot', username: '🎰 Casino Bot' },
+        from: message.sender || { id: "game-bot", username: "Casino" },
         text: message.content || "",
-        type: message.type || 'game_message',
+        type: message.type || "game_message",
         gameData: message.gameData,
         timestamp: message.timestamp || new Date().toISOString(),
         isGameMessage: true,
-        groupId: groupId, // Ensure groupId is attached to the message
+        groupId,
       };
-      
+      const handId = message.gameData?.id;
+
       setGroupMessagesById((prev) => {
         const cur = prev[groupId] ?? [];
-        // Deduplicate by id
+        if (handId) {
+          const idx = cur.findIndex((m) => m.gameData?.id === handId);
+          if (idx >= 0) {
+            const next = cur.slice();
+            next[idx] = { ...next[idx], ...gameMessage, id: next[idx].id };
+            return { ...prev, [groupId]: next };
+          }
+        }
         if (cur.some((m) => m.id === gameMessage.id)) return prev;
         return { ...prev, [groupId]: [...cur, gameMessage] };
       });
+    };
+
+    socket.on("game:message", ({ groupId, message }) => {
+      upsertGameMessage(groupId, message);
+    });
+
+    socket.on("game:update", ({ groupId, message }) => {
+      upsertGameMessage(groupId, message);
     });
 
     socket.on("dm:message:update", ({ msgId, convWith, deliveredAt } = {}) => {
