@@ -355,12 +355,65 @@
   box-sizing: border-box;
 }
 
+/* Call overlay control bar — scrollable actions + pinned hangup on narrow */
+.call-control-bar:not(.call-control-bar--narrow) {
+  justify-content: center;
+}
+
+.call-control-scroll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.call-control-hangup {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-control-bar--narrow .call-control-scroll {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-right: 4px;
+  mask-image: linear-gradient(90deg, #000 82%, transparent);
+}
+
+.call-control-bar--narrow .call-control-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.call-control-bar--narrow .call-control-hangup {
+  padding-left: 8px;
+  margin-left: 2px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 2;
+}
+
+.call-main-stage {
+  box-sizing: border-box;
+}
+
+.call-screen-share-layout {
+  box-sizing: border-box;
+}
+
 @media (max-width: 719px) {
   .screen-quality-panel {
     position: fixed;
     left: 12px;
     right: 12px;
-    bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 88px));
+    bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 72px));
     width: auto;
     max-width: none;
     z-index: 10050;
