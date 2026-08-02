@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageSquare, Users, Settings,
@@ -22,7 +23,9 @@ export default function NavigationRail({
   onStatusChange,
 }) {
   const [statusOpen, setStatusOpen] = useState(false);
-  const statusWrapRef = useRef(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const avatarBtnRef = useRef(null);
+  const menuRef = useRef(null);
 
   const navItems = [
     { id: "chat",     icon: MessageSquare, label: "Chats"    },
@@ -32,16 +35,110 @@ export default function NavigationRail({
     { id: "calls",    icon: Phone,         label: "Calls"    },
   ];
 
+  const statusKey = STATUS_META[myStatus] ? myStatus : "online";
+
+  const placeMenu = () => {
+    const el = avatarBtnRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const menuWidth = 220;
+    const gap = 10;
+    let left = rect.right + gap;
+    // If near right edge, flip left of avatar
+    if (left + menuWidth > window.innerWidth - 8) {
+      left = Math.max(8, rect.left - menuWidth - gap);
+    }
+    // Anchor bottom of menu near avatar bottom
+    const estimatedHeight = 260;
+    let top = rect.bottom - estimatedHeight;
+    if (top < 8) top = 8;
+    if (top + estimatedHeight > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - estimatedHeight - 8);
+    }
+    setMenuPos({ top, left });
+  };
+
+  useLayoutEffect(() => {
+    if (!statusOpen) return undefined;
+    placeMenu();
+    const onReposition = () => placeMenu();
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
+    return () => {
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
+  }, [statusOpen]);
+
   useEffect(() => {
     if (!statusOpen) return undefined;
     const onDoc = (e) => {
-      if (!statusWrapRef.current?.contains(e.target)) setStatusOpen(false);
+      if (avatarBtnRef.current?.contains(e.target)) return;
+      if (menuRef.current?.contains(e.target)) return;
+      setStatusOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setStatusOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [statusOpen]);
 
-  const statusKey = STATUS_META[myStatus] ? myStatus : "online";
+  const statusMenu = (
+    <AnimatePresence>
+      {statusOpen && (
+        <motion.div
+          ref={menuRef}
+          className="status-picker status-picker-portal"
+          style={{ top: menuPos.top, left: menuPos.left }}
+          role="menu"
+          aria-label="Status"
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.96 }}
+          transition={{ duration: 0.14 }}
+        >
+          <div className="status-picker-header">Set status</div>
+          {STATUS_OPTIONS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="menuitemradio"
+              aria-checked={statusKey === key}
+              className={`status-picker-item ${statusKey === key ? "active" : ""}`}
+              onClick={() => {
+                onStatusChange?.(key);
+                setStatusOpen(false);
+              }}
+            >
+              <span
+                className={`status-picker-dot status-${key}`}
+                style={{ background: STATUS_META[key]?.color || "var(--text-muted)" }}
+              />
+              <span className="status-picker-label">{STATUS_META[key]?.label || key}</span>
+            </button>
+          ))}
+          <div className="status-picker-divider" />
+          <button
+            type="button"
+            role="menuitem"
+            className="status-picker-item"
+            onClick={() => {
+              setStatusOpen(false);
+              onUserClick?.();
+            }}
+          >
+            <Settings size={15} />
+            <span className="status-picker-label">User Settings</span>
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   return (
     <nav className="nav-rail">
@@ -105,65 +202,27 @@ export default function NavigationRail({
       </div>
 
       <div className="nav-rail-bottom">
-        <div className="rail-user-status-wrap" ref={statusWrapRef} style={{ position: "relative" }}>
-          <button
-            type="button"
-            className="rail-user-panel"
-            onClick={() => setStatusOpen((v) => !v)}
-            onDoubleClick={onUserClick}
-            title={`${STATUS_META[statusKey]?.label || "Online"} — click to change`}
-          >
-            <div className="rail-user-avatar-wrap">
-              <Avatar
-                name={me?.username || "User"}
-                size={36}
-                user={me}
-              />
-              <span className={`rail-user-status-dot status-${statusKey}`} />
-            </div>
-          </button>
-
-          <AnimatePresence>
-            {statusOpen && (
-              <motion.div
-                className="status-picker"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 6 }}
-              >
-                {STATUS_OPTIONS.map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`status-picker-item ${statusKey === key ? "active" : ""}`}
-                    onClick={() => {
-                      onStatusChange?.(key);
-                      setStatusOpen(false);
-                    }}
-                  >
-                    <span
-                      className="status-picker-dot"
-                      style={{ background: STATUS_META[key]?.color || "var(--text-muted)" }}
-                    />
-                    {STATUS_META[key]?.label || key}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="status-picker-item"
-                  onClick={() => {
-                    setStatusOpen(false);
-                    onUserClick?.();
-                  }}
-                >
-                  <Settings size={14} />
-                  User Settings
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <button
+          type="button"
+          ref={avatarBtnRef}
+          className="rail-user-panel"
+          onClick={() => setStatusOpen((v) => !v)}
+          title={`${STATUS_META[statusKey]?.label || "Online"} — change status`}
+          aria-haspopup="menu"
+          aria-expanded={statusOpen}
+        >
+          <div className="rail-user-avatar-wrap">
+            <Avatar
+              name={me?.username || "User"}
+              size={36}
+              user={me}
+            />
+            <span className={`rail-user-status-dot status-${statusKey}`} />
+          </div>
+        </button>
       </div>
+
+      {typeof document !== "undefined" ? createPortal(statusMenu, document.body) : null}
     </nav>
   );
 }

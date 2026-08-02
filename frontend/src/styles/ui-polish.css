@@ -346,18 +346,37 @@
 .rail-user-status-dot.status-invisible,
 .rail-user-status-dot.status-offline { background: var(--text-muted); }
 
-.status-picker {
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 50%;
-  transform: translateX(-50%);
-  min-width: 180px;
-  padding: 6px;
-  border-radius: var(--radius-xl);
+.status-picker,
+.status-picker-portal {
+  min-width: 220px;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 8px;
+  border-radius: 12px;
   background: var(--surface-1);
   border: 1px solid var(--border-3);
   box-shadow: var(--shadow-xl);
-  z-index: 40;
+  z-index: 100050;
+  box-sizing: border-box;
+}
+
+.status-picker-portal {
+  position: fixed;
+  /* top/left set inline from avatar rect — never clipped by nav-rail */
+}
+
+.status-picker-header {
+  padding: 6px 10px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.status-picker-divider {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--border-2);
 }
 
 .status-picker-item {
@@ -370,8 +389,8 @@
   color: var(--text-1);
   font-size: 13px;
   font-weight: 500;
-  padding: 8px 10px;
-  border-radius: var(--radius-lg);
+  padding: 9px 10px;
+  border-radius: 8px;
   cursor: pointer;
   text-align: left;
 }
@@ -379,12 +398,26 @@
 .status-picker-item:hover { background: var(--surface-hover); }
 .status-picker-item.active { background: var(--primary-soft); }
 
+.status-picker-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
 .status-picker-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+.status-picker-dot.status-online { background: var(--success); }
+.status-picker-dot.status-idle { background: var(--warning); }
+.status-picker-dot.status-dnd { background: var(--danger); }
+.status-picker-dot.status-invisible { background: var(--text-muted); }
 
 /* ─── Empty states ─── */
 .empty-state {
