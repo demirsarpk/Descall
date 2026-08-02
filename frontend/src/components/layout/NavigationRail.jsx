@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { STATUS_META } from "../../lib/presence";
+import { getUser } from "../../lib/storage";
+import { resolveAvatarUrl } from "../../lib/userProfile";
 
 const STATUS_OPTIONS = ["online", "idle", "dnd", "invisible"];
 
@@ -36,6 +38,21 @@ export default function NavigationRail({
   ];
 
   const statusKey = STATUS_META[myStatus] ? myStatus : "online";
+
+  // Prefer live `me`, fall back to persisted session user so the rail never
+  // flashes the letter placeholder when profile state briefly lags.
+  const storedUser = getUser();
+  const railUser = me?.avatarUrl || me?.avatar_url
+    ? me
+    : (storedUser && (!me?.id || storedUser.id === me.id) ? { ...me, ...storedUser } : me);
+  const railAvatarUrl =
+    resolveAvatarUrl(railUser) ||
+    resolveAvatarUrl(storedUser) ||
+    me?.avatarUrl ||
+    me?.avatar_url ||
+    storedUser?.avatarUrl ||
+    storedUser?.avatar_url ||
+    null;
 
   const placeMenu = () => {
     const el = avatarBtnRef.current;
@@ -213,10 +230,10 @@ export default function NavigationRail({
         >
           <div className="rail-user-avatar-wrap">
             <Avatar
-              name={me?.username || "User"}
+              name={railUser?.username || me?.username || "User"}
               size={36}
-              user={me}
-              imageUrl={me?.avatarUrl || me?.avatar_url}
+              user={railUser}
+              imageUrl={railAvatarUrl}
               animate="always"
               loading="eager"
             />

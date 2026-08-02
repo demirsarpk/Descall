@@ -59,12 +59,17 @@ export function resolveDisplayName(user) {
 
 export function patchUserAvatar(user, avatarUrl, avatarVersion) {
   if (!user) return user;
+  // Never wipe an existing photo with a null/empty patch (stale socket payloads).
+  const nextAvatar =
+    avatarUrl === undefined || avatarUrl === null || avatarUrl === ""
+      ? user.avatarUrl || user.avatar_url || null
+      : avatarUrl;
   return normalizeUser({
     ...user,
-    avatarUrl,
-    avatar_url: avatarUrl,
-    avatarVersion: avatarVersion ?? Date.now(),
-    updated_at: avatarVersion ?? new Date().toISOString(),
+    avatarUrl: nextAvatar,
+    avatar_url: nextAvatar,
+    avatarVersion: avatarVersion ?? user.avatarVersion ?? Date.now(),
+    updated_at: avatarVersion ?? user.updated_at ?? new Date().toISOString(),
   });
 }
 
