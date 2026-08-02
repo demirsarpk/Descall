@@ -9,6 +9,7 @@
   display: none !important;
 }
 
+/* Full-screen black layer behind the centered desktop settings card */
 .user-panel-backdrop {
   position: fixed;
   inset: 0;
@@ -16,9 +17,7 @@
   border: none;
   padding: 0;
   margin: 0;
-  background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: #000000;
   pointer-events: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -34,8 +33,10 @@
   cursor: default;
 }
 
+/* Desktop: Discord-style centered rectangle over solid black */
 .user-settings-shell.is-desktop {
-  padding: 24px;
+  padding: clamp(24px, 4vh, 48px) clamp(24px, 4vw, 64px);
+  background: #000000;
 }
 
 .user-settings {
@@ -43,21 +44,27 @@
   background: var(--surface-1);
   color: var(--text-0);
   overflow: hidden;
-  box-shadow: var(--shadow-xl);
   cursor: default;
 }
 
 .user-settings.is-desktop {
-  width: min(920px, calc(100vw - 48px));
-  height: min(720px, calc(100vh - 48px));
-  border-radius: 16px;
-  border: 1px solid var(--border-3);
+  width: min(1080px, calc(100vw - 64px));
+  height: min(780px, calc(100vh - 64px));
+  max-height: calc(100vh - 64px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 24px 80px rgba(0, 0, 0, 0.75);
+  /* Never slide from a side — always a centered card */
+  transform-origin: center center;
 }
 
 .user-settings.is-mobile {
   width: 100%;
   height: 100dvh;
   border-radius: 0;
+  box-shadow: none;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   flex-direction: column;
@@ -69,9 +76,13 @@
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface-0);
+  background: #1a1b1e;
   border-right: 1px solid var(--border-2);
   min-height: 0;
+}
+
+.user-settings.is-desktop .us-main {
+  background: #2b2d31;
 }
 
 .user-settings.is-mobile .us-sidebar {
@@ -993,9 +1004,10 @@
   to { transform: rotate(360deg); }
 }
 
-/* Light theme tweaks */
-[data-theme="light"] .user-panel-backdrop {
-  background: rgba(15, 17, 21, 0.45);
+/* Desktop settings always sit on solid black, even in light theme */
+[data-theme="light"] .user-panel-backdrop,
+[data-theme="light"] .user-settings-shell.is-desktop {
+  background: #000000;
 }
 
 [data-theme="light"] .us-theme-swatch.light {
@@ -1004,9 +1016,14 @@
 
 /* Narrow desktop / tablet */
 @media (max-width: 820px) {
+  .user-settings-shell.is-desktop {
+    padding: 16px;
+  }
+
   .user-settings.is-desktop {
-    width: min(100vw - 24px, 920px);
-    height: min(100vh - 24px, 720px);
+    width: min(100vw - 32px, 1080px);
+    height: min(100vh - 32px, 780px);
+    max-height: calc(100vh - 32px);
   }
 
   .us-sidebar {

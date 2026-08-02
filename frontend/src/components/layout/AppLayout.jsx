@@ -313,7 +313,7 @@ export default function AppLayout({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
+              transition={{ duration: 0.15 }}
               aria-hidden="true"
             />
             <UserPanel

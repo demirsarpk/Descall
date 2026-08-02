@@ -774,7 +774,7 @@ export default function UserPanel({ me, onClose, onLogout, onProfileUpdated }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.16 }}
+      transition={{ duration: 0.15 }}
       onClick={handleShellClick}
     >
     <motion.div
@@ -783,10 +783,15 @@ export default function UserPanel({ me, onClose, onLogout, onProfileUpdated }) {
       role="dialog"
       aria-modal="true"
       aria-label="User Settings"
-      initial={isMobile ? { y: 24, opacity: 0 } : { y: 12, opacity: 0, scale: 0.98 }}
-      animate={{ y: 0, opacity: 1, scale: 1 }}
-      exit={isMobile ? { y: 16, opacity: 0 } : { y: 8, opacity: 0, scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 380, damping: 32 }}
+      /* Desktop: fade+scale in the center (never slide from a side). Mobile: light vertical enter. */
+      initial={isMobile ? { y: 20, opacity: 0 } : { opacity: 0, scale: 0.96 }}
+      animate={isMobile ? { y: 0, opacity: 1 } : { opacity: 1, scale: 1 }}
+      exit={isMobile ? { y: 12, opacity: 0 } : { opacity: 0, scale: 0.98 }}
+      transition={
+        isMobile
+          ? { type: "spring", stiffness: 380, damping: 32 }
+          : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+      }
       onClick={(e) => e.stopPropagation()}
     >
       {/* Sidebar / mobile menu */}
