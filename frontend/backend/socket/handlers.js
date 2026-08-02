@@ -56,6 +56,43 @@ function convKey(a, b) {
   return [a, b].sort().join("::");
 }
 
+/** Attach persisted emoji reactions onto an in-memory message list. */
+async function attachReactions(messages, conversationType, conversationId) {
+  if (!Array.isArray(messages) || messages.length === 0 || !conversationType || !conversationId) {
+    return messages || [];
+  }
+  const ids = messages.map((m) => m?.id).filter(Boolean);
+  if (ids.length === 0) return messages;
+  try {
+    const { data, error } = await supabase
+      .from("reactions")
+      .select("message_id, emoji, user_id")
+      .eq("conversation_type", conversationType)
+      .eq("conversation_id", conversationId)
+      .in("message_id", ids);
+    if (error) {
+      console.warn("[reactions] attach failed (run reactionsMigration.sql?):", error.message);
+      return messages;
+    }
+    const byMsg = new Map();
+    for (const r of data || []) {
+      if (!byMsg.has(r.message_id)) byMsg.set(r.message_id, []);
+      byMsg.get(r.message_id).push({
+        emoji: r.emoji,
+        userId: r.user_id,
+        messageId: r.message_id,
+      });
+    }
+    return messages.map((m) => ({
+      ...m,
+      reactions: byMsg.get(m.id) || m.reactions || [],
+    }));
+  } catch (err) {
+    console.warn("[reactions] attach error:", err.message);
+    return messages;
+  }
+}
+
 function getNotifications(userId) {
   return notificationsByUser.get(userId) || [];
 }
@@ -711,17 +748,19 @@ function registerSocketHandlers(io) {
       emitToUser(io, withUserId, "dm:peer_read", { peerId: myId, at });
     });
 
-    socket.on("dm:history", ({ withUserId } = {}) => {
+    socket.on("dm:history", async ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
       const key = convKey(myId, withUserId);
       const all = dmHistory.get(key) || [];
+      const slice = all.slice(-100);
+      const withReactions = await attachReactions(slice, "dm", key);
       socket.emit("dm:history", {
         withUserId,
-        messages: all.slice(-100),
+        messages: withReactions,
       });
     });
 
-    socket.on("dm:fetch", ({ withUserId, before, limit = 50 } = {}) => {
+    socket.on("dm:fetch", async ({ withUserId, before, limit = 50 } = {}) => {
       if (typeof withUserId !== "string") return;
       if (!friends.get(myId)?.has(withUserId)) {
         return socket.emit("dm:page", { withUserId, messages: [], hasMore: false });
@@ -730,9 +769,10 @@ function registerSocketHandlers(io) {
       const arr = dmHistory.get(key) || [];
       const pool = typeof before === "string" ? arr.filter((m) => m.timestamp < before) : arr;
       const slice = pool.slice(-limit);
+      const withReactions = await attachReactions(slice, "dm", key);
       socket.emit("dm:page", {
         withUserId,
-        messages: slice,
+        messages: withReactions,
         hasMore: slice.length === limit,
       });
     });

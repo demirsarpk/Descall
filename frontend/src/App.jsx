@@ -117,7 +117,34 @@ function normalizeGroupMessage(m) {
     mediaType: m.media_type,
     originalName: m.original_name,
     size: m.file_size,
+    reactions: Array.isArray(m.reactions) ? m.reactions : [],
+    replyTo: m.replyTo || m.reply_to || null,
   };
+}
+
+async function fetchConversationReactions(type, conversationId) {
+  if (!type || !conversationId) return {};
+  try {
+    const token = getToken();
+    const res = await fetch(
+      `${API_BASE_URL}/api/reactions/conversation/${encodeURIComponent(type)}/${encodeURIComponent(conversationId)}`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data?.reactions && typeof data.reactions === "object" ? data.reactions : {};
+  } catch {
+    return {};
+  }
+}
+
+function mergeReactionsIntoMessages(messages, reactionsByMessageId) {
+  if (!Array.isArray(messages) || !reactionsByMessageId) return messages;
+  return messages.map((m) => {
+    const list = reactionsByMessageId[m.id];
+    if (!list) return m;
+    return { ...m, reactions: list };
+  });
 }
 
 export default function App() {
@@ -1152,9 +1179,11 @@ export default function App() {
     if (grp?.id) {
       s.emit("group:join", grp.id);
       getGroupMessages(grp.id)
-        .then((res) => {
+        .then(async (res) => {
           const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
-          const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
+          let normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
+          const rx = await fetchConversationReactions("group", grp.id);
+          normalized = mergeReactionsIntoMessages(normalized, rx);
           setGroupMessagesById((prev) => ({ ...prev, [grp.id]: normalized }));
         })
         .catch(console.error);
@@ -1178,9 +1207,11 @@ export default function App() {
     }
     setMessagesLoading(true);
     getGroupMessages(activeGroup.id)
-      .then((res) => {
+      .then(async (res) => {
         const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
-        const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
+        let normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
+        const rx = await fetchConversationReactions("group", activeGroup.id);
+        normalized = mergeReactionsIntoMessages(normalized, rx);
         setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
       })
       .catch((err) => console.error("[App] fetch group messages error:", err))
