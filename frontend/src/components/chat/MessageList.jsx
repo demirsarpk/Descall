@@ -22,6 +22,33 @@ function dmConversationId(a, b) {
   return [a, b].sort().join("::");
 }
 
+/** Fill missing avatar fields from friends / presence / me so letters don't stick. */
+function enrichAvatarUser(user, { me, friends, onlineUsers, currentUser } = {}) {
+  if (!user) return user;
+  const id = user.id;
+  const hasAvatar = Boolean(user.avatarUrl || user.avatar_url);
+  if (hasAvatar) return user;
+
+  const fromMe =
+    id && (me?.id === id || currentUser?.id === id)
+      ? me || currentUser
+      : null;
+  const fromFriend = id && Array.isArray(friends) ? friends.find((f) => f.id === id) : null;
+  const fromOnline = id && Array.isArray(onlineUsers) ? onlineUsers.find((u) => u.id === id) : null;
+  const donor = fromMe || fromFriend || fromOnline;
+  if (!donor) return user;
+
+  const avatarUrl = donor.avatarUrl || donor.avatar_url || null;
+  if (!avatarUrl) return user;
+  return {
+    ...user,
+    avatarUrl,
+    avatar_url: avatarUrl,
+    avatarVersion: donor.avatarVersion || donor.updated_at || user.avatarVersion,
+    updated_at: donor.updated_at || user.updated_at,
+  };
+}
+
 function dayKeyOf(iso) {
   if (!iso) return "";
   try {
@@ -263,7 +290,8 @@ export default function MessageList({
                   <Avatar
                     name={group.user?.username || "Unknown"}
                     size={40}
-                    user={group.user}
+                    user={enrichAvatarUser(group.user, { me, friends, onlineUsers, currentUser })}
+                    animate="hover"
                   />
                   <StatusBadge status={getPresenceStatus(onlineUsers, group.user?.id)} />
                 </div>

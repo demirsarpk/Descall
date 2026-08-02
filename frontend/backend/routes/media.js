@@ -101,11 +101,16 @@ router.post("/upload", upload.single("file"), async (req, res) => {
   }
 });
 
+const MAX_AVATAR_SIZE = 8 * 1024 * 1024;
+
 router.post("/avatar", upload.single("avatar"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No avatar uploaded." });
     if (!ALLOWED_IMAGE.includes(req.file.mimetype)) {
-      return res.status(400).json({ error: "Avatar must be an image." });
+      return res.status(400).json({ error: "Avatar must be JPG, PNG, WebP, or GIF." });
+    }
+    if (req.file.size > MAX_AVATAR_SIZE) {
+      return res.status(400).json({ error: "Avatar must be 8 MB or smaller." });
     }
 
     const userId = req.user.id;

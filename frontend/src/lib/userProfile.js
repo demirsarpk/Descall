@@ -45,6 +45,9 @@ export function resolveAvatarUrl(user) {
   const v = typeof version === "number" ? version : new Date(version).getTime();
   if (!v || Number.isNaN(v)) return trimmed;
 
+  // Avoid stacking cache-busters if URL was already resolved.
+  if (/[?&]v=\d+/.test(trimmed)) return trimmed;
+
   const sep = trimmed.includes("?") ? "&" : "?";
   return `${trimmed}${sep}v=${v}`;
 }

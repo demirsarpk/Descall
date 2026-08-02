@@ -500,7 +500,7 @@ export default function ProfileCustomizationPanel({
                     <input
                       ref={avatarInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
                       style={{ display: "none" }}
                       onChange={(e) => handleAvatarUpload(e.target.files[0])}
                     />
@@ -562,7 +562,7 @@ export default function ProfileCustomizationPanel({
                     <input
                       ref={bannerInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
                       style={{ display: "none" }}
                       onChange={(e) => handleBannerUpload(e.target.files[0])}
                     />
