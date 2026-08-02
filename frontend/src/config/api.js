@@ -1,5 +1,5 @@
 // API URL configuration
-// Priority: env variable > window override > production fallback
+// Priority: Electron → always production; else env > window override > production fallback
 const PRODUCTION_URL = "https://des-call.onrender.com";
 // Retired hosts that must never be used (old Render service names)
 const DEAD_API_HOSTS = ["descall-qzkg.onrender.com"];
@@ -13,14 +13,29 @@ function isDeadApiUrl(url) {
   }
 }
 
+function isElectronRuntime() {
+  if (typeof window === "undefined") return false;
+  if (window.electronAPI?.isElectron) return true;
+  // Fallback before/without preload bridge
+  if (typeof navigator !== "undefined" && /Electron/i.test(navigator.userAgent || "")) {
+    return true;
+  }
+  return false;
+}
+
 function resolveApiUrl() {
+  // Desktop app always uses production — never staging or a mis-baked build URL.
+  if (isElectronRuntime()) {
+    return PRODUCTION_URL;
+  }
+
   // 1. Vite environment variable (build-time) - must be non-empty and alive
   const envUrl = typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL;
   if (envUrl && envUrl.trim().length > 0) {
     const trimmed = envUrl.trim().replace(/\/$/, "");
     if (!isDeadApiUrl(trimmed)) return trimmed;
   }
-  // 2. Runtime override (useful for Electron or dynamic config)
+  // 2. Runtime override (useful for dynamic web config)
   if (typeof window !== "undefined" && window.__DESCALL_API_URL__) {
     const override = String(window.__DESCALL_API_URL__).trim().replace(/\/$/, "");
     if (override && !isDeadApiUrl(override)) return override;

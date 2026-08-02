@@ -37,7 +37,7 @@ git push origin main
 ## Kurallar
 
 1. **Production’a (`main`) direkt büyük değişiklik push etme** — önce staging.
-2. Electron / Setup release’leri genelde **production** (`main` tag) üzerinden kesilir.
+2. Electron / Setup release’leri **her zaman production** API’ye bağlanır (`https://des-call.onrender.com`). Staging URL Electron’da kullanılmaz; release tag’leri `main` üzerinden kesilir.
 3. Staging ve production aynı Supabase projesini paylaşabilir (ücretsiz kurulum).  
    Tam izolasyon istersen staging için ayrı Supabase projesi kullan.
 4. Free plan: 15 dk idle sonra sleep — ilk istek yavaş olabilir.

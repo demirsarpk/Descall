@@ -52,9 +52,9 @@ jobs:
         working-directory: frontend
         run: npm run build
         env:
-          # Prefer secret when set; otherwise ship the live production API host.
-          # api.js also remaps retired hosts (e.g. descall-qzkg) → des-call.onrender.com
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://des-call.onrender.com' }}
+          # Electron builds always ship against production (never staging).
+          # Runtime also forces this in frontend/src/config/api.js for Electron.
+          VITE_API_BASE_URL: https://des-call.onrender.com
 
       - name: Debug - Check dist contents
         working-directory: frontend

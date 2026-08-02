@@ -39,3 +39,4 @@ Pushing a tag `v*` on `main` runs `.github/workflows/release.yml`, which syncs `
 - Do **not** edit the landing page to show a fixed version like `2.3.1`.
 - Always bump semver via `release.cjs` (or a new `v*` tag) when shipping Electron.
 - Keep `GITHUB_RELEASE_REPO` (optional env) aligned with `demirrsarppkurtlarr/Descall` if you fork.
+- Electron **always** uses production API `https://des-call.onrender.com` (build + runtime). Do not point desktop builds at staging.
