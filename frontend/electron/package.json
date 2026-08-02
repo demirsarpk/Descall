@@ -1,6 +1,6 @@
 {
   "name": "descall-electron",
-  "version": "2.3.5",
+  "version": "2.3.6",
   "description": "Descall - Discord-like chat application",
   "main": "main.cjs",
   "author": "Descall Team",
@@ -66,17 +66,19 @@
           ]
         }
       ],
-      "publisherName": "Descall",
-      "icon": "../public/icon.png"
+      "icon": "../public/icon.png",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Descall",
       "artifactName": "Descall-Setup-${version}.exe",
-      "deleteAppDataOnUninstall": true,
+      "deleteAppDataOnUninstall": false,
       "include": "installer.nsh"
     },
     "portable": {
