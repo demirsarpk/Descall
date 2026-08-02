@@ -14,6 +14,7 @@ function normalizeProfileRow(row) {
     username: row.username,
     avatar_url: row.avatar_url || null,
     display_name: row.display_name || null,
+    presence_status: row.presence_status || "online",
     updated_at: row.updated_at || new Date().toISOString(),
   };
 }
@@ -38,11 +39,22 @@ function toPublicUser(profile) {
 
 async function loadUserProfile(userId) {
   if (!userId) return null;
-  const { data, error } = await supabase
+  // Prefer presence_status; fall back if column not migrated yet
+  let data = null;
+  let error = null;
+  ({ data, error } = await supabase
     .from("users")
-    .select("id, username, avatar_url, display_name, updated_at")
+    .select("id, username, avatar_url, display_name, updated_at, presence_status")
     .eq("id", userId)
-    .single();
+    .single());
+
+  if (error) {
+    ({ data, error } = await supabase
+      .from("users")
+      .select("id, username, avatar_url, display_name, updated_at")
+      .eq("id", userId)
+      .single());
+  }
 
   if (error || !data) return userProfileById.get(userId) || null;
 
@@ -50,6 +62,24 @@ async function loadUserProfile(userId) {
   userProfileById.set(userId, profile);
   if (profile.username) usernameById.set(userId, profile.username);
   return profile;
+}
+
+async function savePresenceStatus(userId, status) {
+  if (!userId || !status) return false;
+  const { error } = await supabase
+    .from("users")
+    .update({ presence_status: status })
+    .eq("id", userId);
+  if (error) {
+    console.warn("[presence] save failed (run presenceStatusMigration.sql?):", error.message);
+    return false;
+  }
+  const cached = userProfileById.get(userId);
+  if (cached) {
+    cached.presence_status = status;
+    userProfileById.set(userId, cached);
+  }
+  return true;
 }
 
 function cacheUserProfile(row) {
@@ -95,12 +125,17 @@ async function broadcastUserProfileUpdate(io, userId) {
     list.push({
       id,
       username: pres.username,
-      status: pres.status || "online",
+      status: publicPresenceStatus(pres.status),
       avatarUrl: cached?.avatar_url || pres.avatar_url || null,
       avatar_url: cached?.avatar_url || pres.avatar_url || null,
     });
   }
   io.emit("users:update", list);
+}
+
+function publicPresenceStatus(status) {
+  if (status === "invisible") return "offline";
+  return status || "online";
 }
 
 function enrichFriendEntry(userId) {
@@ -111,7 +146,7 @@ function enrichFriendEntry(userId) {
     id: userId,
     username: cached?.username || usernameById.get(userId) || p?.username || "?",
     avatarUrl: cached?.avatar_url || p?.avatar_url || null,
-    status: p ? p.status || "online" : "offline",
+    status: p ? publicPresenceStatus(p.status) : "offline",
     lastSeen: p ? null : lastSeen,
     avatarVersion: cached?.updated_at || null,
     updated_at: cached?.updated_at || null,
@@ -121,10 +156,12 @@ function enrichFriendEntry(userId) {
 module.exports = {
   userProfileById,
   loadUserProfile,
+  savePresenceStatus,
   cacheUserProfile,
   getCachedPublicUser,
   getAvatarUrl,
   toPublicUser,
   broadcastUserProfileUpdate,
   enrichFriendEntry,
+  publicPresenceStatus,
 };

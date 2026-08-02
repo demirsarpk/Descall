@@ -3,11 +3,13 @@
 const supabase = require("../db/supabase");
 const {
   loadUserProfile,
+  savePresenceStatus,
   cacheUserProfile,
   broadcastUserProfileUpdate,
   enrichFriendEntry,
   toPublicUser,
   getCachedPublicUser,
+  publicPresenceStatus,
 } = require("../lib/userProfile");
 const {
   presence,
@@ -83,7 +85,7 @@ function broadcastUsers(io) {
     list.push({
       id,
       username: cached?.username || p.username,
-      status: p.status || "online",
+      status: publicPresenceStatus(p.status),
       avatarUrl: cached?.avatarUrl || p.avatar_url || null,
       avatar_url: cached?.avatarUrl || p.avatar_url || null,
       avatarVersion: cached?.avatarVersion || cached?.updated_at || null,
@@ -323,17 +325,18 @@ function registerSocketHandlers(io) {
 
     usernameById.set(myId, me.username);
 
+    const existingPresence = presence.get(myId);
     presence.set(myId, {
       username: me.username,
-      status: "online",
+      status: existingPresence?.status || "online",
       socketId: socket.id,
-      avatar_url: me.avatar_url || null,
+      avatar_url: existingPresence?.avatar_url || me.avatar_url || null,
     });
     socket.join(`user:${myId}`);
     socketToUser.set(socket.id, myId);
     socket.data.activeDmPeer = null;
 
-    // Load full profile from DB (avatar, display name, etc.)
+    // Load full profile from DB (avatar, display name, persisted presence)
     loadUserProfile(myId).then((profile) => {
       if (!profile) return;
       me.avatar_url = profile.avatar_url;
@@ -341,8 +344,18 @@ function registerSocketHandlers(io) {
       const p = presence.get(myId);
       if (p) {
         p.avatar_url = profile.avatar_url;
+        // Restore DB status only when this is a fresh session (no other live socket)
+        if (!existingPresence) {
+          const allowed = ["online", "idle", "dnd", "invisible"];
+          const restored = allowed.includes(profile.presence_status)
+            ? profile.presence_status
+            : "online";
+          p.status = restored;
+        }
         presence.set(myId, p);
       }
+      socket.emit("status:current", { status: presence.get(myId)?.status || "online" });
+      broadcastUsers(io);
     }).catch(() => {});
 
     setupAdminSocket(io, socket);
@@ -356,13 +369,14 @@ function registerSocketHandlers(io) {
         user: me,
         message: "Socket connected successfully.",
       });
+      socket.emit("status:current", { status: presence.get(myId)?.status || "online" });
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
       socket.emit("sync:state", buildSyncState(myId));
       broadcastUsers(io);
     });
 
-    socket.on("status:set", ({ status } = {}) => {
+    socket.on("status:set", async ({ status } = {}) => {
       const allowed = ["online", "idle", "dnd", "invisible"];
       const s = allowed.includes(status) ? status : "online";
       const p = presence.get(myId);
@@ -370,6 +384,8 @@ function registerSocketHandlers(io) {
         p.status = s;
         presence.set(myId, p);
       }
+      await savePresenceStatus(myId, s);
+      socket.emit("status:current", { status: s });
       broadcastUsers(io);
       io.to(socket.id).emit("friend:list", getFriendList(myId));
     });

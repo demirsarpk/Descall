@@ -127,7 +127,13 @@ export default function App() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [me, setMe] = useState(() => normalizeUser(getUser()));
   const [isConnected, setIsConnected] = useState(false);
-  const [myStatus, setMyStatus] = useState("online");
+  const [myStatus, setMyStatus] = useState(() => {
+    try {
+      const saved = localStorage.getItem("descall:myStatus");
+      if (["online", "idle", "dnd", "invisible"].includes(saved)) return saved;
+    } catch {}
+    return "online";
+  });
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
@@ -485,6 +491,12 @@ export default function App() {
           socket.emit("guilds:subscribe", guildIds);
         }
       }).catch(console.error);
+    });
+
+    socket.on("status:current", ({ status } = {}) => {
+      if (!["online", "idle", "dnd", "invisible"].includes(status)) return;
+      setMyStatus(status);
+      try { localStorage.setItem("descall:myStatus", status); } catch {}
     });
 
     socket.on("sync:state", (state) => {
@@ -1175,7 +1187,9 @@ export default function App() {
   };
 
   const handleStatusChange = (status) => {
+    if (!["online", "idle", "dnd", "invisible"].includes(status)) return;
     setMyStatus(status);
+    try { localStorage.setItem("descall:myStatus", status); } catch {}
     socketRef.current?.emit("status:set", { status });
   };
 
