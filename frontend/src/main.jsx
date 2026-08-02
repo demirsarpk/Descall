@@ -15,6 +15,9 @@ try {
   document.documentElement.setAttribute("data-theme", "dark");
 }
 
+const statusEl = document.getElementById("boot-status");
+if (statusEl) statusEl.textContent = "Starting app";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -24,3 +27,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </ErrorBoundary>
   </React.StrictMode>,
 );
+
+// Safety: never leave splash stuck if boot hangs
+window.setTimeout(() => {
+  try {
+    window.__descallDismissBootSplash?.({ minMs: 0 });
+  } catch {
+    /* ignore */
+  }
+}, 12000);

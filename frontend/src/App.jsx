@@ -257,22 +257,27 @@ export default function App() {
 
   useEffect(() => {
     const token = getToken();
+    const bootStatus = document.getElementById("boot-status");
     if (!token) {
+      if (bootStatus) bootStatus.textContent = "Almost ready";
       setSessionChecked(true);
       return;
     }
+    if (bootStatus) bootStatus.textContent = "Signing in";
     let cancelled = false;
     (async () => {
       try {
-              const { user } = await getMe(token);
+        const { user } = await getMe(token);
         if (!cancelled) {
           commitSessionUser(user);
+          if (bootStatus) bootStatus.textContent = "Welcome back";
         }
       } catch (err) {
         if (!cancelled) {
           clearToken();
           clearUser();
           setMe(null);
+          if (bootStatus) bootStatus.textContent = "Almost ready";
         }
       } finally {
         if (!cancelled) setSessionChecked(true);
@@ -1312,7 +1317,17 @@ export default function App() {
     });
   }, [myGroups, groupLastActivity, groupPreviews, groupUnread]);
 
-  if (!sessionChecked) return <div className="session-boot" aria-busy="true" />;
+  // HTML boot splash covers first paint; dismiss once session is resolved
+  useEffect(() => {
+    if (!sessionChecked) return;
+    try {
+      window.__descallDismissBootSplash?.({ minMs: 1200 });
+    } catch {
+      /* ignore */
+    }
+  }, [sessionChecked]);
+
+  if (!sessionChecked) return null;
 
   // Show download page for all non-logged-in users
   if (!me) {
