@@ -3,7 +3,10 @@ export function getPresenceStatus(onlineUsers, userId) {
   if (!userId || !Array.isArray(onlineUsers)) return "offline";
   const hit = onlineUsers.find((u) => u.id === userId);
   if (!hit) return "offline";
-  return hit.status || "online";
+  const status = hit.status || "online";
+  // Invisible users appear offline to everyone else
+  if (status === "invisible") return "offline";
+  return status;
 }
 
 export const STATUS_META = {
