@@ -1,6 +1,9 @@
 # Render Deploy — Descall (des-call)
 
-**Canlı URL:** https://des-call.onrender.com
+**Production (ana site):** https://des-call.onrender.com (`main`)  
+**Staging (test site):** https://des-call-staging.onrender.com (`staging`)
+
+Staging → production akışı için: [`docs/STAGING.md`](docs/STAGING.md)
 
 ## 1. İlk kurulum (Blueprint)
 
@@ -53,6 +56,7 @@ Supabase SQL Editor'da `supabase/migrations/` klasöründeki dosyaları sırayla
    - `http://localhost:5173` (Vite dev)
    - `http://localhost:3000` (local backend serving SPA)
    - `https://des-call.onrender.com`
+   - `https://des-call-staging.onrender.com` (test)
 3. Render **Environment** (service `des-call`):
    - `GOOGLE_CLIENT_ID` — same Web client ID (backend token verify)
    - `VITE_GOOGLE_CLIENT_ID` — same value (embedded at Vite build time)
