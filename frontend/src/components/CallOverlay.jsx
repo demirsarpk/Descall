@@ -180,7 +180,13 @@ export default function CallOverlay({ call, groupCall, me }) {
         >
           <div style={{ position: "relative" }}>
             {isDm ? (
-              <Avatar name={peer?.username || "?"} size={44} imageUrl={resolveAvatarUrl(peer)} />
+              <Avatar
+                name={peer?.username || "?"}
+                size={44}
+                user={peer}
+                imageUrl={resolveAvatarUrl(peer)}
+                animate="always"
+              />
             ) : (
               <div
                 style={{
@@ -907,7 +913,13 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
             className={`speaking-ring ring-b${isSpeaking ? " active" : ""}`}
             style={{ transform: `scale(${1 + (isSpeaking ? level * 0.55 : 0)})` }}
           />
-          <Avatar name={username || "?"} size={small ? 36 : 72} imageUrl={avatarUrl} />
+          <Avatar
+            name={username || "?"}
+            size={small ? 36 : 72}
+            imageUrl={avatarUrl}
+            animate="speaking"
+            isSpeaking={isSpeaking}
+          />
           {!small && <span>{username}</span>}
         </div>
       )}
@@ -1430,7 +1442,7 @@ function PersonRow({ name, avatarUrl, isHost }) {
         padding: "10px 0",
       }}
     >
-      <Avatar name={name} size={36} imageUrl={avatarUrl} />
+      <Avatar name={name} size={36} imageUrl={avatarUrl} animate="hover" />
       <div style={{ display: "flex", flexDirection: "column" }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{name}</span>
         {isHost && <span style={{ fontSize: 11, color: "#b5bac1" }}>Host</span>}

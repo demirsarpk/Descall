@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Descall</title>
+  <style>
+    :root {
+      --bg: #1e1f22;
+      --text: #f2f3f5;
+      --muted: #b5bac1;
+      --track: #2b2d31;
+      --fill: #5865f2;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      font-family: "Segoe UI", "gg sans", "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .frame {
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 28px 32px 24px;
+      position: relative;
+    }
+    .logo-wrap {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #5865f2, #4752c4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 22px;
+      box-shadow: 0 8px 28px rgba(88, 101, 242, 0.35);
+      position: relative;
+    }
+    .logo-wrap::before {
+      content: "";
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      border-top-color: rgba(255, 255, 255, 0.55);
+      border-right-color: rgba(255, 255, 255, 0.15);
+      animation: spin 1.1s linear infinite;
+      opacity: 0;
+    }
+    .frame.is-busy .logo-wrap::before { opacity: 1; }
+    .logo {
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      color: #fff;
+      line-height: 1;
+    }
+    .status {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      text-align: center;
+      min-height: 22px;
+      margin-bottom: 14px;
+    }
+    .bar {
+      width: 220px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--track);
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .frame.has-progress .bar { opacity: 1; }
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #5865f2, #7289da);
+      border-radius: inherit;
+      transition: width 0.12s linear;
+    }
+    .detail {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      min-height: 16px;
+      text-align: center;
+    }
+    .version {
+      position: absolute;
+      bottom: 12px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.35);
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame is-busy" id="frame">
+    <div class="logo-wrap"><div class="logo">D</div></div>
+    <div class="status" id="status">Checking for updates…</div>
+    <div class="bar"><i id="fill"></i></div>
+    <div class="detail" id="detail"></div>
+    <div class="version" id="version"></div>
+  </div>
+  <script>
+    const frame = document.getElementById("frame");
+    const statusEl = document.getElementById("status");
+    const detailEl = document.getElementById("detail");
+    const fillEl = document.getElementById("fill");
+    const versionEl = document.getElementById("version");
+
+    window.__splashSetVersion = (v) => {
+      versionEl.textContent = v ? ("v" + String(v).replace(/^v/, "")) : "";
+    };
+
+    window.__splashUpdate = (payload = {}) => {
+      const { status, detail, percent, busy = true, showProgress = false } = payload;
+      if (typeof status === "string") statusEl.textContent = status;
+      if (typeof detail === "string") detailEl.textContent = detail;
+      frame.classList.toggle("is-busy", Boolean(busy));
+      frame.classList.toggle("has-progress", Boolean(showProgress));
+      if (typeof percent === "number" && Number.isFinite(percent)) {
+        const p = Math.max(0, Math.min(100, percent));
+        fillEl.style.width = p.toFixed(1) + "%";
+      }
+    };
+  </script>
+</body>
+</html>

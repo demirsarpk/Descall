@@ -245,10 +245,24 @@ export default function App() {
   const applyProfileUpdate = useCallback((user) => {
     const normalized = normalizeUser(user);
     if (!normalized?.id) return;
-    const { id, avatarUrl, avatarVersion } = normalized;
+    const { id, avatarVersion } = normalized;
+    const stored = getUser();
+    const existingSelf = me?.id === id ? me : stored?.id === id ? stored : null;
+    // Prefer incoming avatar, but never clear a known photo with an empty patch.
+    const avatarUrl =
+      normalized.avatarUrl ||
+      normalized.avatar_url ||
+      existingSelf?.avatarUrl ||
+      existingSelf?.avatar_url ||
+      null;
 
-    if (me?.id === id || getUser()?.id === id) {
-      commitSessionUser(normalized);
+    if (me?.id === id || stored?.id === id) {
+      commitSessionUser({
+        ...existingSelf,
+        ...normalized,
+        avatarUrl,
+        avatar_url: avatarUrl,
+      });
     }
 
     setFriends((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
@@ -258,11 +272,12 @@ export default function App() {
     setNotifications((prev) => prev.map((n) => {
       const fromId = n.meta?.fromUserId || n.meta?.userId || n.fromUserId;
       if (fromId !== id) return n;
+      if (!avatarUrl) return n;
       return { ...n, avatarUrl, avatar_url: avatarUrl };
     }));
     setDmByUserId((prev) => patchDmMessagesAvatar(prev, id, avatarUrl, avatarVersion));
     setGroupMessagesById((prev) => patchGroupMessagesAvatar(prev, id, avatarUrl, avatarVersion));
-  }, [commitSessionUser, me?.id]);
+  }, [commitSessionUser, me]);
 
   useEffect(() => {
     setTypingDmUser(null);
@@ -1105,8 +1120,7 @@ export default function App() {
       const data = await loginWithGoogle(credential);
       transportFallbackStepRef.current = 0;
       setToken(data.token);
-      setUser(data.user);
-      setMe(data.user);
+      commitSessionUser(data.user);
     } catch (error) {
       setAuthError(error.message);
       throw error;
@@ -1578,7 +1592,12 @@ export default function App() {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
               const optimisticMessage = {
                 id: tempId,
-                from: { id: me?.id, username: me?.username },
+                from: normalizeUser({
+                  id: me?.id,
+                  username: me?.username,
+                  avatarUrl: me?.avatarUrl || me?.avatar_url,
+                  updated_at: me?.updated_at || me?.avatarVersion,
+                }),
                 to: { id: activeDmUser.id },
                 text: isMediaObject ? "" : textPayload,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
@@ -1631,7 +1650,12 @@ export default function App() {
                 );
               const optimistic = {
                 id: tempId,
-                from: normalizeUser({ id: me?.id, username: me?.username, avatarUrl: me?.avatarUrl, updated_at: me?.updated_at }),
+                from: normalizeUser({
+                  id: me?.id,
+                  username: me?.username,
+                  avatarUrl: me?.avatarUrl || me?.avatar_url,
+                  updated_at: me?.updated_at || me?.avatarVersion,
+                }),
                 text: isMediaObject ? "" : textStr,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
                 mediaType: isMediaObject ? msg.mediaType : undefined,

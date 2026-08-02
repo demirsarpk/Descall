@@ -7,8 +7,8 @@
 @media (max-width: 768px) {
   .app-root {
     grid-template-columns: 1fr !important;
-    height: 100dvh;
-    max-height: 100dvh;
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
   }
 
   .app-root[data-view="servers"] {
@@ -126,12 +126,12 @@
     flex-shrink: 0;
   }
 
-  /* Main chat panel full width */
+  /* Main chat panel full width — prefer visual viewport height when set */
   .main-panel {
     min-width: 0;
     width: 100%;
-    height: 100dvh;
-    max-height: 100dvh;
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
   }
 
   .panel-header {
@@ -413,7 +413,15 @@
 /* Mobile bottom tab bar (primary nav) */
 @media (max-width: 768px) {
   .app-root.is-mobile {
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
     padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    transition: padding-bottom 0.12s ease;
+  }
+
+  .app-root.is-mobile .main-panel {
+    height: 100%;
+    max-height: 100%;
   }
 
   .mobile-tab-bar {
@@ -430,6 +438,7 @@
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     gap: 2px;
+    transition: transform 0.15s ease, opacity 0.15s ease;
   }
 
   .mobile-tab {
@@ -456,5 +465,22 @@
 
   .app-root.is-mobile .composer-container {
     padding-bottom: 4px;
+  }
+
+  /* Keyboard open: drop tab-bar reserve, size to visual viewport, hide tabs */
+  html.kb-open .app-root.is-mobile {
+    padding-bottom: 0;
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
+  }
+
+  html.kb-open .mobile-tab-bar {
+    transform: translateY(110%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  html.kb-open .app-root.is-mobile .composer-container {
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
   }
 }

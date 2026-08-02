@@ -386,6 +386,17 @@ export default function UserPanel({
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      setProfileError("Avatar must be JPG, PNG, WebP, or GIF.");
+      setTimeout(() => setProfileError(""), 3000);
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setProfileError("Avatar must be 8 MB or smaller.");
+      setTimeout(() => setProfileError(""), 3000);
+      return;
+    }
     setAvatarUploading(true);
     setProfileError("");
     const formData = new FormData();
@@ -464,6 +475,7 @@ export default function UserPanel({
                     name={me?.username || "User"}
                     size={72}
                     user={{ ...me, avatarUrl: avatarUrl || me?.avatarUrl }}
+                    animate="always"
                   />
                   <span className="us-hero-status">
                     <StatusBadge status={myStatus === "invisible" ? "offline" : myStatus} />
@@ -531,6 +543,7 @@ export default function UserPanel({
                 name={me?.username || "User"}
                 size={56}
                 user={{ ...me, avatarUrl: avatarUrl || me?.avatarUrl }}
+                animate="always"
               />
               <div>
                 <strong>{displayName || me?.username || "User"}</strong>
@@ -587,6 +600,7 @@ export default function UserPanel({
                       name={me?.username || "User"}
                       size={72}
                       user={{ ...me, avatarUrl: avatarUrl || me?.avatarUrl }}
+                      animate="always"
                     />
                     <span className="us-avatar-overlay">
                       {avatarUploading ? <RefreshCw size={18} className="us-spin" /> : <Camera size={18} />}
@@ -596,7 +610,7 @@ export default function UserPanel({
                     <input
                       value={avatarUrl}
                       onChange={(e) => setAvatarUrl(e.target.value)}
-                      placeholder="Paste image URL…"
+                      placeholder="Paste image or GIF URL…"
                     />
                     <div className="us-btn-row">
                       <button
@@ -614,12 +628,12 @@ export default function UserPanel({
                         </button>
                       )}
                     </div>
-                    <span className="us-hint">JPG, PNG or GIF · Max 8 MB</span>
+                    <span className="us-hint">JPG, PNG, WebP or GIF · Max 8 MB · GIFs animate on hover / while speaking</span>
                   </div>
                 </div>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
                   ref={fileInputRef}
                   className="us-hidden"
                   onChange={handleAvatarUpload}

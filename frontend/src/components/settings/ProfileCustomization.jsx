@@ -256,7 +256,7 @@ export default function ProfileCustomization({ me, onUpdate }) {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
                   onChange={handleAvatarUpload}
                   className="hidden"
                 />
@@ -275,7 +275,7 @@ export default function ProfileCustomization({ me, onUpdate }) {
                 <input
                   ref={bannerInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
                   onChange={handleBannerUpload}
                   className="hidden"
                 />

@@ -111,6 +111,28 @@ async function broadcastUserProfileUpdate(io, userId) {
     presence.set(userId, p);
   }
 
+  // Keep live socket.user in sync so group messages / calls don't emit stale avatars.
+  try {
+    const room = io.sockets?.adapter?.rooms?.get(`user:${userId}`);
+    if (room) {
+      for (const sid of room) {
+        const sock = io.sockets.sockets.get(sid);
+        if (sock?.user) {
+          sock.user.avatar_url = profile.avatar_url;
+          sock.user.username = profile.username || sock.user.username;
+        }
+      }
+    } else if (p?.socketId) {
+      const sock = io.sockets.sockets.get(p.socketId);
+      if (sock?.user) {
+        sock.user.avatar_url = profile.avatar_url;
+        sock.user.username = profile.username || sock.user.username;
+      }
+    }
+  } catch (err) {
+    console.warn("[profile] socket.user sync failed:", err?.message || err);
+  }
+
   const payload = { user: toPublicUser(profile) };
 
   io.to(`user:${userId}`).emit("user:profile:updated", payload);

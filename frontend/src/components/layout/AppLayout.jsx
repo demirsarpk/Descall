@@ -8,6 +8,7 @@ import UserPanel from "./UserPanel";
 import ActivitySidebar from "../activity/ActivitySidebar";
 import { useActivity } from "../../hooks/useActivity";
 import { useMobile } from "../../hooks/useMobile";
+import { useMobileKeyboard } from "../../hooks/useMobileKeyboard";
 
 /**
  * Single shared layout — desktop grid, mobile drawer adaptation.
@@ -71,6 +72,7 @@ export default function AppLayout({
   onClearReply,
 }) {
   const { isMobile } = useMobile();
+  useMobileKeyboard(isMobile);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState("chat");
   const [userPanelOpen, setUserPanelOpen] = useState(false);

@@ -45,6 +45,9 @@ export function resolveAvatarUrl(user) {
   const v = typeof version === "number" ? version : new Date(version).getTime();
   if (!v || Number.isNaN(v)) return trimmed;
 
+  // Avoid stacking cache-busters if URL was already resolved.
+  if (/[?&]v=\d+/.test(trimmed)) return trimmed;
+
   const sep = trimmed.includes("?") ? "&" : "?";
   return `${trimmed}${sep}v=${v}`;
 }
@@ -54,14 +57,66 @@ export function resolveDisplayName(user) {
   return user.displayName || user.display_name || user.username || "Unknown";
 }
 
+/** First non-empty avatar URL from a list of user-like objects / strings. */
+export function pickAvatarUrl(...sources) {
+  for (const src of sources) {
+    if (!src) continue;
+    if (typeof src === "string") {
+      const t = src.trim();
+      if (t) return t;
+      continue;
+    }
+    const url = src.avatarUrl || src.avatar_url || src.initiatorAvatarUrl;
+    if (typeof url === "string" && url.trim()) return url.trim();
+  }
+  return null;
+}
+
+/**
+ * Merge profile shards without letting null avatar/banner/bio wipe known values.
+ */
+export function mergeUserProfiles(...parts) {
+  const list = parts.filter(Boolean);
+  if (!list.length) return null;
+  const out = Object.assign({}, ...list);
+  const avatarUrl = pickAvatarUrl(...list);
+  if (avatarUrl) {
+    out.avatarUrl = avatarUrl;
+    out.avatar_url = avatarUrl;
+  } else {
+    out.avatarUrl = null;
+    out.avatar_url = null;
+  }
+  const banner = list.map((p) => p.bannerUrl || p.banner_url).find((v) => typeof v === "string" && v.trim());
+  if (banner) {
+    out.bannerUrl = banner;
+    out.banner_url = banner;
+  }
+  const bio = list.map((p) => p.bio).find((v) => typeof v === "string" && v.trim());
+  if (bio) out.bio = bio;
+  const customStatus = list
+    .map((p) => p.customStatus || p.custom_status)
+    .find((v) => typeof v === "string" && v.trim());
+  if (customStatus) {
+    out.customStatus = customStatus;
+    out.custom_status = customStatus;
+  }
+  return normalizeUser(out);
+}
+
 export function patchUserAvatar(user, avatarUrl, avatarVersion) {
   if (!user) return user;
+  // Never wipe an existing photo with a null/empty patch (stale socket payloads).
+  const nextAvatar =
+    avatarUrl === undefined || avatarUrl === null || avatarUrl === ""
+      ? user.avatarUrl || user.avatar_url || null
+      : avatarUrl;
   return normalizeUser({
     ...user,
-    avatarUrl,
-    avatar_url: avatarUrl,
-    avatarVersion: avatarVersion ?? Date.now(),
-    updated_at: avatarVersion ?? new Date().toISOString(),
+    avatarUrl: nextAvatar,
+    avatar_url: nextAvatar,
+    avatarVersion: avatarVersion ?? user.avatarVersion ?? Date.now(),
+    updated_at: avatarVersion ?? user.updated_at ?? new Date().toISOString(),
   });
 }
 
