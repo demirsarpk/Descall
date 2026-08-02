@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 /**
- * Returns 0–1 audio RMS level for a MediaStream (for reactive speaking rings).
+ * Returns 0–1 smoothed audio RMS for reactive speaking rings.
+ * Updates are throttled / EMA'd so rings don't jitter every frame.
  */
 export default function useAudioLevel(stream, { muted = false } = {}) {
   const [level, setLevel] = useState(0);
@@ -21,17 +22,19 @@ export default function useAudioLevel(stream, { muted = false } = {}) {
     let ctx;
     let raf;
     let alive = true;
+    let smoothed = 0;
+    let lastPublish = 0;
 
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       const source = ctx.createMediaStreamSource(new MediaStream([track]));
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.65;
+      analyser.smoothingTimeConstant = 0.85;
       source.connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
 
-      const tick = () => {
+      const tick = (now) => {
         if (!alive) return;
         analyser.getByteTimeDomainData(data);
         let sum = 0;
@@ -40,10 +43,16 @@ export default function useAudioLevel(stream, { muted = false } = {}) {
           sum += v * v;
         }
         const rms = Math.sqrt(sum / data.length);
-        setLevel(Math.min(1, rms * 4));
+        smoothed = smoothed * 0.82 + Math.min(1, rms * 4) * 0.18;
+
+        // Publish at ~30fps max to cut React re-render flicker
+        if (now - lastPublish > 33) {
+          lastPublish = now;
+          setLevel(smoothed);
+        }
         raf = requestAnimationFrame(tick);
       };
-      tick();
+      raf = requestAnimationFrame(tick);
     } catch {
       setLevel(0);
     }

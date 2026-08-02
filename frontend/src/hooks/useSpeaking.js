@@ -1,10 +1,22 @@
 import { useEffect, useState } from "react";
 
 /**
- * Lightweight voice-activity detector for a MediaStream.
- * Returns true while audio energy is above threshold.
+ * Voice-activity detector with hysteresis + hold times to avoid green flicker.
+ *
+ * - Needs ~attackMs above onThreshold to turn ON
+ * - Needs ~releaseMs below offThreshold to turn OFF
  */
-export default function useSpeaking(stream, { muted = false, threshold = 0.02 } = {}) {
+export default function useSpeaking(
+  stream,
+  {
+    muted = false,
+    threshold = 0.02,
+    onThreshold,
+    offThreshold,
+    attackMs = 90,
+    releaseMs = 220,
+  } = {}
+) {
   const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => {
@@ -19,20 +31,27 @@ export default function useSpeaking(stream, { muted = false, threshold = 0.02 } 
       return undefined;
     }
 
+    const onT = typeof onThreshold === "number" ? onThreshold : threshold;
+    const offT = typeof offThreshold === "number" ? offThreshold : Math.max(0.008, threshold * 0.55);
+
     let ctx;
     let raf;
     let alive = true;
+    let isOn = false;
+    let aboveSince = 0;
+    let belowSince = 0;
+    let smoothed = 0;
 
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       const source = ctx.createMediaStreamSource(new MediaStream([track]));
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.7;
+      analyser.smoothingTimeConstant = 0.85;
       source.connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
 
-      const tick = () => {
+      const tick = (now) => {
         if (!alive) return;
         analyser.getByteTimeDomainData(data);
         let sum = 0;
@@ -41,10 +60,34 @@ export default function useSpeaking(stream, { muted = false, threshold = 0.02 } 
           sum += v * v;
         }
         const rms = Math.sqrt(sum / data.length);
-        setSpeaking(rms > threshold);
+        // Light EMA so single-frame spikes don't flip state
+        smoothed = smoothed * 0.72 + rms * 0.28;
+
+        if (!isOn) {
+          if (smoothed > onT) {
+            if (!aboveSince) aboveSince = now;
+            if (now - aboveSince >= attackMs) {
+              isOn = true;
+              belowSince = 0;
+              setSpeaking(true);
+            }
+          } else {
+            aboveSince = 0;
+          }
+        } else if (smoothed < offT) {
+          if (!belowSince) belowSince = now;
+          if (now - belowSince >= releaseMs) {
+            isOn = false;
+            aboveSince = 0;
+            setSpeaking(false);
+          }
+        } else {
+          belowSince = 0;
+        }
+
         raf = requestAnimationFrame(tick);
       };
-      tick();
+      raf = requestAnimationFrame(tick);
     } catch {
       setSpeaking(false);
     }
@@ -58,7 +101,7 @@ export default function useSpeaking(stream, { muted = false, threshold = 0.02 } 
         /* ignore */
       }
     };
-  }, [stream, muted, threshold]);
+  }, [stream, muted, threshold, onThreshold, offThreshold, attackMs, releaseMs]);
 
   return speaking;
 }
