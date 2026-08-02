@@ -397,7 +397,21 @@ export default function CallOverlay({ call, groupCall, me }) {
       </div>
 
       {/* ====== MAIN CONTENT AREA ====== */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", paddingTop: 60, paddingBottom: 90 }}>
+      {/* Reserve real control-bar height so screen share never sits under the buttons */}
+      <div
+        className="call-main-stage"
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          minHeight: 0,
+          paddingTop: narrowViewport ? 56 : 60,
+          paddingBottom: narrowViewport
+            ? "calc(72px + env(safe-area-inset-bottom, 0px))"
+            : 96,
+        }}
+      >
         {anyScreenShare ? (
           <ScreenShareLayout
             allScreenSharers={allScreenSharers}
@@ -411,6 +425,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             cameraOn={cameraOn}
             localUsername={localUsername}
             localAvatarUrl={resolveAvatarUrl(me)}
+            narrow={narrowViewport}
           />
         ) : (
           <ParticipantGrid
@@ -434,276 +449,311 @@ export default function CallOverlay({ call, groupCall, me }) {
 
       {/* ====== BOTTOM CONTROL BAR ====== */}
       <div
-        className="call-control-bar"
+        className={`call-control-bar${narrowViewport ? " call-control-bar--narrow" : ""}`}
         style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
           zIndex: 10,
-          padding: narrowViewport
-            ? "12px 10px calc(16px + env(safe-area-inset-bottom, 0px))"
-            : "20px 24px 28px",
           display: "flex",
           alignItems: "center",
-          justifyContent: narrowViewport ? "flex-start" : "center",
-          gap: narrowViewport ? 10 : 16,
-          background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
-          overflowX: narrowViewport ? "auto" : "visible",
-          overflowY: "visible",
-          WebkitOverflowScrolling: "touch",
-          scrollbarWidth: "none",
-          // Keep popovers visible above the bar
-          paddingTop: narrowViewport ? 48 : 20,
+          gap: narrowViewport ? 8 : 16,
+          padding: narrowViewport
+            ? "10px 8px calc(10px + env(safe-area-inset-bottom, 0px))"
+            : "20px 24px 28px",
+          background: "linear-gradient(to top, rgba(0,0,0,0.82) 55%, transparent)",
+          boxSizing: "border-box",
+          maxWidth: "100%",
         }}
       >
         {mode === "incoming" && isDm ? (
-          <>
+          <div style={{ display: "flex", justifyContent: "center", gap: 16, width: "100%" }}>
             <CircleBtn color="#3ba55d" size={64} onClick={call.acceptIncoming}>
               <Phone size={28} />
             </CircleBtn>
             <CircleBtn color="#ed4245" size={64} onClick={call.declineIncoming}>
               <PhoneOff size={28} />
             </CircleBtn>
-          </>
+          </div>
         ) : (
           <>
-            <CircleBtn
-              color={muted ? "#ed4245" : "#3c4043"}
-              onClick={isDm ? call.toggleMute : groupCall.toggleMute}
-              title={muted ? "Unmute" : "Mute"}
-            >
-              {muted ? <MicOff size={22} /> : <Mic size={22} />}
-            </CircleBtn>
-
-            <CircleBtn
-              color={cameraOn ? "#3c4043" : "#ed4245"}
-              onClick={isDm ? call.toggleCamera : groupCall.toggleCamera}
-              title={cameraOn ? "Turn off camera" : "Turn on camera"}
-            >
-              {cameraOn ? <Video size={22} /> : <VideoOff size={22} />}
-            </CircleBtn>
-
-            <div ref={screenQualityAnchorRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
+            <div className="call-control-scroll">
               <CircleBtn
-                color={screenSharing ? "#3ba55d" : "#3c4043"}
-                onClick={() => {
-                  setShowMoreMenu(false);
-                  setShowAudioPanel(false);
-                  if (isDm) {
-                    if (screenSharing) call.stopScreenShare();
-                    else setShowScreenQuality((v) => !v);
-                  } else {
-                    if (groupCall.isScreenSharing) groupCall.stopScreenShare();
-                    else setShowScreenQuality((v) => !v);
-                  }
-                }}
-                title={screenSharing ? "Stop presenting" : "Present screen"}
+                size={narrowViewport ? 44 : 52}
+                color={muted ? "#ed4245" : "#3c4043"}
+                onClick={isDm ? call.toggleMute : groupCall.toggleMute}
+                title={muted ? "Unmute" : "Mute"}
               >
-                <Monitor size={22} />
+                {muted ? <MicOff size={narrowViewport ? 18 : 22} /> : <Mic size={narrowViewport ? 18 : 22} />}
               </CircleBtn>
-              {(screenSharing || showScreenQuality) && (
-                <button
-                  type="button"
-                  title="Ekran kalitesi"
+
+              <CircleBtn
+                size={narrowViewport ? 44 : 52}
+                color={cameraOn ? "#3c4043" : "#ed4245"}
+                onClick={isDm ? call.toggleCamera : groupCall.toggleCamera}
+                title={cameraOn ? "Turn off camera" : "Turn on camera"}
+              >
+                {cameraOn ? <Video size={narrowViewport ? 18 : 22} /> : <VideoOff size={narrowViewport ? 18 : 22} />}
+              </CircleBtn>
+
+              <div
+                ref={screenQualityAnchorRef}
+                style={{ position: "relative", display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}
+              >
+                <CircleBtn
+                  size={narrowViewport ? 44 : 52}
+                  color={screenSharing ? "#3ba55d" : "#3c4043"}
                   onClick={() => {
                     setShowMoreMenu(false);
                     setShowAudioPanel(false);
-                    setShowScreenQuality((v) => !v);
+                    if (isDm) {
+                      if (screenSharing) call.stopScreenShare();
+                      else setShowScreenQuality((v) => !v);
+                    } else {
+                      if (groupCall.isScreenSharing) groupCall.stopScreenShare();
+                      else setShowScreenQuality((v) => !v);
+                    }
                   }}
+                  title={screenSharing ? "Stop presenting" : "Present screen"}
+                >
+                  <Monitor size={narrowViewport ? 18 : 22} />
+                </CircleBtn>
+                {(screenSharing || showScreenQuality) && (
+                  <button
+                    type="button"
+                    title="Ekran kalitesi"
+                    onClick={() => {
+                      setShowMoreMenu(false);
+                      setShowAudioPanel(false);
+                      setShowScreenQuality((v) => !v);
+                    }}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: showScreenQuality ? "rgba(88,101,242,0.35)" : "rgba(0,0,0,0.35)",
+                      color: "#e8e8ec",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <SlidersHorizontal size={14} />
+                  </button>
+                )}
+                <ScreenShareQualityPanel
+                  open={showScreenQuality}
+                  onClose={() => setShowScreenQuality(false)}
+                  anchorRef={screenQualityAnchorRef}
+                  isGroupCall={!isDm}
+                  participantCount={
+                    isDm
+                      ? 2
+                      : (groupCall.participants?.length ?? 0) + 1
+                  }
+                  screenQuality={isDm ? call.screenQuality : groupCall.screenQuality}
+                  setScreenQuality={isDm ? call.setScreenQuality : groupCall.setScreenQuality}
+                  isScreenSharing={screenSharing}
+                  onStartWithQuality={async (q) => {
+                    if (isDm) await call.startScreenShare(q);
+                    else await groupCall.startScreenShare(q);
+                  }}
+                  onRestartWithQuality={async (q) => {
+                    if (isDm) await call.restartScreenShareWithQuality(q);
+                    else await groupCall.restartScreenShareWithQuality(q);
+                  }}
+                />
+              </div>
+
+              {!narrowViewport && (
+                <motion.button
+                  onClick={() => setHandRaised((v) => !v)}
+                  title={handRaised ? "Lower hand" : "Raise hand"}
+                  animate={handRaised ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+                  transition={handRaised ? { repeat: Infinity, duration: 1.6, ease: "easeInOut" } : {}}
                   style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 8,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: showScreenQuality ? "rgba(88,101,242,0.35)" : "rgba(0,0,0,0.35)",
-                    color: "#e8e8ec",
-                    cursor: "pointer",
+                    width: 52,
+                    height: 52,
+                    borderRadius: "50%",
+                    background: handRaised ? "#f0a500" : "#3c4043",
+                    border: handRaised ? "2px solid #ffc107" : "2px solid transparent",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    color: "#fff",
+                    cursor: "pointer",
                     flexShrink: 0,
+                    boxShadow: handRaised ? "0 0 16px rgba(240,165,0,0.5)" : "none",
                   }}
                 >
-                  <SlidersHorizontal size={14} />
-                </button>
+                  <Hand size={22} />
+                </motion.button>
               )}
-              <ScreenShareQualityPanel
-                open={showScreenQuality}
-                onClose={() => setShowScreenQuality(false)}
-                anchorRef={screenQualityAnchorRef}
-                isGroupCall={!isDm}
-                participantCount={
-                  isDm
-                    ? 2
-                    : (groupCall.participants?.length ?? 0) + 1
-                }
-                screenQuality={isDm ? call.screenQuality : groupCall.screenQuality}
-                setScreenQuality={isDm ? call.setScreenQuality : groupCall.setScreenQuality}
-                isScreenSharing={screenSharing}
-                onStartWithQuality={async (q) => {
-                  if (isDm) await call.startScreenShare(q);
-                  else await groupCall.startScreenShare(q);
-                }}
-                onRestartWithQuality={async (q) => {
-                  if (isDm) await call.restartScreenShareWithQuality(q);
-                  else await groupCall.restartScreenShareWithQuality(q);
-                }}
-              />
+
+              <div ref={audioPanelRef} style={{ position: "relative", flexShrink: 0 }}>
+                <CircleBtn
+                  size={narrowViewport ? 44 : 52}
+                  color={showAudioPanel ? "rgba(255,255,255,0.18)" : "#3c4043"}
+                  title="Audio devices"
+                  onClick={() => {
+                    setShowAudioPanel((v) => !v);
+                    setShowMoreMenu(false);
+                    setShowScreenQuality(false);
+                  }}
+                >
+                  <Volume2 size={narrowViewport ? 18 : 22} />
+                </CircleBtn>
+                <AnimatePresence>
+                  {showAudioPanel && (
+                    <AudioDevicePanel
+                      isDm={isDm}
+                      call={call}
+                      groupCall={groupCall}
+                      narrow={narrowViewport}
+                      onClose={() => setShowAudioPanel(false)}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div ref={moreMenuRef} style={{ position: "relative", flexShrink: 0 }}>
+                <CircleBtn
+                  size={narrowViewport ? 44 : 52}
+                  color={showMoreMenu || (narrowViewport && handRaised) ? "rgba(255,255,255,0.15)" : "#3c4043"}
+                  title="More options"
+                  onClick={() => {
+                    setShowMoreMenu((v) => !v);
+                    setShowAudioPanel(false);
+                    setShowScreenQuality(false);
+                  }}
+                >
+                  <MoreVertical size={narrowViewport ? 18 : 22} />
+                </CircleBtn>
+
+                <AnimatePresence>
+                  {showMoreMenu && (
+                    <motion.div
+                      initial={narrowViewport ? { opacity: 0, y: 20 } : { opacity: 0, y: 8, scale: 0.95 }}
+                      animate={narrowViewport ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+                      exit={narrowViewport ? { opacity: 0, y: 20 } : { opacity: 0, y: 8, scale: 0.95 }}
+                      transition={{ duration: 0.14 }}
+                      style={{
+                        ...(narrowViewport
+                          ? {
+                              position: "fixed",
+                              left: 12,
+                              right: 12,
+                              bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 72px))",
+                              maxHeight: "min(55vh, 360px)",
+                              overflowY: "auto",
+                              zIndex: 10050,
+                            }
+                          : {
+                              position: "absolute",
+                              bottom: "calc(100% + 10px)",
+                              right: 0,
+                              minWidth: 210,
+                              maxWidth: "min(280px, calc(100vw - 24px))",
+                              zIndex: 100,
+                            }),
+                        background: "#2b2d33",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: 12,
+                        overflow: "hidden",
+                        boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {narrowViewport && (
+                        <MoreMenuItem
+                          icon={<Hand size={16} color={handRaised ? "#f0a500" : undefined} />}
+                          label={handRaised ? "Lower hand" : "Raise hand"}
+                          onClick={() => {
+                            setHandRaised((v) => !v);
+                            setShowMoreMenu(false);
+                          }}
+                        />
+                      )}
+                      <MoreMenuItem
+                        icon={cameraOn ? <VideoOff size={16} /> : <Video size={16} />}
+                        label={cameraOn ? "Turn off camera" : "Turn on camera"}
+                        onClick={() => {
+                          isDm ? call.toggleCamera?.() : groupCall.toggleCamera?.();
+                          setShowMoreMenu(false);
+                        }}
+                      />
+                      <MoreMenuItem
+                        icon={muted ? <Mic size={16} /> : <MicOff size={16} />}
+                        label={muted ? "Unmute" : "Mute microphone"}
+                        onClick={() => {
+                          isDm ? call.toggleMute?.() : groupCall.toggleMute?.();
+                          setShowMoreMenu(false);
+                        }}
+                      />
+                      <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
+                      <MoreMenuItem
+                        icon={<Users size={16} />}
+                        label="Show participants"
+                        onClick={() => {
+                          setShowParticipants((v) => !v);
+                          setShowMoreMenu(false);
+                        }}
+                      />
+                      <MoreMenuItem
+                        icon={copiedInfo ? <Check size={16} color="#3ba55d" /> : <MessageSquare size={16} />}
+                        label={copiedInfo ? "Copied!" : "Copy call info"}
+                        onClick={() => {
+                          const info = isDm
+                            ? `Call with ${peer?.username}`
+                            : `Group call · ${groupCall.participants?.length ?? 0} participants`;
+                          navigator.clipboard?.writeText(info).catch(() => {});
+                          setCopiedInfo(true);
+                          setTimeout(() => setCopiedInfo(false), 2000);
+                        }}
+                      />
+                      <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
+                      <MoreMenuItem
+                        icon={<PhoneOff size={16} color="#ed4245" />}
+                        label="Leave call"
+                        danger
+                        onClick={() => {
+                          setShowMoreMenu(false);
+                          isDm ? call.endCall?.(peer?.id) : groupCall.leaveCall?.();
+                        }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {!narrowViewport && (
+                <CircleBtn
+                  color="#ed4245"
+                  size={56}
+                  onClick={() => (isDm ? call.endCall(peer?.id) : groupCall.leaveCall())}
+                  title="End call"
+                >
+                  <PhoneOff size={24} />
+                </CircleBtn>
+              )}
             </div>
 
-            <motion.button
-              onClick={() => setHandRaised((v) => !v)}
-              title={handRaised ? "Lower hand" : "Raise hand"}
-              animate={handRaised ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-              transition={handRaised ? { repeat: Infinity, duration: 1.6, ease: "easeInOut" } : {}}
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: "50%",
-                background: handRaised ? "#f0a500" : "#3c4043",
-                border: handRaised ? "2px solid #ffc107" : "2px solid transparent",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                cursor: "pointer",
-                flexShrink: 0,
-                boxShadow: handRaised ? "0 0 16px rgba(240,165,0,0.5)" : "none",
-              }}
-            >
-              <Hand size={22} />
-            </motion.button>
-
-            {/* Audio Device Picker */}
-            <div ref={audioPanelRef} style={{ position: "relative" }}>
-              <CircleBtn
-                color={showAudioPanel ? "rgba(255,255,255,0.18)" : "#3c4043"}
-                title="Audio devices"
-                onClick={() => {
-                  setShowAudioPanel((v) => !v);
-                  setShowMoreMenu(false);
-                  setShowScreenQuality(false);
-                }}
-              >
-                <Volume2 size={22} />
-              </CircleBtn>
-              <AnimatePresence>
-                {showAudioPanel && (
-                  <AudioDevicePanel
-                    isDm={isDm}
-                    call={call}
-                    groupCall={groupCall}
-                    narrow={narrowViewport}
-                    onClose={() => setShowAudioPanel(false)}
-                  />
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div ref={moreMenuRef} style={{ position: "relative" }}>
-              <CircleBtn
-                color={showMoreMenu ? "rgba(255,255,255,0.15)" : "#3c4043"}
-                title="More options"
-                onClick={() => {
-                  setShowMoreMenu((v) => !v);
-                  setShowAudioPanel(false);
-                  setShowScreenQuality(false);
-                }}
-              >
-                <MoreVertical size={22} />
-              </CircleBtn>
-
-              <AnimatePresence>
-                {showMoreMenu && (
-                  <motion.div
-                    initial={narrowViewport ? { opacity: 0, y: 20 } : { opacity: 0, y: 8, scale: 0.95 }}
-                    animate={narrowViewport ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, scale: 1 }}
-                    exit={narrowViewport ? { opacity: 0, y: 20 } : { opacity: 0, y: 8, scale: 0.95 }}
-                    transition={{ duration: 0.14 }}
-                    style={{
-                      ...(narrowViewport
-                        ? {
-                            position: "fixed",
-                            left: 12,
-                            right: 12,
-                            bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 88px))",
-                            width: "auto",
-                            maxHeight: "min(60dvh, calc(100dvh - 120px))",
-                            overflowY: "auto",
-                            zIndex: 10050,
-                          }
-                        : {
-                            position: "absolute",
-                            bottom: "calc(100% + 10px)",
-                            right: 0,
-                            minWidth: 210,
-                            maxWidth: "min(280px, calc(100vw - 24px))",
-                            zIndex: 100,
-                          }),
-                      background: "#2b2d33",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: 12,
-                      overflow: "hidden",
-                      boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    <MoreMenuItem
-                      icon={cameraOn ? <VideoOff size={16} /> : <Video size={16} />}
-                      label={cameraOn ? "Turn off camera" : "Turn on camera"}
-                      onClick={() => {
-                        isDm ? call.toggleCamera?.() : groupCall.toggleCamera?.();
-                        setShowMoreMenu(false);
-                      }}
-                    />
-                    <MoreMenuItem
-                      icon={muted ? <Mic size={16} /> : <MicOff size={16} />}
-                      label={muted ? "Unmute" : "Mute microphone"}
-                      onClick={() => {
-                        isDm ? call.toggleMute?.() : groupCall.toggleMute?.();
-                        setShowMoreMenu(false);
-                      }}
-                    />
-                    <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
-                    <MoreMenuItem
-                      icon={<Users size={16} />}
-                      label="Show participants"
-                      onClick={() => {
-                        setShowParticipants((v) => !v);
-                        setShowMoreMenu(false);
-                      }}
-                    />
-                    <MoreMenuItem
-                      icon={copiedInfo ? <Check size={16} color="#3ba55d" /> : <MessageSquare size={16} />}
-                      label={copiedInfo ? "Copied!" : "Copy call info"}
-                      onClick={() => {
-                        const info = isDm
-                          ? `Call with ${peer?.username}`
-                          : `Group call · ${groupCall.participants?.length ?? 0} participants`;
-                        navigator.clipboard?.writeText(info).catch(() => {});
-                        setCopiedInfo(true);
-                        setTimeout(() => setCopiedInfo(false), 2000);
-                      }}
-                    />
-                    <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
-                    <MoreMenuItem
-                      icon={<PhoneOff size={16} color="#ed4245" />}
-                      label="Leave call"
-                      danger
-                      onClick={() => {
-                        setShowMoreMenu(false);
-                        isDm ? call.endCall?.(peer?.id) : groupCall.leaveCall?.();
-                      }}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <CircleBtn color="#ed4245" size={56} onClick={() => (isDm ? call.endCall(peer?.id) : groupCall.leaveCall())} title="End call">
-              <PhoneOff size={24} />
-            </CircleBtn>
+            {narrowViewport && (
+              <div className="call-control-hangup">
+                <CircleBtn
+                  color="#ed4245"
+                  size={48}
+                  onClick={() => (isDm ? call.endCall(peer?.id) : groupCall.leaveCall())}
+                  title="End call"
+                >
+                  <PhoneOff size={20} />
+                </CircleBtn>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -952,7 +1002,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
 /* ─────────────────────────────────────────────────────────────────
    ScreenShareLayout — selected screen large on top, strip below
    ───────────────────────────────────────────────────────────────── */
-function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl }) {
+function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl, narrow = false }) {
   const [selectedSharerIndex, setSelectedSharerIndex] = useState(0);
   const [viewerCount] = useState(0);
   // Keep refs to both the normal and expanded video elements so we can set srcObject on each
@@ -1036,14 +1086,29 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     ...remoteParticipants.map((p) => ({ id: p.id, username: p.username, avatarUrl: p.avatarUrl, isLocal: false, hasVideo: p.hasVideo || p.isCameraOn })),
   ];
 
+  const stripH = narrow ? 72 : 110;
+  const tileW = narrow ? 112 : 160;
+  const tileH = narrow ? 64 : 100;
+
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, padding: "4px 12px", minHeight: 0 }}>
+    <div
+      className="call-screen-share-layout"
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        gap: narrow ? 6 : 8,
+        padding: narrow ? "2px 8px 0" : "4px 12px",
+        minHeight: 0,
+        overflow: "hidden",
+      }}
+    >
       {/* ── Main screen share area ── */}
       <div
         style={{
-          flex: 1,
+          flex: "1 1 auto",
           position: "relative",
-          borderRadius: 14,
+          borderRadius: narrow ? 12 : 14,
           overflow: "hidden",
           background: "#000",
           cursor: "pointer",
@@ -1201,8 +1266,9 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
 
       {/* ── Bottom participant strip ── */}
       <div
+        className="call-screen-share-strip"
         style={{
-          height: 110,
+          height: stripH,
           display: "flex",
           gap: 8,
           overflowX: "auto",
@@ -1210,6 +1276,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
           flexShrink: 0,
           padding: "2px 0 4px",
           scrollbarWidth: "none",
+          WebkitOverflowScrolling: "touch",
         }}
       >
         {stripTiles.map((tile) => {
@@ -1217,7 +1284,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             ? (isDm ? call?.localVideoRef : groupCall?.localVideoRef)
             : null;
           return (
-            <div key={tile.id} style={{ width: 160, height: 100, flexShrink: 0 }}>
+            <div key={tile.id} style={{ width: tileW, height: tileH, flexShrink: 0 }}>
               <ParticipantTile
                 username={tile.username}
                 avatarUrl={tile.avatarUrl}
@@ -1345,7 +1412,7 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose, narrow = false }) {
               position: "fixed",
               left: 12,
               right: 12,
-              bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 88px))",
+              bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 72px))",
               width: "auto",
               maxHeight: "min(70dvh, calc(100dvh - 120px))",
               overflowY: "auto",
