@@ -372,7 +372,7 @@
 }
 
 .user-settings.is-mobile .us-main-scroll {
-  padding: 16px 16px 96px;
+  padding: 16px 16px 28px;
 }
 
 .user-settings.is-mobile .us-main-header {
@@ -949,10 +949,10 @@
 }
 
 .us-sticky-actions {
-  position: sticky;
-  bottom: 0;
-  padding-top: 8px;
-  background: linear-gradient(180deg, transparent, var(--surface-1) 28%);
+  position: static;
+  margin-top: 4px;
+  padding: 4px 0 0;
+  background: none;
 }
 
 .us-alert {
