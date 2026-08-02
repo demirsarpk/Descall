@@ -434,7 +434,7 @@ function createMainWindow() {
     mainWindow.show();
     mainWindow.focus();
 
-    // Keep checking GitHub releases in the background for the newest build
+    // Re-arm checks when UI is up (also already started in whenReady)
     scheduleBackgroundUpdateChecks();
   });
 
@@ -510,6 +510,9 @@ app.whenReady().then(() => {
   if (isPackaged && !app.getLoginItemSettings().openAtLogin) {
     app.setLoginItemSettings({ openAtLogin: true });
   }
+
+  // Start update loop as soon as the process is ready (every open + 10m)
+  scheduleBackgroundUpdateChecks();
 
   createSplashWindow();
   setTimeout(() => {
