@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor,
   Minus, Maximize2, Users, MessageSquare, Hand, MoreVertical, Check, X as XIcon,
-  Volume2, ChevronUp, Mic2, SlidersHorizontal
+  Volume2, ChevronUp, Mic2, SlidersHorizontal, PictureInPicture2,
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
 import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
 import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
 import { resolveAvatarUrl } from "../lib/avatar";
 import ScreenShareQualityPanel from "./voice/ScreenShareQualityPanel";
+import CallPipSource, { CallPipButton } from "./voice/CallPipSource";
 import { useIsNarrowViewport } from "../lib/useIsNarrowViewport";
 
 /*
@@ -32,10 +33,12 @@ export default function CallOverlay({ call, groupCall, me }) {
   const [showAudioPanel, setShowAudioPanel] = useState(false);
   const [showScreenQuality, setShowScreenQuality] = useState(false);
   const [copiedInfo, setCopiedInfo] = useState(false);
+  const [pipApi, setPipApi] = useState(null);
   const narrowViewport = useIsNarrowViewport(720);
   const moreMenuRef = useRef(null);
   const audioPanelRef = useRef(null);
   const screenQualityAnchorRef = useRef(null);
+  const onPipApi = useCallback((api) => setPipApi(api), []);
 
   useEffect(() => {
     if (!showMoreMenu) return;
@@ -111,6 +114,16 @@ export default function CallOverlay({ call, groupCall, me }) {
       ? "Video call"
       : "Voice call"
     : `${(groupCall.participants?.filter((p) => p.id !== me?.id).length ?? 0) + 1} participants`;
+
+  const pipSource = (
+    <CallPipSource
+      isDm={isDm}
+      call={call}
+      groupCall={groupCall}
+      active={Boolean(active && !(isDm && mode === "incoming"))}
+      onApi={onPipApi}
+    />
+  );
 
   /* ---------- Incoming DM: floating accept/decline popup ---------- */
   if (isDm && mode === "incoming") {
@@ -224,95 +237,121 @@ export default function CallOverlay({ call, groupCall, me }) {
   /* ---------- Minimized widget ---------- */
   if (minimized) {
     return (
-      <motion.div
-        className="call-overlay-minimized"
-        initial={{ opacity: 0, y: 60, scale: 0.9 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 60, scale: 0.9 }}
-        style={{
-          position: "fixed",
-          bottom: 20,
-          right: 20,
-          zIndex: 9999,
-          background: "#1e1f23",
-          borderRadius: 14,
-          padding: 14,
-          boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          cursor: "pointer",
-          border: "1px solid rgba(255,255,255,0.06)",
-          minWidth: 260,
-        }}
-        onClick={() => setMinimized(false)}
-      >
-        <div style={{ position: "relative" }}>
-          {isDm ? (
-            <Avatar name={peer?.username || "?"} size={44} imageUrl={resolveAvatarUrl(peer)} />
-          ) : (
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                background: "#5865f2",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Users size={22} color="white" />
-            </div>
-          )}
-          {screenSharing && (
-            <div
-              style={{
-                position: "absolute",
-                bottom: -2,
-                right: -2,
-                background: "#3ba55d",
-                borderRadius: "50%",
-                width: 16,
-                height: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Monitor size={10} color="white" />
-            </div>
-          )}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: "#fff" }}>{title}</span>
-          <span style={{ fontSize: 12, color: "#b5bac1" }}>
-            {subtitle}
-            {formattedDuration ? ` · ${formattedDuration}` : ""}
-          </span>
-        </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            isDm ? call.endCall(peer?.id) : groupCall.leaveCall();
-          }}
+      <>
+        {pipSource}
+        <motion.div
+          className="call-overlay-minimized"
+          initial={{ opacity: 0, y: 60, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 60, scale: 0.9 }}
           style={{
-            background: "#ed4245",
-            border: "none",
-            borderRadius: "50%",
-            width: 36,
-            height: 36,
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            zIndex: 9999,
+            background: "#1e1f23",
+            borderRadius: 14,
+            padding: 14,
+            boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            color: "white",
+            gap: 12,
             cursor: "pointer",
-            flexShrink: 0,
+            border: "1px solid rgba(255,255,255,0.06)",
+            minWidth: 260,
           }}
+          onClick={() => setMinimized(false)}
         >
-          <PhoneOff size={18} />
-        </button>
-      </motion.div>
+          <div style={{ position: "relative" }}>
+            {isDm ? (
+              <Avatar name={peer?.username || "?"} size={44} imageUrl={resolveAvatarUrl(peer)} />
+            ) : (
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "#5865f2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Users size={22} color="white" />
+              </div>
+            )}
+            {screenSharing && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: -2,
+                  right: -2,
+                  background: "#3ba55d",
+                  borderRadius: "50%",
+                  width: 16,
+                  height: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Monitor size={10} color="white" />
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+            <span style={{ fontWeight: 700, fontSize: 15, color: "#fff" }}>{title}</span>
+            <span style={{ fontSize: 12, color: "#b5bac1" }}>
+              {subtitle}
+              {formattedDuration ? ` · ${formattedDuration}` : ""}
+            </span>
+          </div>
+          <button
+            type="button"
+            title="Picture in Picture"
+            onClick={(e) => {
+              e.stopPropagation();
+              pipApi?.enterPip?.();
+            }}
+            style={{
+              background: "#3c4043",
+              border: "none",
+              borderRadius: "50%",
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <PictureInPicture2 size={16} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              isDm ? call.endCall(peer?.id) : groupCall.leaveCall();
+            }}
+            style={{
+              background: "#ed4245",
+              border: "none",
+              borderRadius: "50%",
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <PhoneOff size={18} />
+          </button>
+        </motion.div>
+      </>
     );
   }
 
@@ -346,6 +385,8 @@ export default function CallOverlay({ call, groupCall, me }) {
   const anyScreenShare = allScreenSharers.length > 0;
 
   return (
+    <>
+    {pipSource}
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -705,6 +746,15 @@ export default function CallOverlay({ call, groupCall, me }) {
                             setShowScreenQuality(true);
                           }}
                         />
+                        <MoreMenuItem
+                          icon={<PictureInPicture2 size={16} />}
+                          label={pipApi?.pipActive ? "Exit Picture in Picture" : "Picture in Picture"}
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            if (pipApi?.pipActive) pipApi.leavePip?.();
+                            else pipApi?.enterPip?.();
+                          }}
+                        />
                         <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
                       </>
                     )}
@@ -777,6 +827,8 @@ export default function CallOverlay({ call, groupCall, me }) {
               </div>
             )}
 
+            {!narrowViewport && <CallPipButton pipApi={pipApi} />}
+
             <CircleBtn
               color="#ed4245"
               size={narrowViewport ? 50 : 56}
@@ -842,6 +894,7 @@ export default function CallOverlay({ call, groupCall, me }) {
         )}
       </AnimatePresence>
     </motion.div>
+    </>
   );
 }
 
