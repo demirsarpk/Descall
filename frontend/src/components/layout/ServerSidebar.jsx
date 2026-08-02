@@ -481,7 +481,7 @@ export default function ServerSidebar({
                     <>
                       <label className="add-modal-label">Enter a username to add</label>
                       <input className="add-modal-input" value={friendUsername} onChange={(e) => setFriendUsername(e.target.value)} placeholder="e.g. johndoe" onKeyDown={(e) => e.key === "Enter" && handleAddFriend()} />
-                      <motion.button className="settings-action-btn" onClick={handleAddFriend} disabled={addLoading || !friendUsername.trim()} whileTap={{ scale: 0.97 }}>
+                      <motion.button type="button" className="add-modal-btn" onClick={handleAddFriend} disabled={addLoading || !friendUsername.trim()} whileTap={{ scale: 0.97 }}>
                         {addLoading ? "Sending..." : "Send Friend Request"}
                       </motion.button>
                     </>
@@ -525,7 +525,7 @@ export default function ServerSidebar({
                         )}
                       </div>
                       
-                      <motion.button className="settings-action-btn" onClick={handleCreateGroup} disabled={addLoading || !groupName.trim()} whileTap={{ scale: 0.97 }}>
+                      <motion.button type="button" className="add-modal-btn" onClick={handleCreateGroup} disabled={addLoading || !groupName.trim()} whileTap={{ scale: 0.97 }}>
                         {addLoading ? "Creating..." : "Create Group"}
                       </motion.button>
                     </>

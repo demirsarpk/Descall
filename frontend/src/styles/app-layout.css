@@ -1964,6 +1964,38 @@
   font-size: 13px;
 }
 
+/* Primary action in Add Friend / Create Group modal */
+.add-modal-btn,
+.add-modal .settings-action-btn {
+  width: 100%;
+  margin-top: 4px;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: filter 0.15s, opacity 0.15s, background 0.15s;
+}
+
+.add-modal-btn:hover:not(:disabled),
+.add-modal .settings-action-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.add-modal-btn:disabled,
+.add-modal .settings-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
+
 /* ─── ChatPanel Search & Members ─── */
 .chat-search-bar {
   display: flex;
