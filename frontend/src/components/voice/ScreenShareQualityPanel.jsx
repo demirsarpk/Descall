@@ -10,6 +10,7 @@ import {
   Info,
 } from "lucide-react";
 import { GROUP_SCREEN_DEFAULT_QUALITY } from "../../lib/webrtcScreenShare";
+import { useIsNarrowViewport } from "../../lib/useIsNarrowViewport";
 
 export const SCREEN_RESOLUTION_PRESETS = [
   { value: "480p", label: "480p", desc: "854×480", hint: "En akıcı — düşük bant" },
@@ -43,6 +44,7 @@ export default function ScreenShareQualityPanel({
   const [applying, setApplying] = useState(false);
   const [appliedFlash, setAppliedFlash] = useState(false);
   const quality = screenQuality || GROUP_SCREEN_DEFAULT_QUALITY;
+  const narrow = useIsNarrowViewport(720);
 
   useEffect(() => {
     if (!open) return;
@@ -113,17 +115,34 @@ export default function ScreenShareQualityPanel({
           ref={panelRef}
           role="dialog"
           aria-label="Screen share quality"
-          initial={{ opacity: 0, y: 12, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 12, scale: 0.96 }}
+          initial={narrow ? { opacity: 0, y: 24 } : { opacity: 0, y: 12, x: "-50%", scale: 0.96 }}
+          animate={narrow ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, x: "-50%", scale: 1 }}
+          exit={narrow ? { opacity: 0, y: 24 } : { opacity: 0, y: 12, x: "-50%", scale: 0.96 }}
           transition={{ type: "spring", damping: 26, stiffness: 340 }}
           style={{
-            position: "absolute",
-            bottom: "calc(100% + 14px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "min(380px, calc(100vw - 32px))",
-            zIndex: 50,
+            ...(narrow
+              ? {
+                  position: "fixed",
+                  left: 12,
+                  right: 12,
+                  bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 88px))",
+                  width: "auto",
+                  maxHeight: "min(70dvh, calc(100dvh - 120px))",
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  WebkitOverflowScrolling: "touch",
+                  zIndex: 10050,
+                }
+              : {
+                  position: "absolute",
+                  bottom: "calc(100% + 14px)",
+                  left: "50%",
+                  width: "min(380px, calc(100vw - 32px))",
+                  maxHeight: "min(70vh, 520px)",
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  zIndex: 50,
+                }),
             borderRadius: 16,
             border: "1px solid rgba(255,255,255,0.12)",
             background: "linear-gradient(165deg, rgba(28,28,34,0.98) 0%, rgba(18,18,22,0.99) 100%)",
@@ -132,6 +151,7 @@ export default function ScreenShareQualityPanel({
             padding: "16px 16px 14px",
             color: "#f4f4f8",
             fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+            boxSizing: "border-box",
           }}
         >
           <div

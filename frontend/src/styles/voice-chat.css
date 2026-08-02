@@ -341,13 +341,34 @@
   position: absolute;
   bottom: calc(100% + var(--space-4));
   right: 0;
-  width: 280px;
+  width: min(280px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  max-height: min(70vh, 480px);
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--surface-1);
   border-radius: var(--radius-2xl);
   border: 1px solid var(--border-3);
   box-shadow: var(--shadow-xl);
   padding: var(--space-8);
   z-index: 100;
+  box-sizing: border-box;
+}
+
+@media (max-width: 719px) {
+  .screen-quality-panel {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 88px));
+    width: auto;
+    max-width: none;
+    z-index: 10050;
+  }
+
+  .call-control-bar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* ─── Group Call Modal ─── */

@@ -10,6 +10,7 @@ import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
 import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
 import { resolveAvatarUrl } from "../lib/avatar";
 import ScreenShareQualityPanel from "./voice/ScreenShareQualityPanel";
+import { useIsNarrowViewport } from "../lib/useIsNarrowViewport";
 
 /*
  * Google Meet-style call overlay
@@ -31,6 +32,7 @@ export default function CallOverlay({ call, groupCall, me }) {
   const [showAudioPanel, setShowAudioPanel] = useState(false);
   const [showScreenQuality, setShowScreenQuality] = useState(false);
   const [copiedInfo, setCopiedInfo] = useState(false);
+  const narrowViewport = useIsNarrowViewport(720);
   const moreMenuRef = useRef(null);
   const audioPanelRef = useRef(null);
   const screenQualityAnchorRef = useRef(null);
@@ -432,18 +434,27 @@ export default function CallOverlay({ call, groupCall, me }) {
 
       {/* ====== BOTTOM CONTROL BAR ====== */}
       <div
+        className="call-control-bar"
         style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
           zIndex: 10,
-          padding: "20px 24px 28px",
+          padding: narrowViewport
+            ? "12px 10px calc(16px + env(safe-area-inset-bottom, 0px))"
+            : "20px 24px 28px",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
-          gap: 16,
+          justifyContent: narrowViewport ? "flex-start" : "center",
+          gap: narrowViewport ? 10 : 16,
           background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
+          overflowX: narrowViewport ? "auto" : "visible",
+          overflowY: "visible",
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "none",
+          // Keep popovers visible above the bar
+          paddingTop: narrowViewport ? 48 : 20,
         }}
       >
         {mode === "incoming" && isDm ? (
@@ -477,6 +488,8 @@ export default function CallOverlay({ call, groupCall, me }) {
               <CircleBtn
                 color={screenSharing ? "#3ba55d" : "#3c4043"}
                 onClick={() => {
+                  setShowMoreMenu(false);
+                  setShowAudioPanel(false);
                   if (isDm) {
                     if (screenSharing) call.stopScreenShare();
                     else setShowScreenQuality((v) => !v);
@@ -493,7 +506,11 @@ export default function CallOverlay({ call, groupCall, me }) {
                 <button
                   type="button"
                   title="Ekran kalitesi"
-                  onClick={() => setShowScreenQuality((v) => !v)}
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    setShowAudioPanel(false);
+                    setShowScreenQuality((v) => !v);
+                  }}
                   style={{
                     width: 28,
                     height: 28,
@@ -563,7 +580,11 @@ export default function CallOverlay({ call, groupCall, me }) {
               <CircleBtn
                 color={showAudioPanel ? "rgba(255,255,255,0.18)" : "#3c4043"}
                 title="Audio devices"
-                onClick={() => { setShowAudioPanel(v => !v); setShowMoreMenu(false); }}
+                onClick={() => {
+                  setShowAudioPanel((v) => !v);
+                  setShowMoreMenu(false);
+                  setShowScreenQuality(false);
+                }}
               >
                 <Volume2 size={22} />
               </CircleBtn>
@@ -573,6 +594,7 @@ export default function CallOverlay({ call, groupCall, me }) {
                     isDm={isDm}
                     call={call}
                     groupCall={groupCall}
+                    narrow={narrowViewport}
                     onClose={() => setShowAudioPanel(false)}
                   />
                 )}
@@ -583,7 +605,11 @@ export default function CallOverlay({ call, groupCall, me }) {
               <CircleBtn
                 color={showMoreMenu ? "rgba(255,255,255,0.15)" : "#3c4043"}
                 title="More options"
-                onClick={() => setShowMoreMenu((v) => !v)}
+                onClick={() => {
+                  setShowMoreMenu((v) => !v);
+                  setShowAudioPanel(false);
+                  setShowScreenQuality(false);
+                }}
               >
                 <MoreVertical size={22} />
               </CircleBtn>
@@ -591,21 +617,36 @@ export default function CallOverlay({ call, groupCall, me }) {
               <AnimatePresence>
                 {showMoreMenu && (
                   <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                    initial={narrowViewport ? { opacity: 0, y: 20 } : { opacity: 0, y: 8, scale: 0.95 }}
+                    animate={narrowViewport ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+                    exit={narrowViewport ? { opacity: 0, y: 20 } : { opacity: 0, y: 8, scale: 0.95 }}
                     transition={{ duration: 0.14 }}
                     style={{
-                      position: "absolute",
-                      bottom: "calc(100% + 10px)",
-                      right: 0,
+                      ...(narrowViewport
+                        ? {
+                            position: "fixed",
+                            left: 12,
+                            right: 12,
+                            bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 88px))",
+                            width: "auto",
+                            maxHeight: "min(60dvh, calc(100dvh - 120px))",
+                            overflowY: "auto",
+                            zIndex: 10050,
+                          }
+                        : {
+                            position: "absolute",
+                            bottom: "calc(100% + 10px)",
+                            right: 0,
+                            minWidth: 210,
+                            maxWidth: "min(280px, calc(100vw - 24px))",
+                            zIndex: 100,
+                          }),
                       background: "#2b2d33",
                       border: "1px solid rgba(255,255,255,0.1)",
                       borderRadius: 12,
-                      minWidth: 210,
-                      zIndex: 100,
                       overflow: "hidden",
                       boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+                      boxSizing: "border-box",
                     }}
                   >
                     <MoreMenuItem
@@ -680,12 +721,14 @@ export default function CallOverlay({ call, groupCall, me }) {
               top: 0,
               right: 0,
               bottom: 0,
-              width: 300,
+              width: narrowViewport ? "min(100%, 320px)" : 300,
+              maxWidth: "100vw",
               zIndex: 20,
               background: "#1e1f23",
               borderLeft: "1px solid rgba(255,255,255,0.06)",
               display: "flex",
               flexDirection: "column",
+              boxSizing: "border-box",
             }}
           >
             <div
@@ -1265,7 +1308,7 @@ function PersonRow({ name, avatarUrl, isHost }) {
 /* ─────────────────────────────────────────────────────────────────
    AudioDevicePanel — floating panel for mic/speaker selection
    ───────────────────────────────────────────────────────────────── */
-function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
+function AudioDevicePanel({ isDm, call, groupCall, onClose, narrow = false }) {
   const hook = isDm ? call : groupCall;
   const {
     audioInputDevices = [],
@@ -1292,22 +1335,39 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 12, scale: 0.96 }}
+      initial={narrow ? { opacity: 0, y: 24 } : { opacity: 0, y: 12, x: "-50%", scale: 0.96 }}
+      animate={narrow ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, x: "-50%", scale: 1 }}
+      exit={narrow ? { opacity: 0, y: 24 } : { opacity: 0, y: 12, x: "-50%", scale: 0.96 }}
       transition={{ duration: 0.16, ease: [0.25, 0.46, 0.45, 0.94] }}
       style={{
-        position: "absolute",
-        bottom: "calc(100% + 14px)",
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: 320,
+        ...(narrow
+          ? {
+              position: "fixed",
+              left: 12,
+              right: 12,
+              bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 88px))",
+              width: "auto",
+              maxHeight: "min(70dvh, calc(100dvh - 120px))",
+              overflowY: "auto",
+              overflowX: "hidden",
+              WebkitOverflowScrolling: "touch",
+              zIndex: 10050,
+            }
+          : {
+              position: "absolute",
+              bottom: "calc(100% + 14px)",
+              left: "50%",
+              width: "min(320px, calc(100vw - 24px))",
+              maxHeight: "min(70vh, 480px)",
+              overflowY: "auto",
+              overflowX: "hidden",
+              zIndex: 200,
+            }),
         background: "linear-gradient(160deg, #25272e 0%, #1e2026 100%)",
         border: "1px solid rgba(255,255,255,0.09)",
         borderRadius: 16,
         boxShadow: "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04) inset",
-        zIndex: 200,
-        overflow: "hidden",
+        boxSizing: "border-box",
       }}
     >
       {/* Header */}
@@ -1449,15 +1509,25 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
         </div>
       </div>
 
-      {/* Arrow pointing down to the button */}
-      <div style={{
-        position: "absolute", bottom: -7, left: "50%", transform: "translateX(-50%)",
-        width: 14, height: 14, background: "#1e2026",
-        border: "1px solid rgba(255,255,255,0.09)",
-        borderTop: "none", borderLeft: "none",
-        transform: "translateX(-50%) rotate(45deg)",
-        transformOrigin: "center",
-      }} />
+      {/* Arrow — desktop only (fixed sheet on mobile has no anchor) */}
+      {!narrow && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: -7,
+            left: "50%",
+            width: 14,
+            height: 14,
+            background: "#1e2026",
+            border: "1px solid rgba(255,255,255,0.09)",
+            borderTop: "none",
+            borderLeft: "none",
+            transform: "translateX(-50%) rotate(45deg)",
+            transformOrigin: "center",
+            pointerEvents: "none",
+          }}
+        />
+      )}
     </motion.div>
   );
 }
