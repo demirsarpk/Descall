@@ -74,7 +74,7 @@
     "publish": {
       "provider": "github",
       "owner": "demirrsarppkurtlarr",
-      "repo": "descall",
+      "repo": "Descall",
       "releaseType": "release",
       "private": false,
       "channel": "latest"

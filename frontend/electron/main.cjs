@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu, MenuItem, desktopCapturer, globalShortcut, Tray, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu, MenuItem, desktopCapturer, globalShortcut, Tray, Notification, powerMonitor } = require('electron');
 const { showNotificationWindow } = require('./notificationWindow.cjs');
 const { registerProcessScannerIPC } = require('./processScanner.cjs');
 const { autoUpdater } = require('electron-updater');
@@ -10,14 +10,112 @@ const fs = require('fs');
 log.transports.file.level = 'info';
 log.info('App starting...');
 
-// Auto-updater — silent download, install on quit OR user restart
+// Auto-updater — always keep NSIS installs on the latest GitHub release
+// (Portable .exe builds cannot self-update; users should install Setup once.)
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
-autoUpdater.autoDownload         = true;  // download immediately when available
-autoUpdater.autoInstallOnAppQuit = true;  // install when user quits normally
+autoUpdater.autoDownload = true;           // download in background as soon as found
+autoUpdater.autoInstallOnAppQuit = true;   // apply on normal quit
+autoUpdater.allowPrerelease = false;
+autoUpdater.allowDowngrade = false;
+// Full package if delta patch fails (common across large version jumps)
+autoUpdater.disableDifferentialDownload = false;
+
+try {
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'demirrsarppkurtlarr',
+    repo: 'Descall',
+  });
+} catch (err) {
+  log.warn('[updater] setFeedURL failed, using build publish config:', err?.message);
+}
 
 let updateReady = false;
 let updateVersion = null;
+let updateCheckTimer = null;
+let updateRetryTimer = null;
+let idleInstallTimer = null;
+let updateCheckInFlight = false;
+const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const UPDATE_STARTUP_DELAY_MS = 8 * 1000;
+const UPDATE_IDLE_INSTALL_MS = 10 * 60 * 1000; // if update ready + window hidden 10m → install
+
+function checkForAppUpdates(reason = 'manual') {
+  if (!app.isPackaged) {
+    log.info(`[updater] skip check (${reason}) — not packaged`);
+    return Promise.resolve(null);
+  }
+  if (updateCheckInFlight) {
+    log.info(`[updater] skip check (${reason}) — already in flight`);
+    return Promise.resolve(null);
+  }
+  updateCheckInFlight = true;
+  log.info(`[updater] checking for updates (${reason})… current=${app.getVersion()}`);
+  return autoUpdater.checkForUpdates()
+    .then((result) => {
+      if (updateRetryTimer) {
+        clearTimeout(updateRetryTimer);
+        updateRetryTimer = null;
+      }
+      return result;
+    })
+    .catch((err) => {
+      log.error(`[updater] check failed (${reason}):`, err?.message || err);
+      // Retry with backoff when offline / GitHub blip
+      if (!updateRetryTimer) {
+        updateRetryTimer = setTimeout(() => {
+          updateRetryTimer = null;
+          checkForAppUpdates('retry');
+        }, 5 * 60 * 1000);
+      }
+      return null;
+    })
+    .finally(() => {
+      updateCheckInFlight = false;
+    });
+}
+
+function scheduleBackgroundUpdateChecks() {
+  if (!app.isPackaged) return;
+  if (updateCheckTimer) clearInterval(updateCheckTimer);
+
+  setTimeout(() => checkForAppUpdates('startup'), UPDATE_STARTUP_DELAY_MS);
+  updateCheckTimer = setInterval(() => checkForAppUpdates('interval'), UPDATE_CHECK_INTERVAL_MS);
+
+  try {
+    powerMonitor.on('resume', () => {
+      setTimeout(() => checkForAppUpdates('resume'), 5 * 1000);
+    });
+    powerMonitor.on('unlock-screen', () => {
+      setTimeout(() => checkForAppUpdates('unlock'), 5 * 1000);
+    });
+  } catch (err) {
+    log.warn('[updater] powerMonitor hooks unavailable:', err?.message);
+  }
+}
+
+function scheduleIdleAutoInstall() {
+  if (idleInstallTimer) clearTimeout(idleInstallTimer);
+  if (!updateReady) return;
+  idleInstallTimer = setTimeout(() => {
+    idleInstallTimer = null;
+    if (!updateReady || !app.isPackaged) return;
+    const hidden = !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible() || mainWindow.isMinimized();
+    if (!hidden) {
+      // Still visible — try again later
+      scheduleIdleAutoInstall();
+      return;
+    }
+    log.info('[updater] idle + update ready → quitAndInstall');
+    isQuitting = true;
+    try {
+      autoUpdater.quitAndInstall(true, true);
+    } catch (err) {
+      log.error('[updater] quitAndInstall failed:', err?.message);
+    }
+  }, UPDATE_IDLE_INSTALL_MS);
+}
 
 // Paths
 const isDev = process.env.NODE_ENV === 'development';
@@ -132,6 +230,8 @@ function createMainWindow() {
   // Close → minimize to tray instead of quitting
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
+      // Update already downloaded → apply after a while in the tray
+      if (updateReady) scheduleIdleAutoInstall();
       e.preventDefault();
       mainWindow.hide();
       if (tray) {
@@ -295,13 +395,8 @@ function createMainWindow() {
     mainWindow.show();
     mainWindow.focus();
 
-    // Silently check for updates on startup and every 30 minutes
-    if (isPackaged) {
-      autoUpdater.checkForUpdates().catch((err) => log.error('[updater] Initial check failed:', err?.message));
-      setInterval(() => {
-        autoUpdater.checkForUpdates().catch((err) => log.error('[updater] Periodic check failed:', err?.message));
-      }, 30 * 60 * 1000);
-    }
+    // Keep checking GitHub releases in the background for the newest build
+    scheduleBackgroundUpdateChecks();
   });
 
   // Window events
@@ -350,9 +445,17 @@ function createTray() {
     },
     { type: 'separator' },
     {
-      label: 'Çıkış',
+      label: updateReady ? `Güncelle ve Çık (v${updateVersion || ''})` : 'Çıkış',
       click: () => {
         isQuitting = true;
+        if (updateReady) {
+          try {
+            autoUpdater.quitAndInstall(true, true);
+            return;
+          } catch (err) {
+            log.error('[updater] tray quitAndInstall failed:', err?.message);
+          }
+        }
         app.quit();
       },
     },
@@ -394,6 +497,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  // autoInstallOnAppQuit=true applies a downloaded update during this quit
 });
 
 // Auto-updater events
@@ -433,14 +537,14 @@ autoUpdater.on('update-downloaded', (info) => {
     tray.displayBalloon({
       iconType: 'info',
       title: 'Descall Güncelleme Hazır',
-      content: `v${info.version} indirildi. Uygulamayı yeniden başlattığınızda kurulacak.`,
+      content: `v${info.version} indirildi. Kapatınca veya arka planda otomatik kurulacak.`,
     });
   }
 
-  // If user is actively using the app, show a subtle notification window
+  // Subtle toast — click focuses app (user can restart from there via IPC)
   showNotificationWindow({
     title: 'Descall Güncelleme',
-    body: `v${info.version} hazır. Yeniden başlatmak için tıklayın.`,
+    body: `v${info.version} hazır. Yeniden başlatınca kurulur; arka planda da otomatik uygulanır.`,
     type: 'default',
     duration: 8000,
     onClick: () => {
@@ -448,6 +552,9 @@ autoUpdater.on('update-downloaded', (info) => {
       mainWindow?.focus();
     },
   });
+
+  // If the window is already hidden/minimized, install after idle timeout
+  scheduleIdleAutoInstall();
 });
 
 // ─── Notification IPC ────────────────────────────────────────────────────────
@@ -502,16 +609,14 @@ ipcMain.handle('app-version', () => {
 });
 
 ipcMain.handle('check-for-updates', async () => {
-  if (isPackaged) {
-    try {
-      const result = await autoUpdater.checkForUpdates();
-      return { success: true, updateInfo: result?.updateInfo || null };
-    } catch (err) {
-      log.error('[updater] Manual check failed:', err?.message);
-      return { success: false, error: err?.message };
-    }
+  if (!isPackaged) return { success: true, skipped: true };
+  try {
+    const result = await checkForAppUpdates('ipc');
+    return { success: true, updateInfo: result?.updateInfo || null, updateReady, updateVersion };
+  } catch (err) {
+    log.error('[updater] Manual check failed:', err?.message);
+    return { success: false, error: err?.message };
   }
-  return { success: true, skipped: true };
 });
 
 ipcMain.handle('restart-app', () => {

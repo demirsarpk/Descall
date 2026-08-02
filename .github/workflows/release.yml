@@ -160,8 +160,11 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          # latest.yml + blockmap are required for electron-updater silent auto-update
           files: |
             **/Descall-Setup-*.exe
+            **/Descall-Setup-*.exe.blockmap
+            **/latest.yml
           draft: false
           prerelease: false
           generate_release_notes: true
