@@ -25,3 +25,11 @@
 ### Services
 - Backend: `frontend/backend` (Express + Socket.IO). Frontend Vite app is served from backend `dist` in production; local UI via Vite. See `README.md` / `frontend/package.json` scripts.
 - Secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` (required); `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` (optional until OAuth is enabled).
+
+### Local development
+- Copy `frontend/.env.example` → `frontend/.env`. Backend loads `frontend/.env` via `dotenv` in `server.js`.
+- For UI against a local API, set `VITE_API_BASE_URL=http://localhost:3000` (restart Vite after changing).
+- Start backend: `cd frontend/backend && npm run dev` (default port `3000`, health: `GET /health`).
+- Start Vite: `cd frontend && npm run dev` (default `http://localhost:5173`).
+- Production build (matches Render): `cd frontend && npm install --include=dev && npm run build:prod`, then `cd frontend/backend && npm install`.
+- No root `npm test` / `npm run lint` scripts; verify with `npm run build` in `frontend` and API smoke tests (`/health`, `POST /auth/register`, `POST /auth/login`).
