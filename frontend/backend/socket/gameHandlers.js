@@ -24,8 +24,10 @@ function msgId() {
 }
 
 function createGameMessage(content, gameData = null, type = "game_action") {
+  // Stable id per hand so client upserts in place and bubbles don't flash away
+  const handId = gameData?.id;
   return {
-    id: msgId(),
+    id: handId ? `casino-hand-${handId}` : msgId(),
     sender: BOT_USER,
     content,
     type,
@@ -141,9 +143,11 @@ function emitToGroup(io, socket, groupId, message) {
 
 function emitGameUpdate(io, socket, groupId, message) {
   const payload = { groupId, message };
-  // Clients upsert by gameData.id (in-place board) — avoid duplicate bubbles
+  // Emit both: game:update (in-place) + game:message (first paint / older clients)
   socket.emit("game:update", payload);
   socket.to(`group:${groupId}`).emit("game:update", payload);
+  socket.emit("game:message", payload);
+  socket.to(`group:${groupId}`).emit("game:message", payload);
 }
 
 function registerGameHandlers(io, socket) {

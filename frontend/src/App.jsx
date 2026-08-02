@@ -636,6 +636,33 @@ export default function App() {
     // Group messages listener
     socket.on("group:message", ({ groupId, message, tempId }) => {
       if (!groupId || !message) return;
+
+      const trimmedContent = (message.content || "").trim();
+      const isGameCommand =
+        Boolean(message.isGameCommand) ||
+        (trimmedContent.startsWith("/") &&
+          ["/bj", "/blackjack", "/hit", "/stand", "/stay", "/double", "/credits", "/bakiye", "/balance", "/top", "/lider", "/help", "/yardım", "/commands", "/jb"].some(
+            (cmd) => trimmedContent.toLowerCase().startsWith(cmd)
+          ));
+
+      // Never insert /bj etc. as chat rows — casino UI uses game:* events
+      if (isGameCommand) {
+        if (tempId || message.id) {
+          setGroupMessagesById((prev) => {
+            const cur = prev[groupId] ?? [];
+            return {
+              ...prev,
+              [groupId]: cur.filter(
+                (m) =>
+                  m.isGameMessage ||
+                  (m.id !== tempId && m.id !== message.id)
+              ),
+            };
+          });
+        }
+        return;
+      }
+
       const sender = normalizeUser(message.sender || {
         id: message.sender_id,
         username: message.sender?.username || "Unknown",
@@ -670,19 +697,6 @@ export default function App() {
         setGroupPreviews((prev) => ({ ...prev, [groupId]: preview.slice(0, 80) }));
       }
 
-      // Check if message is a game command - suppress normal message display for commands
-      const trimmedContent = message.content?.trim() || '';
-      if (trimmedContent.startsWith('/')) {
-        const validGameCommands = ['/bj', '/blackjack', '/hit', '/stand', '/stay', '/double', '/credits', '/bakiye', '/balance', '/top', '/lider', '/help', '/yardım', '/commands', '/jb'];
-        const isGameCommand = validGameCommands.some(cmd => trimmedContent.toLowerCase().startsWith(cmd));
-        if (isGameCommand && message.sender?.id === myIdRef.current) {
-          // Remove the command message from display (it will be handled by game:message)
-          setGroupMessagesById((prev) => {
-            const cur = prev[groupId] || [];
-            return { ...prev, [groupId]: cur.filter(m => m.id !== message.id) };
-          });
-        }
-      }
       // Notify for messages from others in non-active group
       const isFromMe = normalized.from.id === me?.id;
       const isActiveGroup = activeGroupRef.current?.id === groupId;
@@ -698,36 +712,56 @@ export default function App() {
       }
     });
 
+    // Clear optimistic "/bj …" without inserting a chat row
+    socket.on("group:message:ack", ({ groupId, tempId, suppress } = {}) => {
+      if (!groupId || !tempId || !suppress) return;
+      setGroupMessagesById((prev) => {
+        const cur = prev[groupId] ?? [];
+        return { ...prev, [groupId]: cur.filter((m) => m.id !== tempId) };
+      });
+    });
+
     socket.on("mention:received", ({ groupId, dmConversationId, from, text, groupName }) => {
       notificationService.mention({ groupId, dmConversationId, from, text, groupName });
     });
 
-    // Game messages (blackjack, etc.) — upsert by game hand id so HIT/STAND update in place
+    // Game messages (blackjack, etc.) — upsert by hand id so HIT/STAND update in place
     const upsertGameMessage = (groupId, message) => {
       if (!groupId || !message) return;
+      const handId = message.gameData?.id;
+      const stableId = handId ? `casino-hand-${handId}` : message.id;
       const gameMessage = {
-        id: message.id,
+        id: stableId,
         from: message.sender || { id: "game-bot", username: "Casino" },
         text: message.content || "",
         type: message.type || "game_message",
-        gameData: message.gameData,
+        gameData: message.gameData ?? null,
         timestamp: message.timestamp || new Date().toISOString(),
         isGameMessage: true,
         groupId,
       };
-      const handId = message.gameData?.id;
 
       setGroupMessagesById((prev) => {
         const cur = prev[groupId] ?? [];
-        if (handId) {
-          const idx = cur.findIndex((m) => m.gameData?.id === handId);
-          if (idx >= 0) {
-            const next = cur.slice();
-            next[idx] = { ...next[idx], ...gameMessage, id: next[idx].id };
-            return { ...prev, [groupId]: next };
-          }
+        const idx = cur.findIndex(
+          (m) =>
+            m.id === stableId ||
+            m.id === message.id ||
+            (handId && m.gameData?.id === handId)
+        );
+        if (idx >= 0) {
+          const next = cur.slice();
+          const prevMsg = next[idx];
+          next[idx] = {
+            ...prevMsg,
+            ...gameMessage,
+            id: prevMsg.id || stableId,
+            // Never clobber an existing board with a null/empty gameData
+            gameData: message.gameData != null ? message.gameData : prevMsg.gameData,
+            isGameMessage: true,
+          };
+          return { ...prev, [groupId]: next };
         }
-        if (cur.some((m) => m.id === gameMessage.id)) return prev;
         return { ...prev, [groupId]: [...cur, gameMessage] };
       });
     };
@@ -1367,6 +1401,12 @@ export default function App() {
               }
             } else if (activeGroup) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+              const textStr = isMediaObject ? "" : String(msg || "");
+              const isCasinoCmd =
+                textStr.trim().startsWith("/") &&
+                ["/bj", "/blackjack", "/hit", "/stand", "/stay", "/double", "/credits", "/bakiye", "/balance", "/top", "/lider", "/help", "/yardım", "/commands", "/jb"].some(
+                  (cmd) => textStr.trim().toLowerCase().startsWith(cmd)
+                );
               const optimistic = {
                 id: tempId,
                 from: normalizeUser({ id: me?.id, username: me?.username, avatarUrl: me?.avatarUrl, updated_at: me?.updated_at }),
@@ -1378,11 +1418,16 @@ export default function App() {
                 timestamp: new Date().toISOString(),
                 sending: true,
               };
-              setGroupMessagesById((prev) => ({
-                ...prev,
-                [activeGroup.id]: [...(prev[activeGroup.id] ?? []), optimistic],
-              }));
-              setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: optimistic.timestamp }));
+              // Don't flash "/bj 100" as a chat row — casino board arrives via game:*
+              if (!isCasinoCmd) {
+                setGroupMessagesById((prev) => ({
+                  ...prev,
+                  [activeGroup.id]: [...(prev[activeGroup.id] ?? []), optimistic],
+                }));
+                setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: optimistic.timestamp }));
+              } else {
+                setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: optimistic.timestamp }));
+              }
               setGroupPreviews((prev) => ({
                 ...prev,
                 [activeGroup.id]: isMediaObject
