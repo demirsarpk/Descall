@@ -23,6 +23,7 @@
   border-radius: 8px;
   transition: background 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
+  overflow: visible;
 }
 
 .message-group:hover {
