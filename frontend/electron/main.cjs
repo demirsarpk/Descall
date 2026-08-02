@@ -60,9 +60,14 @@ let updateRetryTimer = null;
 let installTimer = null;
 let updateCheckInFlight = false;
 let powerHooksBound = false;
-const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000; // every 10 minutes
-const UPDATE_STARTUP_DELAY_MS = 3 * 1000;        // soon after open
-const UPDATE_INSTALL_DELAY_MS = 12 * 1000;       // after download → silent install
+/** Discord-style gate: splash stays up until check finishes / update installs. */
+let prelaunchActive = false;
+let prelaunchResolvers = null;
+let mainLaunchStarted = false;
+const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000; // every 10 minutes while running
+const UPDATE_INSTALL_DELAY_MS = 12 * 1000;       // after in-session download → silent install
+const PRELAUNCH_CHECK_TIMEOUT_MS = 25 * 1000;
+const PRELAUNCH_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 
 function applyDownloadedUpdate(reason = 'auto') {
   if (!updateReady || !app.isPackaged) return;
@@ -80,6 +85,11 @@ function applyDownloadedUpdate(reason = 'auto') {
 function scheduleSilentInstall() {
   if (installTimer) clearTimeout(installTimer);
   if (!updateReady) return;
+  // During Discord-style prelaunch, install immediately (no delay / no main window).
+  if (prelaunchActive) {
+    applyDownloadedUpdate('prelaunch');
+    return;
+  }
   installTimer = setTimeout(() => {
     installTimer = null;
     applyDownloadedUpdate('scheduled');
@@ -114,7 +124,7 @@ function checkForAppUpdates(reason = 'manual') {
     })
     .catch((err) => {
       log.error(`[updater] check failed (${reason}):`, err?.message || err);
-      if (!updateRetryTimer) {
+      if (!updateRetryTimer && !prelaunchActive) {
         updateRetryTimer = setTimeout(() => {
           updateRetryTimer = null;
           checkForAppUpdates('retry');
@@ -131,9 +141,7 @@ function scheduleBackgroundUpdateChecks() {
   if (!app.isPackaged) return;
   if (updateCheckTimer) clearInterval(updateCheckTimer);
 
-  // Every app open
-  setTimeout(() => checkForAppUpdates('startup'), UPDATE_STARTUP_DELAY_MS);
-  // Every 10 minutes while running
+  // Prelaunch already checked on open — only poll while the app is running.
   updateCheckTimer = setInterval(() => checkForAppUpdates('interval-10m'), UPDATE_CHECK_INTERVAL_MS);
 
   if (!powerHooksBound) {
@@ -151,6 +159,21 @@ function scheduleBackgroundUpdateChecks() {
   }
 }
 
+function updateSplash(payload) {
+  if (!splashWindow || splashWindow.isDestroyed()) return;
+  try {
+    const js = `window.__splashUpdate && window.__splashUpdate(${JSON.stringify(payload)});`;
+    splashWindow.webContents.executeJavaScript(js, true).catch(() => {});
+  } catch (_) { /* ignore */ }
+}
+
+function resolvePrelaunch(outcome) {
+  if (!prelaunchResolvers) return;
+  const { resolve } = prelaunchResolvers;
+  prelaunchResolvers = null;
+  resolve(outcome);
+}
+
 // Paths
 const isDev = process.env.NODE_ENV === 'development';
 const isPackaged = app.isPackaged;
@@ -160,80 +183,146 @@ let splashWindow = null;
 let tray = null;
 let isQuitting = false;
 
-// Create splash window
+// Discord-like update / boot splash (blocks main window until ready)
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
-    width: 500,
-    height: 300,
+    width: 340,
+    height: 280,
     frame: false,
     alwaysOnTop: true,
     transparent: true,
     resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    skipTaskbar: false,
+    show: false,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
-    }
+      contextIsolation: true,
+    },
   });
 
-  splashWindow.loadURL(`data:text/html,
-    <html>
-      <head>
-        <style>
-          body {
-            margin: 0;
-            padding: 0;
-            width: 500px;
-            height: 300px;
-            background: linear-gradient(135deg, #6678ff 0%, #8b5cf6 100%);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: white;
-            overflow: hidden;
-            border-radius: 20px;
-          }
-          .logo {
-            font-size: 48px;
-            font-weight: bold;
-            margin-bottom: 20px;
-            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
-          }
-          .loading {
-            font-size: 16px;
-            opacity: 0.9;
-          }
-          .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-top: 20px;
-          }
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-          .version {
-            position: absolute;
-            bottom: 20px;
-            font-size: 12px;
-            opacity: 0.7;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="logo">Descall</div>
-        <div class="loading">Yükleniyor...</div>
-        <div class="spinner"></div>
-        <div class="version">v${app.getVersion()}</div>
-      </body>
-    </html>
-  `);
+  const splashPath = path.join(__dirname, 'splash.html');
+  const ready = splashWindow.loadFile(splashPath).catch((err) => {
+    log.warn('[splash] loadFile failed, using inline fallback:', err?.message);
+    return splashWindow.loadURL(`data:text/html,${encodeURIComponent(
+      `<!doctype html><html><body style="margin:0;background:#1e1f22;color:#fff;font-family:Segoe UI,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh">Checking for updates…</body></html>`
+    )}`);
+  });
 
-  splashWindow.center();
+  splashWindow.once('ready-to-show', () => {
+    try {
+      splashWindow.webContents.executeJavaScript(
+        `window.__splashSetVersion && window.__splashSetVersion(${JSON.stringify(app.getVersion())});`,
+        true
+      ).catch(() => {});
+    } catch (_) { /* ignore */ }
+    splashWindow.show();
+    splashWindow.center();
+  });
+
+  return ready;
+}
+
+function openMainApp() {
+  if (mainLaunchStarted) return;
+  mainLaunchStarted = true;
+  prelaunchActive = false;
+  updateSplash({ status: 'Starting Descall…', detail: '', busy: true, showProgress: false });
+  createMainWindow();
+  createTray();
+}
+
+/**
+ * Discord-style gate: check GitHub latest before opening chat UI.
+ * If an update exists → download on splash → quitAndInstall (never open main).
+ * If already latest / offline / timeout → open main.
+ */
+async function runPrelaunchUpdateGate() {
+  if (!app.isPackaged) {
+    openMainApp();
+    return;
+  }
+
+  prelaunchActive = true;
+  updateSplash({
+    status: 'Checking for updates…',
+    detail: '',
+    busy: true,
+    showProgress: false,
+  });
+
+  const outcomePromise = new Promise((resolve) => {
+    prelaunchResolvers = { resolve };
+  });
+
+  const checkTimeout = setTimeout(() => {
+    log.warn('[updater] prelaunch check timed out — opening app');
+    resolvePrelaunch({ type: 'timeout' });
+  }, PRELAUNCH_CHECK_TIMEOUT_MS);
+
+  try {
+    const result = await checkForAppUpdates('prelaunch');
+    // If updater returned without emitting available/not-available yet, wait on events.
+    // If the promise failed/null and no event arrived shortly, fall through via timeout.
+    if (!result && prelaunchResolvers) {
+      setTimeout(() => {
+        if (prelaunchResolvers) {
+          log.warn('[updater] prelaunch check returned empty — opening app');
+          resolvePrelaunch({ type: 'error' });
+        }
+      }, 1500);
+    }
+  } catch (err) {
+    log.error('[updater] prelaunch check threw:', err?.message || err);
+    clearTimeout(checkTimeout);
+    resolvePrelaunch({ type: 'error', error: err });
+  }
+
+  const outcome = await outcomePromise;
+  clearTimeout(checkTimeout);
+
+  if (outcome?.type === 'update-downloaded') {
+    updateSplash({
+      status: 'Installing update…',
+      detail: outcome.version ? `v${outcome.version}` : '',
+      busy: true,
+      showProgress: true,
+      percent: 100,
+    });
+    applyDownloadedUpdate('prelaunch-downloaded');
+    return;
+  }
+
+  if (outcome?.type === 'update-available' || outcome?.type === 'downloading') {
+    // Stay on splash until download finishes — never open main mid-update.
+    let downloadTimer = null;
+    const downloadOutcome = await new Promise((resolve) => {
+      prelaunchResolvers = { resolve };
+      downloadTimer = setTimeout(() => {
+        log.warn('[updater] prelaunch download timed out — opening app');
+        resolve({ type: 'download-timeout' });
+      }, PRELAUNCH_DOWNLOAD_TIMEOUT_MS);
+    });
+    if (downloadTimer) clearTimeout(downloadTimer);
+    prelaunchResolvers = null;
+
+    if (downloadOutcome?.type === 'update-downloaded') {
+      updateSplash({
+        status: 'Installing update…',
+        detail: downloadOutcome.version ? `v${downloadOutcome.version}` : '',
+        busy: true,
+        showProgress: true,
+        percent: 100,
+      });
+      applyDownloadedUpdate('prelaunch-downloaded');
+      return; // process relaunches after install
+    }
+  }
+
+  // up-to-date / error / timeout → continue into the app
+  openMainApp();
 }
 
 // Create main window
@@ -427,14 +516,14 @@ function createMainWindow() {
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
-    if (splashWindow) {
-      splashWindow.close();
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      try { splashWindow.close(); } catch (_) { /* ignore */ }
       splashWindow = null;
     }
     mainWindow.show();
     mainWindow.focus();
 
-    // Re-arm checks when UI is up (also already started in whenReady)
+    // Background polling only after the Discord-style prelaunch gate
     scheduleBackgroundUpdateChecks();
   });
 
@@ -505,20 +594,11 @@ function createTray() {
 }
 
 // App events
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Enable startup on first run (packaged only)
   if (isPackaged && !app.getLoginItemSettings().openAtLogin) {
     app.setLoginItemSettings({ openAtLogin: true });
   }
-
-  // Start update loop as soon as the process is ready (every open + 10m)
-  scheduleBackgroundUpdateChecks();
-
-  createSplashWindow();
-  setTimeout(() => {
-    createMainWindow();
-    createTray();
-  }, 1500);
 
   registerProcessScannerIPC();
 
@@ -529,8 +609,14 @@ app.whenReady().then(() => {
     if (mainWindow) {
       mainWindow.show();
       mainWindow.focus();
+    } else if (!mainLaunchStarted && !prelaunchActive) {
+      openMainApp();
     }
   });
+
+  // Discord-like flow: splash first → check/update → only then open main UI
+  await createSplashWindow();
+  await runPrelaunchUpdateGate();
 });
 
 app.on('window-all-closed', () => {
@@ -545,31 +631,95 @@ app.on('before-quit', () => {
 // Auto-updater events
 autoUpdater.on('checking-for-update', () => {
   log.info('[updater] Checking for update...');
+  if (prelaunchActive) {
+    updateSplash({
+      status: 'Checking for updates…',
+      detail: '',
+      busy: true,
+      showProgress: false,
+    });
+  }
 });
 
 autoUpdater.on('update-available', (info) => {
-  log.info('[updater] Update available, downloading silently:', info.version);
-  mainWindow?.webContents?.send('update:downloading', { version: info.version });
+  log.info('[updater] Update available, downloading:', info.version);
+  updateVersion = info.version || updateVersion;
+  if (prelaunchActive) {
+    updateSplash({
+      status: 'Downloading update…',
+      detail: info.version ? `v${info.version}` : '',
+      busy: true,
+      showProgress: true,
+      percent: 0,
+    });
+    resolvePrelaunch({ type: 'update-available', version: info.version });
+  } else {
+    mainWindow?.webContents?.send('update:downloading', { version: info.version });
+  }
 });
 
 autoUpdater.on('update-not-available', (info) => {
   log.info('[updater] Already up-to-date:', info.version);
+  if (prelaunchActive) {
+    updateSplash({
+      status: 'Up to date',
+      detail: info.version ? `v${info.version}` : '',
+      busy: true,
+      showProgress: false,
+    });
+    resolvePrelaunch({ type: 'up-to-date', version: info.version });
+  }
 });
 
 autoUpdater.on('error', (err) => {
   log.error('[updater] Error:', err?.message ?? err);
-  mainWindow?.webContents?.send('update:error', { message: err?.message || String(err) });
+  if (prelaunchActive) {
+    updateSplash({
+      status: 'Couldn’t check for updates',
+      detail: 'Starting Descall…',
+      busy: true,
+      showProgress: false,
+    });
+    resolvePrelaunch({ type: 'error', error: err });
+  } else {
+    mainWindow?.webContents?.send('update:error', { message: err?.message || String(err) });
+  }
 });
 
 autoUpdater.on('download-progress', ({ percent, bytesPerSecond, transferred, total }) => {
   log.info(`[updater] Downloading: ${percent.toFixed(1)}% (${bytesPerSecond} B/s)`);
-  mainWindow?.webContents?.send('update:progress', { percent, bytesPerSecond, transferred, total });
+  if (prelaunchActive) {
+    const mb = total > 0 ? `${(transferred / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB` : '';
+    updateSplash({
+      status: 'Downloading update…',
+      detail: mb,
+      busy: true,
+      showProgress: true,
+      percent,
+    });
+  } else {
+    mainWindow?.webContents?.send('update:progress', { percent, bytesPerSecond, transferred, total });
+  }
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-  log.info('[updater] Update downloaded — scheduling silent install:', info.version);
+  log.info('[updater] Update downloaded:', info.version);
   updateReady = true;
   updateVersion = info.version;
+
+  if (prelaunchActive) {
+    updateSplash({
+      status: 'Installing update…',
+      detail: info.version ? `v${info.version}` : '',
+      busy: true,
+      showProgress: true,
+      percent: 100,
+    });
+    resolvePrelaunch({ type: 'update-downloaded', version: info.version });
+    // Install immediately from splash — do not open main first
+    scheduleSilentInstall();
+    return;
+  }
 
   mainWindow?.webContents?.send('update:ready', { version: info.version });
   mainWindow?.webContents?.send('update:installing', { version: info.version });
@@ -593,7 +743,6 @@ autoUpdater.on('update-downloaded', (info) => {
     },
   });
 
-  // Always apply in background — replaces old Setup install and relaunches
   scheduleSilentInstall();
 });
 

@@ -48,5 +48,7 @@ Pushing a tag `v*` on `main` runs `.github/workflows/release.yml`, which syncs `
   (login + logged-in app). Content offsets via `body.electron-app` / `--electron-titlebar-h`.
 - Auto-update (NSIS Setup only): generic feed
   `https://github.com/demirrsarppkurtlarr/Descall/releases/latest/download/`,
-  check on startup + every 10 minutes, `verifyUpdateCodeSignature=false` (unsigned),
-  download then silent `quitAndInstall(true, true)` in the background.
+  Discord-style **prelaunch splash** checks before the main window opens;
+  if GitHub `latest` is newer, download + `quitAndInstall(true, true)` from the
+  splash (main UI stays closed). While running, re-check every 10 minutes.
+  `verifyUpdateCodeSignature=false` (unsigned).
