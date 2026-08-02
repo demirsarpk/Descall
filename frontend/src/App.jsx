@@ -245,10 +245,24 @@ export default function App() {
   const applyProfileUpdate = useCallback((user) => {
     const normalized = normalizeUser(user);
     if (!normalized?.id) return;
-    const { id, avatarUrl, avatarVersion } = normalized;
+    const { id, avatarVersion } = normalized;
+    const stored = getUser();
+    const existingSelf = me?.id === id ? me : stored?.id === id ? stored : null;
+    // Prefer incoming avatar, but never clear a known photo with an empty patch.
+    const avatarUrl =
+      normalized.avatarUrl ||
+      normalized.avatar_url ||
+      existingSelf?.avatarUrl ||
+      existingSelf?.avatar_url ||
+      null;
 
-    if (me?.id === id || getUser()?.id === id) {
-      commitSessionUser(normalized);
+    if (me?.id === id || stored?.id === id) {
+      commitSessionUser({
+        ...existingSelf,
+        ...normalized,
+        avatarUrl,
+        avatar_url: avatarUrl,
+      });
     }
 
     setFriends((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
@@ -258,11 +272,12 @@ export default function App() {
     setNotifications((prev) => prev.map((n) => {
       const fromId = n.meta?.fromUserId || n.meta?.userId || n.fromUserId;
       if (fromId !== id) return n;
+      if (!avatarUrl) return n;
       return { ...n, avatarUrl, avatar_url: avatarUrl };
     }));
     setDmByUserId((prev) => patchDmMessagesAvatar(prev, id, avatarUrl, avatarVersion));
     setGroupMessagesById((prev) => patchGroupMessagesAvatar(prev, id, avatarUrl, avatarVersion));
-  }, [commitSessionUser, me?.id]);
+  }, [commitSessionUser, me]);
 
   useEffect(() => {
     setTypingDmUser(null);
