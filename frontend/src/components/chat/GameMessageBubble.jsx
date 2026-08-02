@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Trophy, Coins, AlertCircle, Gamepad2, TrendingUp, RotateCcw, HelpCircle,
   Wallet, Crown, Target, Sparkles, BookOpen, Terminal, BarChart3, Zap,
-  Shield, Dice5, Info, HandMetal,
+  Shield, Dice5, Info, HandMetal, X,
 } from "lucide-react";
 
 /* ── Playing card ─────────────────────────────────────────────── */
@@ -44,12 +44,12 @@ function PlayingCard({ card, hidden = false, index = 0 }) {
   );
 }
 
-function HandRow({ label, hand, hideHole }) {
+function HandRow({ label, hand, hideHole, highlight }) {
   const cards = hand?.cards || [];
   const showValue = !hideHole && hand?.value != null;
 
   return (
-    <div className={`bj-hand ${hideHole ? "bj-hand--mystery" : ""}`}>
+    <div className={`bj-hand ${hideHole ? "bj-hand--mystery" : ""} ${highlight ? `bj-hand--${highlight}` : ""}`}>
       <div className="bj-hand-meta">
         <span className="bj-hand-label">{label}</span>
         {showValue ? (
@@ -125,31 +125,122 @@ function ActionBar({ actions, onAction, busy }) {
   );
 }
 
+function outcomeCopy(result, profit, bet) {
+  return (
+    {
+      blackjack: {
+        title: "BLACKJACK!",
+        headline: "You win",
+        sub: `+${(profit || 0).toLocaleString()} credits`,
+        cls: "bj",
+      },
+      win: {
+        title: "YOU WIN",
+        headline: "You win",
+        sub: `+${(profit || 0).toLocaleString()} credits`,
+        cls: "win",
+      },
+      push: {
+        title: "PUSH",
+        headline: "Tie",
+        sub: "Stake returned",
+        cls: "push",
+      },
+      loss: {
+        title: "YOU LOSE",
+        headline: "Dealer wins",
+        sub: `−${(bet || 0).toLocaleString()} credits`,
+        cls: "loss",
+      },
+    }[result] || { title: String(result || ""), headline: "Hand complete", sub: "", cls: "" }
+  );
+}
+
 function ResultBanner({ result, profit, bet }) {
   if (!result) return null;
-  const copy = {
-    blackjack: { title: "BLACKJACK", sub: `+${(profit || 0).toLocaleString()}`, cls: "bj" },
-    win: { title: "YOU WIN", sub: `+${(profit || 0).toLocaleString()}`, cls: "win" },
-    push: { title: "PUSH", sub: "Stake returned", cls: "push" },
-    loss: { title: "DEALER WINS", sub: `−${(bet || 0).toLocaleString()}`, cls: "loss" },
-  }[result] || { title: result, sub: "", cls: "" };
+  const copy = outcomeCopy(result, profit, bet);
 
   return (
     <motion.div
       className={`bj-result bj-result--${copy.cls}`}
-      initial={{ y: -12, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
+      initial={{ y: -12, opacity: 0, scale: 0.96 }}
+      animate={{ y: 0, opacity: 1, scale: 1 }}
+      transition={{ type: "spring", stiffness: 380, damping: 22 }}
     >
-      <span className="bj-result-title">{copy.title}</span>
+      <div className="bj-result-main">
+        <span className="bj-result-title">{copy.title}</span>
+        <span className="bj-result-headline">{copy.headline}</span>
+      </div>
       <span className="bj-result-sub">{copy.sub}</span>
+    </motion.div>
+  );
+}
+
+function ResultStamp({ result, profit, bet }) {
+  if (!result) return null;
+  const copy = outcomeCopy(result, profit, bet);
+  return (
+    <motion.div
+      className={`bj-stamp bj-stamp--${copy.cls}`}
+      initial={{ scale: 1.35, opacity: 0, rotate: -8 }}
+      animate={{ scale: 1, opacity: 1, rotate: -6 }}
+      transition={{ type: "spring", stiffness: 320, damping: 16 }}
+    >
+      <strong>{copy.title}</strong>
+      <span>{copy.sub}</span>
     </motion.div>
   );
 }
 
 function LobbyTable({ credits, onBet, onHelp }) {
   const [bet, setBet] = useState(100);
+  const [showHelp, setShowHelp] = useState(false);
   const chips = [50, 100, 250, 500, 1000, 2500, 5000];
   const canPlay = credits >= bet && bet >= 10;
+
+  if (showHelp) {
+    return (
+      <div className="bj-shell bj-shell--info">
+        <header className="bj-header">
+          <div className="bj-brand">
+            <BookOpen size={18} />
+            <div>
+              <h3>Casino Help</h3>
+              <p>Commands & house rules</p>
+            </div>
+          </div>
+          <button type="button" className="bj-icon-btn" onClick={() => setShowHelp(false)} aria-label="Close help">
+            <X size={16} />
+          </button>
+        </header>
+        <div className="bj-info-grid">
+          <div>
+            <h4><Terminal size={14} /> Play</h4>
+            <ul>
+              <li><code>/bj 100</code> deal</li>
+              <li><code>/hit</code> · <code>/stand</code> · <code>/double</code></li>
+            </ul>
+          </div>
+          <div>
+            <h4><Info size={14} /> Info</h4>
+            <ul>
+              <li><code>/credits</code> balance</li>
+              <li><code>/top</code> leaderboard</li>
+              <li><code>/help</code> this panel</li>
+            </ul>
+          </div>
+        </div>
+        <ul className="bj-rules">
+          <li><Shield size={14} /> Beat the dealer without going over 21</li>
+          <li><Dice5 size={14} /> Blackjack pays <strong>3:2</strong></li>
+          <li><Zap size={14} /> Dealer hits soft 17 · 6-deck shoe</li>
+        </ul>
+        <button type="button" className="bj-deal-btn" onClick={() => setShowHelp(false)}>
+          Back to bet
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="bj-shell bj-shell--lobby">
@@ -208,7 +299,14 @@ function LobbyTable({ credits, onBet, onHelp }) {
         </motion.button>
       </div>
 
-      <button type="button" className="bj-link-btn" onClick={onHelp}>
+      <button
+        type="button"
+        className="bj-link-btn"
+        onClick={() => {
+          setShowHelp(true);
+          onHelp?.();
+        }}
+      >
         <HelpCircle size={14} /> Rules & commands
       </button>
     </div>
@@ -283,7 +381,7 @@ function CreditsPanel({ content, gameData }) {
   );
 }
 
-function LeaderboardPanel({ content, gameData }) {
+function LeaderboardPanel({ content }) {
   return (
     <div className="bj-shell bj-shell--info">
       <header className="bj-header">
@@ -345,7 +443,7 @@ export default function GameMessageBubble({
     return <CreditsPanel content={content} gameData={gameData} />;
   }
   if (type === "game_leaderboard" || type === "game_top") {
-    return <LeaderboardPanel content={content} gameData={gameData} />;
+    return <LeaderboardPanel content={content} />;
   }
 
   const boardTypes = new Set(["game_start", "game_update", "game_end", "game_action"]);
@@ -363,7 +461,7 @@ export default function GameMessageBubble({
       <LobbyTable
         credits={credits}
         onBet={(bet) => emitCommand("bj", String(bet))}
-        onHelp={() => emitAction("help")}
+        onHelp={() => {}}
       />
     );
   }
@@ -372,12 +470,27 @@ export default function GameMessageBubble({
   const isFinished = gameData.status === "finished";
   const isMine = !gameData.userId || gameData.userId === currentUserId;
   const hideHole = Boolean(gameData.dealerHand?.holeHidden || isPlaying);
+  const outcome = isFinished ? outcomeCopy(gameData.result, gameData.profit, gameData.bet) : null;
 
   let statusIcon = <Coins size={16} />;
   if (isPlaying) statusIcon = <Target size={16} />;
   else if (gameData.result === "blackjack") statusIcon = <Crown size={16} />;
   else if (gameData.result === "win") statusIcon = <Trophy size={16} />;
   else if (gameData.result === "loss") statusIcon = <AlertCircle size={16} />;
+  else if (gameData.result === "push") statusIcon = <Coins size={16} />;
+
+  const playerHighlight =
+    isFinished && (gameData.result === "win" || gameData.result === "blackjack")
+      ? "winner"
+      : isFinished && gameData.result === "loss"
+        ? "loser"
+        : "";
+  const dealerHighlight =
+    isFinished && gameData.result === "loss"
+      ? "winner"
+      : isFinished && (gameData.result === "win" || gameData.result === "blackjack")
+        ? "loser"
+        : "";
 
   return (
     <motion.div
@@ -391,10 +504,15 @@ export default function GameMessageBubble({
             {statusIcon}
           </div>
           <div>
-            <h3>{isPlaying ? "Live hand" : "Hand complete"}</h3>
+            <h3>
+              {isPlaying
+                ? "Live hand"
+                : outcome?.title || "Hand complete"}
+            </h3>
             <p>
               @{gameData.username || "Player"} · Bet {gameData.bet?.toLocaleString()}
               {gameData.doubled ? " · Doubled" : ""}
+              {isFinished && outcome?.sub ? ` · ${outcome.sub}` : ""}
             </p>
           </div>
         </div>
@@ -410,10 +528,25 @@ export default function GameMessageBubble({
         )}
       </AnimatePresence>
 
-      <div className="bj-felt">
-        <HandRow label="Dealer" hand={gameData.dealerHand} hideHole={hideHole} />
+      <div className={`bj-felt ${isFinished ? `bj-felt--${gameData.result}` : ""}`}>
+        <HandRow
+          label="Dealer"
+          hand={gameData.dealerHand}
+          hideHole={hideHole}
+          highlight={dealerHighlight}
+        />
         <div className="bj-felt-divider" />
-        <HandRow label="You" hand={gameData.playerHand} hideHole={false} />
+        <HandRow
+          label="You"
+          hand={gameData.playerHand}
+          hideHole={false}
+          highlight={playerHighlight}
+        />
+        <AnimatePresence>
+          {isFinished && (
+            <ResultStamp result={gameData.result} profit={gameData.profit} bet={gameData.bet} />
+          )}
+        </AnimatePresence>
       </div>
 
       {isPlaying && isMine && (
@@ -434,6 +567,7 @@ export default function GameMessageBubble({
             type="button"
             className="bj-action bj-action--hit"
             whileTap={{ scale: 0.96 }}
+            disabled={busy}
             onClick={() => emitCommand("bj", String(gameData.originalBet || gameData.bet))}
           >
             <RotateCcw size={16} />
@@ -443,7 +577,7 @@ export default function GameMessageBubble({
             type="button"
             className="bj-action bj-action--double"
             whileTap={{ scale: 0.96 }}
-            disabled={credits < (gameData.originalBet || gameData.bet) * 2}
+            disabled={busy || credits < (gameData.originalBet || gameData.bet) * 2}
             onClick={() =>
               emitCommand("bj", String(Math.min((gameData.originalBet || gameData.bet) * 2, credits)))
             }
