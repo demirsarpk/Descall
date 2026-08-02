@@ -168,9 +168,12 @@ function registerGroupHandlers(io, socket, state) {
       sender: (() => {
         const cached = getCachedPublicUser(myId);
         const avatar = resolveSocketAvatar(socket);
+        const displayName = cached?.displayName || socket.user.display_name || socket.user.displayName || null;
         return {
           id: myId,
           username: cached?.username || socket.user.username,
+          displayName,
+          display_name: displayName,
           avatar_url: avatar,
           avatarUrl: avatar,
           avatarVersion: cached?.avatarVersion || cached?.updated_at || null,

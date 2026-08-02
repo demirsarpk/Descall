@@ -17,6 +17,7 @@ import EmptyState from "../ui/EmptyState";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { getPresenceStatus, STATUS_META } from "../../lib/presence";
+import { resolveDisplayName } from "../../lib/userProfile";
 
 export default function ChatPanel({
   activeView,
@@ -64,10 +65,10 @@ export default function ChatPanel({
 
   const typingNames = useMemo(() => {
     if (!activeDmUser && !activeGroup) return [];
-    if (activeDmUser) return typingDmUser ? [typingDmUser.username] : [];
+    if (activeDmUser) return typingDmUser ? [resolveDisplayName(typingDmUser)] : [];
     const groupMap = typingGroupUsers?.[activeGroup.id];
     if (!groupMap) return [];
-    return [...groupMap.values()].map((u) => u.username);
+    return [...groupMap.values()].map((u) => resolveDisplayName(u));
   }, [activeDmUser, activeGroup, typingDmUser, typingGroupUsers]);
 
   const scrollToBottom = () => {
@@ -81,7 +82,7 @@ export default function ChatPanel({
   }, [activeDmUser, activeGroup]);
 
   const getTitle = () => {
-    if (activeDmUser) return activeDmUser.username;
+    if (activeDmUser) return resolveDisplayName(activeDmUser);
     if (activeGroup) return activeGroup.name;
     if (activeGuildChannel) return activeGuildChannel.name;
     if (activeView === "chat") return "Chats";
@@ -173,7 +174,7 @@ export default function ChatPanel({
           {activeDmUser && (
             <div className="header-avatar">
               <Avatar 
-                name={activeDmUser.username} 
+                name={resolveDisplayName(activeDmUser)} 
                 size={40}
                 user={activeDmUser}
               />
@@ -374,10 +375,10 @@ export default function ChatPanel({
           {(activeGroup?.members?.length > 0 ? activeGroup.members : activeDmUser ? [activeDmUser] : []).map((m) => (
             <div key={m.id} className="member-row">
               <div className="member-avatar-wrap">
-                <Avatar name={m.username} size={32} user={m} />
+                <Avatar name={resolveDisplayName(m)} size={32} user={m} />
                 <StatusBadge status={getPresenceStatus(onlineUsers, m.id)} />
               </div>
-              <span className="member-name">{m.username}</span>
+              <span className="member-name">{resolveDisplayName(m)}</span>
             </div>
           ))}
         </motion.aside>

@@ -14,10 +14,18 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 function authUserPayload(user) {
+  const displayName = user.display_name || user.displayName || null;
   return {
     id: user.id,
     username: user.username,
     avatarUrl: user.avatar_url || null,
+    avatar_url: user.avatar_url || null,
+    displayName,
+    display_name: displayName,
+    bio: user.bio || null,
+    customStatus: user.custom_status || user.customStatus || null,
+    bannerUrl: user.banner_url || user.bannerUrl || null,
+    updated_at: user.updated_at || null,
   };
 }
 
@@ -134,7 +142,7 @@ router.post("/login", async (req, res) => {
 
     const { data: user, error: lookupError } = await supabase
       .from("users")
-      .select("id, username, password_hash, avatar_url, auth_provider")
+      .select("id, username, password_hash, avatar_url, display_name, bio, custom_status, banner_url, updated_at, auth_provider")
       .ilike("username", cleanUsername)
       .maybeSingle();
 
@@ -214,7 +222,7 @@ router.post("/google", async (req, res) => {
 
     let { data: user, error: byGoogleError } = await supabase
       .from("users")
-      .select("id, username, avatar_url, email, google_id, auth_provider")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider")
       .eq("google_id", googleId)
       .maybeSingle();
 
@@ -226,7 +234,7 @@ router.post("/google", async (req, res) => {
     if (!user && email) {
       const { data: byEmail, error: byEmailError } = await supabase
         .from("users")
-        .select("id, username, avatar_url, email, google_id, auth_provider")
+        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider")
         .ilike("email", email)
         .maybeSingle();
 
@@ -252,7 +260,7 @@ router.post("/google", async (req, res) => {
           .from("users")
           .update(linkUpdate)
           .eq("id", byEmail.id)
-          .select("id, username, avatar_url")
+          .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at")
           .single();
 
         if (linkError || !linked) {
@@ -284,7 +292,7 @@ router.post("/google", async (req, res) => {
       const { data: created, error: insertError } = await supabase
         .from("users")
         .insert(insertPayload)
-        .select("id, username, avatar_url")
+        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at")
         .single();
 
       if (insertError || !created) {
@@ -343,7 +351,7 @@ router.get("/users/:userId", requireAuth, async (req, res) => {
     const { userId } = req.params;
     const { data: user, error } = await supabase
       .from("users")
-      .select("id, username, avatar_url, created_at")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, created_at")
       .eq("id", userId)
       .single();
 
@@ -351,9 +359,7 @@ router.get("/users/:userId", requireAuth, async (req, res) => {
 
     return res.json({
       user: {
-        id: user.id,
-        username: user.username,
-        avatarUrl: user.avatar_url || null,
+        ...toPublicUser(user),
         createdAt: user.created_at,
       },
     });

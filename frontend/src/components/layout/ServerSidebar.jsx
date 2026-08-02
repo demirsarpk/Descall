@@ -11,6 +11,7 @@ import StatusBadge from "../ui/StatusBadge";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { addMemberToGroup } from "../../api/groups";
+import { resolveDisplayName } from "../../lib/userProfile";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -188,7 +189,7 @@ export default function ServerSidebar({
     if (!Array.isArray(dms)) return [];
     if (!searchQuery) return dms;
     return dms.filter(dm => 
-      dm.username?.toLowerCase().includes(searchQuery.toLowerCase())
+      (dm.displayName || dm.username || "").toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [dms, searchQuery]);
 
@@ -513,7 +514,7 @@ export default function ServerSidebar({
                                 }}
                               >
                                 <Avatar user={friend} size={24} />
-                                <span style={{ fontSize: 13 }}>{friend.username}</span>
+                                <span style={{ fontSize: 13 }}>{resolveDisplayName(friend)}</span>
                                 {isSelected && <span style={{ marginLeft: "auto", color: "var(--primary)" }}>✓</span>}
                               </div>
                             );
@@ -687,7 +688,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
                 >
                   <div className="dm-avatar">
                     <Avatar
-                      name={dm.username}
+                      name={resolveDisplayName(dm)}
                       size={40}
                       user={dm}
                     />
@@ -695,7 +696,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
                   </div>
                   <div className="dm-info conv-row-body">
                     <div className="conv-row-top">
-                      <span className={`dm-name ${unread > 0 ? "unread" : ""}`}>{dm.username}</span>
+                      <span className={`dm-name ${unread > 0 ? "unread" : ""}`}>{resolveDisplayName(dm)}</span>
                       {timeLabel && (
                         <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
                       )}
@@ -854,9 +855,9 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
                 <div style={{ flexShrink: 0 }}>
-                  <Avatar name={friend.username} size={34} user={friend} />
+                  <Avatar name={resolveDisplayName(friend)} size={34} user={friend} />
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{friend.username}</span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{resolveDisplayName(friend)}</span>
                 <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4,
                   fontSize: 11, color: "var(--primary)", fontWeight: 600,
                 }}>
@@ -1449,7 +1450,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                   >
                     <div className="friend-avatar">
                       <Avatar 
-                        name={friend.username} 
+                        name={resolveDisplayName(friend)} 
                         size={32}
                         user={friend}
                       />
@@ -1458,7 +1459,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                       />
                     </div>
                     <div className="friend-meta">
-                      <span className="friend-name">{friend.displayName || friend.username}</span>
+                      <span className="friend-name">{resolveDisplayName(friend)}</span>
                       {(friend.customStatus || friend.custom_status) && (
                         <span className="friend-custom-status">
                           {friend.customStatus || friend.custom_status}
@@ -1483,14 +1484,14 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                   >
                     <div className="friend-avatar">
                       <Avatar
-                        name={friend.username}
+                        name={resolveDisplayName(friend)}
                         size={32}
                         user={friend}
                       />
                       <StatusBadge status="offline" />
                     </div>
                     <div className="friend-meta">
-                      <span className="friend-name">{friend.displayName || friend.username}</span>
+                      <span className="friend-name">{resolveDisplayName(friend)}</span>
                       {(friend.customStatus || friend.custom_status) && (
                         <span className="friend-custom-status">
                           {friend.customStatus || friend.custom_status}
