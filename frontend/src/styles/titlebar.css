@@ -1,0 +1,149 @@
+/* ============================================
+   Electron custom title bar
+   Always visible; layout content sits below.
+   ============================================ */
+
+:root {
+  --electron-titlebar-h: 0px;
+}
+
+html.electron-app,
+body.electron-app {
+  --electron-titlebar-h: 40px;
+}
+
+.titlebar {
+  height: var(--electron-titlebar-h, 40px);
+  background: var(--surface-0, #1a1b1e);
+  border-bottom: 1px solid var(--border-2, #2f3136);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 12px;
+  user-select: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100000;
+  -webkit-app-region: drag;
+  box-sizing: border-box;
+}
+
+.titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  -webkit-app-region: no-drag;
+  min-width: 0;
+}
+
+.titlebar-logo {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, var(--primary, #5865f2) 0%, var(--primary-2, #4752c4) 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.titlebar-title {
+  color: var(--text-0, #fff);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+  height: 100%;
+}
+
+.titlebar .win-btn {
+  width: 46px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #b9bbbe);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, color 0.12s ease;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar .win-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.titlebar .win-btn:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.titlebar .win-btn.close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.titlebar .win-btn.close:active {
+  background: #f1707a;
+}
+
+/* Push app content below the fixed title bar */
+body.electron-app {
+  padding-top: var(--electron-titlebar-h) !important;
+  box-sizing: border-box;
+}
+
+body.electron-app #root {
+  height: calc(100vh - var(--electron-titlebar-h)) !important;
+  height: calc(100dvh - var(--electron-titlebar-h)) !important;
+  max-height: calc(100vh - var(--electron-titlebar-h)) !important;
+  max-height: calc(100dvh - var(--electron-titlebar-h)) !important;
+  overflow: hidden;
+}
+
+/* Layout shells should fill #root, not the full viewport */
+body.electron-app .app-container,
+body.electron-app .app-root,
+body.electron-app .nav-rail,
+body.electron-app .sidebar-secondary,
+body.electron-app .server-icon-bar,
+body.electron-app .app-sidebar-shell {
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+/* Fullscreen overlays stay under the titlebar so window controls remain usable */
+body.electron-app .call-overlay-root,
+body.electron-app [data-call-overlay="true"] {
+  top: var(--electron-titlebar-h) !important;
+  bottom: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+body.electron-app .user-settings-shell.is-desktop {
+  max-height: calc(100vh - var(--electron-titlebar-h) - 32px);
+}
+
+body.electron-app .download-page {
+  min-height: calc(100vh - var(--electron-titlebar-h));
+  min-height: calc(100dvh - var(--electron-titlebar-h));
+}
+
+/* Update banner sits under titlebar */
+body.electron-app .electron-update-banner {
+  top: var(--electron-titlebar-h) !important;
+}
