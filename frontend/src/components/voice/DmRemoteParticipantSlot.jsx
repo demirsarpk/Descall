@@ -157,22 +157,8 @@ export default function DmRemoteParticipantSlot({
           initial="hidden"
           animate="visible"
           exit="exit"
-          style={{
-            position: "relative",
-            borderRadius: 14,
-            overflow: "hidden",
-            background: "#1a1b1f",
-            border: isSpeaking ? "2px solid #3ba55d" : "2px solid transparent",
-            boxShadow: isSpeaking ? "0 0 0 1px rgba(59,165,93,0.35)" : "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minWidth: 0,
-            minHeight: 0,
-            width: "100%",
-            height: "100%",
-            willChange: "transform, opacity",
-          }}
+          className={`participant-tile${isSpeaking ? " is-speaking" : ""}`}
+          style={{ willChange: "transform, opacity" }}
         >
           {hasVideo && videoRef ? (
             <video

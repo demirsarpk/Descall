@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from "react";
-import { motion } from "framer-motion";
-import { FileText, Download } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { FileText, Download, Smile, Reply } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import CallSummaryBubble from "./CallSummaryBubble";
@@ -8,7 +8,11 @@ import VoiceMessagePlayer from "./VoiceMessagePlayer";
 import ActiveCallBanner from "../ActiveCallBanner";
 import UserProfileModal from "../social/UserProfileModal";
 import GameMessageBubble from "./GameMessageBubble";
+import MessageReactions from "./MessageReactions";
 import { MessageSkeleton } from "../ui/Skeleton";
+import { getPresenceStatus } from "../../lib/presence";
+
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 
 function dayKeyOf(iso) {
   if (!iso) return "";
@@ -226,7 +230,7 @@ export default function MessageList({
                     size={40}
                     user={group.user}
                   />
-                  <StatusBadge status={onlineUsers?.some(u => u.id === group.user?.id) ? "online" : "offline"} />
+                  <StatusBadge status={getPresenceStatus(onlineUsers, group.user?.id)} />
                 </div>
                 <div className="message-meta">
                   <span
@@ -252,6 +256,10 @@ export default function MessageList({
                   message={msg}
                   isOwn={isOwn}
                   isCompact={group.isCompact}
+                  currentUserId={currentUser?.id}
+                  socket={socket}
+                  conversationType={activeGroup ? "group" : "dm"}
+                  conversationId={activeGroup?.id || group.user?.id}
                 />
               ))}
             </div>
@@ -275,20 +283,43 @@ export default function MessageList({
   );
 }
 
-function MessageBubble({ message, isOwn, isCompact }) {
+function MessageBubble({
+  message,
+  isOwn,
+  isCompact,
+  currentUserId,
+  socket,
+  conversationType,
+  conversationId,
+}) {
+  const [hover, setHover] = useState(false);
+  const reactions = Array.isArray(message.reactions) ? message.reactions : [];
+
+  const emitReact = (emoji) => {
+    if (!socket || !message.id) return;
+    socket.emit("reaction:add", {
+      messageId: message.id,
+      conversationType,
+      conversationId,
+      emoji,
+    });
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""}`}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
       {message.text && (
         <div className="message-text">
           {message.text}
         </div>
       )}
-      
+
       {message.mediaUrl && (
         <div className="message-media">
           {message.mediaType === "gif" ? (
@@ -355,7 +386,18 @@ function MessageBubble({ message, isOwn, isCompact }) {
           ) : null}
         </div>
       )}
-      
+
+      {reactions.length > 0 && (
+        <MessageReactions
+          messageId={message.id}
+          conversationType={conversationType}
+          conversationId={conversationId}
+          reactions={reactions}
+          currentUserId={currentUserId}
+          socket={socket}
+        />
+      )}
+
       {!isCompact && isOwn && (
         <div className="message-footer">
           <span
@@ -367,6 +409,38 @@ function MessageBubble({ message, isOwn, isCompact }) {
           </span>
         </div>
       )}
+
+      <AnimatePresence>
+        {hover && (
+          <motion.div
+            className="message-hover-bar"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.15 }}
+          >
+            <div className="msg-quick-react">
+              {QUICK_EMOJIS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  className="emoji-chip"
+                  onClick={() => emitReact(e)}
+                  title={`React ${e}`}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="hover-bar-btn" title="Add reaction" onClick={() => emitReact("👍")}>
+              <Smile size={14} />
+            </button>
+            <button type="button" className="hover-bar-btn" title="Reply" disabled>
+              <Reply size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
