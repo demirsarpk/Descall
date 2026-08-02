@@ -50,8 +50,29 @@ export default function MessageComposer({
   const audioCtxRef = useRef(null);
 
   useEffect(() => {
+    // Autofocus on mobile opens the iOS keyboard and often leaves the shell
+    // stuck elevated after dismiss — only autofocus desktop / large screens.
+    const isNarrow = typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
+    if (isNarrow) return;
     inputRef.current?.focus();
   }, [activeDmUser?.id, activeGroup?.id, replyTo?.id]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return undefined;
+    const onBlur = () => {
+      // Help iOS release residual visualViewport offset after keyboard dismiss.
+      window.setTimeout(() => {
+        try {
+          window.scrollTo(0, 0);
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
+        } catch { /* ignore */ }
+      }, 50);
+    };
+    el.addEventListener("blur", onBlur);
+    return () => el.removeEventListener("blur", onBlur);
+  }, []);
 
   useEffect(() => {
     const handleClick = (e) => {
