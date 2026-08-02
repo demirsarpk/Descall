@@ -57,6 +57,7 @@ export default function VoiceCallUI({
                 name={peer?.username || "Unknown"} 
                 size={48}
                 user={peer}
+                animate="always"
               />
               <StatusBadge status="online" />
             </div>
@@ -111,6 +112,7 @@ export default function VoiceCallUI({
                     name={peer?.username || "Unknown"} 
                     size={120}
                     user={peer}
+                    animate="always"
                   />
                 </div>
                 <div className="voice-waves">
@@ -187,7 +189,7 @@ export default function VoiceCallUI({
                     <span>{peer?.username}</span>
                   </div>
                   <div className="participant-item">
-                    <Avatar name="You" size={32} />
+                    <Avatar name="You" size={32} animate="always" />
                     <span>You</span>
                   </div>
                 </div>

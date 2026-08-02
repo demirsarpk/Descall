@@ -46,7 +46,7 @@ export default function UserHoverCard({ user, style }) {
         }
       />
       <div className="uhc-body">
-        <Avatar name={display} size={56} user={user} />
+        <Avatar name={display} size={56} user={user} animate="always" />
         <div className="uhc-text">
           <div className="uhc-name">{display}</div>
           <div className="uhc-handle">@{user.username || "user"}</div>

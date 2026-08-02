@@ -6,6 +6,7 @@
 const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernameById } = require("../runtime/sharedState");
 const supabase = require("../db/supabase");
 const { handleGameCommand, createGameMessage } = require("./gameHandlers");
+const { getCachedPublicUser, getAvatarUrl } = require("../lib/userProfile");
 const {
   broadcastToGroupMembers,
   emitBannerUpdate,
@@ -13,6 +14,17 @@ const {
   removeUserFromGroupCall,
   removeUserFromAllGroupCalls,
 } = require("./groupCallLifecycle");
+
+function resolveSocketAvatar(socket) {
+  const cached = getCachedPublicUser(socket.user?.id);
+  return (
+    cached?.avatarUrl ||
+    cached?.avatar_url ||
+    getAvatarUrl(socket.user?.id) ||
+    socket.user?.avatar_url ||
+    null
+  );
+}
 
 const MENTION_PATTERN = /@(\w{1,32})/g;
 
@@ -153,11 +165,18 @@ function registerGroupHandlers(io, socket, state) {
       created_at: row?.created_at ?? new Date().toISOString(),
       reply_to: replyMeta,
       replyTo: replyMeta,
-      sender: {
-        id: myId,
-        username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
-      },
+      sender: (() => {
+        const cached = getCachedPublicUser(myId);
+        const avatar = resolveSocketAvatar(socket);
+        return {
+          id: myId,
+          username: cached?.username || socket.user.username,
+          avatar_url: avatar,
+          avatarUrl: avatar,
+          avatarVersion: cached?.avatarVersion || cached?.updated_at || null,
+          updated_at: cached?.updated_at || null,
+        };
+      })(),
     };
 
     // Broadcast to all group members except sender
@@ -279,7 +298,7 @@ function registerGroupHandlers(io, socket, state) {
     activeGroupCalls.set(groupId, {
       initiatorId: myId,
       initiatorUsername: socket.user.username,
-      initiatorAvatarUrl: socket.user.avatar_url || null,
+      initiatorAvatarUrl: resolveSocketAvatar(socket),
       callType,
       participants: new Set([myId]),
       allParticipants: new Set([myId]),
@@ -292,7 +311,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
       callType,
     };
@@ -309,7 +328,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
       callType,
     });
@@ -342,7 +361,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
     });
 
@@ -353,7 +372,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
     });
     void emitBannerUpdate(io, groupId);
@@ -380,7 +399,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
     });
 
@@ -435,7 +454,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url || null,
+        avatar_url: resolveSocketAvatar(socket),
       },
       offer,
       callType,

@@ -89,7 +89,14 @@ function ConnectingPlaceholder({ username, user, status }) {
         animate={{ scale: [1, 1.04, 1] }}
         transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
       >
-        <Avatar name={username || "?"} size={64} imageUrl={resolveAvatarUrl(user)} />
+        <Avatar
+          name={username || "?"}
+          size={64}
+          user={user}
+          imageUrl={resolveAvatarUrl(user)}
+          animate="speaking"
+          isSpeaking={false}
+        />
       </motion.div>
       <div style={{ textAlign: "center", padding: "0 12px" }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 6 }}>
@@ -169,7 +176,14 @@ export default function DmRemoteParticipantSlot({
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-              <Avatar name={username} size={64} imageUrl={resolveAvatarUrl(user)} />
+              <Avatar
+                name={username}
+                size={64}
+                user={user}
+                imageUrl={resolveAvatarUrl(user)}
+                animate="speaking"
+                isSpeaking={isSpeaking}
+              />
               <span style={{ fontSize: 13, color: "#b5bac1", fontWeight: 500 }}>{username}</span>
               <ConnectionBadge status="connected" />
             </div>
@@ -277,7 +291,13 @@ export default function DmRemoteParticipantSlot({
             willChange: "transform, opacity",
           }}
         >
-          <Avatar name={username} size={64} imageUrl={resolveAvatarUrl(user)} />
+          <Avatar
+            name={username}
+            size={64}
+            user={user}
+            imageUrl={resolveAvatarUrl(user)}
+            animate="never"
+          />
           <ConnectionBadge status="disconnected" />
         </motion.div>
       )}

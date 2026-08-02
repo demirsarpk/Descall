@@ -1105,8 +1105,7 @@ export default function App() {
       const data = await loginWithGoogle(credential);
       transportFallbackStepRef.current = 0;
       setToken(data.token);
-      setUser(data.user);
-      setMe(data.user);
+      commitSessionUser(data.user);
     } catch (error) {
       setAuthError(error.message);
       throw error;
@@ -1578,7 +1577,12 @@ export default function App() {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
               const optimisticMessage = {
                 id: tempId,
-                from: { id: me?.id, username: me?.username },
+                from: normalizeUser({
+                  id: me?.id,
+                  username: me?.username,
+                  avatarUrl: me?.avatarUrl || me?.avatar_url,
+                  updated_at: me?.updated_at || me?.avatarVersion,
+                }),
                 to: { id: activeDmUser.id },
                 text: isMediaObject ? "" : textPayload,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
@@ -1631,7 +1635,12 @@ export default function App() {
                 );
               const optimistic = {
                 id: tempId,
-                from: normalizeUser({ id: me?.id, username: me?.username, avatarUrl: me?.avatarUrl, updated_at: me?.updated_at }),
+                from: normalizeUser({
+                  id: me?.id,
+                  username: me?.username,
+                  avatarUrl: me?.avatarUrl || me?.avatar_url,
+                  updated_at: me?.updated_at || me?.avatarVersion,
+                }),
                 text: isMediaObject ? "" : textStr,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
                 mediaType: isMediaObject ? msg.mediaType : undefined,

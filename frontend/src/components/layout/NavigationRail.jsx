@@ -216,6 +216,9 @@ export default function NavigationRail({
               name={me?.username || "User"}
               size={36}
               user={me}
+              imageUrl={me?.avatarUrl || me?.avatar_url}
+              animate="always"
+              loading="eager"
             />
             <span className={`rail-user-status-dot status-${statusKey}`} />
           </div>
