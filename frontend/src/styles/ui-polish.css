@@ -205,6 +205,32 @@
 }
 
 /* ─── Message hover toolbar ─── */
+.message-swipe-wrap {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+}
+.message-swipe-wrap.own {
+  justify-content: flex-end;
+}
+.message-swipe-hint {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: var(--primary);
+  pointer-events: none;
+  z-index: 1;
+}
+.message-swipe-wrap:not(.own) .message-swipe-hint { left: 4px; }
+.message-swipe-wrap.own .message-swipe-hint { right: 4px; }
+
 .message-bubble,
 .msg-row {
   position: relative;
@@ -213,8 +239,7 @@
 .msg-toolbar,
 .message-hover-bar {
   position: absolute;
-  top: -14px;
-  right: 8px;
+  bottom: calc(100% + 6px);
   display: flex;
   align-items: center;
   gap: 2px;
@@ -223,12 +248,26 @@
   background: var(--surface-1);
   border: 1px solid var(--border-3);
   box-shadow: var(--shadow-md);
-  z-index: 5;
+  z-index: 20;
+  pointer-events: auto;
+  white-space: nowrap;
+  max-width: min(320px, calc(100vw - 48px));
 }
 
-.message-bubble .message-hover-bar {
-  top: -12px;
-  right: 6px;
+/* Own messages: pin to bubble's right edge; others: left edge (never off-screen) */
+.message-hover-bar.own,
+.message-bubble.own .message-hover-bar {
+  right: 0;
+  left: auto;
+}
+.message-hover-bar.other,
+.message-bubble:not(.own) .message-hover-bar {
+  left: 0;
+  right: auto;
+}
+
+.message-bubble.menu-open {
+  z-index: 6;
 }
 
 .msg-quick-react {
@@ -259,9 +298,96 @@
 }
 
 .emoji-chip:hover,
-.hover-bar-btn:hover {
+.hover-bar-btn:hover,
+.hover-bar-btn.active {
   background: var(--surface-hover);
   color: var(--text-0);
+}
+
+.message-inline-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  box-shadow: var(--shadow-md);
+  z-index: 30;
+}
+.message-bubble.own .message-inline-picker {
+  left: auto;
+  right: 0;
+}
+.message-inline-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.message-inline-picker-head button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+}
+.message-inline-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+.message-inline-picker-grid button {
+  border: none;
+  background: var(--surface-2);
+  border-radius: 8px;
+  height: 34px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.message-inline-picker-grid button:hover {
+  background: var(--surface-3);
+}
+
+.message-file-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-2);
+  text-decoration: none;
+  max-width: 320px;
+  color: inherit;
+}
+.message-file-ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.message-file-meta { flex: 1; min-width: 0; }
+.message-file-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.message-file-size {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 .toolbar-btn {

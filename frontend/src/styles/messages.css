@@ -68,6 +68,7 @@
   flex-direction: column;
   gap: 4px;
   width: 100%;
+  overflow: visible;
 }
 
 /* ─── Bubble ─── */
@@ -81,6 +82,8 @@
   border-radius: 12px;
   background: var(--surface-2);
   position: relative;
+  overflow: visible;
+  touch-action: pan-y;
 }
 
 .message-bubble.own {

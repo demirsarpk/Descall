@@ -855,20 +855,33 @@ function registerSocketHandlers(io) {
       
       // Verify user is part of this conversation
       let otherId = null;
+      let dmKey = conversationId;
       if (conversationType === "dm") {
-        // conversationId should be in format "smallerId::largerId"
-        const ids = conversationId.split("::");
-        console.log("[reaction:add] DM ids:", ids);
-        if (ids.length !== 2) {
-          console.log("[reaction:add] Invalid conversationId format");
-          return;
+        // Accept either "a::b" or a bare peer user id
+        if (typeof conversationId === "string" && conversationId.includes("::")) {
+          const ids = conversationId.split("::");
+          if (ids.length !== 2) {
+            console.log("[reaction:add] Invalid conversationId format");
+            return;
+          }
+          otherId = ids[0] === myId ? ids[1] : ids[0];
+          dmKey = convKey(myId, otherId);
+        } else {
+          otherId = conversationId;
+          dmKey = convKey(myId, otherId);
         }
-        otherId = ids[0] === myId ? ids[1] : ids[0];
         console.log("[reaction:add] otherId:", otherId, "isFriend:", friends.get(myId)?.has(otherId));
-        if (!otherId || !friends.get(myId)?.has(otherId)) {
-          console.log("[reaction:add] Not friends, returning");
+        if (!otherId || otherId === myId) {
+          console.log("[reaction:add] Invalid DM peer, returning");
           return;
         }
+        // Soft-check friendship: still allow if already in an open DM thread
+        const knownThread = dmHistory.has(dmKey);
+        if (!friends.get(myId)?.has(otherId) && !knownThread) {
+          console.log("[reaction:add] Not friends / no DM thread, returning");
+          return;
+        }
+        conversationId = dmKey;
       } else if (conversationType === "group") {
         // Check group membership - room has 'group:' prefix
         const roomId = `group:${conversationId}`;
@@ -877,8 +890,23 @@ function registerSocketHandlers(io) {
         const isMember = socket.rooms.has(roomId);
         console.log("[reaction:add] isMember:", isMember);
         if (!isMember) {
-          console.log("[reaction:add] Not a member of this group, returning");
-          return;
+          // Fallback: allow if user is in the group's member list in DB / previously joined
+          try {
+            const { data: mem } = await supabase
+              .from("group_members")
+              .select("user_id")
+              .eq("group_id", conversationId)
+              .eq("user_id", myId)
+              .maybeSingle();
+            if (!mem) {
+              console.log("[reaction:add] Not a member of this group, returning");
+              return;
+            }
+            socket.join(roomId);
+          } catch {
+            console.log("[reaction:add] Not a member of this group, returning");
+            return;
+          }
         }
       }
 
@@ -935,9 +963,15 @@ function registerSocketHandlers(io) {
       // Get otherId for DM
       let otherId = null;
       if (conversationType === "dm") {
-        const ids = conversationId.split("::");
-        if (ids.length === 2) {
-          otherId = ids[0] === myId ? ids[1] : ids[0];
+        if (typeof conversationId === "string" && conversationId.includes("::")) {
+          const ids = conversationId.split("::");
+          if (ids.length === 2) {
+            otherId = ids[0] === myId ? ids[1] : ids[0];
+            conversationId = convKey(myId, otherId);
+          }
+        } else {
+          otherId = conversationId;
+          conversationId = convKey(myId, otherId);
         }
       }
 

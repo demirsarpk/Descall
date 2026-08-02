@@ -849,6 +849,67 @@ export default function App() {
       });
     });
 
+    socket.on("reaction:update", ({ messageId, emoji, userId, username, conversationType, conversationId, removed } = {}) => {
+      if (!messageId || !emoji || !userId) return;
+
+      const patchList = (list) => {
+        if (!Array.isArray(list)) return list;
+        let changed = false;
+        const next = list.map((m) => {
+          if (m.id !== messageId) return m;
+          changed = true;
+          const reactions = Array.isArray(m.reactions) ? [...m.reactions] : [];
+          if (removed) {
+            return {
+              ...m,
+              reactions: reactions.filter((r) => !(r.emoji === emoji && r.userId === userId)),
+            };
+          }
+          if (reactions.some((r) => r.emoji === emoji && r.userId === userId)) return m;
+          return {
+            ...m,
+            reactions: [...reactions, { emoji, userId, username, messageId }],
+          };
+        });
+        return changed ? next : list;
+      };
+
+      if (conversationType === "group" && conversationId) {
+        setGroupMessagesById((prev) => {
+          const cur = prev[conversationId];
+          if (!cur) return prev;
+          const next = patchList(cur);
+          return next === cur ? prev : { ...prev, [conversationId]: next };
+        });
+        return;
+      }
+
+      // DM: conversationId is "a::b" — update the peer bucket
+      const selfId = myIdRef.current;
+      let peerId = null;
+      if (typeof conversationId === "string" && conversationId.includes("::")) {
+        peerId = conversationId.split("::").find((id) => id && id !== selfId) || null;
+      } else if (conversationId && conversationId !== selfId) {
+        peerId = conversationId;
+      }
+
+      setDmByUserId((prev) => {
+        if (peerId && prev[peerId]) {
+          const next = patchList(prev[peerId]);
+          return next === prev[peerId] ? prev : { ...prev, [peerId]: next };
+        }
+        // Fallback: scan all DM threads for the message
+        let any = false;
+        const out = {};
+        for (const [id, list] of Object.entries(prev)) {
+          const next = patchList(list);
+          out[id] = next;
+          if (next !== list) any = true;
+        }
+        return any ? out : prev;
+      });
+    });
+
     socket.on("dm:unread:sync", ({ peerId, count } = {}) => {
       if (!peerId) return;
       setDmUnread((prev) => { const n = { ...prev }; if (count === 0) delete n[peerId]; else n[peerId] = count; return n; });
@@ -1670,6 +1731,7 @@ export default function App() {
             onDismissActiveBanner={groupCall?.dismissActiveBanner}
             socket={socketRef.current}
             activeGroup={activeGroup}
+            activeDmUser={activeDmUser}
             loading={Boolean(
               messagesLoading &&
                 ((activeDmUser && dmByUserId[activeDmUser.id] === undefined) ||

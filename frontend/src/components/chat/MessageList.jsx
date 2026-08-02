@@ -1,6 +1,6 @@
-import { useRef, useEffect, useState, useMemo } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { FileText, Download, Smile, Reply } from "lucide-react";
+import { useRef, useEffect, useState, useMemo, useCallback } from "react";
+import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
+import { FileText, Download, Smile, Reply, X } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import CallSummaryBubble from "./CallSummaryBubble";
@@ -15,6 +15,12 @@ import { getPresenceStatus } from "../../lib/presence";
 import UserHoverCard from "../social/UserHoverCard";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
+const PICKER_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👏", "🤔", "👎"];
+
+function dmConversationId(a, b) {
+  if (!a || !b) return null;
+  return [a, b].sort().join("::");
+}
 
 function dayKeyOf(iso) {
   if (!iso) return "";
@@ -56,6 +62,7 @@ export default function MessageList({
   onStartDm,
   socket,
   activeGroup,
+  activeDmUser = null,
   loading = false,
   unreadCount = 0,
   onReply,
@@ -64,6 +71,10 @@ export default function MessageList({
   const [profileTarget, setProfileTarget] = useState(null);
   const [hoverUser, setHoverUser] = useState(null);
   const [hoverPos, setHoverPos] = useState(null);
+
+  const conversationType = activeGroup ? "group" : "dm";
+  const conversationId = activeGroup?.id
+    || dmConversationId(currentUser?.id || me?.id, activeDmUser?.id);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -280,10 +291,10 @@ export default function MessageList({
                   message={msg}
                   isOwn={isOwn}
                   isCompact={group.isCompact}
-                  currentUserId={currentUser?.id}
+                  currentUserId={currentUser?.id || me?.id}
                   socket={socket}
-                  conversationType={activeGroup ? "group" : "dm"}
-                  conversationId={activeGroup?.id || group.user?.id}
+                  conversationType={conversationType}
+                  conversationId={conversationId}
                   onReply={onReply}
                 />
               ))}
@@ -325,188 +336,291 @@ function MessageBubble({
   conversationId,
   onReply,
 }) {
-  const [hover, setHover] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const hideTimer = useRef(null);
+  const x = useMotionValue(0);
+  const replyHintOpacity = useTransform(x, isOwn ? [-56, -16, 0] : [0, 16, 56], isOwn ? [1, 0.35, 0] : [0, 0.35, 1]);
   const reactions = Array.isArray(message.reactions) ? message.reactions : [];
   const reply = message.replyTo || message.reply_to || null;
 
-  const emitReact = (emoji) => {
-    if (!socket || !message.id) return;
-    socket.emit("reaction:add", {
-      messageId: message.id,
-      conversationType,
-      conversationId,
-      emoji,
-    });
+  const clearHide = () => {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
   };
 
+  const openMenu = () => {
+    clearHide();
+    setMenuOpen(true);
+  };
+
+  const scheduleClose = () => {
+    clearHide();
+    hideTimer.current = setTimeout(() => {
+      setMenuOpen(false);
+      setPickerOpen(false);
+    }, 180);
+  };
+
+  useEffect(() => () => clearHide(), []);
+
+  const triggerReply = useCallback(() => {
+    onReply?.({
+      id: message.id,
+      text: message.text || "",
+      mediaType: message.mediaType,
+      from: message.from || {
+        id: message.sender_id || message.from?.id,
+        username: message.from?.username || message.username,
+      },
+    });
+    setMenuOpen(false);
+    setPickerOpen(false);
+  }, [message, onReply]);
+
+  const emitReact = useCallback((emoji) => {
+    if (!message?.id || !conversationType || !conversationId || !emoji) return;
+    if (String(message.id).startsWith("temp-")) return;
+
+    const mine = reactions.some((r) => r.emoji === emoji && r.userId === currentUserId);
+    if (mine) {
+      socket?.emit("reaction:remove", {
+        messageId: message.id,
+        conversationType,
+        conversationId,
+        emoji,
+      });
+    } else {
+      socket?.emit("reaction:add", {
+        messageId: message.id,
+        conversationType,
+        conversationId,
+        emoji,
+      });
+    }
+    setPickerOpen(false);
+  }, [message?.id, conversationType, conversationId, reactions, currentUserId, socket]);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""}`}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
-      {reply && (
-        <button
-          type="button"
-          className="message-reply-quote"
-          onClick={() => onReply?.(reply.id ? { ...reply, id: reply.id } : reply)}
-          title="Replying to"
-        >
-          <span className="message-reply-author">
-            {reply.from?.username || reply.username || "Message"}
-          </span>
-          <span className="message-reply-text">
-            {reply.text
-              ? String(reply.text).slice(0, 120)
-              : reply.mediaType
-              ? `📎 ${reply.mediaType}`
-              : "Original message"}
-          </span>
-        </button>
-      )}
+    <div className={`message-swipe-wrap ${isOwn ? "own" : ""}`}>
+      <motion.div className="message-swipe-hint" style={{ opacity: replyHintOpacity }} aria-hidden="true">
+        <Reply size={16} />
+      </motion.div>
 
-      {message.text && <MessageContent text={message.text} />}
-
-      {message.mediaUrl && (
-        <div className="message-media">
-          {message.mediaType === "gif" ? (
-            <img
-              src={message.mediaUrl}
-              alt="GIF"
-              className="message-image"
-              style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, display: "block" }}
-            />
-          ) : message.mediaType === "image" ? (
-            <img
-              src={message.mediaUrl}
-              alt={message.originalName || "Image"}
-              className="message-image"
-              style={{ maxWidth: 400, maxHeight: 300, borderRadius: 8, display: "block", cursor: "pointer" }}
-              onClick={() => window.open(message.mediaUrl, "_blank")}
-            />
-          ) : message.mediaType === "video" ? (
-            <video
-              src={message.mediaUrl}
-              controls
-              className="message-video"
-              style={{ maxWidth: 400, borderRadius: 8, display: "block" }}
-            />
-          ) : message.mediaType === "audio" || message.mediaType === "voice" ? (
-            <VoiceMessagePlayer
-              audioUrl={message.mediaUrl}
-              duration={message.duration || message.durationSeconds || 0}
-              isOwn={isOwn}
-            />
-          ) : (message.mediaType === "document" || message.mediaType === "file") ? (
-            <a
-              href={message.mediaUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              download={message.originalName || true}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 14px", borderRadius: 10,
-                background: "var(--surface-3)", border: "1px solid var(--border-2)",
-                textDecoration: "none", maxWidth: 320, cursor: "pointer",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-active)"}
-              onMouseLeave={(e) => e.currentTarget.style.background = "var(--surface-3)"}
-            >
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <FileText size={18} style={{ color: "var(--primary)" }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-0)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {message.originalName || "File"}
-                </div>
-                {message.size && (
-                  <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                    {message.size < 1024 * 1024
-                      ? `${Math.round(message.size / 1024)} KB`
-                      : `${(message.size / (1024 * 1024)).toFixed(1)} MB`}
-                  </div>
-                )}
-              </div>
-              <Download size={16} style={{ color: "var(--text-muted)", flexShrink: 0 }} />
-            </a>
-          ) : null}
-        </div>
-      )}
-
-      {reactions.length > 0 && (
-        <MessageReactions
-          messageId={message.id}
-          conversationType={conversationType}
-          conversationId={conversationId}
-          reactions={reactions}
-          currentUserId={currentUserId}
-          socket={socket}
-        />
-      )}
-
-      {!isCompact && isOwn && (
-        <div className="message-footer">
-          <span
-            className="message-status"
-            title={message.sending ? "Sending…" : message.deliveredAt ? "Delivered" : "Sent"}
-            style={{ opacity: message.sending ? 0.4 : 1 }}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0, x: 0 }}
+        transition={{ duration: 0.2 }}
+        style={{ x }}
+        drag="x"
+        dragDirectionLock
+        dragConstraints={isOwn ? { left: -72, right: 0 } : { left: 0, right: 72 }}
+        dragElastic={0.18}
+        onDragEnd={(_, info) => {
+          const dx = info.offset.x;
+          if (isOwn && dx <= -48) triggerReply();
+          if (!isOwn && dx >= 48) triggerReply();
+        }}
+        className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""} ${menuOpen ? "menu-open" : ""}`}
+        onMouseEnter={openMenu}
+        onMouseLeave={scheduleClose}
+        onClick={(e) => {
+          // Touch / click toggle for devices without hover
+          if (e.target.closest("a, button, video, .message-hover-bar, .message-reactions")) return;
+          if (window.matchMedia("(hover: none)").matches) {
+            setMenuOpen((v) => !v);
+            setPickerOpen(false);
+          }
+        }}
+      >
+        {reply && (
+          <button
+            type="button"
+            className="message-reply-quote"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReply?.(reply.id ? { ...reply, id: reply.id } : reply);
+            }}
+            title="Replying to"
           >
-            {message.deliveredAt ? "✓✓" : "✓"}
-          </span>
-        </div>
-      )}
-
-      <AnimatePresence>
-        {hover && (
-          <motion.div
-            className="message-hover-bar"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 4 }}
-            transition={{ duration: 0.15 }}
-          >
-            <div className="msg-quick-react">
-              {QUICK_EMOJIS.map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  className="emoji-chip"
-                  onClick={() => emitReact(e)}
-                  title={`React ${e}`}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="hover-bar-btn" title="Add reaction" onClick={() => emitReact("👍")}>
-              <Smile size={14} />
-            </button>
-            <button
-              type="button"
-              className="hover-bar-btn"
-              title="Reply"
-              onClick={() =>
-                onReply?.({
-                  id: message.id,
-                  text: message.text || "",
-                  mediaType: message.mediaType,
-                  from: message.from || {
-                    id: message.sender_id || message.from?.id,
-                    username: message.from?.username || message.username,
-                  },
-                })
-              }
-            >
-              <Reply size={14} />
-            </button>
-          </motion.div>
+            <span className="message-reply-author">
+              {reply.from?.username || reply.username || "Message"}
+            </span>
+            <span className="message-reply-text">
+              {reply.text
+                ? String(reply.text).slice(0, 120)
+                : reply.mediaType
+                ? `📎 ${reply.mediaType}`
+                : "Original message"}
+            </span>
+          </button>
         )}
-      </AnimatePresence>
-    </motion.div>
+
+        {message.text && <MessageContent text={message.text} />}
+
+        {message.mediaUrl && (
+          <div className="message-media">
+            {message.mediaType === "gif" ? (
+              <img
+                src={message.mediaUrl}
+                alt="GIF"
+                className="message-image"
+                style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, display: "block" }}
+              />
+            ) : message.mediaType === "image" ? (
+              <img
+                src={message.mediaUrl}
+                alt={message.originalName || "Image"}
+                className="message-image"
+                style={{ maxWidth: 400, maxHeight: 300, borderRadius: 8, display: "block", cursor: "pointer" }}
+                onClick={() => window.open(message.mediaUrl, "_blank")}
+              />
+            ) : message.mediaType === "video" ? (
+              <video
+                src={message.mediaUrl}
+                controls
+                className="message-video"
+                style={{ maxWidth: 400, borderRadius: 8, display: "block" }}
+              />
+            ) : message.mediaType === "audio" || message.mediaType === "voice" ? (
+              <VoiceMessagePlayer
+                audioUrl={message.mediaUrl}
+                duration={message.duration || message.durationSeconds || 0}
+                isOwn={isOwn}
+              />
+            ) : (message.mediaType === "document" || message.mediaType === "file") ? (
+              <a
+                href={message.mediaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download={message.originalName || true}
+                className="message-file-chip"
+              >
+                <div className="message-file-ico">
+                  <FileText size={18} />
+                </div>
+                <div className="message-file-meta">
+                  <div className="message-file-name">{message.originalName || "File"}</div>
+                  {message.size && (
+                    <div className="message-file-size">
+                      {message.size < 1024 * 1024
+                        ? `${Math.round(message.size / 1024)} KB`
+                        : `${(message.size / (1024 * 1024)).toFixed(1)} MB`}
+                    </div>
+                  )}
+                </div>
+                <Download size={16} />
+              </a>
+            ) : null}
+          </div>
+        )}
+
+        {reactions.length > 0 && (
+          <MessageReactions
+            messageId={message.id}
+            conversationType={conversationType}
+            conversationId={conversationId}
+            reactions={reactions}
+            currentUserId={currentUserId}
+            socket={socket}
+          />
+        )}
+
+        {!isCompact && isOwn && (
+          <div className="message-footer">
+            <span
+              className="message-status"
+              title={message.sending ? "Sending…" : message.deliveredAt ? "Delivered" : "Sent"}
+              style={{ opacity: message.sending ? 0.4 : 1 }}
+            >
+              {message.deliveredAt ? "✓✓" : "✓"}
+            </span>
+          </div>
+        )}
+
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.div
+              className={`message-hover-bar ${isOwn ? "own" : "other"}`}
+              initial={{ opacity: 0, y: 6, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.96 }}
+              transition={{ duration: 0.14 }}
+              onMouseEnter={openMenu}
+              onMouseLeave={scheduleClose}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <div className="msg-quick-react">
+                {QUICK_EMOJIS.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    className="emoji-chip"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      emitReact(e);
+                    }}
+                    title={`React ${e}`}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className={`hover-bar-btn ${pickerOpen ? "active" : ""}`}
+                title="More reactions"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  setPickerOpen((v) => !v);
+                }}
+              >
+                <Smile size={14} />
+              </button>
+              <button
+                type="button"
+                className="hover-bar-btn"
+                title="Reply"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  triggerReply();
+                }}
+              >
+                <Reply size={14} />
+              </button>
+
+              <AnimatePresence>
+                {pickerOpen && (
+                  <motion.div
+                    className="message-inline-picker"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="message-inline-picker-head">
+                      <span>React</span>
+                      <button type="button" onClick={() => setPickerOpen(false)} aria-label="Close">
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <div className="message-inline-picker-grid">
+                      {PICKER_EMOJIS.map((e) => (
+                        <button key={e} type="button" onClick={() => emitReact(e)}>
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </div>
   );
 }
 
