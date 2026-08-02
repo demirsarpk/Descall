@@ -10,40 +10,90 @@ const fs = require('fs');
 log.transports.file.level = 'info';
 log.info('App starting...');
 
-// Auto-updater — always keep NSIS installs on the latest GitHub release
-// (Portable .exe builds cannot self-update; users should install Setup once.)
+// Auto-updater — NSIS Setup installs always track the newest GitHub release.
+// Portable .exe cannot self-update; users must install Setup once.
+//
+// Feed uses generic "latest/download" URLs (not GitHub Releases API) so
+// Render/desktop clients are not blocked by API rate limits.
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
-autoUpdater.autoDownload = true;           // download in background as soon as found
-autoUpdater.autoInstallOnAppQuit = true;   // apply on normal quit
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
 autoUpdater.allowPrerelease = false;
 autoUpdater.allowDowngrade = false;
-// Full package if delta patch fails (common across large version jumps)
-autoUpdater.disableDifferentialDownload = false;
+// Full Setup download is more reliable than delta/blockmap across jumps
+autoUpdater.disableDifferentialDownload = true;
+// App is not code-signed — signature checks would block every update
+if (process.platform === 'win32') {
+  try {
+    autoUpdater.verifyUpdateCodeSignature = false;
+  } catch (_) { /* older electron-updater */ }
+}
+
+const UPDATE_FEED_URL =
+  'https://github.com/demirrsarppkurtlarr/Descall/releases/latest/download/';
 
 try {
   autoUpdater.setFeedURL({
-    provider: 'github',
-    owner: 'demirrsarppkurtlarr',
-    repo: 'Descall',
+    provider: 'generic',
+    url: UPDATE_FEED_URL,
+    channel: 'latest',
   });
+  log.info('[updater] feed =', UPDATE_FEED_URL);
 } catch (err) {
-  log.warn('[updater] setFeedURL failed, using build publish config:', err?.message);
+  log.warn('[updater] setFeedURL(generic) failed, falling back to github provider:', err?.message);
+  try {
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'demirrsarppkurtlarr',
+      repo: 'Descall',
+    });
+  } catch (err2) {
+    log.warn('[updater] setFeedURL(github) also failed:', err2?.message);
+  }
 }
 
 let updateReady = false;
 let updateVersion = null;
 let updateCheckTimer = null;
 let updateRetryTimer = null;
-let idleInstallTimer = null;
+let installTimer = null;
 let updateCheckInFlight = false;
-const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
-const UPDATE_STARTUP_DELAY_MS = 8 * 1000;
-const UPDATE_IDLE_INSTALL_MS = 10 * 60 * 1000; // if update ready + window hidden 10m → install
+let powerHooksBound = false;
+const UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000; // every 10 minutes
+const UPDATE_STARTUP_DELAY_MS = 3 * 1000;        // soon after open
+const UPDATE_INSTALL_DELAY_MS = 12 * 1000;       // after download → silent install
+
+function applyDownloadedUpdate(reason = 'auto') {
+  if (!updateReady || !app.isPackaged) return;
+  log.info(`[updater] quitAndInstall (${reason}) → v${updateVersion || '?'}`);
+  isQuitting = true;
+  try {
+    // isSilent=true → NSIS /S replaces old install; isForceRunAfter=true relaunches
+    autoUpdater.quitAndInstall(true, true);
+  } catch (err) {
+    log.error('[updater] quitAndInstall failed:', err?.message || err);
+    isQuitting = false;
+  }
+}
+
+function scheduleSilentInstall() {
+  if (installTimer) clearTimeout(installTimer);
+  if (!updateReady) return;
+  installTimer = setTimeout(() => {
+    installTimer = null;
+    applyDownloadedUpdate('scheduled');
+  }, UPDATE_INSTALL_DELAY_MS);
+}
 
 function checkForAppUpdates(reason = 'manual') {
   if (!app.isPackaged) {
     log.info(`[updater] skip check (${reason}) — not packaged`);
+    return Promise.resolve(null);
+  }
+  if (updateReady) {
+    log.info(`[updater] skip check (${reason}) — update already downloaded, installing`);
+    scheduleSilentInstall();
     return Promise.resolve(null);
   }
   if (updateCheckInFlight) {
@@ -51,23 +101,24 @@ function checkForAppUpdates(reason = 'manual') {
     return Promise.resolve(null);
   }
   updateCheckInFlight = true;
-  log.info(`[updater] checking for updates (${reason})… current=${app.getVersion()}`);
+  log.info(`[updater] checking for updates (${reason})… current=${app.getVersion()} feed=${UPDATE_FEED_URL}`);
   return autoUpdater.checkForUpdates()
     .then((result) => {
       if (updateRetryTimer) {
         clearTimeout(updateRetryTimer);
         updateRetryTimer = null;
       }
+      const next = result?.updateInfo?.version;
+      if (next) log.info(`[updater] check result: latest=${next}`);
       return result;
     })
     .catch((err) => {
       log.error(`[updater] check failed (${reason}):`, err?.message || err);
-      // Retry with backoff when offline / GitHub blip
       if (!updateRetryTimer) {
         updateRetryTimer = setTimeout(() => {
           updateRetryTimer = null;
           checkForAppUpdates('retry');
-        }, 5 * 60 * 1000);
+        }, 2 * 60 * 1000);
       }
       return null;
     })
@@ -80,41 +131,24 @@ function scheduleBackgroundUpdateChecks() {
   if (!app.isPackaged) return;
   if (updateCheckTimer) clearInterval(updateCheckTimer);
 
+  // Every app open
   setTimeout(() => checkForAppUpdates('startup'), UPDATE_STARTUP_DELAY_MS);
-  updateCheckTimer = setInterval(() => checkForAppUpdates('interval'), UPDATE_CHECK_INTERVAL_MS);
+  // Every 10 minutes while running
+  updateCheckTimer = setInterval(() => checkForAppUpdates('interval-10m'), UPDATE_CHECK_INTERVAL_MS);
 
-  try {
-    powerMonitor.on('resume', () => {
-      setTimeout(() => checkForAppUpdates('resume'), 5 * 1000);
-    });
-    powerMonitor.on('unlock-screen', () => {
-      setTimeout(() => checkForAppUpdates('unlock'), 5 * 1000);
-    });
-  } catch (err) {
-    log.warn('[updater] powerMonitor hooks unavailable:', err?.message);
-  }
-}
-
-function scheduleIdleAutoInstall() {
-  if (idleInstallTimer) clearTimeout(idleInstallTimer);
-  if (!updateReady) return;
-  idleInstallTimer = setTimeout(() => {
-    idleInstallTimer = null;
-    if (!updateReady || !app.isPackaged) return;
-    const hidden = !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible() || mainWindow.isMinimized();
-    if (!hidden) {
-      // Still visible — try again later
-      scheduleIdleAutoInstall();
-      return;
-    }
-    log.info('[updater] idle + update ready → quitAndInstall');
-    isQuitting = true;
+  if (!powerHooksBound) {
+    powerHooksBound = true;
     try {
-      autoUpdater.quitAndInstall(true, true);
+      powerMonitor.on('resume', () => {
+        setTimeout(() => checkForAppUpdates('resume'), 5 * 1000);
+      });
+      powerMonitor.on('unlock-screen', () => {
+        setTimeout(() => checkForAppUpdates('unlock'), 5 * 1000);
+      });
     } catch (err) {
-      log.error('[updater] quitAndInstall failed:', err?.message);
+      log.warn('[updater] powerMonitor hooks unavailable:', err?.message);
     }
-  }, UPDATE_IDLE_INSTALL_MS);
+  }
 }
 
 // Paths
@@ -230,8 +264,13 @@ function createMainWindow() {
   // Close → minimize to tray instead of quitting
   mainWindow.on('close', (e) => {
     if (!isQuitting) {
-      // Update already downloaded → apply after a while in the tray
-      if (updateReady) scheduleIdleAutoInstall();
+      // Update already downloaded → install as soon as we go to tray
+      if (updateReady) {
+        e.preventDefault();
+        mainWindow.hide();
+        applyDownloadedUpdate('tray-close');
+        return;
+      }
       e.preventDefault();
       mainWindow.hide();
       if (tray) {
@@ -395,7 +434,7 @@ function createMainWindow() {
     mainWindow.show();
     mainWindow.focus();
 
-    // Keep checking GitHub releases in the background for the newest build
+    // Re-arm checks when UI is up (also already started in whenReady)
     scheduleBackgroundUpdateChecks();
   });
 
@@ -472,6 +511,9 @@ app.whenReady().then(() => {
     app.setLoginItemSettings({ openAtLogin: true });
   }
 
+  // Start update loop as soon as the process is ready (every open + 10m)
+  scheduleBackgroundUpdateChecks();
+
   createSplashWindow();
   setTimeout(() => {
     createMainWindow();
@@ -525,26 +567,24 @@ autoUpdater.on('download-progress', ({ percent, bytesPerSecond, transferred, tot
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-  log.info('[updater] Update downloaded, ready to install:', info.version);
+  log.info('[updater] Update downloaded — scheduling silent install:', info.version);
   updateReady = true;
   updateVersion = info.version;
 
-  // Notify renderer that update is ready
   mainWindow?.webContents?.send('update:ready', { version: info.version });
+  mainWindow?.webContents?.send('update:installing', { version: info.version });
 
-  // Show system tray balloon notification
   if (tray) {
     tray.displayBalloon({
       iconType: 'info',
-      title: 'Descall Güncelleme Hazır',
-      content: `v${info.version} indirildi. Kapatınca veya arka planda otomatik kurulacak.`,
+      title: 'Descall Güncelleniyor',
+      content: `v${info.version} indirildi. Birkaç saniye içinde sessizce kurulacak…`,
     });
   }
 
-  // Subtle toast — click focuses app (user can restart from there via IPC)
   showNotificationWindow({
-    title: 'Descall Güncelleme',
-    body: `v${info.version} hazır. Yeniden başlatınca kurulur; arka planda da otomatik uygulanır.`,
+    title: 'Descall Güncelleniyor',
+    body: `v${info.version} arka planda kuruluyor. Uygulama kısa süre yeniden başlayacak.`,
     type: 'default',
     duration: 8000,
     onClick: () => {
@@ -553,8 +593,8 @@ autoUpdater.on('update-downloaded', (info) => {
     },
   });
 
-  // If the window is already hidden/minimized, install after idle timeout
-  scheduleIdleAutoInstall();
+  // Always apply in background — replaces old Setup install and relaunches
+  scheduleSilentInstall();
 });
 
 // ─── Notification IPC ────────────────────────────────────────────────────────
