@@ -102,20 +102,16 @@ function registerGroupHandlers(io, socket, state) {
         const [, cmd] = match;
         const commandLower = cmd.toLowerCase();
         if (GAME_COMMANDS.includes(commandLower)) {
-          // This is a game command - handle it and don't save as regular message
+          // Game command — handle via casino bot; do NOT echo as a chat bubble
+          // (echoing /bj caused a flash then delete that also raced the board message).
           console.log(`[Game] Intercepted command: ${trimmedContent} from ${socket.user.username}`);
           await handleGameCommand(io, socket, myId, socket.user.username, groupId, trimmedContent);
-          // Echo back with tempId so frontend knows it was processed
-          socket.emit("group:message", { 
-            groupId, 
-            message: {
-              id: `game-${Date.now()}`,
-              sender: { id: myId, username: socket.user.username },
-              content: trimmedContent,
-              isGameCommand: true,
-              created_at: new Date().toISOString()
-            }, 
-            tempId 
+          // Ack only: clear optimistic "/bj …" bubble without inserting a real message
+          socket.emit("group:message:ack", {
+            groupId,
+            tempId: tempId || null,
+            suppress: true,
+            isGameCommand: true,
           });
           return;
         }
