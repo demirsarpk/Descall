@@ -227,7 +227,9 @@ export default function CallOverlay({ call, groupCall, me }) {
             title="Picture in Picture"
             onClick={(e) => {
               e.stopPropagation();
-              pipApi?.enterPip?.();
+              pipApi?.primeFromGesture?.();
+              if (pipApi?.pipActive) pipApi.leavePip?.();
+              else pipApi?.enterPip?.();
             }}
             style={{
               background: "#3c4043",
@@ -673,6 +675,7 @@ export default function CallOverlay({ call, groupCall, me }) {
                           label={pipApi?.pipActive ? "Exit Picture in Picture" : "Picture in Picture"}
                           onClick={() => {
                             setShowMoreMenu(false);
+                            pipApi?.primeFromGesture?.();
                             if (pipApi?.pipActive) pipApi.leavePip?.();
                             else pipApi?.enterPip?.();
                           }}
@@ -749,7 +752,7 @@ export default function CallOverlay({ call, groupCall, me }) {
               </div>
             )}
 
-            {!narrowViewport && <CallPipButton pipApi={pipApi} />}
+            <CallPipButton pipApi={pipApi} narrow={narrowViewport} />
 
             <CircleBtn
               color="#ed4245"

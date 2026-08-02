@@ -130,7 +130,7 @@ export function attachSpeakerWatcher(streamByUserId, onSpeaker) {
       const src = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.7;
+      analyser.smoothingTimeConstant = 0.85;
       src.connect(analyser);
       const data = new Uint8Array(analyser.frequencyBinCount);
       nodes.push({ userId, analyser, data });

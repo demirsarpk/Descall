@@ -4,10 +4,10 @@ import { attachSpeakerWatcher, pickCallPipSource } from "../../lib/callPipStream
 
 /**
  * Always-mounted PiP source for active calls.
- * - Keeps a playing <video> (or canvas→captureStream avatar fallback)
- * - Enables autoPictureInPicture where supported
- * - Enters OS PiP on background / pagehide (best-effort)
- * - Exposes enterPip() via onReady for a user-gesture button (Safari)
+ * - Keeps a playing <video> with real dimensions (browsers reject tiny/hidden PiP sources)
+ * - autoPictureInPicture + Media Session for Chrome Automatic PiP
+ * - Primes on first user gesture so background enter works on mobile
+ * - Auto-enters OS PiP on visibility hidden / pagehide / blur (with retries)
  */
 
 function drawAvatarCard(canvas, { username, avatarUrl, subtitle }) {
@@ -15,31 +15,30 @@ function drawAvatarCard(canvas, { username, avatarUrl, subtitle }) {
   if (!ctx) return;
   const w = canvas.width;
   const h = canvas.height;
-  ctx.fillStyle = "#12141a";
+  ctx.fillStyle = "#0f1117";
   ctx.fillRect(0, 0, w, h);
 
-  // soft radial
-  const g = ctx.createRadialGradient(w * 0.5, h * 0.42, 10, w * 0.5, h * 0.42, w * 0.45);
-  g.addColorStop(0, "#2a3142");
-  g.addColorStop(1, "#12141a");
+  const g = ctx.createRadialGradient(w * 0.5, h * 0.4, 8, w * 0.5, h * 0.4, w * 0.5);
+  g.addColorStop(0, "#2b3348");
+  g.addColorStop(1, "#0f1117");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
   const cx = w / 2;
-  const cy = h * 0.42;
-  const r = Math.min(w, h) * 0.18;
+  const cy = h * 0.4;
+  const r = Math.min(w, h) * 0.2;
 
   const finish = () => {
     ctx.fillStyle = "#f2f3f5";
-    ctx.font = `600 ${Math.round(w * 0.055)}px system-ui, sans-serif`;
+    ctx.font = `650 ${Math.round(w * 0.06)}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillText(username || "Descall", cx, cy + r + 36);
+    ctx.fillText(username || "Descall", cx, cy + r + 42);
     ctx.fillStyle = "#9aa3b2";
-    ctx.font = `500 ${Math.round(w * 0.04)}px system-ui, sans-serif`;
-    ctx.fillText(subtitle || "On a call", cx, cy + r + 62);
+    ctx.font = `500 ${Math.round(w * 0.042)}px system-ui, -apple-system, sans-serif`;
+    ctx.fillText(subtitle || "On a call", cx, cy + r + 72);
     ctx.fillStyle = "#5865f2";
-    ctx.font = `700 ${Math.round(w * 0.035)}px system-ui, sans-serif`;
-    ctx.fillText("DESCALL", cx, h - 28);
+    ctx.font = `700 ${Math.round(w * 0.038)}px system-ui, -apple-system, sans-serif`;
+    ctx.fillText("DESCALL", cx, h - 36);
   };
 
   if (avatarUrl) {
@@ -53,6 +52,12 @@ function drawAvatarCard(canvas, { username, avatarUrl, subtitle }) {
       ctx.clip();
       ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
       ctx.restore();
+      // ring
+      ctx.strokeStyle = "rgba(88,101,242,0.85)";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
+      ctx.stroke();
       finish();
     };
     img.onerror = () => {
@@ -88,20 +93,41 @@ async function enterNativePip(video) {
   if (!video) return false;
   try {
     if (document.pictureInPictureElement === video) return true;
+    if (
+      typeof video.webkitPresentationMode === "string" &&
+      video.webkitPresentationMode === "picture-in-picture"
+    ) {
+      return true;
+    }
+
+    // Ensure playing before request (required by most engines)
+    if (video.paused) {
+      try {
+        await video.play();
+      } catch {
+        /* ignore */
+      }
+    }
+
     if (typeof video.webkitSetPresentationMode === "function") {
       const supports =
         typeof video.webkitSupportsPresentationMode !== "function" ||
         video.webkitSupportsPresentationMode("picture-in-picture");
       if (supports) {
         video.webkitSetPresentationMode("picture-in-picture");
-        return true;
+        return (
+          video.webkitPresentationMode === "picture-in-picture" ||
+          true
+        );
       }
     }
+
     if (document.pictureInPictureEnabled !== false && video.requestPictureInPicture) {
       await video.requestPictureInPicture();
-      return true;
+      return document.pictureInPictureElement === video;
     }
-  } catch {
+  } catch (err) {
+    console.warn("[PiP] enter failed:", err?.message || err);
     return false;
   }
   return false;
@@ -115,7 +141,6 @@ async function exitNativePip(video) {
     if (
       video &&
       typeof video.webkitSetPresentationMode === "function" &&
-      typeof video.webkitPresentationMode === "string" &&
       video.webkitPresentationMode === "picture-in-picture"
     ) {
       video.webkitSetPresentationMode("inline");
@@ -123,6 +148,11 @@ async function exitNativePip(video) {
   } catch {
     /* ignore */
   }
+}
+
+function isNarrow() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(max-width: 768px)").matches;
 }
 
 export default function CallPipSource({
@@ -135,9 +165,21 @@ export default function CallPipSource({
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const canvasStreamRef = useRef(null);
+  const primedRef = useRef(false);
+  const enterLockRef = useRef(false);
+  const retryTimerRef = useRef(null);
   const [lastSpeakerId, setLastSpeakerId] = useState(null);
   const [pipActive, setPipActive] = useState(false);
+  const [narrow, setNarrow] = useState(() => isNarrow());
   const source = pickCallPipSource({ isDm, call, groupCall, lastSpeakerId });
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const onChange = () => setNarrow(mq.matches);
+    onChange();
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
 
   // Speaker watch (group)
   useEffect(() => {
@@ -164,6 +206,9 @@ export default function CallPipSource({
     video.setAttribute("autoPictureInPicture", "");
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
+    // Prefer landscape for camera, portrait for avatar cards
+    video.width = source.kind === "avatar" ? 720 : 960;
+    video.height = source.kind === "avatar" ? 1280 : 540;
 
     let cancelled = false;
 
@@ -172,11 +217,11 @@ export default function CallPipSource({
       if (video.srcObject !== stream) {
         video.srcObject = stream;
       }
-      video.muted = true; // avoid echo; call audio already plays via audio elements
+      video.muted = true;
       try {
         await video.play();
       } catch {
-        /* autoplay race */
+        /* autoplay race — will retry on gesture */
       }
     };
 
@@ -191,31 +236,35 @@ export default function CallPipSource({
       };
     }
 
-    // Avatar fallback → captureStream for PiP content
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
     canvas.width = 720;
     canvas.height = 1280;
-    drawAvatarCard(canvas, {
-      username: source.username || source.label,
-      avatarUrl: source.avatarUrl,
-      subtitle: "On a call",
-    });
-    // redraw periodically so late-loading avatars / clock feel alive
-    const timer = setInterval(() => {
+    const paint = () =>
       drawAvatarCard(canvas, {
         username: source.username || source.label,
         avatarUrl: source.avatarUrl,
         subtitle: "On a call",
       });
-    }, 2000);
+    paint();
+    const timer = setInterval(paint, 1000);
 
     let stream = canvasStreamRef.current;
     if (!stream || stream.getVideoTracks().every((t) => t.readyState === "ended")) {
-      stream = canvas.captureStream?.(15) || null;
+      // 30fps for smoother OS PiP
+      stream = canvas.captureStream?.(30) || null;
       canvasStreamRef.current = stream;
     }
-    if (stream) attach(stream);
+    if (stream) {
+      // Hint higher quality on the synthetic track
+      const vt = stream.getVideoTracks?.()[0];
+      try {
+        vt?.contentHint && (vt.contentHint = "motion");
+      } catch {
+        /* ignore */
+      }
+      attach(stream);
+    }
 
     return () => {
       cancelled = true;
@@ -233,15 +282,25 @@ export default function CallPipSource({
 
   const enterPip = useCallback(async () => {
     const video = videoRef.current;
-    if (!video) return false;
+    if (!video || enterLockRef.current) return false;
+    enterLockRef.current = true;
     try {
-      await video.play();
-    } catch {
-      /* ignore */
+      try {
+        await video.play();
+      } catch {
+        /* ignore */
+      }
+      const ok = await enterNativePip(video);
+      const activeNow =
+        ok ||
+        document.pictureInPictureElement === video ||
+        video.webkitPresentationMode === "picture-in-picture";
+      setPipActive(Boolean(activeNow));
+      if (activeNow) primedRef.current = true;
+      return Boolean(activeNow);
+    } finally {
+      enterLockRef.current = false;
     }
-    const ok = await enterNativePip(video);
-    setPipActive(ok || Boolean(document.pictureInPictureElement));
-    return ok;
   }, []);
 
   const leavePip = useCallback(async () => {
@@ -249,47 +308,115 @@ export default function CallPipSource({
     setPipActive(false);
   }, []);
 
-  // Expose API to parent (PiP button)
-  useEffect(() => {
-    onApi?.({ enterPip, leavePip, pipActive });
-    return () => onApi?.(null);
-  }, [onApi, enterPip, leavePip, pipActive]);
+  const primeFromGesture = useCallback(() => {
+    primedRef.current = true;
+    const video = videoRef.current;
+    if (!video) return;
+    video.play().catch(() => {});
+    // Keep autoPictureInPicture armed; do not force-enter on every tap
+    try {
+      video.autoPictureInPicture = true;
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
-  // Auto-enter on background (best-effort; Safari may require prior gesture)
+  // Expose API to parent (PiP button + gesture priming)
+  useEffect(() => {
+    onApi?.({ enterPip, leavePip, primeFromGesture, pipActive });
+    return () => onApi?.(null);
+  }, [onApi, enterPip, leavePip, primeFromGesture, pipActive]);
+
+  // Prime on first pointer/keyboard interaction while call is active
+  useEffect(() => {
+    if (!active) return undefined;
+    const arm = () => primeFromGesture();
+    window.addEventListener("pointerdown", arm, { capture: true, passive: true });
+    window.addEventListener("keydown", arm, { capture: true });
+    window.addEventListener("touchstart", arm, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", arm, true);
+      window.removeEventListener("keydown", arm, true);
+      window.removeEventListener("touchstart", arm, true);
+    };
+  }, [active, primeFromGesture]);
+
+  // Auto-enter on background — retries because engines can reject the first attempt
   useEffect(() => {
     if (!active) return undefined;
 
-    const tryEnter = () => {
+    const clearRetries = () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+
+    const tryEnter = (attempt = 0) => {
       const video = videoRef.current;
       if (!video) return;
+      if (
+        document.pictureInPictureElement === video ||
+        video.webkitPresentationMode === "picture-in-picture"
+      ) {
+        setPipActive(true);
+        return;
+      }
+
       video.play().catch(() => {});
       enterNativePip(video).then((ok) => {
-        if (ok) setPipActive(true);
+        if (ok) {
+          setPipActive(true);
+          return;
+        }
+        // Retry a few times — mobile often needs a beat after hide
+        if (attempt < 4) {
+          retryTimerRef.current = setTimeout(() => tryEnter(attempt + 1), 120 + attempt * 80);
+        }
       });
+    };
+
+    const onBackground = () => {
+      tryEnter(0);
     };
 
     const onVis = () => {
       if (document.visibilityState === "hidden") {
-        tryEnter();
+        onBackground();
       } else if (document.visibilityState === "visible") {
-        // Return to in-page UI when user comes back
-        exitNativePip(videoRef.current).finally(() => setPipActive(false));
+        clearRetries();
+        // Small delay so quick app-switcher peeks don't thrash
+        retryTimerRef.current = setTimeout(() => {
+          if (document.visibilityState === "visible") {
+            exitNativePip(videoRef.current).finally(() => setPipActive(false));
+          }
+        }, 180);
       }
     };
 
-    const onPageHide = () => tryEnter();
+    const onBlur = () => {
+      // iOS/Android often blur before visibilitychange
+      if (document.visibilityState === "hidden" || document.hidden) {
+        onBackground();
+      } else if (narrow) {
+        // On mobile, leaving the tab/app via home often fires blur first
+        onBackground();
+      }
+    };
 
     document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("pagehide", onPageHide);
-    // iOS sometimes fires freeze when backgrounding Safari
-    document.addEventListener("freeze", tryEnter);
+    window.addEventListener("pagehide", onBackground);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("freeze", onBackground);
 
     return () => {
+      clearRetries();
       document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("pagehide", onPageHide);
-      document.removeEventListener("freeze", tryEnter);
+      window.removeEventListener("pagehide", onBackground);
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("freeze", onBackground);
     };
-  }, [active]);
+  }, [active, narrow]);
 
   // Track PiP lifecycle events
   useEffect(() => {
@@ -310,14 +437,17 @@ export default function CallPipSource({
     };
   }, [active]);
 
-  // Media Session — OS call UI where available
+  // Media Session — helps Chrome Automatic PiP + OS call UI
   useEffect(() => {
     if (!active || !("mediaSession" in navigator)) return undefined;
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: source.label || "Descall Call",
         artist: "Descall",
-        album: "Voice chat",
+        album: "On a call",
+        artwork: source.avatarUrl
+          ? [{ src: source.avatarUrl, sizes: "512x512", type: "image/png" }]
+          : [],
       });
       navigator.mediaSession.playbackState = "playing";
       navigator.mediaSession.setActionHandler?.("hangup", () => {
@@ -332,6 +462,10 @@ export default function CallPipSource({
         if (isDm) call?.toggleMute?.();
         else groupCall?.toggleMute?.();
       });
+      // Some Chromium builds use this as the Automatic PiP hook
+      navigator.mediaSession.setActionHandler?.("enterpictureinpicture", () => {
+        enterPip();
+      });
     } catch {
       /* unsupported handlers */
     }
@@ -341,11 +475,12 @@ export default function CallPipSource({
         navigator.mediaSession.setActionHandler?.("hangup", null);
         navigator.mediaSession.setActionHandler?.("togglecamera", null);
         navigator.mediaSession.setActionHandler?.("togglemicrophone", null);
+        navigator.mediaSession.setActionHandler?.("enterpictureinpicture", null);
       } catch {
         /* ignore */
       }
     };
-  }, [active, source.label, isDm, call, groupCall]);
+  }, [active, source.label, source.avatarUrl, isDm, call, groupCall, enterPip]);
 
   // Cleanup canvas stream on unmount
   useEffect(() => {
@@ -358,9 +493,37 @@ export default function CallPipSource({
 
   if (!active) return null;
 
+  // Visible compact preview on mobile (engines reject invisible/tiny PiP sources).
+  // On desktop keep it off-canvas but with real dimensions.
+  const previewStyle = narrow
+    ? {
+        position: "fixed",
+        right: 12,
+        bottom: "calc(88px + env(safe-area-inset-bottom, 0px))",
+        width: 112,
+        height: 168,
+        borderRadius: 14,
+        objectFit: "cover",
+        zIndex: 70,
+        border: "1px solid rgba(255,255,255,0.14)",
+        boxShadow: "0 10px 28px rgba(0,0,0,0.45)",
+        background: "#12141a",
+        pointerEvents: pipActive ? "none" : "auto",
+        opacity: pipActive ? 0 : 1,
+      }
+    : {
+        position: "fixed",
+        width: 320,
+        height: 180,
+        opacity: 0.02,
+        pointerEvents: "none",
+        left: -10000,
+        top: 0,
+        zIndex: -1,
+      };
+
   return (
     <>
-      {/* Sticky PiP source — must stay mounted while minimized */}
       <video
         ref={videoRef}
         className="call-pip-source-video"
@@ -368,16 +531,13 @@ export default function CallPipSource({
         playsInline
         muted
         disableRemotePlayback
-        style={{
-          position: "fixed",
-          width: 2,
-          height: 2,
-          opacity: 0.01,
-          pointerEvents: "none",
-          left: 0,
-          bottom: 0,
-          zIndex: -1,
+        autoPictureInPicture
+        onClick={() => {
+          primeFromGesture();
+          enterPip();
         }}
+        style={previewStyle}
+        aria-label="Call picture-in-picture preview"
       />
       <canvas
         ref={canvasRef}
@@ -399,6 +559,7 @@ export function CallPipButton({ pipApi, narrow = false }) {
       type="button"
       title={pipApi.pipActive ? "PiP active" : "Picture in Picture"}
       onClick={() => {
+        pipApi.primeFromGesture?.();
         if (pipApi.pipActive) pipApi.leavePip?.();
         else pipApi.enterPip?.();
       }}
