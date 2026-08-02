@@ -141,6 +141,8 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [activeDmUser, setActiveDmUser] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [unreadMarker, setUnreadMarker] = useState(null); // { key, count }
   const [friendNotice, setFriendNotice] = useState("");
   const [notifPermission, setNotifPermission] = useState(() => notificationService.getPermissionState());
   const [socketApi, setSocketApi] = useState(null);
@@ -233,9 +235,10 @@ export default function App() {
   }, [activeDmUser?.id]);
 
   useEffect(() => {
-    if (activeDmUser && socketRef.current) {
-      socketRef.current.emit("dm:history", { withUserId: activeDmUser.id });
-    }
+    if (!activeDmUser?.id || !socketRef.current) return;
+    const cached = dmByUserId[activeDmUser.id];
+    if (!cached) setMessagesLoading(true);
+    socketRef.current.emit("dm:history", { withUserId: activeDmUser.id });
   }, [activeDmUser?.id]);
 
   const dmMessages = useMemo(() => {
@@ -560,6 +563,7 @@ export default function App() {
     socket.on("dm:history", ({ withUserId, messages }) => {
       if (!withUserId) return;
       setDmByUserId((prev) => ({ ...prev, [withUserId]: messages ?? [] }));
+      setMessagesLoading(false);
       setDmHasMore((messages?.length ?? 0) >= 50);
       const last = Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1] : null;
       if (last) {
@@ -1092,14 +1096,20 @@ export default function App() {
 
   // Fetch group messages when activeGroup changes
   useEffect(() => {
-    if (!activeGroup?.id || groupMessagesById[activeGroup.id]) return;
+    if (!activeGroup?.id) return;
+    if (groupMessagesById[activeGroup.id]) {
+      setMessagesLoading(false);
+      return;
+    }
+    setMessagesLoading(true);
     getGroupMessages(activeGroup.id)
       .then((res) => {
         const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
         const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
         setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
       })
-      .catch((err) => console.error("[App] fetch group messages error:", err));
+      .catch((err) => console.error("[App] fetch group messages error:", err))
+      .finally(() => setMessagesLoading(false));
   }, [activeGroup?.id]);
 
   useEffect(() => {
@@ -1112,11 +1122,16 @@ export default function App() {
     if (!friend || !friend.id) {
       // Close DM (null friend)
       setActiveDmUser(null);
+      setUnreadMarker(null);
+      setMessagesLoading(false);
       socketRef.current?.emit("dm:set_active", { withUserId: null });
       return;
     }
+    const unread = dmUnread[friend.id] || 0;
+    setUnreadMarker(unread > 0 ? { key: `dm:${friend.id}`, count: unread } : null);
     setActiveGroup(null);
     setActiveDmUser(friend);
+    if (!dmByUserId[friend.id]) setMessagesLoading(true);
     setDmUnread((u) => { const n = { ...u }; delete n[friend.id]; return n; });
     socketRef.current?.emit("dm:mark_read", { withUserId: friend.id });
     socketRef.current?.emit("dm:history", { withUserId: friend.id });
@@ -1377,24 +1392,39 @@ export default function App() {
           onAdminClick={() => setAdminOpen(true)}
           isAdmin={me?.is_admin || me?.username === "admin"}
           onDmSelect={(dm) => {
-            setActiveDmUser(dm);
-            if (dm) {
-              setActiveGroup(null);
-              setDmUnread((u) => { const n = { ...u }; delete n[dm.id]; return n; });
-              socketRef.current?.emit("dm:mark_read", { withUserId: dm.id });
-              socketRef.current?.emit("dm:set_active", { withUserId: dm.id });
-            } else {
+            if (!dm) {
+              setActiveDmUser(null);
+              setUnreadMarker(null);
+              setMessagesLoading(false);
               socketRef.current?.emit("dm:set_active", { withUserId: null });
+              return;
             }
+            const unread = dmUnread[dm.id] || 0;
+            setUnreadMarker(unread > 0 ? { key: `dm:${dm.id}`, count: unread } : null);
+            setActiveGroup(null);
+            setActiveDmUser(dm);
+            if (dmByUserId[dm.id] === undefined) setMessagesLoading(true);
+            setDmUnread((u) => { const n = { ...u }; delete n[dm.id]; return n; });
+            socketRef.current?.emit("dm:mark_read", { withUserId: dm.id });
+            socketRef.current?.emit("dm:history", { withUserId: dm.id });
+            socketRef.current?.emit("dm:set_active", { withUserId: dm.id });
           }}
           onGroupSelect={(group) => {
             setActiveDmUser(null);
-            setActiveGroup(group);
-            socketRef.current?.emit("dm:set_active", { withUserId: null });
-            if (group?.id) {
-              setGroupUnread((u) => { const n = { ...u }; delete n[group.id]; return n; });
-              socketRef.current?.emit("group:join", group.id);
+            if (!group?.id) {
+              setActiveGroup(null);
+              setUnreadMarker(null);
+              setMessagesLoading(false);
+              socketRef.current?.emit("dm:set_active", { withUserId: null });
+              return;
             }
+            const unread = groupUnread[group.id] || 0;
+            setUnreadMarker(unread > 0 ? { key: `group:${group.id}`, count: unread } : null);
+            setActiveGroup(group);
+            if (groupMessagesById[group.id] === undefined) setMessagesLoading(true);
+            socketRef.current?.emit("dm:set_active", { withUserId: null });
+            setGroupUnread((u) => { const n = { ...u }; delete n[group.id]; return n; });
+            socketRef.current?.emit("group:join", group.id);
           }}
           dmUnread={dmUnread}
           groupUnread={groupUnread}
@@ -1589,6 +1619,18 @@ export default function App() {
             onDismissActiveBanner={groupCall?.dismissActiveBanner}
             socket={socketRef.current}
             activeGroup={activeGroup}
+            loading={Boolean(
+              messagesLoading &&
+                ((activeDmUser && dmByUserId[activeDmUser.id] === undefined) ||
+                  (activeGroup && groupMessagesById[activeGroup.id] === undefined))
+            )}
+            unreadCount={
+              unreadMarker &&
+              ((activeDmUser && unreadMarker.key === `dm:${activeDmUser.id}`) ||
+                (activeGroup && unreadMarker.key === `group:${activeGroup.id}`))
+                ? unreadMarker.count
+                : 0
+            }
           />
         </AppLayout>
         <CallOverlay call={call} groupCall={groupCall} me={me} />

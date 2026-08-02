@@ -1,25 +1,27 @@
-import { motion } from "framer-motion";
-
-export function SkeletonLine({ width = "100%" }) {
+export function SkeletonLine({ width = "100%", height = 12, circle = false }) {
   return (
-    <motion.div
+    <div
       className="skeleton-line"
-      style={{ width }}
-      animate={{ opacity: [0.45, 0.9, 0.45] }}
-      transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+      style={{
+        width,
+        height: circle ? width : height,
+        borderRadius: circle ? "50%" : undefined,
+      }}
     />
   );
 }
 
-export function MessageSkeleton({ count = 3 }) {
+/** Replaces blank/spinner message loading states */
+export function MessageSkeleton({ count = 6 }) {
   return (
-    <div className="skeleton-messages">
+    <div className="skeleton-messages" aria-busy="true" aria-label="Loading messages">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="skeleton-row">
-          <SkeletonLine width={40} />
+          <SkeletonLine width={40} circle />
           <div className="skeleton-col">
-            <SkeletonLine width="30%" />
-            <SkeletonLine width="85%" />
+            <SkeletonLine width={`${28 + (i % 3) * 10}%`} />
+            <SkeletonLine width={`${70 + (i % 4) * 6}%`} />
+            {i % 2 === 0 && <SkeletonLine width={`${48 + (i % 3) * 8}%`} />}
           </div>
         </div>
       ))}

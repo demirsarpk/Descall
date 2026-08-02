@@ -1,5 +1,5 @@
-import { useRef, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useRef, useEffect, useState, useMemo } from "react";
+import { motion } from "framer-motion";
 import { FileText, Download } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -8,11 +8,36 @@ import VoiceMessagePlayer from "./VoiceMessagePlayer";
 import ActiveCallBanner from "../ActiveCallBanner";
 import UserProfileModal from "../social/UserProfileModal";
 import GameMessageBubble from "./GameMessageBubble";
+import { MessageSkeleton } from "../ui/Skeleton";
+
+function dayKeyOf(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  } catch {
+    return "";
+  }
+}
+
+function formatDayLabel(iso) {
+  if (!iso) return "";
+  try {
+    const date = new Date(iso);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const that = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.round((today - that) / 86400000);
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  } catch {
+    return "";
+  }
+}
 
 /**
- * COMPLETELY REBUILT MESSAGE LIST
- * Discord-style message display
- * No old layout remnants
+ * Discord-style message list with day / unread separators.
  */
 export default function MessageList({
   messages,
@@ -25,6 +50,8 @@ export default function MessageList({
   onStartDm,
   socket,
   activeGroup,
+  loading = false,
+  unreadCount = 0,
 }) {
   const messagesEndRef = useRef(null);
   const [profileTarget, setProfileTarget] = useState(null);
@@ -34,16 +61,42 @@ export default function MessageList({
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!loading) scrollToBottom();
+  }, [messages, loading]);
 
-  const groupMessages = (msgs) => {
-    if (!msgs || !Array.isArray(msgs)) return [];
+  const groupedMessages = useMemo(() => {
+    const msgs = Array.isArray(messages) ? messages : [];
+    if (!msgs.length) return [];
 
     const grouped = [];
     let currentGroup = null;
+    const unreadStartIndex =
+      unreadCount > 0 ? Math.max(0, msgs.length - unreadCount) : -1;
+
+    const flush = () => {
+      if (currentGroup) {
+        grouped.push(currentGroup);
+        currentGroup = null;
+      }
+    };
 
     msgs.forEach((msg, index) => {
+      const dayKey = dayKeyOf(msg?.timestamp);
+      const prevDay = index > 0 ? dayKeyOf(msgs[index - 1]?.timestamp) : null;
+      if (dayKey && dayKey !== prevDay) {
+        flush();
+        grouped.push({
+          isDaySep: true,
+          label: formatDayLabel(msg.timestamp),
+          id: `day-${dayKey}-${index}`,
+        });
+      }
+
+      if (index === unreadStartIndex) {
+        flush();
+        grouped.push({ isUnreadSep: true, id: `unread-${index}` });
+      }
+
       // Call summary and active call bubbles break grouping — render standalone
       // Also recover legacy rows that were stored/rendered as raw JSON text.
       let summaryMsg = msg;
@@ -64,44 +117,67 @@ export default function MessageList({
       }
 
       if (summaryMsg.type === "call_summary") {
-        if (currentGroup) { grouped.push(currentGroup); currentGroup = null; }
+        flush();
         grouped.push({ isSummary: true, summary: summaryMsg, id: summaryMsg.id });
         return;
       }
       if (msg.type === "active_call") {
-        if (currentGroup) { grouped.push(currentGroup); currentGroup = null; }
+        flush();
         grouped.push({ isActiveBanner: true, banner: msg, id: msg.id });
         return;
       }
       // Game messages render standalone (no grouping)
-      if (msg.isGameMessage || msg.type?.startsWith('game_')) {
-        if (currentGroup) { grouped.push(currentGroup); currentGroup = null; }
+      if (msg.isGameMessage || msg.type?.startsWith("game_")) {
+        flush();
         grouped.push({ isGame: true, gameMsg: msg, id: msg.id });
         return;
       }
 
       const prevMsg = msgs[index - 1];
+      const crossedDay = Boolean(dayKey && prevDay && dayKey !== prevDay);
+      const crossedUnread = index === unreadStartIndex;
       const isSameSender = prevMsg?.from?.id === msg.from?.id && prevMsg?.type !== "call_summary";
       const timeDiff = prevMsg ? new Date(msg.timestamp) - new Date(prevMsg.timestamp) : Infinity;
-      const isCompact = isSameSender && timeDiff < 5 * 60 * 1000;
+      const isCompact =
+        isSameSender && timeDiff < 5 * 60 * 1000 && !crossedDay && !crossedUnread;
 
       if (isCompact && currentGroup) {
         currentGroup.messages.push(msg);
       } else {
-        if (currentGroup) grouped.push(currentGroup);
+        flush();
         currentGroup = { user: msg.from, messages: [msg], isCompact: false };
       }
     });
 
-    if (currentGroup) grouped.push(currentGroup);
+    flush();
     return grouped;
-  };
+  }, [messages, unreadCount]);
 
-  const groupedMessages = groupMessages(messages);
+  if (loading) {
+    return (
+      <div className="message-list">
+        <MessageSkeleton count={7} />
+      </div>
+    );
+  }
 
   return (
     <div className="message-list">
       {groupedMessages.map((group, groupIndex) => {
+        if (group.isDaySep) {
+          return (
+            <div key={group.id || `day-${groupIndex}`} className="message-day-sep">
+              <span>{group.label}</span>
+            </div>
+          );
+        }
+        if (group.isUnreadSep) {
+          return (
+            <div key={group.id || `unread-${groupIndex}`} className="message-unread-sep">
+              <span>New messages</span>
+            </div>
+          );
+        }
         if (group.isSummary) {
           return <CallSummaryBubble key={group.id || `summary-${groupIndex}`} summary={group.summary} />;
         }
@@ -123,13 +199,7 @@ export default function MessageList({
               isOwn={group.gameMsg.from?.id === currentUser?.id}
               currentUserId={currentUser?.id}
               socket={socket}
-              onGameAction={(action, data) => {
-                // Game actions are handled via socket, this is for any additional UI updates
-                if (socket && activeGroup?.id) {
-                  // The actual game action is already emitted in GameMessageBubble
-                  // This callback is for any additional side effects if needed
-                }
-              }}
+              onGameAction={() => {}}
             />
           );
         }

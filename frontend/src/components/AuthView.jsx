@@ -3,23 +3,20 @@ import { motion } from "framer-motion";
 import { MessageCircle, UserPlus, Lock, Mail } from "lucide-react";
 import GoogleSignInButton from "./auth/GoogleSignInButton";
 
-// Simple Descall Logo
 function DescallLogo({ size = 60 }) {
   return (
     <div className="descall-logo">
       <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
         <defs>
           <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#6366f1" />
-            <stop offset="100%" stopColor="#8b5cf6" />
+            <stop offset="0%" stopColor="#7b89ff" />
+            <stop offset="100%" stopColor="#5865f2" />
           </linearGradient>
         </defs>
-        {/* Chat bubble */}
         <path
           d="M30 45 C30 35, 35 30, 50 30 C65 30, 70 35, 70 45 C70 55, 65 60, 50 60 L45 68 L40 60 C35 58, 30 55, 30 45"
           fill="url(#logoGrad)"
         />
-        {/* Sound waves */}
         <path
           d="M75 40 Q82 50, 75 60"
           stroke="url(#logoGrad)"
@@ -46,9 +43,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
 
   const submit = async (event) => {
     event.preventDefault();
-    if (!username.trim() || !password) {
-      return;
-    }
+    if (!username.trim() || !password) return;
     if (mode === "login") {
       await onLogin({ username: username.trim(), password });
       return;
@@ -58,20 +53,25 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
 
   return (
     <main className="auth-shell">
+      <div className="auth-bg" aria-hidden="true">
+        <div className="gradient-orb orb-1" />
+        <div className="gradient-orb orb-2" />
+        <div className="gradient-orb orb-3" />
+        <div className="grid-pattern" />
+      </div>
+
       <motion.section
         className="auth-card"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        {/* Logo */}
         <div className="auth-logo-container">
           <DescallLogo size={80} />
           <h1 className="auth-title">Descall</h1>
           <p className="auth-subtitle">Connect with friends through voice, video, and messaging</p>
         </div>
 
-        {/* Tabs */}
         <div className="auth-tabs">
           <button
             className={`auth-tab ${mode === "login" ? "active" : ""}`}
@@ -102,7 +102,6 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
           <span>or</span>
         </div>
 
-        {/* Form */}
         <form onSubmit={submit} className="auth-form">
           <div className="input-wrapper">
             <Mail className="input-icon" size={20} />
@@ -145,7 +144,6 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
           </button>
         </form>
 
-        {/* Footer */}
         <p className="auth-footer">
           By continuing, you agree to our Terms of Service
         </p>
