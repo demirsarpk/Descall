@@ -202,21 +202,25 @@
   color: #6f7888;
 }
 
+/* Single horizontal rule (no dual bars around "or") */
 .auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 14px 0 4px;
-  color: #6f7888;
-  font-size: 12px;
+  display: block;
+  height: 1px;
+  margin: 14px 0 12px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: transparent;
+  font-size: 0;
+  overflow: hidden;
+}
+
+.auth-divider span {
+  display: none;
 }
 
 .auth-divider::before,
 .auth-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  content: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

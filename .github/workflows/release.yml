@@ -52,7 +52,9 @@ jobs:
         working-directory: frontend
         run: npm run build
         env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          # Prefer secret when set; otherwise ship the live production API host.
+          # api.js also remaps retired hosts (e.g. descall-qzkg) → des-call.onrender.com
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://des-call.onrender.com' }}
 
       - name: Debug - Check dist contents
         working-directory: frontend

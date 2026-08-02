@@ -112,7 +112,9 @@ function createMainWindow() {
     minWidth: 1200,
     minHeight: 700,
     show: false,
-    // Use native Windows title bar without menu (no File, Edit, View, Help)
+    // Frameless — React TitleBar provides window controls (avoids double title bars)
+    frame: false,
+    titleBarStyle: 'hidden',
     icon: path.join(__dirname, '../public/icon.png'),
     webPreferences: {
       nodeIntegration: false,

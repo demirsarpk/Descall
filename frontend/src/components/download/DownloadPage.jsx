@@ -94,13 +94,17 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
         published_at: data.publishedAt,
         html_url: data.htmlUrl,
       });
-      setWindowsDownloadUrl(data.windowsDownloadUrl || null);
+      // Never offer Portable builds — only the NSIS Setup installer
+      const winUrl = data.windowsDownloadUrl && !/portable/i.test(data.windowsDownloadUrl)
+        ? data.windowsDownloadUrl
+        : null;
+      setWindowsDownloadUrl(winUrl);
       setDownloadLinks({
-        windows: data.windowsDownloadUrl || null,
+        windows: winUrl,
         mac: null,
         linux: null,
       });
-      if (!data.windowsDownloadUrl) {
+      if (!winUrl) {
         setReleaseError('Windows installer not found in the latest GitHub release.');
       }
     } catch (error) {

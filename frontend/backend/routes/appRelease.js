@@ -9,13 +9,26 @@ const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
 
 function pickWindowsExeUrl(release) {
   if (!release?.assets?.length) return null;
-  const setupExe = release.assets.find((a) => {
+
+  const exes = release.assets.filter((a) => {
     const n = (a.name || "").toLowerCase();
-    return n.endsWith(".exe") && (n.includes("setup") || n.includes("descall"));
+    return n.endsWith(".exe") && !n.includes("portable") && !n.includes("blockmap");
   });
-  if (setupExe?.browser_download_url) return setupExe.browser_download_url;
-  const anyExe = release.assets.find((a) => (a.name || "").toLowerCase().endsWith(".exe"));
-  return anyExe?.browser_download_url || null;
+
+  // Prefer NSIS installer (Descall-Setup-*.exe) — never Portable
+  const setupExact = exes.find((a) => {
+    const n = (a.name || "").toLowerCase();
+    return n.includes("setup");
+  });
+  if (setupExact?.browser_download_url) return setupExact.browser_download_url;
+
+  const setupLoose = exes.find((a) => {
+    const n = (a.name || "").toLowerCase();
+    return n.includes("descall") && !n.includes("portable");
+  });
+  if (setupLoose?.browser_download_url) return setupLoose.browser_download_url;
+
+  return exes[0]?.browser_download_url || null;
 }
 
 /** Public — used by landing page to avoid browser CORS to GitHub */

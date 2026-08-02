@@ -724,23 +724,27 @@
   text-align: center;
 }
 
+/* Single horizontal rule between Google sign-in and username/password */
 .auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 4px 0 16px;
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  display: block;
+  height: 1px;
+  margin: 8px 0 16px;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: transparent;
+  font-size: 0;
+  overflow: hidden;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.auth-divider span {
+  display: none;
 }
 
 .auth-divider::before,
 .auth-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.12);
+  content: none;
 }
 
 .google-signin-wrap {
