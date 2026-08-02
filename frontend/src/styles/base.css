@@ -248,7 +248,8 @@ select {
 }
 
 /* 🧩 Skeleton */
-.skeleton {
+.skeleton,
+.skeleton-line {
   background: linear-gradient(90deg, var(--border-1), var(--border-2), var(--border-1));
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -257,4 +258,82 @@ select {
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
+}
+
+.skeleton-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 16px 28px;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.skeleton-row .skeleton-line:first-child {
+  width: 40px !important;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.skeleton-col .skeleton-line {
+  height: 12px;
+}
+
+.skeleton-row:nth-child(even) {
+  flex-direction: row-reverse;
+}
+
+.skeleton-row:nth-child(even) .skeleton-col {
+  align-items: flex-end;
+}
+
+.message-day-sep,
+.message-unread-sep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.message-day-sep::before,
+.message-day-sep::after,
+.message-unread-sep::before,
+.message-unread-sep::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-2);
+}
+
+.message-day-sep span,
+.message-unread-sep span {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  white-space: nowrap;
+}
+
+.message-unread-sep span {
+  color: #c5ccff;
+  background: rgba(88, 101, 242, 0.16);
+  border-color: rgba(88, 101, 242, 0.35);
 }

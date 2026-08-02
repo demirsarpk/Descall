@@ -1,0 +1,142 @@
+/* FaceTime-style incoming call card */
+
+.incoming-call-card {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  width: min(420px, calc(100vw - 24px));
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 18px 18px 16px;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(88, 101, 242, 0.22), transparent 55%),
+    linear-gradient(145deg, rgba(30, 31, 35, 0.96), rgba(22, 24, 30, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-sizing: border-box;
+}
+
+.incoming-call-avatar-wrap {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.incoming-call-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(88, 101, 242, 0.55);
+  animation: incoming-ring-pulse 1.8s ease-out infinite;
+}
+
+.incoming-call-ring--b {
+  animation-delay: 0.45s;
+  border-color: rgba(59, 165, 93, 0.45);
+}
+
+.incoming-call-ring--c {
+  animation-delay: 0.9s;
+  border-color: rgba(123, 137, 255, 0.35);
+}
+
+@keyframes incoming-ring-pulse {
+  0% { transform: scale(0.72); opacity: 0.85; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.incoming-call-avatar {
+  position: relative;
+  z-index: 1;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+.incoming-call-badge {
+  position: absolute;
+  z-index: 2;
+  right: 4px;
+  bottom: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 2px solid #1a1b20;
+}
+
+.incoming-call-badge.is-voice { background: #3ba55d; }
+.incoming-call-badge.is-video { background: #5865f2; }
+
+.incoming-call-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.incoming-call-kind {
+  font-size: 12px;
+  color: #b5bac1;
+  margin-bottom: 3px;
+}
+
+.incoming-call-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.incoming-call-sub {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #949ba4;
+}
+
+.incoming-call-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.incoming-call-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  cursor: pointer;
+}
+
+.incoming-call-btn--decline { background: #ed4245; }
+.incoming-call-btn--accept { background: #3ba55d; }
+
+@media (max-width: 420px) {
+  .incoming-call-card {
+    flex-wrap: wrap;
+    justify-content: center;
+    text-align: center;
+    gap: 12px;
+  }
+  .incoming-call-meta { width: 100%; }
+  .incoming-call-actions { width: 100%; justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .incoming-call-ring { animation: none; opacity: 0.35; transform: scale(1.05); }
+}
