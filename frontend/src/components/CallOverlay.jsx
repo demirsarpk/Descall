@@ -857,10 +857,15 @@ function CallQualityHud({ quality = "unknown" }) {
 
 function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false }) {
   const elRef = useRef(null);
-  const detected = useSpeaking(stream, { muted: muted || (isLocal === false && !stream) });
+  const detected = useSpeaking(stream, {
+    muted: muted || (isLocal === false && !stream),
+    attackMs: 90,
+    releaseMs: 220,
+  });
   const level = useAudioLevel(stream, { muted: muted || !stream });
   const isSpeaking = Boolean(speakingProp || detected);
-  const ringScale = 1 + (isSpeaking ? Math.max(0.08, level * 0.35) : 0);
+  // Cap ring motion so level jitter doesn't look like flicker
+  const ringScale = 1 + (isSpeaking ? Math.max(0.06, Math.min(0.22, level * 0.28)) : 0);
 
   const setVideoEl = useCallback((el) => {
     elRef.current = el;

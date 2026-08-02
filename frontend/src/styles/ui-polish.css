@@ -421,6 +421,13 @@
 }
 
 /* ─── Speaking rings ─── */
+.participant-tile,
+.call-tile {
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
 .speaking-ring,
 .participant-tile.is-speaking,
 .call-tile.is-speaking {
@@ -428,13 +435,13 @@
 }
 
 @keyframes speakingPulse {
-  0%, 100% { box-shadow: 0 0 0 2px var(--success), 0 0 12px rgba(35, 165, 90, 0.25); }
-  50% { box-shadow: 0 0 0 3px var(--success), 0 0 18px rgba(35, 165, 90, 0.4); }
+  0%, 100% { box-shadow: 0 0 0 2px var(--success), 0 0 10px rgba(35, 165, 90, 0.22); }
+  50% { box-shadow: 0 0 0 3px var(--success), 0 0 16px rgba(35, 165, 90, 0.34); }
 }
 
 .participant-tile.is-speaking,
 .call-tile.is-speaking {
-  animation: speakingPulse 1.2s ease-in-out infinite;
+  animation: speakingPulse 1.6s ease-in-out infinite;
   border-color: var(--success) !important;
 }
 
@@ -444,7 +451,14 @@
   border-radius: 50%;
   background: var(--success);
   flex-shrink: 0;
-  animation: speakingPulse 1.2s infinite;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.participant-tile.is-speaking .speaking-dot,
+.call-tile.is-speaking .speaking-dot {
+  opacity: 1;
+  transform: scale(1);
 }
 
 @keyframes callTilePulse {
@@ -1112,7 +1126,11 @@
   border: 2px solid transparent;
   pointer-events: none;
   opacity: 0;
-  transition: transform 0.08s linear, opacity 0.15s ease;
+  transition:
+    transform 0.2s ease-out,
+    opacity 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s ease;
 }
 .speaking-ring.ring-a {
   inset: 12% 16%;
