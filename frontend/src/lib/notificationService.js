@@ -1,6 +1,18 @@
 const COOLDOWN_MS = 800;
 const CALL_TAG = 'descall-incoming-call';
 
+function readUserSettings() {
+  try {
+    const raw =
+      localStorage.getItem('descall_user_settings') ||
+      localStorage.getItem('descall_settings') ||
+      '{}';
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
 class NotificationService {
   constructor() {
     this.isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
@@ -143,6 +155,7 @@ class NotificationService {
   // ─── Typed notification helpers ───────────────────────────────────────────
 
   async dm({ from, text, conversationId }) {
+    if (readUserSettings().msgNotifications === false) return;
     await this.show({
       title: from,
       body: text?.substring(0, 120) || 'Yeni mesaj',
@@ -157,6 +170,7 @@ class NotificationService {
   }
 
   async groupMessage({ groupName, from, text, groupId }) {
+    if (readUserSettings().msgNotifications === false) return;
     await this.show({
       title: groupName,
       body: `${from}: ${(text || 'Yeni mesaj').substring(0, 100)}`,
@@ -166,6 +180,7 @@ class NotificationService {
   }
 
   async mention({ groupName, from, text, groupId, dmConversationId }) {
+    if (readUserSettings().msgNotifications === false) return;
     await this.show({
       title: `💬 ${from} senden bahsetti`,
       body: groupName ? `${groupName}: ${(text || '').substring(0, 100)}` : (text || '').substring(0, 120),
@@ -181,6 +196,7 @@ class NotificationService {
   }
 
   async incomingCall({ from, type = 'voice' }) {
+    if (readUserSettings().callNotifications === false) return;
     await this.show({
       title: `📞 ${from} arıyor`,
       body: type === 'video' ? 'Görüntülü arama' : 'Sesli arama',
@@ -191,6 +207,7 @@ class NotificationService {
   }
 
   async groupCall({ groupName, from }) {
+    if (readUserSettings().callNotifications === false) return;
     await this.show({
       title: `📞 ${groupName} — Grup Araması`,
       body: `${from} grup araması başlattı`,

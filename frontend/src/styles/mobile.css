@@ -189,25 +189,23 @@
     box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
   }
 
-  /* User / settings panels — above drawer */
-  .user-panel {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: 100dvh;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    z-index: 450 !important;
-    left: 0;
-    right: 0;
+  /* User / settings panels — above drawer + notif banner */
+  .user-panel-backdrop {
+    z-index: 100000 !important;
+  }
+
+  .user-settings-shell,
+  .user-settings {
+    z-index: 100001 !important;
   }
 
   .app-root.mobile-settings-open .app-sidebar-shell {
     pointer-events: none;
   }
 
-  .settings-panel {
-    width: 100%;
-    max-width: 100%;
+  /* Keep notification prompt from covering settings chrome (back/close) */
+  .app-root.mobile-settings-open .app-notif-banner {
+    display: none !important;
   }
 
   /* Admin */
