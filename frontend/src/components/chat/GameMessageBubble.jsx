@@ -348,15 +348,17 @@ export default function GameMessageBubble({
     return <LeaderboardPanel content={content} gameData={gameData} />;
   }
 
+  const boardTypes = new Set(["game_start", "game_update", "game_end", "game_action"]);
   const isBoard =
     gameData &&
+    boardTypes.has(type) &&
     (gameData.status === "playing" ||
       gameData.status === "dealer" ||
       gameData.status === "finished" ||
       gameData.status === "dealing");
 
-  // Lobby / invalid bet / no board data
-  if (!isBoard || type === "game_lobby") {
+  // Lobby only when explicitly requested / no live hand — never replace a live board
+  if (type === "game_lobby" || !isBoard) {
     return (
       <LobbyTable
         credits={credits}
