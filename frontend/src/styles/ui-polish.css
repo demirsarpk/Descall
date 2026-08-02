@@ -227,9 +227,14 @@
   color: var(--primary);
   pointer-events: none;
   z-index: 1;
+  opacity: 0;
 }
 .message-swipe-wrap:not(.own) .message-swipe-hint { left: 4px; }
 .message-swipe-wrap.own .message-swipe-hint { right: 4px; }
+.message-swipe-wrap:not(.is-swiping) .message-swipe-hint {
+  display: none;
+  opacity: 0 !important;
+}
 
 .message-bubble,
 .msg-row {

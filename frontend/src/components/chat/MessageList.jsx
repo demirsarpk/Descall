@@ -338,11 +338,22 @@ function MessageBubble({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [swiping, setSwiping] = useState(false);
   const hideTimer = useRef(null);
   const x = useMotionValue(0);
-  const replyHintOpacity = useTransform(x, isOwn ? [-56, -16, 0] : [0, 16, 56], isOwn ? [1, 0.35, 0] : [0, 0.35, 1]);
+  const replyHintOpacity = useTransform(
+    x,
+    isOwn ? [-56, -20, 0] : [0, 20, 56],
+    isOwn ? [1, 0.4, 0] : [0, 0.4, 1]
+  );
   const reactions = Array.isArray(message.reactions) ? message.reactions : [];
   const reply = message.replyTo || message.reply_to || null;
+
+  const resetSwipe = useCallback(() => {
+    setSwiping(false);
+    x.stop();
+    x.set(0);
+  }, [x]);
 
   const clearHide = () => {
     if (hideTimer.current) {
@@ -378,7 +389,8 @@ function MessageBubble({
     });
     setMenuOpen(false);
     setPickerOpen(false);
-  }, [message, onReply]);
+    resetSwipe();
+  }, [message, onReply, resetSwipe]);
 
   const emitReact = useCallback((emoji) => {
     if (!message?.id || !conversationType || !conversationId || !emoji) return;
@@ -404,24 +416,34 @@ function MessageBubble({
   }, [message?.id, conversationType, conversationId, reactions, currentUserId, socket]);
 
   return (
-    <div className={`message-swipe-wrap ${isOwn ? "own" : ""}`}>
-      <motion.div className="message-swipe-hint" style={{ opacity: replyHintOpacity }} aria-hidden="true">
-        <Reply size={16} />
-      </motion.div>
+    <div className={`message-swipe-wrap ${isOwn ? "own" : ""}${swiping ? " is-swiping" : ""}`}>
+      {swiping && (
+        <motion.div
+          className="message-swipe-hint"
+          style={{ opacity: replyHintOpacity }}
+          aria-hidden="true"
+        >
+          <Reply size={16} />
+        </motion.div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0, x: 0 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
         style={{ x }}
         drag="x"
         dragDirectionLock
+        dragSnapToOrigin
         dragConstraints={isOwn ? { left: -72, right: 0 } : { left: 0, right: 72 }}
         dragElastic={0.18}
+        onDragStart={() => setSwiping(true)}
         onDragEnd={(_, info) => {
           const dx = info.offset.x;
-          if (isOwn && dx <= -48) triggerReply();
-          if (!isOwn && dx >= 48) triggerReply();
+          const shouldReply = (isOwn && dx <= -48) || (!isOwn && dx >= 48);
+          // Always snap hint away — cancel / incomplete swipe must not leave the icon stuck
+          resetSwipe();
+          if (shouldReply) triggerReply();
         }}
         className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""} ${menuOpen ? "menu-open" : ""}`}
         onMouseEnter={openMenu}
