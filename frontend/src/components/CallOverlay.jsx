@@ -304,6 +304,8 @@ export default function CallOverlay({ call, groupCall, me }) {
     <>
     {pipSource}
     <motion.div
+      data-call-overlay="true"
+      className="call-overlay-root"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

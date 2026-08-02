@@ -44,3 +44,5 @@ Pushing a tag `v*` on `main` runs `.github/workflows/release.yml`, which syncs `
   - `frontend/src/lib/desktopRelease.js`
   - `frontend/backend/routes/appRelease.js` (`FALLBACK_RELEASE`)
   so the landing page still downloads when GitHub API rate-limits Render.
+- Electron title bar (`TitleBar`) must stay mounted for the whole desktop session
+  (login + logged-in app). Content offsets via `body.electron-app` / `--electron-titlebar-h`.

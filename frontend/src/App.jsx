@@ -1342,25 +1342,34 @@ export default function App() {
     }
   }, [sessionChecked]);
 
-  if (!sessionChecked) return null;
+  if (!sessionChecked) {
+    return <TitleBar />;
+  }
 
   // Show download page for all non-logged-in users
   if (!me) {
     return (
-      <DownloadPage 
-        onLogin={handleLogin}
-        onRegister={handleRegister}
-        onGoogleLogin={handleGoogleLogin}
-        authLoading={authLoading}
-        authError={authError}
-      />
+      <>
+        <TitleBar />
+        <DownloadPage
+          onLogin={handleLogin}
+          onRegister={handleRegister}
+          onGoogleLogin={handleGoogleLogin}
+          authLoading={authLoading}
+          authError={authError}
+        />
+      </>
     );
   }
 
   return (
+    <>
+    <TitleBar />
     <div className="app-container">
         {updateState && (
-          <div style={{
+          <div
+            className="electron-update-banner"
+            style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
             background: updateState === 'installing' ? '#23a55a' : '#5865f2',
             color: '#fff', fontSize: '13px', fontWeight: 600,
@@ -1642,5 +1651,6 @@ export default function App() {
           onDecline={(groupId, fromUserId, fromUser, callType) => groupCall?.declineCall(groupId, fromUserId, fromUser, callType)}
         />
       </div>
+    </>
   );
 }

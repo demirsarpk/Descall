@@ -21,7 +21,6 @@ import {
   LogIn,
   X
 } from 'lucide-react';
-import TitleBar from '../TitleBar';
 import GoogleSignInButton from '../auth/GoogleSignInButton';
 import { fetchLatestDesktopRelease } from '../../lib/githubRelease';
 import { formatReleaseLabel } from '../../lib/releaseVersion';
@@ -43,7 +42,7 @@ const platforms = [
     id: 'windows', 
     name: 'Windows', 
     icon: Monitor, 
-    file: 'Descall-Setup-2.3.4.exe',
+    file: 'Descall-Setup-2.3.5.exe',
     size: '~138 MB',
     color: '#0078D4'
   },
@@ -113,7 +112,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
       const data = await fetchLatestDesktopRelease();
       applyRelease(data);
     } catch (error) {
-      // GitHub API often 403s (rate limit) on shared hosts — still offer Setup 2.3.4
+      // GitHub API often 403s (rate limit) on shared hosts — still offer Setup fallback
       applyRelease(DESKTOP_RELEASE_FALLBACK, {
         softError: null,
       });
@@ -197,7 +196,6 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
 
   return (
     <>
-      <TitleBar />
       <div className="download-page">
         {/* Animated Background */}
       <div className="download-bg">
