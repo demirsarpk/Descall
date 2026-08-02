@@ -1065,30 +1065,49 @@
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
   pointer-events: none;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 .uhc-banner {
   height: 72px;
   background: linear-gradient(135deg, var(--primary), var(--primary-2) 55%, #7b5cff);
   background-size: cover;
   background-position: center;
+  flex-shrink: 0;
 }
 .uhc-body {
   display: flex;
   gap: 12px;
   padding: 0 14px 14px;
-  margin-top: -28px;
-  align-items: flex-end;
+  margin-top: -30px;
+  align-items: flex-start;
 }
-.uhc-text { min-width: 0; padding-bottom: 2px; }
+.uhc-avatar-wrap {
+  flex-shrink: 0;
+  border-radius: 50%;
+  padding: 3px;
+  background: var(--surface-1);
+  line-height: 0;
+}
+.uhc-text {
+  min-width: 0;
+  flex: 1;
+  /* Keep name/handle fully in the dark body, not on the banner seam */
+  padding-top: 34px;
+  padding-bottom: 2px;
+}
 .uhc-name {
   font-size: 16px;
   font-weight: 700;
   color: var(--text-0);
+  line-height: 1.25;
+  word-break: break-word;
 }
 .uhc-handle {
   font-size: 12px;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin: 2px 0 6px;
+  line-height: 1.2;
 }
 .uhc-status {
   display: inline-flex;
@@ -1096,6 +1115,7 @@
   gap: 6px;
   font-size: 12px;
   color: var(--text-2);
+  line-height: 1.2;
 }
 .uhc-dot {
   width: 8px;
