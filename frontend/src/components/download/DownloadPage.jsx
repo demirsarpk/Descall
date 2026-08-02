@@ -25,9 +25,11 @@ import TitleBar from '../TitleBar';
 import GoogleSignInButton from '../auth/GoogleSignInButton';
 import { fetchLatestDesktopRelease } from '../../lib/githubRelease';
 import { formatReleaseLabel } from '../../lib/releaseVersion';
+import { DESKTOP_RELEASE_FALLBACK } from '../../lib/desktopRelease';
 import './DownloadPage.css';
 
 const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
+const FALLBACK_WINDOWS_URL = DESKTOP_RELEASE_FALLBACK.windowsDownloadUrl;
 
 const features = [
   { icon: MessageCircle, title: "Real-time Chat", desc: "Instant messaging with typing indicators" },
@@ -41,8 +43,8 @@ const platforms = [
     id: 'windows', 
     name: 'Windows', 
     icon: Monitor, 
-    file: 'Descall-Setup.exe',
-    size: '~150 MB',
+    file: 'Descall-Setup-2.3.4.exe',
+    size: '~138 MB',
     color: '#0078D4'
   },
   { 
@@ -83,34 +85,39 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
   const [windowsDownloadUrl, setWindowsDownloadUrl] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const applyRelease = (data, { softError = null } = {}) => {
+    setLatestRelease({
+      tag_name: data.tagName,
+      name: data.name,
+      published_at: data.publishedAt,
+      html_url: data.htmlUrl,
+    });
+    // Never offer Portable builds — only the NSIS Setup installer
+    const winUrl =
+      data.windowsDownloadUrl && !/portable/i.test(data.windowsDownloadUrl)
+        ? data.windowsDownloadUrl
+        : FALLBACK_WINDOWS_URL;
+    setWindowsDownloadUrl(winUrl);
+    setDownloadLinks({
+      windows: winUrl,
+      mac: null,
+      linux: null,
+    });
+    setReleaseError(softError);
+  };
+
   const fetchLatestRelease = async () => {
     setLoading(true);
     setReleaseError(null);
     try {
       const data = await fetchLatestDesktopRelease();
-      setLatestRelease({
-        tag_name: data.tagName,
-        name: data.name,
-        published_at: data.publishedAt,
-        html_url: data.htmlUrl,
-      });
-      // Never offer Portable builds — only the NSIS Setup installer
-      const winUrl = data.windowsDownloadUrl && !/portable/i.test(data.windowsDownloadUrl)
-        ? data.windowsDownloadUrl
-        : null;
-      setWindowsDownloadUrl(winUrl);
-      setDownloadLinks({
-        windows: winUrl,
-        mac: null,
-        linux: null,
-      });
-      if (!winUrl) {
-        setReleaseError('Windows installer not found in the latest GitHub release.');
-      }
+      applyRelease(data);
     } catch (error) {
-      setReleaseError(error.message || 'Unable to check for updates. Please try again.');
-      setWindowsDownloadUrl(null);
-      setDownloadLinks({ windows: null, mac: null, linux: null });
+      // GitHub API often 403s (rate limit) on shared hosts — still offer Setup 2.3.4
+      applyRelease(DESKTOP_RELEASE_FALLBACK, {
+        softError: null,
+      });
+      console.warn('Release API failed, using fallback installer:', error?.message);
     } finally {
       setLoading(false);
     }
@@ -179,12 +186,8 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
       setReleaseError('Desktop installer is available for Windows only. Sign in above to use Descall in your browser.');
       return;
     }
-    const downloadUrl = windowsDownloadUrl || downloadLinks.windows;
-    if (!downloadUrl) {
-      setReleaseError('Setup file not available yet. Checking for updates…');
-      fetchLatestRelease();
-      return;
-    }
+    const downloadUrl =
+      windowsDownloadUrl || downloadLinks.windows || FALLBACK_WINDOWS_URL;
     window.open(downloadUrl, '_blank');
     setIsInstalled(true);
   };
@@ -359,7 +362,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
               <motion.button
                 className={`download-btn ${isInstalled ? 'installed' : ''}`}
                 onClick={handleDownload}
-                disabled={loading || (selectedPlatform === 'windows' && !windowsDownloadUrl && !downloadLinks.windows)}
+                disabled={loading && selectedPlatform === 'windows' && !(windowsDownloadUrl || downloadLinks.windows || FALLBACK_WINDOWS_URL)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >

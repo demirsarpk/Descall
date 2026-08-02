@@ -7,6 +7,21 @@ const router = express.Router();
 const GITHUB_REPO = process.env.GITHUB_RELEASE_REPO || "demirrsarppkurtlarr/Descall";
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
+/** Keep in sync with frontend/src/lib/desktopRelease.js when cutting releases. */
+const FALLBACK_RELEASE = {
+  tagName: "v2.3.4",
+  version: "2.3.4",
+  name: "2.3.4",
+  publishedAt: "2026-08-02T18:59:52Z",
+  htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v2.3.4`,
+  windowsDownloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.3.4/Descall-Setup-2.3.4.exe`,
+  repo: GITHUB_REPO,
+  fallback: true,
+};
+
+let cache = { at: 0, payload: null };
+const CACHE_MS = 5 * 60 * 1000;
+
 function pickWindowsExeUrl(release) {
   if (!release?.assets?.length) return null;
 
@@ -31,47 +46,65 @@ function pickWindowsExeUrl(release) {
   return exes[0]?.browser_download_url || null;
 }
 
+function githubHeaders() {
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "User-Agent": "Descall-Server",
+  };
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || process.env.GITHUB_RELEASE_TOKEN;
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function payloadFromRelease(release) {
+  return {
+    tagName: release.tag_name,
+    version: String(release.tag_name || "").replace(/^v/i, ""),
+    name: release.name,
+    publishedAt: release.published_at,
+    htmlUrl: release.html_url,
+    windowsDownloadUrl: pickWindowsExeUrl(release),
+    repo: GITHUB_REPO,
+    fallback: false,
+  };
+}
+
 /** Public — used by landing page to avoid browser CORS to GitHub */
 router.get("/latest-release", async (_req, res) => {
   try {
-    const ghRes = await fetch(GITHUB_API, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "Descall-Server",
-      },
-    });
-
-    if (ghRes.status === 404) {
-      return res.status(404).json({
-        error: "No published release found.",
-        repo: GITHUB_REPO,
-      });
+    if (cache.payload && Date.now() - cache.at < CACHE_MS) {
+      res.set("Cache-Control", "public, max-age=120");
+      return res.json(cache.payload);
     }
 
-    if (!ghRes.ok) {
-      const text = await ghRes.text().catch(() => "");
-      return res.status(502).json({
-        error: "Could not load release from GitHub.",
-        status: ghRes.status,
-        detail: text.slice(0, 200),
-      });
+    const ghRes = await fetch(GITHUB_API, { headers: githubHeaders() });
+
+    if (ghRes.ok) {
+      const release = await ghRes.json();
+      const payload = payloadFromRelease(release);
+      if (!payload.windowsDownloadUrl) {
+        payload.windowsDownloadUrl = FALLBACK_RELEASE.windowsDownloadUrl;
+        payload.fallback = true;
+      }
+      cache = { at: Date.now(), payload };
+      res.set("Cache-Control", "public, max-age=120");
+      return res.json(payload);
     }
 
-    const release = await ghRes.json();
-    const windowsDownloadUrl = pickWindowsExeUrl(release);
-
-    res.set("Cache-Control", "public, max-age=120");
-    res.json({
-      tagName: release.tag_name,
-      version: String(release.tag_name || "").replace(/^v/i, ""),
-      name: release.name,
-      publishedAt: release.published_at,
-      htmlUrl: release.html_url,
-      windowsDownloadUrl,
-      repo: GITHUB_REPO,
-    });
+    // Rate limit / outage: still serve a working Setup download for Windows
+    console.warn(
+      "[latest-release] GitHub API failed:",
+      ghRes.status,
+      "— serving fallback",
+      FALLBACK_RELEASE.tagName
+    );
+    cache = { at: Date.now(), payload: FALLBACK_RELEASE };
+    res.set("Cache-Control", "public, max-age=60");
+    return res.json(FALLBACK_RELEASE);
   } catch (err) {
-    res.status(500).json({ error: err.message || "Release lookup failed." });
+    console.warn("[latest-release] error:", err.message, "— serving fallback");
+    res.set("Cache-Control", "public, max-age=60");
+    return res.json(FALLBACK_RELEASE);
   }
 });
 

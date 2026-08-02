@@ -40,3 +40,7 @@ Pushing a tag `v*` on `main` runs `.github/workflows/release.yml`, which syncs `
 - Always bump semver via `release.cjs` (or a new `v*` tag) when shipping Electron.
 - Keep `GITHUB_RELEASE_REPO` (optional env) aligned with `demirrsarppkurtlarr/Descall` if you fork.
 - Electron **always** uses production API `https://des-call.onrender.com` (build + runtime). Do not point desktop builds at staging.
+- After each release, update the fallback installer URLs in:
+  - `frontend/src/lib/desktopRelease.js`
+  - `frontend/backend/routes/appRelease.js` (`FALLBACK_RELEASE`)
+  so the landing page still downloads when GitHub API rate-limits Render.
