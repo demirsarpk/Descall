@@ -9,8 +9,10 @@ import ActiveCallBanner from "../ActiveCallBanner";
 import UserProfileModal from "../social/UserProfileModal";
 import GameMessageBubble from "./GameMessageBubble";
 import MessageReactions from "./MessageReactions";
+import MessageContent from "./MessageContent";
 import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
+import UserHoverCard from "../social/UserHoverCard";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 
@@ -56,9 +58,12 @@ export default function MessageList({
   activeGroup,
   loading = false,
   unreadCount = 0,
+  onReply,
 }) {
   const messagesEndRef = useRef(null);
   const [profileTarget, setProfileTarget] = useState(null);
+  const [hoverUser, setHoverUser] = useState(null);
+  const [hoverPos, setHoverPos] = useState(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -224,6 +229,25 @@ export default function MessageList({
                   className="message-avatar"
                   onClick={openProfile}
                   style={{ cursor: group.user?.id ? "pointer" : "default" }}
+                  onMouseEnter={(e) => {
+                    if (!group.user?.id) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const friend = (friends || []).find((f) => f.id === group.user.id);
+                    const online = (onlineUsers || []).find((u) => u.id === group.user.id);
+                    setHoverUser({
+                      ...group.user,
+                      ...friend,
+                      status: online?.status || friend?.status || "offline",
+                      customStatus: friend?.customStatus || friend?.custom_status || group.user.customStatus,
+                      bio: friend?.bio || group.user.bio,
+                      bannerUrl: friend?.bannerUrl || friend?.banner_url || group.user.bannerUrl,
+                    });
+                    setHoverPos({ x: rect.right + 8, y: Math.max(8, rect.top - 8) });
+                  }}
+                  onMouseLeave={() => {
+                    setHoverUser(null);
+                    setHoverPos(null);
+                  }}
                 >
                   <Avatar
                     name={group.user?.username || "Unknown"}
@@ -260,6 +284,7 @@ export default function MessageList({
                   socket={socket}
                   conversationType={activeGroup ? "group" : "dm"}
                   conversationId={activeGroup?.id || group.user?.id}
+                  onReply={onReply}
                 />
               ))}
             </div>
@@ -267,6 +292,13 @@ export default function MessageList({
         );
       })}
       <div ref={messagesEndRef} />
+
+      {hoverUser && hoverPos && (
+        <UserHoverCard
+          user={hoverUser}
+          style={{ position: "fixed", left: hoverPos.x, top: hoverPos.y, zIndex: 80 }}
+        />
+      )}
 
       <UserProfileModal
         open={!!profileTarget}
@@ -291,9 +323,11 @@ function MessageBubble({
   socket,
   conversationType,
   conversationId,
+  onReply,
 }) {
   const [hover, setHover] = useState(false);
   const reactions = Array.isArray(message.reactions) ? message.reactions : [];
+  const reply = message.replyTo || message.reply_to || null;
 
   const emitReact = (emoji) => {
     if (!socket || !message.id) return;
@@ -314,11 +348,27 @@ function MessageBubble({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      {message.text && (
-        <div className="message-text">
-          {message.text}
-        </div>
+      {reply && (
+        <button
+          type="button"
+          className="message-reply-quote"
+          onClick={() => onReply?.(reply.id ? { ...reply, id: reply.id } : reply)}
+          title="Replying to"
+        >
+          <span className="message-reply-author">
+            {reply.from?.username || reply.username || "Message"}
+          </span>
+          <span className="message-reply-text">
+            {reply.text
+              ? String(reply.text).slice(0, 120)
+              : reply.mediaType
+              ? `📎 ${reply.mediaType}`
+              : "Original message"}
+          </span>
+        </button>
       )}
+
+      {message.text && <MessageContent text={message.text} />}
 
       {message.mediaUrl && (
         <div className="message-media">
@@ -435,7 +485,22 @@ function MessageBubble({
             <button type="button" className="hover-bar-btn" title="Add reaction" onClick={() => emitReact("👍")}>
               <Smile size={14} />
             </button>
-            <button type="button" className="hover-bar-btn" title="Reply" disabled>
+            <button
+              type="button"
+              className="hover-bar-btn"
+              title="Reply"
+              onClick={() =>
+                onReply?.({
+                  id: message.id,
+                  text: message.text || "",
+                  mediaType: message.mediaType,
+                  from: message.from || {
+                    id: message.sender_id || message.from?.id,
+                    username: message.from?.username || message.username,
+                  },
+                })
+              }
+            >
               <Reply size={14} />
             </button>
           </motion.div>

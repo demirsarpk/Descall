@@ -31,6 +31,12 @@ try {
   if (settings.chatFontSize) {
     document.documentElement.style.setProperty("--chat-font-size", `${settings.chatFontSize}px`);
   }
+  if (settings.uiDensity) {
+    document.documentElement.setAttribute("data-density", settings.uiDensity);
+  }
+  if (settings.bubbleStyle) {
+    document.documentElement.setAttribute("data-bubble", settings.bubbleStyle);
+  }
 } catch {
   document.documentElement.setAttribute("data-theme", "dark");
 }

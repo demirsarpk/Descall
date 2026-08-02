@@ -13,6 +13,7 @@ import ActiveCallBanner from "../ActiveCallBanner";
 import ActivityView from "../activity/ActivityView";
 import TypingIndicator from "../chat/TypingIndicator";
 import GuildChatView from "../servers/GuildChatView";
+import EmptyState from "../ui/EmptyState";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { getPresenceStatus, STATUS_META } from "../../lib/presence";
@@ -46,6 +47,8 @@ export default function ChatPanel({
   onTypingDmStop,
   onTypingGroupStart,
   onTypingGroupStop,
+  replyTo = null,
+  onClearReply,
   isMobile = false,
   onMenuClick,
   onMobileBack,
@@ -111,9 +114,10 @@ export default function ChatPanel({
         body: isMobile
           ? "Open the menu to see friends and who is online"
           : "Add a friend to start chatting and calling",
-        primary: { label: "Add friend", action: () => onAddClick?.("friend") },
-        secondary: { label: "Browse chats", action: () => onViewChange?.("chat") },
+        primary: { label: "Add friend", action: () => onAddClick?.("friend"), icon: UserPlus },
+        secondary: { label: "Browse chats", action: () => onViewChange?.("chat"), icon: MessageSquare },
         icon: Users,
+        illustration: "friends",
       };
     }
     if (activeView === "groups") {
@@ -122,18 +126,20 @@ export default function ChatPanel({
         body: isMobile
           ? "Open the menu to browse your groups"
           : "Create a group or pick one from the sidebar",
-        primary: { label: "Create group", action: () => onAddClick?.("group") },
-        secondary: { label: "Find friends", action: () => onViewChange?.("friends") },
+        primary: { label: "Create group", action: () => onAddClick?.("group"), icon: Plus },
+        secondary: { label: "Find friends", action: () => onViewChange?.("friends"), icon: UserPlus },
         icon: Users,
+        illustration: "groups",
       };
     }
     if (activeView === "calls") {
       return {
         title: "Ready when you are",
         body: "Pick a DM or group, then start a voice or video call",
-        primary: { label: "Open chats", action: () => onViewChange?.("chat") },
-        secondary: { label: "Open groups", action: () => onViewChange?.("groups") },
+        primary: { label: "Open chats", action: () => onViewChange?.("chat"), icon: MessageSquare },
+        secondary: { label: "Open groups", action: () => onViewChange?.("groups"), icon: Users },
         icon: Phone,
+        illustration: "calls",
       };
     }
     return {
@@ -141,9 +147,10 @@ export default function ChatPanel({
       body: isMobile
         ? "Open the menu to select a conversation"
         : "Select a conversation — or start a new one",
-      primary: { label: "Start a chat", action: () => onAddClick?.("friend") },
-      secondary: { label: "Create group", action: () => onAddClick?.("group") },
+      primary: { label: "Start a chat", action: () => onAddClick?.("friend"), icon: UserPlus },
+      secondary: { label: "Create group", action: () => onAddClick?.("group"), icon: Plus },
       icon: MessageSquare,
+      illustration: "chat",
     };
   })();
 
@@ -300,32 +307,14 @@ export default function ChatPanel({
           </motion.div>
         )}
         {(activeDmUser || activeGroup) ? children : (
-          <div className="empty-state">
-            <div className="empty-icon-wrap">
-              {(() => {
-                const Icon = emptyCopy.icon || MessageSquare;
-                return <Icon size={40} strokeWidth={1.75} />;
-              })()}
-            </div>
-            <h2>{emptyCopy.title}</h2>
-            <p>{emptyCopy.body}</p>
-            {!isMobile && (
-              <div className="empty-cta-row">
-                {emptyCopy.primary && (
-                  <button type="button" className="empty-cta primary" onClick={emptyCopy.primary.action}>
-                    <Plus size={15} />
-                    {emptyCopy.primary.label}
-                  </button>
-                )}
-                {emptyCopy.secondary && (
-                  <button type="button" className="empty-cta" onClick={emptyCopy.secondary.action}>
-                    <UserPlus size={15} />
-                    {emptyCopy.secondary.label}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          <EmptyState
+            icon={emptyCopy.icon || MessageSquare}
+            title={emptyCopy.title}
+            body={emptyCopy.body}
+            illustration={emptyCopy.illustration || "chat"}
+            primary={!isMobile ? emptyCopy.primary : undefined}
+            secondary={!isMobile ? emptyCopy.secondary : undefined}
+          />
         )}
       </div>
       )}
@@ -358,6 +347,8 @@ export default function ChatPanel({
             onTypingDmStop={onTypingDmStop}
             onTypingGroupStart={onTypingGroupStart}
             onTypingGroupStop={onTypingGroupStop}
+            replyTo={replyTo}
+            onClearReply={onClearReply}
           />
         </div>
       )}

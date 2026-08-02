@@ -14,6 +14,9 @@ function normalizeProfileRow(row) {
     username: row.username,
     avatar_url: row.avatar_url || null,
     display_name: row.display_name || null,
+    bio: row.bio || null,
+    custom_status: row.custom_status || null,
+    banner_url: row.banner_url || null,
     presence_status: row.presence_status || "online",
     updated_at: row.updated_at || new Date().toISOString(),
   };
@@ -44,7 +47,7 @@ async function loadUserProfile(userId) {
   let error = null;
   ({ data, error } = await supabase
     .from("users")
-    .select("id, username, avatar_url, display_name, updated_at, presence_status")
+    .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, presence_status")
     .eq("id", userId)
     .single());
 
@@ -145,8 +148,14 @@ function enrichFriendEntry(userId) {
   return {
     id: userId,
     username: cached?.username || usernameById.get(userId) || p?.username || "?",
+    displayName: cached?.display_name || null,
     avatarUrl: cached?.avatar_url || p?.avatar_url || null,
     status: p ? publicPresenceStatus(p.status) : "offline",
+    customStatus: cached?.custom_status || null,
+    custom_status: cached?.custom_status || null,
+    bio: cached?.bio || null,
+    bannerUrl: cached?.banner_url || null,
+    banner_url: cached?.banner_url || null,
     lastSeen: p ? null : lastSeen,
     avatarVersion: cached?.updated_at || null,
     updated_at: cached?.updated_at || null,

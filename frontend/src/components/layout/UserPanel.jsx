@@ -54,7 +54,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function applyAppearanceSettings({ accentColor, chatFontSize } = {}) {
+export function applyAppearanceSettings({ accentColor, chatFontSize, uiDensity, bubbleStyle } = {}) {
   const root = document.documentElement;
   if (accentColor) {
     root.style.setProperty("--primary", accentColor);
@@ -66,6 +66,12 @@ export function applyAppearanceSettings({ accentColor, chatFontSize } = {}) {
   }
   if (chatFontSize) {
     root.style.setProperty("--chat-font-size", `${chatFontSize}px`);
+  }
+  if (uiDensity) {
+    root.setAttribute("data-density", uiDensity);
+  }
+  if (bubbleStyle) {
+    root.setAttribute("data-bubble", bubbleStyle);
   }
 }
 
@@ -166,14 +172,16 @@ export default function UserPanel({
   const [darkMode, setDarkMode] = useState(stored.darkMode !== false);
   const [accentColor, setAccentColor] = useState(stored.accentColor || "#5865F2");
   const [chatFontSize, setChatFontSize] = useState(stored.chatFontSize || 14);
+  const [uiDensity, setUiDensity] = useState(stored.uiDensity || "comfortable");
+  const [bubbleStyle, setBubbleStyle] = useState(stored.bubbleStyle || "modern");
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
   useEffect(() => {
-    applyAppearanceSettings({ accentColor, chatFontSize });
-  }, [accentColor, chatFontSize]);
+    applyAppearanceSettings({ accentColor, chatFontSize, uiDensity, bubbleStyle });
+  }, [accentColor, chatFontSize, uiDensity, bubbleStyle]);
 
   /* ── Notifications ── */
   const [msgNotifications, setMsgNotifications] = useState(stored.msgNotifications !== false);
@@ -206,6 +214,8 @@ export default function UserPanel({
       darkMode,
       accentColor,
       chatFontSize,
+      uiDensity,
+      bubbleStyle,
       msgNotifications,
       callNotifications,
       msgSounds,
@@ -218,6 +228,8 @@ export default function UserPanel({
     darkMode,
     accentColor,
     chatFontSize,
+    uiDensity,
+    bubbleStyle,
     msgNotifications,
     callNotifications,
     msgSounds,
@@ -711,6 +723,50 @@ export default function UserPanel({
               </div>
               <div className="us-font-preview" style={{ marginTop: 10 }}>
                 The quick brown fox jumps over the lazy dog.
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">Density</h4>
+              <div className="us-segmented">
+                {[
+                  { id: "compact", label: "Compact" },
+                  { id: "comfortable", label: "Comfortable" },
+                  { id: "spacious", label: "Spacious" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`us-segment ${uiDensity === opt.id ? "selected" : ""}`}
+                    onClick={() => setUiDensity(opt.id)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">Message bubbles</h4>
+              <div className="us-segmented">
+                {[
+                  { id: "modern", label: "Modern" },
+                  { id: "classic", label: "Classic" },
+                  { id: "minimal", label: "Minimal" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`us-segment ${bubbleStyle === opt.id ? "selected" : ""}`}
+                    onClick={() => setBubbleStyle(opt.id)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div className={`us-bubble-preview bubble-${bubbleStyle}`}>
+                <div className="us-bubble-demo other">Hey — how’s it going?</div>
+                <div className="us-bubble-demo own">Pretty good! You?</div>
               </div>
             </section>
 

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, X } from "lucide-react";
+import { Bell, X, MessageSquare, Users, Phone, Activity, Settings } from "lucide-react";
 import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
 import ChatPanel from "./ChatPanel";
@@ -67,6 +67,8 @@ export default function AppLayout({
   groupUnread = {},
   myStatus = "online",
   onStatusChange,
+  replyTo = null,
+  onClearReply,
 }) {
   const { isMobile } = useMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -301,6 +303,8 @@ export default function AppLayout({
         onTypingDmStop={onTypingDmStop}
         onTypingGroupStart={onTypingGroupStart}
         onTypingGroupStop={onTypingGroupStop}
+        replyTo={replyTo}
+        onClearReply={onClearReply}
         isMobile={isMobile}
         onMenuClick={openMobileDrawer}
         onMobileBack={handleMobileBack}
@@ -335,6 +339,51 @@ export default function AppLayout({
           </>
         )}
       </AnimatePresence>
+
+      {isMobile && !userPanelOpen && (
+        <nav className="mobile-tab-bar" aria-label="Primary">
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "chat" ? "active" : ""}`}
+            onClick={() => handleViewChange("chat")}
+          >
+            <MessageSquare size={20} />
+            <span>Chat</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "friends" ? "active" : ""}`}
+            onClick={() => handleViewChange("friends")}
+          >
+            <Users size={20} />
+            <span>Friends</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "calls" ? "active" : ""}`}
+            onClick={() => handleViewChange("calls")}
+          >
+            <Phone size={20} />
+            <span>Calls</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "activity" ? "active" : ""}`}
+            onClick={() => handleViewChange("activity")}
+          >
+            <Activity size={20} />
+            <span>Activity</span>
+          </button>
+          <button
+            type="button"
+            className="mobile-tab"
+            onClick={openUserPanel}
+          >
+            <Settings size={20} />
+            <span>You</span>
+          </button>
+        </nav>
+      )}
     </div>
   );
 }

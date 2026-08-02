@@ -1457,7 +1457,14 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                         status={safeOnlineUsers.find((u) => u.id === friend.id)?.status || "online"}
                       />
                     </div>
-                    <span className="friend-name">{friend.username}</span>
+                    <div className="friend-meta">
+                      <span className="friend-name">{friend.displayName || friend.username}</span>
+                      {(friend.customStatus || friend.custom_status) && (
+                        <span className="friend-custom-status">
+                          {friend.customStatus || friend.custom_status}
+                        </span>
+                      )}
+                    </div>
                   </motion.button>
                 ))}
               </div>
@@ -1482,14 +1489,26 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                       />
                       <StatusBadge status="offline" />
                     </div>
-                    <span className="friend-name">{friend.username}</span>
+                    <div className="friend-meta">
+                      <span className="friend-name">{friend.displayName || friend.username}</span>
+                      {(friend.customStatus || friend.custom_status) && (
+                        <span className="friend-custom-status">
+                          {friend.customStatus || friend.custom_status}
+                        </span>
+                      )}
+                    </div>
                   </motion.button>
                 ))}
               </div>
             )}
             {safeFriends.length === 0 && pendingRequests.length === 0 && (
-              <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
-                No friends yet
+              <div className="sidebar-empty-friends">
+                <div className="empty-illustration empty-illu-friends compact" aria-hidden="true">
+                  <div className="empty-illu-blob" />
+                  <div className="empty-illu-blob secondary" />
+                </div>
+                <strong>No friends yet</strong>
+                <span>Add someone to start chatting and calling.</span>
               </div>
             )}
       </SidebarSectionContent>

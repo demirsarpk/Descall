@@ -14,6 +14,7 @@ import CallPipSource, { CallPipButton } from "./voice/CallPipSource";
 import IncomingCallCard from "./voice/IncomingCallCard";
 import { useIsNarrowViewport } from "../lib/useIsNarrowViewport";
 import useSpeaking from "../hooks/useSpeaking";
+import useAudioLevel from "../hooks/useAudioLevel";
 
 /*
  * Google Meet-style call overlay
@@ -857,7 +858,9 @@ function CallQualityHud({ quality = "unknown" }) {
 function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false }) {
   const elRef = useRef(null);
   const detected = useSpeaking(stream, { muted: muted || (isLocal === false && !stream) });
+  const level = useAudioLevel(stream, { muted: muted || !stream });
   const isSpeaking = Boolean(speakingProp || detected);
+  const ringScale = 1 + (isSpeaking ? Math.max(0.08, level * 0.35) : 0);
 
   const setVideoEl = useCallback((el) => {
     elRef.current = el;
@@ -888,7 +891,15 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
         />
       ) : (
         <div className="participant-tile-avatar-stack">
-          <Avatar name={username || "?"} size={small ? 36 : 64} imageUrl={avatarUrl} />
+          <span
+            className={`speaking-ring ring-a${isSpeaking ? " active" : ""}`}
+            style={{ transform: `scale(${ringScale})` }}
+          />
+          <span
+            className={`speaking-ring ring-b${isSpeaking ? " active" : ""}`}
+            style={{ transform: `scale(${1 + (isSpeaking ? level * 0.55 : 0)})` }}
+          />
+          <Avatar name={username || "?"} size={small ? 36 : 72} imageUrl={avatarUrl} />
           {!small && <span>{username}</span>}
         </div>
       )}

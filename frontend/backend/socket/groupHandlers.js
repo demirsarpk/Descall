@@ -87,7 +87,7 @@ function registerGroupHandlers(io, socket, state) {
   });
 
   // Group message — persist to DB then broadcast
-  socket.on("group:message", async ({ groupId, tempId, content, mediaUrl, mediaType }) => {
+  socket.on("group:message", async ({ groupId, tempId, content, mediaUrl, mediaType, replyTo }) => {
     if (!groupId || (!content?.trim() && !mediaUrl)) {
       appendErrorLog("group:message", "Missing required parameters", { groupId, hasContent: !!content, hasMedia: !!mediaUrl }, myId, socket.user?.username);
       return;
@@ -135,6 +135,15 @@ function registerGroupHandlers(io, socket, state) {
       console.error("[GroupMessage] DB insert error:", error.message);
     }
 
+    const replyMeta = replyTo && typeof replyTo === "object"
+      ? {
+          id: replyTo.id || null,
+          text: replyTo.text || "",
+          mediaType: replyTo.mediaType || null,
+          from: replyTo.from || null,
+        }
+      : null;
+
     const message = {
       id: row?.id ?? crypto.randomUUID(),
       sender_id: myId,
@@ -142,6 +151,8 @@ function registerGroupHandlers(io, socket, state) {
       media_url: mediaUrl,
       media_type: mediaType,
       created_at: row?.created_at ?? new Date().toISOString(),
+      reply_to: replyMeta,
+      replyTo: replyMeta,
       sender: {
         id: myId,
         username: socket.user.username,

@@ -19,6 +19,10 @@ export function normalizeUser(user) {
     avatarUrl: avatarUrl || null,
     avatar_url: avatarUrl || null,
     avatarVersion,
+    displayName: user.displayName || user.display_name || null,
+    bio: user.bio || null,
+    customStatus: user.customStatus || user.custom_status || null,
+    bannerUrl: user.bannerUrl || user.banner_url || null,
   };
 }
 

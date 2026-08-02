@@ -205,10 +205,10 @@ async function loadFriendsFromDB(userId) {
       return new Set();
     }
 
-    // Batch-fetch usernames
+    // Batch-fetch profile fields for friend rows / hover cards
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, updated_at")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at")
       .in("id", friendIds);
 
     if (usersError) console.error("[FRIENDS] loadFriendsFromDB users fetch error:", usersError);
@@ -585,7 +585,7 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("dm:send", async ({ toUserId, tempId, text, mediaUrl, mediaType, mimeType, size, originalName } = {}) => {
+    socket.on("dm:send", async ({ toUserId, tempId, text, mediaUrl, mediaType, mimeType, size, originalName, replyTo } = {}) => {
       if (bannedUserIds.has(myId)) {
         appendErrorLog("dm:send", "User is banned", { toUserId }, myId, me.username);
         return socket.emit("dm:error", { message: "You are banned." });
@@ -605,6 +605,14 @@ function registerSocketHandlers(io) {
       const messageId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const arr = dmHistory.get(convKey(myId, toUserId)) || [];
       const sender = messageSender(myId, me.username, me.avatar_url || socket.user?.avatar_url);
+      const replyMeta = replyTo && typeof replyTo === "object"
+        ? {
+            id: replyTo.id || null,
+            text: replyTo.text || "",
+            mediaType: replyTo.mediaType || null,
+            from: replyTo.from || null,
+          }
+        : null;
       arr.push({
         id: messageId,
         from: sender,
@@ -615,6 +623,7 @@ function registerSocketHandlers(io) {
         mimeType,
         size,
         originalName,
+        replyTo: replyMeta,
         timestamp: new Date().toISOString(),
       });
       if (arr.length > MAX_DM_PER_CONV) arr.length = MAX_DM_PER_CONV;
@@ -641,6 +650,7 @@ function registerSocketHandlers(io) {
         mimeType,
         size,
         originalName,
+        replyTo: replyMeta,
         timestamp: new Date().toISOString(),
       };
       emitToUser(io, toUserId, "dm:message", { ...messagePayload, convWith: myId });

@@ -134,6 +134,7 @@ export default function App() {
     } catch {}
     return "online";
   });
+  const [replyTo, setReplyTo] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
@@ -703,6 +704,7 @@ export default function App() {
         mediaType: message.media_type,
         originalName: message.original_name,
         size: message.file_size,
+        replyTo: message.replyTo || message.reply_to || null,
       };
       setGroupMessagesById((prev) => {
         const cur = prev[groupId] ?? [];
@@ -1417,6 +1419,7 @@ export default function App() {
           onAdminClick={() => setAdminOpen(true)}
           isAdmin={me?.is_admin || me?.username === "admin"}
           onDmSelect={(dm) => {
+            setReplyTo(null);
             if (!dm) {
               setActiveDmUser(null);
               setUnreadMarker(null);
@@ -1435,6 +1438,7 @@ export default function App() {
             socketRef.current?.emit("dm:set_active", { withUserId: dm.id });
           }}
           onGroupSelect={(group) => {
+            setReplyTo(null);
             setActiveDmUser(null);
             if (!group?.id) {
               setActiveGroup(null);
@@ -1470,8 +1474,13 @@ export default function App() {
           friendRequests={friendRequests}
           onAcceptFriend={handleAcceptFriend}
           onDeclineFriend={handleDeclineFriend}
+          replyTo={replyTo}
+          onClearReply={() => setReplyTo(null)}
           onSendMessage={(msg) => {
-            const isMediaObject = msg && typeof msg === "object" && (msg.type === "gif" || msg.type === "media");
+            const isObj = msg && typeof msg === "object";
+            const isMediaObject = isObj && (msg.type === "gif" || msg.type === "media");
+            const textPayload = isObj && msg.type === "text" ? msg.text : (!isObj ? msg : "");
+            const replyMeta = isObj ? msg.replyTo : null;
 
             if (activeDmUser) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -1479,11 +1488,12 @@ export default function App() {
                 id: tempId,
                 from: { id: me?.id, username: me?.username },
                 to: { id: activeDmUser.id },
-                text: isMediaObject ? "" : msg,
+                text: isMediaObject ? "" : textPayload,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
                 mediaType: isMediaObject ? msg.mediaType : undefined,
                 originalName: isMediaObject ? msg.originalName : undefined,
                 size: isMediaObject ? msg.size : undefined,
+                replyTo: replyMeta || undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
               };
@@ -1496,7 +1506,7 @@ export default function App() {
                 ...prev,
                 [activeDmUser.id]: isMediaObject
                   ? (msg.mediaType === "image" ? "📷 Photo" : "📎 Attachment")
-                  : String(msg).slice(0, 80),
+                  : String(textPayload).slice(0, 80),
               }));
               if (isMediaObject) {
                 socketRef.current?.emit("dm:send", {
@@ -1508,13 +1518,20 @@ export default function App() {
                   mimeType: msg.mimeType,
                   size: msg.size,
                   originalName: msg.originalName,
+                  replyTo: replyMeta || undefined,
                 });
               } else {
-                socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, tempId, text: msg });
+                socketRef.current?.emit("dm:send", {
+                  toUserId: activeDmUser.id,
+                  tempId,
+                  text: textPayload,
+                  replyTo: replyMeta || undefined,
+                });
               }
+              setReplyTo(null);
             } else if (activeGroup) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-              const textStr = isMediaObject ? "" : String(msg || "");
+              const textStr = isMediaObject ? "" : String(textPayload || "");
               const isCasinoCmd =
                 textStr.trim().startsWith("/") &&
                 ["/bj", "/blackjack", "/hit", "/stand", "/stay", "/double", "/credits", "/bakiye", "/balance", "/top", "/lider", "/help", "/yardım", "/commands", "/jb"].some(
@@ -1523,11 +1540,12 @@ export default function App() {
               const optimistic = {
                 id: tempId,
                 from: normalizeUser({ id: me?.id, username: me?.username, avatarUrl: me?.avatarUrl, updated_at: me?.updated_at }),
-                text: isMediaObject ? "" : msg,
+                text: isMediaObject ? "" : textStr,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
                 mediaType: isMediaObject ? msg.mediaType : undefined,
                 originalName: isMediaObject ? msg.originalName : undefined,
                 size: isMediaObject ? msg.size : undefined,
+                replyTo: replyMeta || undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
               };
@@ -1545,7 +1563,7 @@ export default function App() {
                 ...prev,
                 [activeGroup.id]: isMediaObject
                   ? `${me?.username || "You"}: 📎 Attachment`
-                  : `${me?.username || "You"}: ${String(msg).slice(0, 60)}`,
+                  : `${me?.username || "You"}: ${String(textStr).slice(0, 60)}`,
               }));
               if (isMediaObject) {
                 socketRef.current?.emit("group:message", {
@@ -1554,10 +1572,17 @@ export default function App() {
                   content: "",
                   mediaUrl: msg.mediaUrl,
                   mediaType: msg.mediaType,
+                  replyTo: replyMeta || undefined,
                 });
               } else {
-                socketRef.current?.emit("group:message", { groupId: activeGroup.id, tempId, content: msg });
+                socketRef.current?.emit("group:message", {
+                  groupId: activeGroup.id,
+                  tempId,
+                  content: textStr,
+                  replyTo: replyMeta || undefined,
+                });
               }
+              setReplyTo(null);
             }
           }}
           onVoiceCall={() => {
@@ -1637,6 +1662,7 @@ export default function App() {
             friends={friends}
             onlineUsers={onlineUsers}
             onStartDm={(user) => setActiveDmUser(user)}
+            onReply={setReplyTo}
             onJoinActiveCall={() => {
               if (!activeGroup || !groupCall?.activeCallBanner) return;
               groupCall.joinActiveCall(groupCall.activeCallBanner);

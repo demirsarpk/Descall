@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Send, Paperclip, Mic, Smile,
-  Plus, Gift, Image, FileText, X, StopCircle, Loader2
+  Send, Mic, Smile,
+  Plus, Gift, Image, FileText, X, StopCircle, Loader2, Reply
 } from "lucide-react";
 import GiphyPicker from "./GiphyPicker";
 import { getToken } from "../../lib/storage";
@@ -11,7 +11,7 @@ import { API_BASE_URL } from "../../config/api";
 const EMOJI_CATEGORIES = [
   { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖","😺","😸","😹","😻","😼","😽","🙀","😿","😾"] },
   { name: "Gestures", emojis: ["👋","🤚","🖐️","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦵","🦿","🦶","👂","🦻","👃","🧠","🫀","🫁","🦷","🦴","👀","👁️","👅","👄","💋","🩸"] },
-  { name: "Hearts", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","❣️","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☪️","🕉️","☸️","✡️","🔯","🕎","☯️","☦️","🛐","⛎","♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓","🆔","⚛️","🉑","☢️","☣️","📴","📳","🈶","🈚","🈸","🈺","🈷️","✴️","🆚","💮","🉐","㊙️","㊗️","🈴","🈵","🈹","🈲","🅰️","🅱️","🆎","🆑","🅾️","🆘","❌","⭕","🛑","⛔","📛","🚫","💯","💢","♨️","🚷","🚯","🚳","🚱","🔞","📵","🚭","❗","❕","❓","❔","‼️","⁉️","🔅","🔆","〽️","⚠️","🚸","🔱","⚜️","🔰","♻️","✅","🈯","💹","❇️","✳️","❎","🌐","💠","Ⓜ️","🌀","💤","🏧","🚾","♿","🅿️","🈳","🈂️","🛂","🛃","🛄","🛅","🛗","🛹","🛺","🚂","🚃","🚄","🚅","🚆","🚇","🚈","🚉","🚊","🚝","🚞","🚋","🚌","🚍","🚎","🚐","🚑","🚒","🚓","🚔","🚕","🚖","🚗","🚘","🚙","🛻","🚚","🚛","🚜","🏎️","🏍️","🛵","🦽","🦼","🛺","🚲","🛴","🚏","🛣️","🛤️","🛢️","⛽","🚨","🚥","🚦","🛑","🚧"] },
+  { name: "Hearts", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","❣️","💕","💞","💓","💗","💖","💘","💝","💟"] },
 ];
 
 export default function MessageComposer({
@@ -23,6 +23,8 @@ export default function MessageComposer({
   onTypingDmStop,
   onTypingGroupStart,
   onTypingGroupStop,
+  replyTo = null,
+  onClearReply,
 }) {
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -30,8 +32,11 @@ export default function MessageComposer({
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showGiphy, setShowGiphy] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [waveBars, setWaveBars] = useState(() => Array(24).fill(0.15));
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [pendingAttach, setPendingAttach] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -40,12 +45,14 @@ export default function MessageComposer({
   const timerRef = useRef(null);
   const typingTimerRef = useRef(null);
   const isTypingRef = useRef(false);
+  const analyserRef = useRef(null);
+  const rafRef = useRef(null);
+  const audioCtxRef = useRef(null);
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+  }, [activeDmUser?.id, activeGroup?.id, replyTo?.id]);
 
-  /* Close popups on outside click */
   useEffect(() => {
     const handleClick = (e) => {
       if (!e.target.closest(".emoji-picker") && !e.target.closest(".composer-action-btn")) {
@@ -80,16 +87,43 @@ export default function MessageComposer({
     return () => {
       clearTimeout(typingTimerRef.current);
       emitTypingStop();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      try { audioCtxRef.current?.close(); } catch { /* ignore */ }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDmUser?.id, activeGroup?.id]);
 
+  const withReply = (payload) => {
+    if (!replyTo) return payload;
+    const replyMeta = {
+      id: replyTo.id,
+      text: replyTo.text || "",
+      mediaType: replyTo.mediaType,
+      from: replyTo.from || { username: replyTo.username },
+    };
+    if (typeof payload === "string") {
+      return { type: "text", text: payload, replyTo: replyMeta };
+    }
+    return { ...payload, replyTo: replyMeta };
+  };
+
   const handleSend = () => {
-    if (!message.trim() || disabled) return;
+    if (disabled) return;
     clearTimeout(typingTimerRef.current);
     emitTypingStop();
-    onSend?.(message.trim());
+
+    if (pendingAttach) {
+      onSend?.(withReply({ ...pendingAttach }));
+      setPendingAttach(null);
+      if (pendingAttach.previewUrl) URL.revokeObjectURL(pendingAttach.previewUrl);
+      onClearReply?.();
+      return;
+    }
+
+    if (!message.trim()) return;
+    onSend?.(withReply(message.trim()));
     setMessage("");
+    onClearReply?.();
   };
 
   const handleKeyDown = (e) => {
@@ -97,10 +131,12 @@ export default function MessageComposer({
       e.preventDefault();
       handleSend();
     }
+    if (e.key === "Escape" && replyTo) {
+      onClearReply?.();
+    }
   };
 
-  const uploadFile = async (e) => {
-    const file = e.target.files?.[0];
+  const stageFile = async (file) => {
     if (!file) return;
     setUploading(true);
     setUploadError("");
@@ -115,13 +151,18 @@ export default function MessageComposer({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
-      onSend?.({
+      const previewUrl =
+        data.mediaType === "image" || file.type.startsWith("image/")
+          ? URL.createObjectURL(file)
+          : null;
+      setPendingAttach({
         type: "media",
         mediaUrl: data.url,
         mediaType: data.mediaType,
-        originalName: data.originalName,
-        mimeType: data.mimeType,
-        size: data.size,
+        originalName: data.originalName || file.name,
+        mimeType: data.mimeType || file.type,
+        size: data.size || file.size,
+        previewUrl,
       });
     } catch (err) {
       console.error("Upload failed:", err);
@@ -129,11 +170,58 @@ export default function MessageComposer({
       setTimeout(() => setUploadError(""), 4000);
     } finally {
       setUploading(false);
-      e.target.value = "";
     }
   };
 
-  /* Voice recording with MediaRecorder */
+  const uploadFile = async (e) => {
+    const file = e.target.files?.[0];
+    await stageFile(file);
+    e.target.value = "";
+  };
+
+  const onDrop = async (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) await stageFile(file);
+  };
+
+  const startWaveform = (stream) => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+
+      const tick = () => {
+        analyser.getByteFrequencyData(data);
+        const step = Math.max(1, Math.floor(data.length / 24));
+        const bars = [];
+        for (let i = 0; i < 24; i += 1) {
+          bars.push(Math.max(0.12, (data[i * step] || 0) / 255));
+        }
+        setWaveBars(bars);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const stopWaveform = () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    try { audioCtxRef.current?.close(); } catch { /* ignore */ }
+    audioCtxRef.current = null;
+    analyserRef.current = null;
+    setWaveBars(Array(24).fill(0.15));
+  };
+
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -142,6 +230,7 @@ export default function MessageComposer({
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
+        stopWaveform();
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         setUploading(true);
@@ -155,13 +244,15 @@ export default function MessageComposer({
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || "Voice upload failed");
-          onSend?.({
+          onSend?.(withReply({
             type: "media",
             mediaUrl: data.url,
             mediaType: "audio",
             originalName: data.originalName,
             size: data.size,
-          });
+            duration: recordingTime,
+          }));
+          onClearReply?.();
         } catch (err) {
           setUploadError(err.message);
           setTimeout(() => setUploadError(""), 4000);
@@ -173,19 +264,20 @@ export default function MessageComposer({
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
       setRecordingTime(0);
+      startWaveform(stream);
       timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
     } catch (err) {
       console.error("Recording failed:", err);
       setUploadError("Microphone access denied.");
       setTimeout(() => setUploadError(""), 4000);
     }
-  }, [onSend]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onSend, replyTo, onClearReply, recordingTime]);
 
   const stopRecording = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     mediaRecorderRef.current?.stop();
     setIsRecording(false);
-    setRecordingTime(0);
   }, []);
 
   const insertEmoji = (emoji) => {
@@ -204,17 +296,83 @@ export default function MessageComposer({
   };
 
   const handleGifSelect = (gif) => {
-    onSend?.({ type: "gif", mediaUrl: gif.url, mediaType: "gif", title: gif.title });
+    onSend?.(withReply({ type: "gif", mediaUrl: gif.url, mediaType: "gif", title: gif.title }));
     setShowGiphy(false);
+    onClearReply?.();
   };
 
   const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  const canSend = Boolean(message.trim() || pendingAttach);
 
   return (
-    <div className="message-composer">
+    <div
+      className={`message-composer${dragOver ? " is-dragover" : ""}`}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onDrop}
+    >
       <GiphyPicker isOpen={showGiphy} onClose={() => setShowGiphy(false)} onSelectGif={handleGifSelect} />
 
-      {/* Attachment Menu */}
+      <AnimatePresence>
+        {replyTo && (
+          <motion.div
+            className="composer-reply-bar"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <Reply size={14} />
+            <div className="composer-reply-meta">
+              <strong>Replying to {replyTo.from?.username || "message"}</strong>
+              <span>
+                {replyTo.text
+                  ? String(replyTo.text).slice(0, 100)
+                  : replyTo.mediaType
+                  ? `📎 ${replyTo.mediaType}`
+                  : "Message"}
+              </span>
+            </div>
+            <button type="button" className="composer-reply-clear" onClick={() => onClearReply?.()} aria-label="Cancel reply">
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pendingAttach && (
+          <motion.div
+            className="composer-attach-preview"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+          >
+            {pendingAttach.previewUrl ? (
+              <img src={pendingAttach.previewUrl} alt="" className="composer-attach-thumb" />
+            ) : (
+              <div className="composer-attach-file">
+                <FileText size={18} />
+              </div>
+            )}
+            <div className="composer-attach-meta">
+              <strong>{pendingAttach.originalName || "Attachment"}</strong>
+              <span>{pendingAttach.mediaType}</span>
+            </div>
+            <button
+              type="button"
+              className="composer-reply-clear"
+              onClick={() => {
+                if (pendingAttach.previewUrl) URL.revokeObjectURL(pendingAttach.previewUrl);
+                setPendingAttach(null);
+              }}
+              aria-label="Remove attachment"
+            >
+              <X size={14} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {showAttachmentMenu && (
           <motion.div
@@ -239,7 +397,6 @@ export default function MessageComposer({
         )}
       </AnimatePresence>
 
-      {/* Emoji Picker */}
       <AnimatePresence>
         {showEmojiPicker && (
           <motion.div
@@ -271,14 +428,12 @@ export default function MessageComposer({
       <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" style={{ display: "none" }} onChange={uploadFile} />
       <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json" style={{ display: "none" }} onChange={uploadFile} />
 
-      {/* Left Actions */}
       <div className="composer-left">
         <motion.button className="composer-action-btn" onClick={() => setShowAttachmentMenu(!showAttachmentMenu)} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} title="Add Attachment">
           <Plus size={24} />
         </motion.button>
       </div>
 
-      {/* Input Field */}
       <div className="composer-input-wrapper">
         {uploading ? (
           <div className="recording-bar">
@@ -286,9 +441,14 @@ export default function MessageComposer({
             <span className="recording-label">Uploading file…</span>
           </div>
         ) : isRecording ? (
-          <div className="recording-bar">
+          <div className="recording-bar recording-wave">
             <div className="recording-pulse" />
-            <span className="recording-label">Recording… {formatTime(recordingTime)}</span>
+            <div className="composer-waveform" aria-hidden="true">
+              {waveBars.map((v, i) => (
+                <span key={i} style={{ height: `${Math.round(8 + v * 22)}px` }} />
+              ))}
+            </div>
+            <span className="recording-label">{formatTime(recordingTime)}</span>
           </div>
         ) : uploadError ? (
           <div className="recording-bar" style={{ color: "var(--danger)" }}>
@@ -301,7 +461,7 @@ export default function MessageComposer({
             value={message}
             onChange={(e) => { setMessage(e.target.value); if (e.target.value) emitTypingStart(); else emitTypingStop(); }}
             onKeyDown={handleKeyDown}
-            placeholder="Message #general"
+            placeholder={dragOver ? "Drop file to attach…" : "Message…"}
             className="composer-input"
             rows={1}
             style={{ minHeight: "44px", maxHeight: "120px", resize: "none" }}
@@ -309,7 +469,6 @@ export default function MessageComposer({
         )}
       </div>
 
-      {/* Right Actions */}
       <div className="composer-right">
         <motion.button className="composer-action-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} title="Emoji">
           <Smile size={24} />
@@ -325,7 +484,7 @@ export default function MessageComposer({
           </motion.button>
         )}
 
-        <motion.button className={`composer-send-btn ${message.trim() ? "active" : ""}`} onClick={handleSend} disabled={!message.trim()} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} title="Send Message">
+        <motion.button className={`composer-send-btn ${canSend ? "active" : ""}`} onClick={handleSend} disabled={!canSend || disabled} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} title="Send Message">
           <Send size={20} />
         </motion.button>
       </div>
