@@ -42,7 +42,7 @@ const platforms = [
     id: 'windows', 
     name: 'Windows', 
     icon: Monitor, 
-    file: 'Descall-Setup-2.3.5.exe',
+    file: 'Descall-Setup-2.3.6.exe',
     size: '~138 MB',
     color: '#0078D4'
   },
