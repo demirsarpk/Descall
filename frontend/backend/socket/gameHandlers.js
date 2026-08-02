@@ -23,15 +23,32 @@ function msgId() {
   return `game-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function createGameMessage(content, gameData = null, type = "game_action") {
-  // Stable id per hand so client upserts in place and bubbles don't flash away
+/**
+ * One casino bubble per player in a group.
+ * Lobby → deal → hit/stand → result → again all upsert the same message.
+ */
+function sessionIdFor(ownerUserId) {
+  return ownerUserId ? `casino-session-${ownerUserId}` : null;
+}
+
+function createGameMessage(content, gameData = null, type = "game_action", ownerUserId = null) {
+  const owner = ownerUserId || gameData?.userId || null;
+  const sid = sessionIdFor(owner);
   const handId = gameData?.id;
+  const data =
+    gameData == null
+      ? null
+      : {
+          ...gameData,
+          sessionOwnerId: owner || gameData.sessionOwnerId || null,
+        };
   return {
-    id: handId ? `casino-hand-${handId}` : msgId(),
+    id: sid || (handId ? `casino-hand-${handId}` : msgId()),
+    sessionOwnerId: owner || null,
     sender: BOT_USER,
     content,
     type,
-    gameData,
+    gameData: data,
     created_at: new Date().toISOString(),
     timestamp: new Date().toISOString(),
   };
@@ -241,8 +258,9 @@ async function handleGameCommand(io, socket, userId, username, groupId, fullComm
         groupId,
         createGameMessage(
           "Did you mean **/bj**?\n\nStart a hand: `/bj 100`\nAll commands: `/help`",
-          null,
-          "game_help"
+          { userId },
+          "game_help",
+          userId
         )
       );
       break;
@@ -262,8 +280,9 @@ async function handleBlackjackStart(io, socket, userId, username, groupId, betAr
       groupId,
       createGameMessage(
         `**Blackjack**\n\nInvalid bet.\nUsage: \`/bj <amount>\`\nMin **${MIN_BET}** · Max **${MAX_BET.toLocaleString()}**`,
-        { status: "lobby", actions: [] },
-        "game_lobby"
+        { status: "lobby", actions: [], userId },
+        "game_lobby",
+        userId
       )
     );
     return;
@@ -271,14 +290,15 @@ async function handleBlackjackStart(io, socket, userId, username, groupId, betAr
 
   const existing = GameManager.get(userId, groupId);
   if (existing && existing.status !== "finished") {
-    emitToGroup(
+    emitGameUpdate(
       io,
       socket,
       groupId,
       createGameMessage(
         "You already have an active hand. Use **HIT**, **STAND**, or **DOUBLE**.",
         existing.getPublicState(),
-        "game_update"
+        "game_update",
+        userId
       )
     );
     return;
@@ -292,8 +312,9 @@ async function handleBlackjackStart(io, socket, userId, username, groupId, betAr
       groupId,
       createGameMessage(
         `Insufficient balance.\nYou have **${(credits.credits || 0).toLocaleString()}** · need **${bet.toLocaleString()}**`,
-        { status: "lobby", credits: credits.credits },
-        "game_lobby"
+        { status: "lobby", credits: credits.credits, userId },
+        "game_lobby",
+        userId
       )
     );
     return;
@@ -302,7 +323,12 @@ async function handleBlackjackStart(io, socket, userId, username, groupId, betAr
   // Escrow stake
   const afterDebit = await applyCreditDelta(userId, -bet);
   if (!afterDebit || afterDebit.credits < 0) {
-    emitToGroup(io, socket, groupId, createGameMessage("Could not place bet. Try again."));
+    emitToGroup(
+      io,
+      socket,
+      groupId,
+      createGameMessage("Could not place bet. Try again.", { status: "lobby", userId }, "game_lobby", userId)
+    );
     return;
   }
 
@@ -310,7 +336,17 @@ async function handleBlackjackStart(io, socket, userId, username, groupId, betAr
   if (created.error) {
     // Refund escrow
     await applyCreditDelta(userId, bet);
-    emitToGroup(io, socket, groupId, createGameMessage(`❌ ${created.error}`));
+    emitToGroup(
+      io,
+      socket,
+      groupId,
+      createGameMessage(
+        `❌ ${created.error}`,
+        { status: "lobby", credits: (await getUserCredits(userId)).credits, userId },
+        "game_lobby",
+        userId
+      )
+    );
     return;
   }
 
@@ -323,7 +359,8 @@ async function handleBlackjackStart(io, socket, userId, username, groupId, betAr
     const msg = createGameMessage(
       buildResultText(username, state),
       { ...state, credits: (await getUserCredits(userId)).credits },
-      "game_end"
+      "game_end",
+      userId
     );
     emitGameUpdate(io, socket, groupId, msg);
     return;
@@ -332,7 +369,8 @@ async function handleBlackjackStart(io, socket, userId, username, groupId, betAr
   const msg = createGameMessage(
     `**Blackjack** — @${username}\nBet **${bet.toLocaleString()}** · Balance **${afterDebit.credits.toLocaleString()}**`,
     { ...state, credits: afterDebit.credits },
-    "game_start"
+    "game_start",
+    userId
   );
   emitGameUpdate(io, socket, groupId, msg);
 }
@@ -340,12 +378,11 @@ async function handleBlackjackStart(io, socket, userId, username, groupId, betAr
 async function handleBlackjackAction(io, socket, userId, username, groupId, action) {
   const instance = GameManager.get(userId, groupId);
   if (!instance) {
-    emitToGroup(
-      io,
-      socket,
+    // Soft notice only — do not wipe a finished board with a fresh lobby
+    socket.emit("game:notice", {
       groupId,
-      createGameMessage("No active hand. Start with `/bj 100`.", { status: "lobby" }, "game_lobby")
-    );
+      text: "No active hand. Start with `/bj 100` or tap Again.",
+    });
     return;
   }
 
@@ -353,32 +390,38 @@ async function handleBlackjackAction(io, socket, userId, username, groupId, acti
     const extra = instance.originalBet;
     const credits = await getUserCredits(userId);
     if ((credits.credits || 0) < extra) {
-      emitToGroup(
+      emitGameUpdate(
         io,
         socket,
         groupId,
         createGameMessage(
           `Not enough credits to double (need **${extra.toLocaleString()}** more).`,
           instance.getPublicState(),
-          "game_update"
+          "game_update",
+          userId
         )
       );
       return;
     }
     const debited = await applyCreditDelta(userId, -extra);
     if (!debited) {
-      emitToGroup(io, socket, groupId, createGameMessage("Could not double bet."));
+      socket.emit("game:notice", { groupId, text: "Could not double bet." });
       return;
     }
   }
 
   const result = GameManager.action(userId, groupId, action);
   if (result.error) {
-    emitToGroup(
+    emitGameUpdate(
       io,
       socket,
       groupId,
-      createGameMessage(`❌ ${result.error}`, result.game || instance.getPublicState(), "game_update")
+      createGameMessage(
+        `❌ ${result.error}`,
+        result.game || instance.getPublicState(),
+        "game_update",
+        userId
+      )
     );
     return;
   }
@@ -392,7 +435,8 @@ async function handleBlackjackAction(io, socket, userId, username, groupId, acti
     const msg = createGameMessage(
       buildResultText(username, state),
       { ...state, credits: credits.credits },
-      "game_end"
+      "game_end",
+      userId
     );
     emitGameUpdate(io, socket, groupId, msg);
     return;
@@ -402,7 +446,8 @@ async function handleBlackjackAction(io, socket, userId, username, groupId, acti
   const msg = createGameMessage(
     `**${action.toUpperCase()}** — @${username}`,
     { ...state, credits: credits.credits },
-    "game_update"
+    "game_update",
+    userId
   );
   emitGameUpdate(io, socket, groupId, msg);
 }
@@ -463,7 +508,7 @@ async function handleCreditsCheck(io, socket, userId, groupId) {
     io,
     socket,
     groupId,
-    createGameMessage(content, { credits: credits.credits, stats: credits }, "game_credits")
+    createGameMessage(content, { credits: credits.credits, stats: credits, userId }, "game_credits", userId)
   );
 }
 
@@ -499,11 +544,11 @@ async function handleLeaderboard(io, socket, userId, groupId) {
       io,
       socket,
       groupId,
-      createGameMessage(content, { leaders: topUsers || [] }, "game_leaderboard")
+      createGameMessage(content, { leaders: topUsers || [], userId }, "game_leaderboard", userId)
     );
   } catch (err) {
     console.error("[Game] leaderboard:", err.message || err);
-    emitToGroup(io, socket, groupId, createGameMessage("Could not load leaderboard."));
+    socket.emit("game:notice", { groupId, text: "Could not load leaderboard." });
   }
 }
 
@@ -531,8 +576,9 @@ async function handleHelp(io, socket, userId, groupId, unknownCommand = null) {
     groupId,
     createGameMessage(
       content,
-      { credits: credits.credits },
-      "game_help"
+      { credits: credits.credits, userId },
+      "game_help",
+      userId
     )
   );
 }

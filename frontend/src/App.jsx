@@ -34,6 +34,7 @@ import {
 } from "./lib/userProfile";
 import audioManager, { initAudioManager } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
+import { useToast } from "./context/ToastContext";
 import AdminPanel from "./components/admin/AdminPanel";
 import TitleBar from "./components/TitleBar";
 import MessageList from "./components/chat/MessageList";
@@ -121,6 +122,7 @@ function normalizeGroupMessage(m) {
 
 export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
+  const { toast } = useToast();
   const [authError, setAuthError] = useState("");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [me, setMe] = useState(() => normalizeUser(getUser()));
@@ -725,17 +727,35 @@ export default function App() {
       notificationService.mention({ groupId, dmConversationId, from, text, groupName });
     });
 
-    // Game messages (blackjack, etc.) — upsert by hand id so HIT/STAND update in place
+    // Casino: one bubble per player (session id). Board never downgrades to lobby on stray clicks.
+    const isCasinoBoard = (msg) => {
+      const s = msg?.gameData?.status;
+      return s === "playing" || s === "dealer" || s === "dealing" || s === "finished";
+    };
+    const isCasinoBoardIncoming = (message) =>
+      isCasinoBoard(message) ||
+      ["game_start", "game_update", "game_end"].includes(message?.type);
+
     const upsertGameMessage = (groupId, message) => {
       if (!groupId || !message) return;
       const handId = message.gameData?.id;
-      const stableId = handId ? `casino-hand-${handId}` : message.id;
+      const ownerId =
+        message.sessionOwnerId ||
+        message.gameData?.sessionOwnerId ||
+        message.gameData?.userId ||
+        null;
+      const stableId = ownerId
+        ? `casino-session-${ownerId}`
+        : handId
+          ? `casino-hand-${handId}`
+          : message.id;
       const gameMessage = {
         id: stableId,
         from: message.sender || { id: "game-bot", username: "Casino" },
         text: message.content || "",
         type: message.type || "game_message",
         gameData: message.gameData ?? null,
+        sessionOwnerId: ownerId,
         timestamp: message.timestamp || new Date().toISOString(),
         isGameMessage: true,
         groupId,
@@ -743,21 +763,39 @@ export default function App() {
 
       setGroupMessagesById((prev) => {
         const cur = prev[groupId] ?? [];
-        const idx = cur.findIndex(
-          (m) =>
-            m.id === stableId ||
-            m.id === message.id ||
-            (handId && m.gameData?.id === handId)
-        );
+        const idx = cur.findIndex((m) => {
+          if (m.id === stableId || m.id === message.id) return true;
+          if (handId && m.gameData?.id === handId) return true;
+          if (
+            ownerId &&
+            m.isGameMessage &&
+            (m.sessionOwnerId === ownerId ||
+              m.gameData?.userId === ownerId ||
+              m.gameData?.sessionOwnerId === ownerId ||
+              m.id === `casino-session-${ownerId}` ||
+              (handId && m.id === `casino-hand-${handId}`))
+          ) {
+            return true;
+          }
+          return false;
+        });
         if (idx >= 0) {
+          const prevMsg = cur[idx];
+          // Never interrupt a live hand with lobby/help (fixes board vanishing on click)
+          const prevLive = ["playing", "dealer", "dealing"].includes(
+            prevMsg?.gameData?.status
+          );
+          if (prevLive && !isCasinoBoardIncoming(message)) {
+            return prev;
+          }
           const next = cur.slice();
-          const prevMsg = next[idx];
           next[idx] = {
             ...prevMsg,
             ...gameMessage,
-            id: prevMsg.id || stableId,
-            // Never clobber an existing board with a null/empty gameData
+            // Keep a single stable session id so Deal / Again never stacks menus
+            id: ownerId ? `casino-session-${ownerId}` : prevMsg.id || stableId,
             gameData: message.gameData != null ? message.gameData : prevMsg.gameData,
+            sessionOwnerId: ownerId || prevMsg.sessionOwnerId,
             isGameMessage: true,
           };
           return { ...prev, [groupId]: next };
@@ -772,6 +810,11 @@ export default function App() {
 
     socket.on("game:update", ({ groupId, message }) => {
       upsertGameMessage(groupId, message);
+    });
+
+    socket.on("game:notice", ({ text } = {}) => {
+      if (!text) return;
+      toast(text, "info");
     });
 
     socket.on("dm:message:update", ({ msgId, convWith, deliveredAt } = {}) => {
