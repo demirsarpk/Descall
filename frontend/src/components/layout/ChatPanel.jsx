@@ -2,7 +2,8 @@ import { useRef, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, Video, Users, Hash,
-  Settings, Search, MessageSquare, X, ChevronDown, ChevronRight, Menu, ChevronLeft
+  Settings, Search, MessageSquare, X, ChevronDown, ChevronRight, Menu, ChevronLeft,
+  UserPlus, Plus
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -14,6 +15,7 @@ import TypingIndicator from "../chat/TypingIndicator";
 import GuildChatView from "../servers/GuildChatView";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
+import { getPresenceStatus, STATUS_META } from "../../lib/presence";
 
 export default function ChatPanel({
   activeView,
@@ -48,6 +50,8 @@ export default function ChatPanel({
   onMenuClick,
   onMobileBack,
   showMobileBack = false,
+  onAddClick,
+  onViewChange,
   children
 }) {
   const messagesRef = useRef(null);
@@ -88,8 +92,8 @@ export default function ChatPanel({
 
   const getSubtitle = () => {
     if (activeDmUser) {
-      const isOnline = onlineUsers?.some(u => u.id === activeDmUser.id);
-      return isOnline ? "Online" : "Offline";
+      const status = getPresenceStatus(onlineUsers, activeDmUser.id);
+      return STATUS_META[status]?.label || "Offline";
     }
     if (activeGroup) {
       return `${activeGroup.memberCount || 0} members`;
@@ -99,6 +103,49 @@ export default function ChatPanel({
     }
     return "";
   };
+
+  const emptyCopy = (() => {
+    if (activeView === "friends") {
+      return {
+        title: "Find your friends",
+        body: isMobile
+          ? "Open the menu to see friends and who is online"
+          : "Add a friend to start chatting and calling",
+        primary: { label: "Add friend", action: () => onAddClick?.("friend") },
+        secondary: { label: "Browse chats", action: () => onViewChange?.("chat") },
+        icon: Users,
+      };
+    }
+    if (activeView === "groups") {
+      return {
+        title: "No group selected",
+        body: isMobile
+          ? "Open the menu to browse your groups"
+          : "Create a group or pick one from the sidebar",
+        primary: { label: "Create group", action: () => onAddClick?.("group") },
+        secondary: { label: "Find friends", action: () => onViewChange?.("friends") },
+        icon: Users,
+      };
+    }
+    if (activeView === "calls") {
+      return {
+        title: "Ready when you are",
+        body: "Pick a DM or group, then start a voice or video call",
+        primary: { label: "Open chats", action: () => onViewChange?.("chat") },
+        secondary: { label: "Open groups", action: () => onViewChange?.("groups") },
+        icon: Phone,
+      };
+    }
+    return {
+      title: "Welcome to Descall",
+      body: isMobile
+        ? "Open the menu to select a conversation"
+        : "Select a conversation — or start a new one",
+      primary: { label: "Start a chat", action: () => onAddClick?.("friend") },
+      secondary: { label: "Create group", action: () => onAddClick?.("group") },
+      icon: MessageSquare,
+    };
+  })();
 
   return (
     <>
@@ -123,7 +170,7 @@ export default function ChatPanel({
                 size={40}
                 user={activeDmUser}
               />
-              <StatusBadge status={onlineUsers?.some(u => u.id === activeDmUser.id) ? "online" : "offline"} />
+              <StatusBadge status={getPresenceStatus(onlineUsers, activeDmUser.id)} />
             </div>
           )}
           {activeGroup && (
@@ -254,25 +301,29 @@ export default function ChatPanel({
         )}
         {(activeDmUser || activeGroup) ? children : (
           <div className="empty-state">
-            <div className="empty-icon">
-              {activeView === "dms" && <MessageSquare size={64} />}
-              {activeView === "groups" && <Users size={64} />}
-              {activeView === "friends" && <Users size={64} />}
-              {activeView === "chat" && <MessageSquare size={64} />}
-              {activeView === "calls" && <Phone size={64} />}
-              {activeView === "servers" && <Hash size={64} />}
+            <div className="empty-icon-wrap">
+              {(() => {
+                const Icon = emptyCopy.icon || MessageSquare;
+                return <Icon size={40} strokeWidth={1.75} />;
+              })()}
             </div>
-            <h2>Welcome to Descall</h2>
-            {isMobile ? (
-              <p>
-                {activeView === "friends"
-                  ? "Open the menu to see friends and who is online"
-                  : activeView === "groups"
-                  ? "Open the menu to browse your groups"
-                  : "Open the menu to select a conversation"}
-              </p>
-            ) : (
-              <p>Select a conversation to start chatting</p>
+            <h2>{emptyCopy.title}</h2>
+            <p>{emptyCopy.body}</p>
+            {!isMobile && (
+              <div className="empty-cta-row">
+                {emptyCopy.primary && (
+                  <button type="button" className="empty-cta primary" onClick={emptyCopy.primary.action}>
+                    <Plus size={15} />
+                    {emptyCopy.primary.label}
+                  </button>
+                )}
+                {emptyCopy.secondary && (
+                  <button type="button" className="empty-cta" onClick={emptyCopy.secondary.action}>
+                    <UserPlus size={15} />
+                    {emptyCopy.secondary.label}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -332,7 +383,7 @@ export default function ChatPanel({
             <div key={m.id} className="member-row">
               <div className="member-avatar-wrap">
                 <Avatar name={m.username} size={32} user={m} />
-                <StatusBadge status={onlineUsers?.some((u) => u.id === m.id) ? "online" : "offline"} />
+                <StatusBadge status={getPresenceStatus(onlineUsers, m.id)} />
               </div>
               <span className="member-name">{m.username}</span>
             </div>

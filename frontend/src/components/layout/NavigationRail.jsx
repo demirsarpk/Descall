@@ -1,9 +1,13 @@
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageSquare, Users, Settings,
-  UserPlus, Phone, Shield, Plus, Zap, Server
+  UserPlus, Phone, Shield, Plus, Zap
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
+import { STATUS_META } from "../../lib/presence";
+
+const STATUS_OPTIONS = ["online", "idle", "dnd", "invisible"];
 
 export default function NavigationRail({
   activeView,
@@ -13,26 +17,39 @@ export default function NavigationRail({
   onAddClick,
   onVoiceClick,
   me,
-  isAdmin
+  isAdmin,
+  myStatus = "online",
+  onStatusChange,
 }) {
+  const [statusOpen, setStatusOpen] = useState(false);
+  const statusWrapRef = useRef(null);
+
   const navItems = [
     { id: "chat",     icon: MessageSquare, label: "Chats"    },
-    // { id: "servers",  icon: Server,          label: "Servers"  }, // Temporarily hidden
     { id: "groups",   icon: Users,         label: "Groups"   },
     { id: "friends",  icon: UserPlus,      label: "Friends"  },
     { id: "activity", icon: Zap,           label: "Activity" },
     { id: "calls",    icon: Phone,         label: "Calls"    },
   ];
 
+  useEffect(() => {
+    if (!statusOpen) return undefined;
+    const onDoc = (e) => {
+      if (!statusWrapRef.current?.contains(e.target)) setStatusOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [statusOpen]);
+
+  const statusKey = STATUS_META[myStatus] ? myStatus : "online";
+
   return (
     <nav className="nav-rail">
-      {/* Logo/Brand */}
       <div className="nav-rail-brand">
         <div className="brand-icon">D</div>
         <span className="brand-wordmark">descall</span>
       </div>
 
-      {/* Main Navigation */}
       <div className="nav-rail-main">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -54,7 +71,6 @@ export default function NavigationRail({
 
         <div className="nav-rail-divider" />
 
-        {/* Action buttons inside main scroll area */}
         <motion.button
           className="rail-btn"
           onClick={onAddClick}
@@ -88,18 +104,65 @@ export default function NavigationRail({
         )}
       </div>
 
-      {/* Bottom: User profile only */}
       <div className="nav-rail-bottom">
-        <button className="rail-user-panel" onClick={onUserClick}>
-          <div className="rail-user-avatar-wrap">
-            <Avatar
-              name={me?.username || "User"}
-              size={36}
-              user={me}
-            />
-            <span className="rail-user-status-dot" />
-          </div>
-        </button>
+        <div className="rail-user-status-wrap" ref={statusWrapRef} style={{ position: "relative" }}>
+          <button
+            type="button"
+            className="rail-user-panel"
+            onClick={() => setStatusOpen((v) => !v)}
+            onDoubleClick={onUserClick}
+            title={`${STATUS_META[statusKey]?.label || "Online"} — click to change`}
+          >
+            <div className="rail-user-avatar-wrap">
+              <Avatar
+                name={me?.username || "User"}
+                size={36}
+                user={me}
+              />
+              <span className={`rail-user-status-dot status-${statusKey}`} />
+            </div>
+          </button>
+
+          <AnimatePresence>
+            {statusOpen && (
+              <motion.div
+                className="status-picker"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+              >
+                {STATUS_OPTIONS.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`status-picker-item ${statusKey === key ? "active" : ""}`}
+                    onClick={() => {
+                      onStatusChange?.(key);
+                      setStatusOpen(false);
+                    }}
+                  >
+                    <span
+                      className="status-picker-dot"
+                      style={{ background: STATUS_META[key]?.color || "var(--text-muted)" }}
+                    />
+                    {STATUS_META[key]?.label || key}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="status-picker-item"
+                  onClick={() => {
+                    setStatusOpen(false);
+                    onUserClick?.();
+                  }}
+                >
+                  <Settings size={14} />
+                  User Settings
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </nav>
   );

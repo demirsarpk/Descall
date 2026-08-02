@@ -35,6 +35,40 @@ const saveSettings = (obj) => {
   localStorage.setItem(LEGACY_SETTINGS_KEY, json);
 };
 
+const ACCENT_SWATCHES = [
+  { id: "blurple", hex: "#5865F2" },
+  { id: "indigo", hex: "#4752C4" },
+  { id: "green", hex: "#23A55A" },
+  { id: "teal", hex: "#1ABC9C" },
+  { id: "fuchsia", hex: "#EB459E" },
+  { id: "gold", hex: "#F0B232" },
+  { id: "red", hex: "#ED4245" },
+];
+
+function hexToRgba(hex, alpha) {
+  const h = String(hex || "").replace("#", "");
+  if (h.length !== 6) return `rgba(88, 101, 242, ${alpha})`;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+export function applyAppearanceSettings({ accentColor, chatFontSize } = {}) {
+  const root = document.documentElement;
+  if (accentColor) {
+    root.style.setProperty("--primary", accentColor);
+    root.style.setProperty("--primary-2", accentColor);
+    root.style.setProperty("--primary-soft", hexToRgba(accentColor, 0.12));
+    root.style.setProperty("--primary-glow", hexToRgba(accentColor, 0.35));
+    root.style.setProperty("--shadow-glow-primary", `0 0 16px ${hexToRgba(accentColor, 0.24)}`);
+    root.style.setProperty("--accent", accentColor);
+  }
+  if (chatFontSize) {
+    root.style.setProperty("--chat-font-size", `${chatFontSize}px`);
+  }
+}
+
 function Toggle({ value, onChange, label }) {
   return (
     <button
@@ -102,7 +136,14 @@ const TAB_TITLES = {
   sound: "Sound Effects",
 };
 
-export default function UserPanel({ me, onClose, onLogout, onProfileUpdated }) {
+export default function UserPanel({
+  me,
+  onClose,
+  onLogout,
+  onProfileUpdated,
+  myStatus = "online",
+  onStatusChange,
+}) {
   const { isMobile } = useMobile();
   const [activeTab, setActiveTab] = useState("overview");
   const [mobileDetail, setMobileDetail] = useState(false);
@@ -123,10 +164,16 @@ export default function UserPanel({ me, onClose, onLogout, onProfileUpdated }) {
 
   /* ── Appearance ── */
   const [darkMode, setDarkMode] = useState(stored.darkMode !== false);
+  const [accentColor, setAccentColor] = useState(stored.accentColor || "#5865F2");
+  const [chatFontSize, setChatFontSize] = useState(stored.chatFontSize || 14);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
   }, [darkMode]);
+
+  useEffect(() => {
+    applyAppearanceSettings({ accentColor, chatFontSize });
+  }, [accentColor, chatFontSize]);
 
   /* ── Notifications ── */
   const [msgNotifications, setMsgNotifications] = useState(stored.msgNotifications !== false);
@@ -157,6 +204,8 @@ export default function UserPanel({ me, onClose, onLogout, onProfileUpdated }) {
   useEffect(() => {
     saveSettings({
       darkMode,
+      accentColor,
+      chatFontSize,
       msgNotifications,
       callNotifications,
       msgSounds,
@@ -167,6 +216,8 @@ export default function UserPanel({ me, onClose, onLogout, onProfileUpdated }) {
     });
   }, [
     darkMode,
+    accentColor,
+    chatFontSize,
     msgNotifications,
     callNotifications,
     msgSounds,
@@ -403,7 +454,7 @@ export default function UserPanel({ me, onClose, onLogout, onProfileUpdated }) {
                     user={{ ...me, avatarUrl: avatarUrl || me?.avatarUrl }}
                   />
                   <span className="us-hero-status">
-                    <StatusBadge status="online" />
+                    <StatusBadge status={myStatus === "invisible" ? "offline" : myStatus} />
                   </span>
                 </div>
                 <div className="us-hero-meta">
@@ -624,6 +675,79 @@ export default function UserPanel({ me, onClose, onLogout, onProfileUpdated }) {
                   </div>
                   {!darkMode && <Check size={14} className="us-theme-check" />}
                 </button>
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">Accent color</h4>
+              <div className="us-accent-grid">
+                {ACCENT_SWATCHES.map((swatch) => (
+                  <button
+                    key={swatch.id}
+                    type="button"
+                    className={`us-accent-swatch ${accentColor.toLowerCase() === swatch.hex.toLowerCase() ? "selected" : ""}`}
+                    style={{ background: swatch.hex, color: swatch.hex }}
+                    aria-label={swatch.id}
+                    onClick={() => setAccentColor(swatch.hex)}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">Chat font size</h4>
+              <div className="us-font-size-row">
+                <Type size={14} />
+                <input
+                  type="range"
+                  min={12}
+                  max={18}
+                  step={1}
+                  value={chatFontSize}
+                  onChange={(e) => setChatFontSize(Number(e.target.value))}
+                  aria-label="Chat font size"
+                />
+                <span style={{ fontSize: 12, color: "var(--text-muted)", width: 36 }}>{chatFontSize}px</span>
+              </div>
+              <div className="us-font-preview" style={{ marginTop: 10 }}>
+                The quick brown fox jumps over the lazy dog.
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">Status</h4>
+              <div className="us-card stack">
+                {["online", "idle", "dnd", "invisible"].map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`status-picker-item ${myStatus === key ? "active" : ""}`}
+                    onClick={() => onStatusChange?.(key)}
+                    style={{ position: "relative" }}
+                  >
+                    <span
+                      className="status-picker-dot"
+                      style={{
+                        background:
+                          key === "online"
+                            ? "var(--success)"
+                            : key === "idle"
+                            ? "var(--warning)"
+                            : key === "dnd"
+                            ? "var(--danger)"
+                            : "var(--text-muted)",
+                      }}
+                    />
+                    {key === "online"
+                      ? "Online"
+                      : key === "idle"
+                      ? "Idle"
+                      : key === "dnd"
+                      ? "Do Not Disturb"
+                      : "Invisible"}
+                    {myStatus === key && <Check size={14} style={{ marginLeft: "auto" }} />}
+                  </button>
+                ))}
               </div>
             </section>
           </div>

@@ -82,6 +82,8 @@
   --font-code: "JetBrains Mono", "Consolas", "Courier New", monospace;
   --font-heading: "Inter", "gg sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
+  --chat-font-size: 14px;
+
   --text-xs: 10px;
   --text-sm: 12px;
   --text-md: 14px;

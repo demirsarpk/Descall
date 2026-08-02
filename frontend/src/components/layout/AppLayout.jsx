@@ -65,6 +65,8 @@ export default function AppLayout({
   onRefreshGuilds,
   dmUnread = {},
   groupUnread = {},
+  myStatus = "online",
+  onStatusChange,
 }) {
   const { isMobile } = useMobile();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -150,8 +152,9 @@ export default function AppLayout({
   const showNotifBanner = !isElectron && !notifBannerDismissed && notifPermission === "default";
   const inConversation = !!(activeDmUser || activeGroup);
 
-  const handleAddClick = () => {
-    if (activeView === "groups") setAddTab("group");
+  const handleAddClick = (tab) => {
+    if (tab === "friend" || tab === "group") setAddTab(tab);
+    else if (activeView === "groups") setAddTab("group");
     else if (activeView === "friends") setAddTab("friend");
     else setAddTab("friend");
     setShowAddModal(true);
@@ -225,6 +228,8 @@ export default function AppLayout({
           onVoiceClick={handleVoiceClick}
           me={me}
           isAdmin={isAdmin}
+          myStatus={myStatus}
+          onStatusChange={onStatusChange}
         />
 
         {activeView === "activity" ? (
@@ -300,6 +305,8 @@ export default function AppLayout({
         onMenuClick={openMobileDrawer}
         onMobileBack={handleMobileBack}
         showMobileBack={isMobile && inConversation}
+        onAddClick={handleAddClick}
+        onViewChange={handleViewChange}
       >
         {children}
       </ChatPanel>
@@ -322,6 +329,8 @@ export default function AppLayout({
               onClose={closeUserPanel}
               onLogout={onLogout}
               onProfileUpdated={onProfileUpdated}
+              myStatus={myStatus}
+              onStatusChange={onStatusChange}
             />
           </>
         )}

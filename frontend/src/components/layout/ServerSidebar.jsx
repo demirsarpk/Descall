@@ -691,7 +691,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
                       size={40}
                       user={dm}
                     />
-                    <StatusBadge status={isOnline ? "online" : "offline"} />
+                    <StatusBadge status={onlineUsers?.find((u) => u.id === dm.id)?.status || (isOnline ? "online" : "offline")} />
                   </div>
                   <div className="dm-info conv-row-body">
                     <div className="conv-row-top">
@@ -1358,12 +1358,12 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
   const pendingRequests = Array.isArray(friendRequests) ? friendRequests : [];
 
-  const onlineFriends = safeFriends.filter(f =>
-    safeOnlineUsers.some(u => u.id === f.id)
-  );
-  const offlineFriends = safeFriends.filter(f =>
-    !safeOnlineUsers.some(u => u.id === f.id)
-  );
+  const isVisiblyOnline = (friendId) => {
+    const hit = safeOnlineUsers.find((u) => u.id === friendId);
+    return Boolean(hit && hit.status !== "invisible");
+  };
+  const onlineFriends = safeFriends.filter((f) => isVisiblyOnline(f.id));
+  const offlineFriends = safeFriends.filter((f) => !isVisiblyOnline(f.id));
 
   return (
     <div className="sidebar-section">
@@ -1453,7 +1453,9 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                         size={32}
                         user={friend}
                       />
-                      <StatusBadge status="online" />
+                      <StatusBadge
+                        status={safeOnlineUsers.find((u) => u.id === friend.id)?.status || "online"}
+                      />
                     </div>
                     <span className="friend-name">{friend.username}</span>
                   </motion.button>

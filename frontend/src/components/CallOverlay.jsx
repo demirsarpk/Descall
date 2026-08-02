@@ -13,6 +13,7 @@ import ScreenShareQualityPanel from "./voice/ScreenShareQualityPanel";
 import CallPipSource, { CallPipButton } from "./voice/CallPipSource";
 import IncomingCallCard from "./voice/IncomingCallCard";
 import { useIsNarrowViewport } from "../lib/useIsNarrowViewport";
+import useSpeaking from "../hooks/useSpeaking";
 
 /*
  * Google Meet-style call overlay
@@ -344,6 +345,9 @@ export default function CallOverlay({ call, groupCall, me }) {
           <span style={{ fontSize: 13, color: "#b5bac1" }}>
             {subtitle}{formattedDuration ? ` · ${formattedDuration}` : ""}
           </span>
+          {isDm && mode === "active" && (
+            <CallQualityHud quality={call?.connectionQuality || "unknown"} />
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, pointerEvents: "auto" }}>
           <TopIconBtn onClick={() => setShowParticipants(!showParticipants)} active={showParticipants}><Users size={18} /></TopIconBtn>
@@ -817,8 +821,41 @@ export default function CallOverlay({ call, groupCall, me }) {
    ParticipantTile — one rectangle in the grid or strip
    isSpeaking derived externally; videoRef only for remote video.
    ───────────────────────────────────────────────────────────────── */
-function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, isLocal, small = false, stream = null }) {
+function SpeakingRemoteSlot(props) {
+  const speaking = useSpeaking(props.remoteStream);
+  return <DmRemoteParticipantSlot {...props} isSpeaking={speaking} />;
+}
+
+function CallQualityHud({ quality = "unknown" }) {
+  const q = String(quality || "unknown");
+  const bars =
+    q === "good" ? 3 :
+    q === "connecting" || q === "unknown" ? 2 :
+    q === "poor" ? 1 :
+    0;
+  const label =
+    q === "good" ? "Good" :
+    q === "connecting" ? "Connecting" :
+    q === "poor" ? "Weak" :
+    q === "failed" ? "Failed" :
+    "Link";
+
+  return (
+    <div className={`call-quality-hud ${q}`} title={`Connection: ${label}`}>
+      <div className="call-quality-bars" aria-hidden>
+        <span className={bars >= 1 ? "on" : ""} style={{ height: 5 }} />
+        <span className={bars >= 2 ? "on" : ""} style={{ height: 8 }} />
+        <span className={bars >= 3 ? "on" : ""} style={{ height: 12 }} />
+      </div>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false }) {
   const elRef = useRef(null);
+  const detected = useSpeaking(stream, { muted: muted || (isLocal === false && !stream) });
+  const isSpeaking = Boolean(speakingProp || detected);
 
   const setVideoEl = useCallback((el) => {
     elRef.current = el;
@@ -838,24 +875,7 @@ function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, 
   }, [stream, hasVideo]);
 
   return (
-    <div
-      style={{
-        position: "relative",
-        borderRadius: small ? 10 : 14,
-        overflow: "hidden",
-        background: "#1a1b1f",
-        border: isSpeaking ? "2px solid #3ba55d" : "2px solid transparent",
-        boxShadow: isSpeaking ? "0 0 0 1px rgba(59,165,93,0.35)" : "none",
-        transition: "border-color 0.2s, box-shadow 0.2s",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minWidth: 0,
-        minHeight: 0,
-        width: "100%",
-        height: "100%",
-      }}
-    >
+    <div className={`participant-tile${small ? " small" : ""}${isSpeaking ? " is-speaking" : ""}`}>
       {hasVideo && (videoRef || stream) ? (
         <video
           ref={setVideoEl}
@@ -865,34 +885,15 @@ function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, 
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: small ? 6 : 12 }}>
+        <div className="participant-tile-avatar-stack">
           <Avatar name={username || "?"} size={small ? 36 : 64} imageUrl={avatarUrl} />
-          {!small && (
-            <span style={{ fontSize: 13, color: "#b5bac1", fontWeight: 500 }}>{username}</span>
-          )}
+          {!small && <span>{username}</span>}
         </div>
       )}
 
-      {/* Name label overlay at bottom */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: small ? "4px 8px" : "8px 12px",
-          background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        {isSpeaking && (
-          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#3ba55d", flexShrink: 0, animation: "callTilePulse 1.2s infinite" }} />
-        )}
-        <span style={{ fontSize: small ? 11 : 13, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {username}
-        </span>
+      <div className="participant-tile-label">
+        {isSpeaking && <span className="speaking-dot" />}
+        <span className="participant-tile-name">{username}</span>
       </div>
     </div>
   );
@@ -925,14 +926,20 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }
     }
   }, [localStream, isDm, call, groupCall]);
 
+  const localSpeaking = useSpeaking(localStream, {
+    muted: Boolean(isDm ? call?.muted : groupCall?.isMuted),
+  });
+
   return (
     <ParticipantTile
       username={username}
       avatarUrl={avatarUrl}
-      isSpeaking={false}
+      isSpeaking={localSpeaking}
       videoRef={hasVideo ? videoCallbackRef : null}
       hasVideo={hasVideo}
       isLocal
+      stream={localStream}
+      muted={Boolean(isDm ? call?.muted : groupCall?.isMuted)}
     />
   );
 }
@@ -995,7 +1002,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
           transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
           style={{ minWidth: 0, minHeight: 0, position: "relative" }}
         >
-          <DmRemoteParticipantSlot
+          <SpeakingRemoteSlot
             displayPeer={dmRemote.displayPeer}
             phase={dmRemote.phase}
             connectionStatus={dmRemote.connectionStatus}
@@ -1012,7 +1019,6 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
           <ParticipantTile
             username={tile.username}
             avatarUrl={tile.avatarUrl}
-            isSpeaking={false}
             videoRef={null}
             stream={tile.stream}
             hasVideo={tile.hasVideo}

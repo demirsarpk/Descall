@@ -1389,6 +1389,8 @@ export default function App() {
           dms={sortedDms}
           friends={friends}
           onlineUsers={onlineUsers}
+          myStatus={myStatus}
+          onStatusChange={handleStatusChange}
           onAdminClick={() => setAdminOpen(true)}
           isAdmin={me?.is_admin || me?.username === "admin"}
           onDmSelect={(dm) => {
