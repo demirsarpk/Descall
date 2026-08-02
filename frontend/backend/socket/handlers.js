@@ -122,6 +122,8 @@ function broadcastUsers(io) {
     list.push({
       id,
       username: cached?.username || p.username,
+      displayName: cached?.displayName || null,
+      display_name: cached?.displayName || null,
       status: publicPresenceStatus(p.status),
       avatarUrl: cached?.avatarUrl || p.avatar_url || null,
       avatar_url: cached?.avatarUrl || p.avatar_url || null,
@@ -138,6 +140,8 @@ function messageSender(userId, fallbackUsername, fallbackAvatar) {
     return {
       id: userId,
       username: cached.username,
+      displayName: cached.displayName || null,
+      display_name: cached.displayName || null,
       avatarUrl: cached.avatarUrl,
       avatar_url: cached.avatarUrl,
       avatarVersion: cached.avatarVersion,
@@ -147,6 +151,8 @@ function messageSender(userId, fallbackUsername, fallbackAvatar) {
   return {
     id: userId,
     username: fallbackUsername,
+    displayName: null,
+    display_name: null,
     avatarUrl: fallbackAvatar || null,
     avatar_url: fallbackAvatar || null,
   };
@@ -373,37 +379,41 @@ function registerSocketHandlers(io) {
     socketToUser.set(socket.id, myId);
     socket.data.activeDmPeer = null;
 
-    // Load full profile from DB (avatar, display name, persisted presence)
-    loadUserProfile(myId).then((profile) => {
-      if (!profile) return;
-      me.avatar_url = profile.avatar_url;
-      socket.user.avatar_url = profile.avatar_url;
-      const p = presence.get(myId);
-      if (p) {
-        p.avatar_url = profile.avatar_url;
-        // Restore DB status only when this is a fresh session (no other live socket)
-        if (!existingPresence) {
-          const allowed = ["online", "idle", "dnd", "invisible"];
-          const restored = allowed.includes(profile.presence_status)
-            ? profile.presence_status
-            : "online";
-          p.status = restored;
-        }
-        presence.set(myId, p);
-      }
-      socket.emit("status:current", { status: presence.get(myId)?.status || "online" });
-      broadcastUsers(io);
-    }).catch(() => {});
-
     setupAdminSocket(io, socket);
 
-    // Load friends and pending requests from DB, then fire all initial events together
+    // Load friends + full profile, then emit connected with displayName etc.
     Promise.all([
       loadFriendsFromDB(myId),
       loadPendingRequestsFromDB(myId),
-    ]).then(() => {
+      loadUserProfile(myId),
+    ]).then(([, , profile]) => {
+      if (profile) {
+        me.avatar_url = profile.avatar_url;
+        me.display_name = profile.display_name;
+        me.displayName = profile.display_name;
+        me.bio = profile.bio;
+        me.custom_status = profile.custom_status;
+        me.banner_url = profile.banner_url;
+        me.updated_at = profile.updated_at;
+        socket.user.avatar_url = profile.avatar_url;
+        socket.user.display_name = profile.display_name;
+        socket.user.displayName = profile.display_name;
+        const p = presence.get(myId);
+        if (p) {
+          p.avatar_url = profile.avatar_url;
+          if (!existingPresence) {
+            const allowed = ["online", "idle", "dnd", "invisible"];
+            const restored = allowed.includes(profile.presence_status)
+              ? profile.presence_status
+              : "online";
+            p.status = restored;
+          }
+          presence.set(myId, p);
+        }
+      }
+
       socket.emit("connected", {
-        user: me,
+        user: profile ? toPublicUser(profile) : me,
         message: "Socket connected successfully.",
       });
       socket.emit("status:current", { status: presence.get(myId)?.status || "online" });

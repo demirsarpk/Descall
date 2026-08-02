@@ -8,7 +8,7 @@ import {
 import { Avatar } from "../ui/Avatar";
 import { STATUS_META } from "../../lib/presence";
 import { getUser } from "../../lib/storage";
-import { resolveAvatarUrl } from "../../lib/userProfile";
+import { resolveAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 
 const STATUS_OPTIONS = ["online", "idle", "dnd", "invisible"];
 
@@ -230,7 +230,7 @@ export default function NavigationRail({
         >
           <div className="rail-user-avatar-wrap">
             <Avatar
-              name={railUser?.username || me?.username || "User"}
+              name={resolveDisplayName(railUser || me)}
               size={36}
               user={railUser}
               imageUrl={railAvatarUrl}

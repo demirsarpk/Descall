@@ -1,7 +1,14 @@
 /**
- * Single source of truth for user profile fields (especially avatar).
+ * Single source of truth for user profile fields (especially avatar + display name).
  * Always use normalizeUser() when storing user objects in state or localStorage.
  */
+
+function cleanDisplayName(value) {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const trimmed = String(value).trim();
+  return trimmed || null;
+}
 
 export function normalizeUser(user) {
   if (!user) return null;
@@ -13,13 +20,15 @@ export function normalizeUser(user) {
     user.updated_at ??
     user.updatedAt ??
     null;
+  const displayName = cleanDisplayName(user.displayName ?? user.display_name ?? null);
 
   return {
     ...user,
     avatarUrl: avatarUrl || null,
     avatar_url: avatarUrl || null,
     avatarVersion,
-    displayName: user.displayName || user.display_name || null,
+    displayName,
+    display_name: displayName,
     bio: user.bio || null,
     customStatus: user.customStatus || user.custom_status || null,
     bannerUrl: user.bannerUrl || user.banner_url || null,
@@ -54,7 +63,11 @@ export function resolveAvatarUrl(user) {
 
 export function resolveDisplayName(user) {
   if (!user) return "Unknown";
-  return user.displayName || user.display_name || user.username || "Unknown";
+  return (
+    cleanDisplayName(user.displayName ?? user.display_name) ||
+    user.username ||
+    "Unknown"
+  );
 }
 
 /** First non-empty avatar URL from a list of user-like objects / strings. */
@@ -73,7 +86,7 @@ export function pickAvatarUrl(...sources) {
 }
 
 /**
- * Merge profile shards without letting null avatar/banner/bio wipe known values.
+ * Merge profile shards without letting null avatar/banner/bio/displayName wipe known values.
  */
 export function mergeUserProfiles(...parts) {
   const list = parts.filter(Boolean);
@@ -86,6 +99,13 @@ export function mergeUserProfiles(...parts) {
   } else {
     out.avatarUrl = null;
     out.avatar_url = null;
+  }
+  const displayName = list
+    .map((p) => cleanDisplayName(p.displayName ?? p.display_name))
+    .find((v) => v);
+  if (displayName) {
+    out.displayName = displayName;
+    out.display_name = displayName;
   }
   const banner = list.map((p) => p.bannerUrl || p.banner_url).find((v) => typeof v === "string" && v.trim());
   if (banner) {
@@ -104,6 +124,47 @@ export function mergeUserProfiles(...parts) {
   return normalizeUser(out);
 }
 
+/** Apply a partial profile patch without wiping unspecified fields. */
+export function patchUserProfile(user, patch = {}) {
+  if (!user) return user;
+  const next = { ...user };
+
+  if ("avatarUrl" in patch || "avatar_url" in patch) {
+    const a = patch.avatarUrl ?? patch.avatar_url;
+    if (a) {
+      next.avatarUrl = a;
+      next.avatar_url = a;
+    }
+  }
+
+  if ("displayName" in patch || "display_name" in patch) {
+    const d = cleanDisplayName(patch.displayName ?? patch.display_name);
+    next.displayName = d;
+    next.display_name = d;
+  }
+
+  if ("bio" in patch && patch.bio !== undefined) next.bio = patch.bio;
+  if ("customStatus" in patch || "custom_status" in patch) {
+    next.customStatus = patch.customStatus ?? patch.custom_status ?? null;
+    next.custom_status = next.customStatus;
+  }
+  if ("bannerUrl" in patch || "banner_url" in patch) {
+    const b = patch.bannerUrl ?? patch.banner_url;
+    if (b) {
+      next.bannerUrl = b;
+      next.banner_url = b;
+    }
+  }
+
+  const version =
+    patch.avatarVersion ?? patch.updated_at ?? patch.updatedAt ?? user.avatarVersion ?? Date.now();
+  next.avatarVersion = version;
+  next.updated_at =
+    typeof version === "number" ? new Date(version).toISOString() : version || user.updated_at;
+
+  return normalizeUser(next);
+}
+
 export function patchUserAvatar(user, avatarUrl, avatarVersion) {
   if (!user) return user;
   // Never wipe an existing photo with a null/empty patch (stale socket payloads).
@@ -111,28 +172,49 @@ export function patchUserAvatar(user, avatarUrl, avatarVersion) {
     avatarUrl === undefined || avatarUrl === null || avatarUrl === ""
       ? user.avatarUrl || user.avatar_url || null
       : avatarUrl;
-  return normalizeUser({
-    ...user,
+  return patchUserProfile(user, {
     avatarUrl: nextAvatar,
-    avatar_url: nextAvatar,
     avatarVersion: avatarVersion ?? user.avatarVersion ?? Date.now(),
     updated_at: avatarVersion ?? user.updated_at ?? new Date().toISOString(),
   });
 }
 
-export function patchUserInList(list, userId, avatarUrl, avatarVersion) {
+export function patchUserInList(list, userId, patchOrAvatarUrl, avatarVersion) {
   if (!Array.isArray(list)) return list;
+  const patch =
+    patchOrAvatarUrl && typeof patchOrAvatarUrl === "object" && !Array.isArray(patchOrAvatarUrl)
+      ? patchOrAvatarUrl
+      : { avatarUrl: patchOrAvatarUrl, avatarVersion };
   let changed = false;
   const next = list.map((item) => {
     if (item?.id !== userId) return item;
     changed = true;
-    return patchUserAvatar(item, avatarUrl, avatarVersion);
+    return patchUserProfile(item, patch);
   });
   return changed ? next : list;
 }
 
-export function patchDmMessagesAvatar(dmByUserId, userId, avatarUrl, avatarVersion) {
+function patchMessageUserFields(message, userId, patch) {
+  const fromId = message.from?.id || message.sender?.id || message.sender_id;
+  if (fromId !== userId) return message;
+  const from = message.from ? patchUserProfile(message.from, patch) : message.from;
+  const sender = message.sender ? patchUserProfile(message.sender, patch) : message.sender;
+  return {
+    ...message,
+    from,
+    sender,
+    username: resolveDisplayName(from || sender) || message.username,
+    displayName: from?.displayName || sender?.displayName || message.displayName,
+    avatarUrl: from?.avatarUrl || sender?.avatarUrl || message.avatarUrl,
+  };
+}
+
+export function patchDmMessagesAvatar(dmByUserId, userId, patchOrAvatarUrl, avatarVersion) {
   if (!dmByUserId || typeof dmByUserId !== "object") return dmByUserId;
+  const patch =
+    patchOrAvatarUrl && typeof patchOrAvatarUrl === "object" && !Array.isArray(patchOrAvatarUrl)
+      ? patchOrAvatarUrl
+      : { avatarUrl: patchOrAvatarUrl, avatarVersion };
   let any = false;
   const next = {};
   for (const [peerId, messages] of Object.entries(dmByUserId)) {
@@ -141,23 +223,21 @@ export function patchDmMessagesAvatar(dmByUserId, userId, avatarUrl, avatarVersi
       continue;
     }
     const patched = messages.map((m) => {
-      const fromId = m.from?.id || m.sender?.id || m.sender_id;
-      if (fromId !== userId) return m;
-      any = true;
-      return {
-        ...m,
-        from: m.from ? patchUserAvatar(m.from, avatarUrl, avatarVersion) : m.from,
-        sender: m.sender ? patchUserAvatar(m.sender, avatarUrl, avatarVersion) : m.sender,
-        avatarUrl: avatarUrl || m.avatarUrl,
-      };
+      const out = patchMessageUserFields(m, userId, patch);
+      if (out !== m) any = true;
+      return out;
     });
     next[peerId] = patched;
   }
   return any ? next : dmByUserId;
 }
 
-export function patchGroupMessagesAvatar(groupMessagesById, userId, avatarUrl, avatarVersion) {
+export function patchGroupMessagesAvatar(groupMessagesById, userId, patchOrAvatarUrl, avatarVersion) {
   if (!groupMessagesById || typeof groupMessagesById !== "object") return groupMessagesById;
+  const patch =
+    patchOrAvatarUrl && typeof patchOrAvatarUrl === "object" && !Array.isArray(patchOrAvatarUrl)
+      ? patchOrAvatarUrl
+      : { avatarUrl: patchOrAvatarUrl, avatarVersion };
   let any = false;
   const next = {};
   for (const [groupId, messages] of Object.entries(groupMessagesById)) {
@@ -166,15 +246,9 @@ export function patchGroupMessagesAvatar(groupMessagesById, userId, avatarUrl, a
       continue;
     }
     const patched = messages.map((m) => {
-      const fromId = m.from?.id || m.sender?.id || m.sender_id;
-      if (fromId !== userId) return m;
-      any = true;
-      return {
-        ...m,
-        from: m.from ? patchUserAvatar(m.from, avatarUrl, avatarVersion) : m.from,
-        sender: m.sender ? patchUserAvatar(m.sender, avatarUrl, avatarVersion) : m.sender,
-        avatarUrl: avatarUrl || m.avatarUrl,
-      };
+      const out = patchMessageUserFields(m, userId, patch);
+      if (out !== m) any = true;
+      return out;
     });
     next[groupId] = patched;
   }
