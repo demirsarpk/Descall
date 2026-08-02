@@ -60,9 +60,9 @@ export default function MessageBubble({
             title="Profile"
           >
             <Avatar
-              name={message.username || "?"}
+              name={message.from?.displayName || message.displayName || message.username || "?"}
               size={40}
-              user={message.from || { avatarUrl: message.avatarUrl, username: message.username }}
+              user={message.from || { avatarUrl: message.avatarUrl, username: message.username, displayName: message.displayName }}
               animate="hover"
             />
           </button>
@@ -78,7 +78,7 @@ export default function MessageBubble({
               className="msg-author"
               onClick={() => onOpenProfile?.(message)}
             >
-              {message.username || "Unknown"}
+              {message.from?.displayName || message.displayName || message.username || "Unknown"}
             </button>
             <span
               className="msg-time-wrap"

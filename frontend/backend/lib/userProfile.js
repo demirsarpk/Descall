@@ -120,6 +120,8 @@ async function broadcastUserProfileUpdate(io, userId) {
         if (sock?.user) {
           sock.user.avatar_url = profile.avatar_url;
           sock.user.username = profile.username || sock.user.username;
+          sock.user.display_name = profile.display_name;
+          sock.user.displayName = profile.display_name;
         }
       }
     } else if (p?.socketId) {
@@ -127,6 +129,8 @@ async function broadcastUserProfileUpdate(io, userId) {
       if (sock?.user) {
         sock.user.avatar_url = profile.avatar_url;
         sock.user.username = profile.username || sock.user.username;
+        sock.user.display_name = profile.display_name;
+        sock.user.displayName = profile.display_name;
       }
     }
   } catch (err) {
@@ -149,10 +153,14 @@ async function broadcastUserProfileUpdate(io, userId) {
     const cached = userProfileById.get(id);
     list.push({
       id,
-      username: pres.username,
+      username: cached?.username || pres.username,
+      displayName: cached?.display_name || null,
+      display_name: cached?.display_name || null,
       status: publicPresenceStatus(pres.status),
       avatarUrl: cached?.avatar_url || pres.avatar_url || null,
       avatar_url: cached?.avatar_url || pres.avatar_url || null,
+      avatarVersion: cached?.updated_at || null,
+      updated_at: cached?.updated_at || null,
     });
   }
   io.emit("users:update", list);

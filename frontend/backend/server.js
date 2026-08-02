@@ -318,7 +318,10 @@ app.put("/api/user/profile", requireAuth, async (req, res) => {
     const { displayName, bio, customStatus, accentColor, fontSize, uiDensity, bubbleStyle, avatarUrl, bannerUrl } = req.body;
     
     const updateData = {};
-    if (displayName !== undefined) updateData.display_name = displayName;
+    if (displayName !== undefined) {
+      const trimmed = typeof displayName === "string" ? displayName.trim() : "";
+      updateData.display_name = trimmed || null;
+    }
     if (bio !== undefined) updateData.bio = bio;
     if (customStatus !== undefined) updateData.custom_status = customStatus;
     if (accentColor !== undefined) updateData.accent_color = accentColor;

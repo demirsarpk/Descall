@@ -13,7 +13,7 @@ import MessageContent from "./MessageContent";
 import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
 import UserHoverCard from "../social/UserHoverCard";
-import { mergeUserProfiles, pickAvatarUrl } from "../../lib/userProfile";
+import { mergeUserProfiles, pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 const PICKER_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👏", "🤔", "👎"];
@@ -283,7 +283,7 @@ export default function MessageList({
                   }}
                 >
                   <Avatar
-                    name={avatarUser?.username || "Unknown"}
+                    name={resolveDisplayName(avatarUser)}
                     size={40}
                     user={avatarUser}
                     imageUrl={pickAvatarUrl(avatarUser)}
@@ -295,11 +295,11 @@ export default function MessageList({
                   <span
                     className="message-author"
                     onClick={openProfile}
-                    style={{ cursor: group.user?.id ? "pointer" : "default" }}
-                    onMouseEnter={(e) => { if (group.user?.id) e.currentTarget.style.textDecoration = "underline"; }}
+                    style={{ cursor: avatarUser?.id ? "pointer" : "default" }}
+                    onMouseEnter={(e) => { if (avatarUser?.id) e.currentTarget.style.textDecoration = "underline"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.textDecoration = ""; }}
                   >
-                    {group.user?.username || "Unknown"}
+                    {resolveDisplayName(avatarUser)}
                   </span>
                   <span className="message-timestamp">
                     {formatTimestamp(group.messages[0]?.timestamp)}

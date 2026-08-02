@@ -155,6 +155,8 @@ export default function UserProfileModal({
   };
 
   const displayUsername = profile?.username || username || "Unknown";
+  const displayName =
+    profile?.displayName || profile?.display_name || displayUsername;
   const displayAvatar = profile?.avatarUrl ?? avatarUrl ?? null;
   const bannerGradient = generateBannerGradient(displayUsername);
 
@@ -243,7 +245,7 @@ export default function UserProfileModal({
                 }}
               >
                 <div style={{ position: "relative", display: "inline-flex" }}>
-                  <Avatar name={displayUsername} size={72} user={profile || { avatarUrl: displayAvatar, username: displayUsername }} />
+                  <Avatar name={displayName} size={72} user={profile || { avatarUrl: displayAvatar, username: displayUsername, displayName }} />
                   <div style={{ position: "absolute", bottom: 3, right: 3 }}>
                     <StatusBadge status={status} size={14} />
                   </div>
@@ -253,11 +255,16 @@ export default function UserProfileModal({
               {/* Spacer for avatar overlap */}
               <div style={{ height: 44 }} />
 
-              {/* Username + status */}
+              {/* Display name + @username + status */}
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text-0)", lineHeight: 1.2 }}>
-                  {displayUsername}
+                  {displayName}
                 </div>
+                {displayName !== displayUsername && (
+                  <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
+                    @{displayUsername}
+                  </div>
+                )}
                 <div
                   style={{
                     fontSize: 12,

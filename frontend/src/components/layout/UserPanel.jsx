@@ -333,7 +333,7 @@ export default function UserPanel({
     setCustomStatus(me.customStatus || me.custom_status || "");
     setAvatarUrl(me.avatarUrl || me.avatar_url || "");
     setBannerUrl(me.bannerUrl || me.banner_url || "");
-  }, [me?.id, me?.avatarUrl, me?.avatar_url, me?.updated_at]);
+  }, [me?.id, me?.avatarUrl, me?.avatar_url, me?.displayName, me?.display_name, me?.updated_at]);
 
   const applyProfileLocally = (user) => {
     const normalized = normalizeUser(user);
@@ -351,14 +351,22 @@ export default function UserPanel({
       const res = await fetch(`${API_BASE_URL}/api/user/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ displayName, bio, customStatus, avatarUrl, bannerUrl }),
+        body: JSON.stringify({
+          displayName: (displayName || "").trim() || null,
+          bio,
+          customStatus,
+          avatarUrl,
+          bannerUrl,
+        }),
       });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
+        const savedName = (displayName || "").trim() || null;
         const updated = applyProfileLocally(
           data.user || {
             ...me,
-            displayName,
+            displayName: savedName,
+            display_name: savedName,
             bio,
             customStatus,
             avatarUrl,
@@ -367,6 +375,9 @@ export default function UserPanel({
           }
         );
         if (updated?.avatarUrl) setAvatarUrl(updated.avatarUrl);
+        if (updated) {
+          setDisplayName(updated.displayName || updated.username || "");
+        }
         setProfileSaved(true);
         setTimeout(() => setProfileSaved(false), 2000);
       } else {

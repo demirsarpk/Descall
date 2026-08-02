@@ -30,7 +30,7 @@ import {
   patchUserInList,
   patchDmMessagesAvatar,
   patchGroupMessagesAvatar,
-  patchUserAvatar,
+  resolveDisplayName,
 } from "./lib/userProfile";
 import audioManager, { initAudioManager } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
@@ -103,6 +103,7 @@ function normalizeGroupMessage(m) {
   const sender = normalizeUser(m.sender || {
     id: m.sender?.id || m.sender_id,
     username: m.sender?.username || "Unknown",
+    display_name: m.sender?.display_name || m.sender?.displayName,
     avatar_url: m.sender?.avatar_url,
     updated_at: m.sender?.updated_at,
   });
@@ -110,6 +111,7 @@ function normalizeGroupMessage(m) {
     id: m.id,
     from: sender,
     username: sender?.username || "Unknown",
+    displayName: sender?.displayName || null,
     avatarUrl: sender?.avatarUrl,
     text: m.content || "",
     timestamp: m.created_at || new Date().toISOString(),
@@ -245,7 +247,7 @@ export default function App() {
   const applyProfileUpdate = useCallback((user) => {
     const normalized = normalizeUser(user);
     if (!normalized?.id) return;
-    const { id, avatarVersion } = normalized;
+    const { id } = normalized;
     const stored = getUser();
     const existingSelf = me?.id === id ? me : stored?.id === id ? stored : null;
     // Prefer incoming avatar, but never clear a known photo with an empty patch.
@@ -256,27 +258,48 @@ export default function App() {
       existingSelf?.avatar_url ||
       null;
 
+    const patch = {
+      avatarUrl,
+      avatar_url: avatarUrl,
+      displayName: normalized.displayName,
+      display_name: normalized.displayName,
+      bio: normalized.bio,
+      customStatus: normalized.customStatus,
+      bannerUrl: normalized.bannerUrl,
+      avatarVersion: normalized.avatarVersion,
+      updated_at: normalized.updated_at,
+    };
+
     if (me?.id === id || stored?.id === id) {
       commitSessionUser({
         ...existingSelf,
         ...normalized,
         avatarUrl,
         avatar_url: avatarUrl,
+        displayName: normalized.displayName,
+        display_name: normalized.displayName,
       });
     }
 
-    setFriends((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
-    setFriendRequests((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
-    setOnlineUsers((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
-    setActiveDmUser((prev) => (prev?.id === id ? patchUserAvatar(prev, avatarUrl, avatarVersion) : prev));
+    setFriends((prev) => patchUserInList(prev, id, patch));
+    setFriendRequests((prev) => patchUserInList(prev, id, patch));
+    setOnlineUsers((prev) => patchUserInList(prev, id, patch));
+    setActiveDmUser((prev) => {
+      if (prev?.id !== id) return prev;
+      return normalizeUser({ ...prev, ...patch });
+    });
     setNotifications((prev) => prev.map((n) => {
       const fromId = n.meta?.fromUserId || n.meta?.userId || n.fromUserId;
       if (fromId !== id) return n;
-      if (!avatarUrl) return n;
-      return { ...n, avatarUrl, avatar_url: avatarUrl };
+      return {
+        ...n,
+        avatarUrl: avatarUrl || n.avatarUrl,
+        avatar_url: avatarUrl || n.avatar_url,
+        displayName: normalized.displayName || n.displayName,
+      };
     }));
-    setDmByUserId((prev) => patchDmMessagesAvatar(prev, id, avatarUrl, avatarVersion));
-    setGroupMessagesById((prev) => patchGroupMessagesAvatar(prev, id, avatarUrl, avatarVersion));
+    setDmByUserId((prev) => patchDmMessagesAvatar(prev, id, patch));
+    setGroupMessagesById((prev) => patchGroupMessagesAvatar(prev, id, patch));
   }, [commitSessionUser, me]);
 
   useEffect(() => {
@@ -517,7 +540,10 @@ export default function App() {
     });
 
     socket.on("connected", (payload) => {
-      if (payload?.user) { setUser(payload.user); }
+      if (payload?.user) {
+        // Merge — never let a thin socket payload wipe displayName / bio / banner.
+        commitSessionUser({ ...(getUser() || me || {}), ...payload.user });
+      }
       getMyGroups().then((raw) => {
         const groups = normalizeGroups(raw);
         setMyGroups(groups);
@@ -585,7 +611,7 @@ export default function App() {
         audioManager.play("notification");
         // Send notification for first friend coming online
         if (newOnlineFriends[0]) {
-          notificationService.friendOnline({ username: newOnlineFriends[0].username });
+          notificationService.friendOnline({ username: resolveDisplayName(newOnlineFriends[0]) });
         }
       }
       
@@ -732,6 +758,7 @@ export default function App() {
       const sender = normalizeUser(message.sender || {
         id: message.sender_id,
         username: message.sender?.username || "Unknown",
+        display_name: message.sender?.display_name || message.sender?.displayName,
         avatar_url: message.sender?.avatar_url,
         updated_at: message.sender?.updated_at,
       });
@@ -739,6 +766,7 @@ export default function App() {
         id: message.id,
         from: sender,
         username: sender?.username || "Unknown",
+        displayName: sender?.displayName || null,
         avatarUrl: sender?.avatarUrl,
         text: message.content || "",
         timestamp: message.created_at || new Date().toISOString(),
@@ -1595,6 +1623,7 @@ export default function App() {
                 from: normalizeUser({
                   id: me?.id,
                   username: me?.username,
+                  displayName: me?.displayName || me?.display_name,
                   avatarUrl: me?.avatarUrl || me?.avatar_url,
                   updated_at: me?.updated_at || me?.avatarVersion,
                 }),
@@ -1653,6 +1682,7 @@ export default function App() {
                 from: normalizeUser({
                   id: me?.id,
                   username: me?.username,
+                  displayName: me?.displayName || me?.display_name,
                   avatarUrl: me?.avatarUrl || me?.avatar_url,
                   updated_at: me?.updated_at || me?.avatarVersion,
                 }),

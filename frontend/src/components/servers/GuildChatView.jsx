@@ -65,7 +65,7 @@ function GuildMessageBubble({
     >
       {!compact ? (
         <div className="msg-avatar-wrap">
-          <Avatar name={sender.username || "?"} size={40} user={sender} />
+          <Avatar name={sender.displayName || sender.display_name || sender.username || "?"} size={40} user={sender} />
         </div>
       ) : (
         <div className="msg-avatar-spacer" aria-hidden />
@@ -73,7 +73,7 @@ function GuildMessageBubble({
       <div className="msg-body">
         {!compact && (
           <header className="msg-meta">
-            <span className="msg-author">{sender.username || "Unknown"}</span>
+            <span className="msg-author">{sender.displayName || sender.display_name || sender.username || "Unknown"}</span>
             <span className="msg-time-wrap">
               <time dateTime={message.created_at}>{formatTime(message.created_at)}</time>
             </span>

@@ -344,7 +344,7 @@ export default function MessageComposer({
           >
             <Reply size={14} />
             <div className="composer-reply-meta">
-              <strong>Replying to {replyTo.from?.username || "message"}</strong>
+              <strong>Replying to {replyTo.from?.displayName || replyTo.from?.display_name || replyTo.from?.username || "message"}</strong>
               <span>
                 {replyTo.text
                   ? String(replyTo.text).slice(0, 100)
