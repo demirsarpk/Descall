@@ -319,38 +319,39 @@ export default function ChatPanel({
       </div>
       )}
 
-      {/* Typing Indicator */}
-      <AnimatePresence>
-        {typingNames.length > 0 && (
-          <motion.div
-            key="typing-bar"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.18 }}
-            style={{ padding: '0 16px 4px', overflow: 'hidden' }}
-          >
-            <TypingIndicator names={typingNames} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Typing + composer only on real chat surfaces — never under Activity / guild views */}
+      {activeView !== "activity" && !activeGuildChannel && (activeDmUser || activeGroup) && (
+        <>
+          <AnimatePresence>
+            {typingNames.length > 0 && (
+              <motion.div
+                key="typing-bar"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.18 }}
+                style={{ padding: "0 16px 4px", overflow: "hidden" }}
+              >
+                <TypingIndicator names={typingNames} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      {/* Composer */}
-      {(activeDmUser || activeGroup) && (
-        <div className="composer-container">
-          <MessageComposer
-            onSend={onSendMessage}
-            disabled={!activeDmUser && !activeGroup}
-            activeDmUser={activeDmUser}
-            activeGroup={activeGroup}
-            onTypingDmStart={onTypingDmStart}
-            onTypingDmStop={onTypingDmStop}
-            onTypingGroupStart={onTypingGroupStart}
-            onTypingGroupStop={onTypingGroupStop}
-            replyTo={replyTo}
-            onClearReply={onClearReply}
-          />
-        </div>
+          <div className="composer-container">
+            <MessageComposer
+              onSend={onSendMessage}
+              disabled={!activeDmUser && !activeGroup}
+              activeDmUser={activeDmUser}
+              activeGroup={activeGroup}
+              onTypingDmStart={onTypingDmStart}
+              onTypingDmStop={onTypingDmStop}
+              onTypingGroupStart={onTypingGroupStart}
+              onTypingGroupStop={onTypingGroupStop}
+              replyTo={replyTo}
+              onClearReply={onClearReply}
+            />
+          </div>
+        </>
       )}
     </main>
 
