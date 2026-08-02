@@ -1055,12 +1055,16 @@
 /* ── Hover card ── */
 .user-hover-card {
   width: 280px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
   border-radius: 14px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--surface-1);
   border: 1px solid var(--border-2);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
   pointer-events: none;
+  box-sizing: border-box;
 }
 .uhc-banner {
   height: 72px;
