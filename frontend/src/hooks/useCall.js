@@ -313,49 +313,71 @@ export function useCall(socket) {
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
     pc.ontrack = (e) => {
-      const rs = e.streams[0];
-      setRemoteStream(rs);
-      markRemoteMediaReady(rs);
       const track = e.track;
-      
-      // Store remote stream for later use
-      if (track.kind === "audio" && remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = rs;
-        remoteAudioRef.current.muted = false; // Ensure not muted
-        remoteAudioRef.current.play().catch((err) => {});
+      // Mid-call camera renegotiation may omit e.streams — wrap the track.
+      const raw = e.streams?.[0];
+      const rs = (raw && raw.getTracks().length > 0) ? raw : new MediaStream([track]);
+
+      // Force a state update even when the same MediaStream gains a new track
+      // (same object identity would otherwise skip React re-renders).
+      setRemoteStream((prev) => {
+        if (prev && prev !== rs) {
+          // Merge newly arrived track into the existing remote stream when possible
+          try {
+            if (track && !prev.getTracks().includes(track)) prev.addTrack(track);
+            return new MediaStream(prev.getTracks());
+          } catch {
+            /* fall through */
+          }
+        }
+        if (prev === rs) return new MediaStream(rs.getTracks());
+        return rs;
+      });
+      markRemoteMediaReady(rs);
+
+      // Voice → camera upgrade: flip call type so UI mounts the remote <video>
+      if (track?.kind === "video") {
+        setCallType("video");
       }
 
-      if (track.kind === "video" && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = rs;
-        remoteVideoRef.current.play().catch((err) => {});
-      }
-      
-      // Handle muted tracks - wait for unmute
+      const attachMedia = () => {
+        if (track.kind === "audio" && remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = rs;
+          remoteAudioRef.current.muted = false;
+          remoteAudioRef.current.play().catch(() => {});
+        }
+        if (track.kind === "video" && remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = rs;
+          remoteVideoRef.current.play().catch(() => {});
+        }
+        if (remoteAudioRef.current && !remoteAudioRef.current.srcObject) {
+          remoteAudioRef.current.srcObject = rs;
+          remoteAudioRef.current.muted = false;
+          remoteAudioRef.current.play().catch(() => {});
+        }
+        if (remoteVideoRef.current && !remoteVideoRef.current.srcObject && track.kind === "video") {
+          remoteVideoRef.current.srcObject = rs;
+          remoteVideoRef.current.play().catch(() => {});
+        }
+      };
+
+      attachMedia();
+
       if (track?.muted) {
         track.onunmute = () => {
           markRemoteMediaReady(rs);
-          if (track.kind === "video" && remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = rs;
-            remoteVideoRef.current.play().catch((err) => {});
-          }
-          if (track.kind === "audio" && remoteAudioRef.current) {
-            remoteAudioRef.current.srcObject = rs;
-            remoteAudioRef.current.muted = false;
-            remoteAudioRef.current.play().catch((err) => {});
-          }
+          if (track.kind === "video") setCallType("video");
+          attachMedia();
         };
       }
-      
-      // Also attach combined stream to both refs for safety
-      if (remoteAudioRef.current && !remoteAudioRef.current.srcObject) {
-        remoteAudioRef.current.srcObject = rs;
-        remoteAudioRef.current.muted = false;
-        remoteAudioRef.current.play().catch((err) => {});
-      }
-      if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
-        remoteVideoRef.current.srcObject = rs;
-        remoteVideoRef.current.play().catch((err) => {});
-      }
+
+      track.onended = () => {
+        setRemoteStream((prev) => {
+          if (!prev) return prev;
+          const remaining = prev.getTracks().filter((t) => t !== track && t.readyState !== "ended");
+          return remaining.length ? new MediaStream(remaining) : null;
+        });
+      };
     };
 
     pc.onicecandidate = (e) => {
@@ -436,6 +458,8 @@ export function useCall(socket) {
           await pc.setLocalDescription(answer);
           socket.emit("call:answer", { toUserId: fromUser.id, answer: pc.localDescription });
           await flushIce(pc);
+          // Peer upgraded voice → video (camera on): update UI mode
+          if (incomingType === "video") setCallType("video");
         } catch (err) { console.error("[WebRTC] Renegotiation failed:", err); }
         return;
       }
@@ -668,49 +692,53 @@ export function useCall(socket) {
       setCameraOn(false);
     } else {
       try {
-        // Check if we already have a video track
         let videoTrack = localStreamRef.current?.getVideoTracks()[0];
-        
+        let addedNewTrack = false;
+
         if (videoTrack) {
-          // Re-enable existing track
+          // Re-enable existing track — frames resume without SDP
           videoTrack.enabled = true;
         } else {
-          // Get new video stream
           const videoStream = await navigator.mediaDevices.getUserMedia({
             video: { width: 1280, height: 720, facingMode: "user" },
           });
           videoTrack = videoStream.getVideoTracks()[0];
-          
-          // Add to local stream
           if (localStreamRef.current) {
             localStreamRef.current.addTrack(videoTrack);
           }
-          
-          // Add to peer connection - use transceiver to ensure it's sent
-          const sender = pc.addTrack(videoTrack, localStreamRef.current);
+          pc.addTrack(videoTrack, localStreamRef.current);
+          addedNewTrack = true;
         }
-        
+
         if (localVideoRef.current) {
           localVideoRef.current.style.display = "block";
           localVideoRef.current.srcObject = localStreamRef.current;
-          localVideoRef.current.play().catch((e) => {});
+          localVideoRef.current.play().catch(() => {});
         }
         setCameraOn(true);
         setCallType("video");
-        
-        // Trigger renegotiation for new track
-        if (pc.signalingState === "stable") {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          if (peerRef.current?.id && socket?.connected) {
-            socket.emit("call:offer", {
-              toUserId: peerRef.current.id,
-              offer: pc.localDescription,
-              callType: "video",
-            });
+
+        // Renegotiate so the remote peer gets the new video m-line
+        if (addedNewTrack) {
+          for (let i = 0; i < 10 && pc.signalingState !== "stable"; i += 1) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          if (pc.signalingState === "stable") {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            if (peerRef.current?.id && socket?.connected) {
+              socket.emit("call:offer", {
+                toUserId: peerRef.current.id,
+                offer: pc.localDescription,
+                callType: "video",
+              });
+            }
+          } else {
+            console.warn("[WebRTC] camera renegotiate skipped — signaling not stable");
           }
         }
-      } catch (err) { 
+      } catch (err) {
+        console.error("[WebRTC] toggleCamera failed:", err);
       }
     }
   }, [cameraOn, socket]);

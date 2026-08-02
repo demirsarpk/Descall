@@ -436,25 +436,38 @@ export function useGroupCall(socket, currentUserId = null) {
       }
 
       if (track.kind === "video") {
-        // Camera video track
-        remoteStreamsRef.current.set(userId, incomingStream);
+        // Camera video track — merge into existing peer stream when possible
+        const existingMain = remoteStreamsRef.current.get(userId);
+        let cameraStream = incomingStream;
+        if (existingMain && existingMain !== incomingStream) {
+          try {
+            if (!existingMain.getTracks().includes(track)) existingMain.addTrack(track);
+            cameraStream = existingMain;
+          } catch {
+            cameraStream = incomingStream;
+          }
+        }
+        remoteStreamsRef.current.set(userId, cameraStream);
         const applyCameraStream = () => {
           setParticipants((prev) => {
             if (userId === myIdRef.current) return prev;
             const exists = prev.find((p) => p.id === userId);
+            // New MediaStream identity so React remounts/attaches <video> on voice→camera
+            const nextStream = new MediaStream(cameraStream.getTracks());
             if (exists) {
+              if (exists.hasVideo && exists.stream === nextStream) return prev;
               return prev.map((p) => p.id === userId
-                ? { ...p, stream: incomingStream, hasVideo: true }
+                ? { ...p, stream: nextStream, hasVideo: true }
                 : p
               );
             }
             const storedUser = pcMapRef.current.get(userId)?.fromUser;
             return [...prev, {
               id: userId,
-              stream: incomingStream,
+              stream: nextStream,
               screenStream: null,
               hasVideo: true,
-              hasAudio: false,
+              hasAudio: nextStream.getAudioTracks().length > 0,
               isScreenSharing: false,
               username: storedUser?.username || storedUser?.displayName || "Member",
               avatarUrl: storedUser?.avatar_url || null,
@@ -793,7 +806,8 @@ export function useGroupCall(socket, currentUserId = null) {
     } else {
       try {
         let videoTrack = localStreamRef.current?.getVideoTracks()[0];
-        
+        let addedNewTrack = false;
+
         if (videoTrack) {
           videoTrack.enabled = true;
         } else {
@@ -801,11 +815,15 @@ export function useGroupCall(socket, currentUserId = null) {
             video: { width: 1280, height: 720, facingMode: "user" },
           });
           videoTrack = videoStream.getVideoTracks()[0];
-          
+
           if (localStreamRef.current) {
             localStreamRef.current.addTrack(videoTrack);
           }
-          
+
+          // Update call type BEFORE renegotiate so offer metadata says "video"
+          setCallType("video");
+          callTypeRef.current = "video";
+
           for (const [userId, peerData] of pcMapRef.current.entries()) {
             try {
               peerData.pc.addTrack(videoTrack, localStreamRef.current);
@@ -814,16 +832,21 @@ export function useGroupCall(socket, currentUserId = null) {
               console.error(`[GroupCall] camera addTrack failed for ${userId}:`, err);
             }
           }
+          addedNewTrack = true;
         }
-        
+
         if (localVideoRef.current) {
           localVideoRef.current.style.display = "block";
           localVideoRef.current.srcObject = localStreamRef.current;
           localVideoRef.current.play().catch(() => {});
         }
         setIsCameraOn(true);
-        setCallType("video");
+        if (!addedNewTrack) {
+          setCallType("video");
+          callTypeRef.current = "video";
+        }
       } catch (err) {
+        console.error("[GroupCall] toggleCamera failed:", err);
       }
     }
   }, [isCameraOn, renegotiateWithPeer]);
@@ -1219,9 +1242,13 @@ export function useGroupCall(socket, currentUserId = null) {
         });
 
         // After rolling back our offer to accept theirs, re-send ours if we still
-        // have a live screen (or other) track that needs to be signaled.
+        // have a live screen or camera track that needs to be signaled.
         if (rolledBack) {
           const screenTrack = screenStreamRef.current?.getVideoTracks()[0];
+          const cameraTrack = localStreamRef.current?.getVideoTracks()?.[0];
+          const needsResend =
+            (screenTrack && screenTrack.readyState === "live") ||
+            (cameraTrack && cameraTrack.readyState === "live" && cameraTrack.enabled);
           if (screenTrack && screenTrack.readyState === "live") {
             if (!peerData.screenSender) {
               try {
@@ -1230,6 +1257,8 @@ export function useGroupCall(socket, currentUserId = null) {
                 /* may already exist */
               }
             }
+          }
+          if (needsResend) {
             // Defer so our answer is processed first
             setTimeout(() => {
               renegotiateWithPeerRef.current?.(fromUserId, peerData)?.catch?.(() => {});

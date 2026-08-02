@@ -24,6 +24,12 @@ import { useIsNarrowViewport } from "../lib/useIsNarrowViewport";
  */
 const PULSE_STYLE = `@keyframes callTilePulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`;
 
+/** True when a MediaStream has a usable (non-ended) camera video track. */
+function streamHasLiveVideo(stream) {
+  if (!stream?.getVideoTracks) return false;
+  return stream.getVideoTracks().some((t) => t && t.readyState !== "ended");
+}
+
 export default function CallOverlay({ call, groupCall, me }) {
   const [minimized, setMinimized] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
@@ -275,7 +281,8 @@ export default function CallOverlay({ call, groupCall, me }) {
             username: call.peer.username,
             avatarUrl: resolveAvatarUrl(call.peer),
             stream: call.remoteStream,
-            hasVideo: callType === "video" && !!call.remoteStream,
+            // Prefer live video tracks over callType metadata (voice→camera upgrades)
+            hasVideo: streamHasLiveVideo(call.remoteStream) || callType === "video",
           }]
         : [])
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
@@ -810,7 +817,26 @@ export default function CallOverlay({ call, groupCall, me }) {
    ParticipantTile — one rectangle in the grid or strip
    isSpeaking derived externally; videoRef only for remote video.
    ───────────────────────────────────────────────────────────────── */
-function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, isLocal, small = false }) {
+function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, isLocal, small = false, stream = null }) {
+  const elRef = useRef(null);
+
+  const setVideoEl = useCallback((el) => {
+    elRef.current = el;
+    if (typeof videoRef === "function") videoRef(el);
+    else if (videoRef) videoRef.current = el;
+    if (el && stream && el.srcObject !== stream) {
+      el.srcObject = stream;
+      el.play().catch(() => {});
+    }
+  }, [videoRef, stream]);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el || !hasVideo || !stream) return;
+    if (el.srcObject !== stream) el.srcObject = stream;
+    el.play().catch(() => {});
+  }, [stream, hasVideo]);
+
   return (
     <div
       style={{
@@ -830,9 +856,9 @@ function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, 
         height: "100%",
       }}
     >
-      {hasVideo && videoRef ? (
+      {hasVideo && (videoRef || stream) ? (
         <video
-          ref={videoRef}
+          ref={setVideoEl}
           autoPlay
           playsInline
           muted={isLocal}
@@ -920,12 +946,18 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
     connectionQuality: isDm ? call?.connectionQuality : "unknown",
   });
 
-  const remoteTiles = remoteParticipants.map((p) => ({
-    id: p.id,
-    username: p.username || "Member",
-    avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
-    hasVideo: p.hasVideo || p.isCameraOn,
-  }));
+  const remoteTiles = remoteParticipants.map((p) => {
+    const live = streamHasLiveVideo(p.stream) || Boolean(p.hasVideo) || Boolean(p.isCameraOn);
+    return {
+      id: p.id,
+      username: p.username || "Member",
+      avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
+      stream: p.stream || null,
+      hasVideo: live,
+    };
+  });
+
+  const dmRemoteHasVideo = streamHasLiveVideo(call?.remoteStream) || callType === "video";
 
   const dmTwoUp = isDm && dmRemote.showSlot;
   const count = dmTwoUp ? 2 : 1 + remoteTiles.length;
@@ -968,7 +1000,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
             phase={dmRemote.phase}
             connectionStatus={dmRemote.connectionStatus}
             isMediaReady={dmRemote.isMediaReady}
-            hasVideo={callType === "video" && !!call?.remoteStream}
+            hasVideo={dmRemoteHasVideo}
             videoRef={call?.remoteVideoRef}
             remoteStream={call?.remoteStream}
           />
@@ -982,7 +1014,8 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
             avatarUrl={tile.avatarUrl}
             isSpeaking={false}
             videoRef={null}
-            hasVideo={false}
+            stream={tile.stream}
+            hasVideo={tile.hasVideo}
             isLocal={false}
           />
         </motion.div>
@@ -1074,8 +1107,22 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
 
   // Strip tiles: all participants + local self
   const stripTiles = [
-    { id: "local", username: localUsername, isLocal: true, hasVideo: hasLocalVideo, avatarUrl: localAvatarUrl },
-    ...remoteParticipants.map((p) => ({ id: p.id, username: p.username, avatarUrl: p.avatarUrl, isLocal: false, hasVideo: p.hasVideo || p.isCameraOn })),
+    {
+      id: "local",
+      username: localUsername,
+      isLocal: true,
+      hasVideo: hasLocalVideo,
+      avatarUrl: localAvatarUrl,
+      stream: isDm ? call?.localStream : groupCall?.localStream,
+    },
+    ...remoteParticipants.map((p) => ({
+      id: p.id,
+      username: p.username,
+      avatarUrl: p.avatarUrl,
+      isLocal: false,
+      hasVideo: streamHasLiveVideo(p.stream) || Boolean(p.hasVideo) || Boolean(p.isCameraOn),
+      stream: p.stream || null,
+    })),
   ];
 
   const stripH = narrow ? 72 : 110;
@@ -1282,6 +1329,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
                 avatarUrl={tile.avatarUrl}
                 isSpeaking={tile.isSpeaking}
                 videoRef={tile.hasVideo ? videoRef : null}
+                stream={tile.stream}
                 hasVideo={tile.hasVideo}
                 isLocal={tile.isLocal}
                 small
