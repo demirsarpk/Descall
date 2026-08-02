@@ -13,6 +13,7 @@ import MessageContent from "./MessageContent";
 import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
 import UserHoverCard from "../social/UserHoverCard";
+import { mergeUserProfiles, pickAvatarUrl } from "../../lib/userProfile";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 const PICKER_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👏", "🤔", "👎"];
@@ -22,30 +23,26 @@ function dmConversationId(a, b) {
   return [a, b].sort().join("::");
 }
 
-/** Fill missing avatar fields from friends / presence / me so letters don't stick. */
+/** Fill / preserve avatar fields from friends / presence / me so letters don't stick. */
 function enrichAvatarUser(user, { me, friends, onlineUsers, currentUser } = {}) {
   if (!user) return user;
   const id = user.id;
-  const hasAvatar = Boolean(user.avatarUrl || user.avatar_url);
-  if (hasAvatar) return user;
-
   const fromMe =
     id && (me?.id === id || currentUser?.id === id)
       ? me || currentUser
       : null;
   const fromFriend = id && Array.isArray(friends) ? friends.find((f) => f.id === id) : null;
   const fromOnline = id && Array.isArray(onlineUsers) ? onlineUsers.find((u) => u.id === id) : null;
-  const donor = fromMe || fromFriend || fromOnline;
-  if (!donor) return user;
+  return mergeUserProfiles(user, fromOnline, fromFriend, fromMe) || user;
+}
 
-  const avatarUrl = donor.avatarUrl || donor.avatar_url || null;
-  if (!avatarUrl) return user;
+function hoverAnchorFromRect(rect) {
+  if (!rect) return null;
   return {
-    ...user,
-    avatarUrl,
-    avatar_url: avatarUrl,
-    avatarVersion: donor.avatarVersion || donor.updated_at || user.avatarVersion,
-    updated_at: donor.updated_at || user.updated_at,
+    x: rect.right + 8,
+    y: Math.max(8, rect.top - 8),
+    // If the card would overflow right, flip to the left of the avatar.
+    flipX: rect.left - 8,
   };
 }
 
@@ -252,8 +249,9 @@ export default function MessageList({
         }
 
         const isOwn = group.user?.id === currentUser?.id;
+        const avatarUser = enrichAvatarUser(group.user, { me, friends, onlineUsers, currentUser });
         const openProfile = () => {
-          if (group.user?.id) setProfileTarget(group.user);
+          if (avatarUser?.id) setProfileTarget(avatarUser);
         };
 
         return (
@@ -266,21 +264,18 @@ export default function MessageList({
                 <div
                   className="message-avatar"
                   onClick={openProfile}
-                  style={{ cursor: group.user?.id ? "pointer" : "default" }}
+                  style={{ cursor: avatarUser?.id ? "pointer" : "default" }}
                   onMouseEnter={(e) => {
-                    if (!group.user?.id) return;
+                    if (!avatarUser?.id) return;
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const friend = (friends || []).find((f) => f.id === group.user.id);
-                    const online = (onlineUsers || []).find((u) => u.id === group.user.id);
-                    setHoverUser({
-                      ...group.user,
-                      ...friend,
-                      status: online?.status || friend?.status || "offline",
-                      customStatus: friend?.customStatus || friend?.custom_status || group.user.customStatus,
-                      bio: friend?.bio || group.user.bio,
-                      bannerUrl: friend?.bannerUrl || friend?.banner_url || group.user.bannerUrl,
-                    });
-                    setHoverPos({ x: rect.right + 8, y: Math.max(8, rect.top - 8) });
+                    const friend = (friends || []).find((f) => f.id === avatarUser.id);
+                    const online = (onlineUsers || []).find((u) => u.id === avatarUser.id);
+                    setHoverUser(
+                      mergeUserProfiles(avatarUser, friend, online, {
+                        status: online?.status || friend?.status || "offline",
+                      })
+                    );
+                    setHoverPos(hoverAnchorFromRect(rect));
                   }}
                   onMouseLeave={() => {
                     setHoverUser(null);
@@ -288,12 +283,13 @@ export default function MessageList({
                   }}
                 >
                   <Avatar
-                    name={group.user?.username || "Unknown"}
+                    name={avatarUser?.username || "Unknown"}
                     size={40}
-                    user={enrichAvatarUser(group.user, { me, friends, onlineUsers, currentUser })}
+                    user={avatarUser}
+                    imageUrl={pickAvatarUrl(avatarUser)}
                     animate="hover"
                   />
-                  <StatusBadge status={getPresenceStatus(onlineUsers, group.user?.id)} />
+                  <StatusBadge status={getPresenceStatus(onlineUsers, avatarUser?.id)} />
                 </div>
                 <div className="message-meta">
                   <span
@@ -333,10 +329,7 @@ export default function MessageList({
       <div ref={messagesEndRef} />
 
       {hoverUser && hoverPos && (
-        <UserHoverCard
-          user={hoverUser}
-          style={{ position: "fixed", left: hoverPos.x, top: hoverPos.y, zIndex: 80 }}
-        />
+        <UserHoverCard user={hoverUser} anchor={hoverPos} />
       )}
 
       <UserProfileModal
@@ -344,7 +337,7 @@ export default function MessageList({
         onClose={() => setProfileTarget(null)}
         userId={profileTarget?.id}
         username={profileTarget?.username}
-        avatarUrl={profileTarget?.avatarUrl}
+        avatarUrl={pickAvatarUrl(profileTarget)}
         me={me}
         friends={friends}
         onlineUsers={onlineUsers}
