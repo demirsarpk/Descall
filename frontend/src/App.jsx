@@ -57,8 +57,11 @@ function normalizeGroups(payload) {
 
 function parseInviteCodeFromLocation() {
   try {
+    const params = new URLSearchParams(window.location.search || "");
+    const fromQuery = (params.get("invite") || params.get("i") || "").trim();
+    if (fromQuery) return fromQuery;
     const path = window.location.pathname || "";
-    const match = path.match(/^\/(?:invite|i)\/([A-Za-z0-9_-]+)/i);
+    const match = path.match(/^\/(?:invite|i)\/([A-Za-z0-9_-]+)\/?$/i);
     return match?.[1] || null;
   } catch {
     return null;
@@ -67,9 +70,12 @@ function parseInviteCodeFromLocation() {
 
 function clearInvitePath() {
   try {
-    if (/^\/(?:invite|i)\//i.test(window.location.pathname || "")) {
-      window.history.replaceState({}, "", "/");
-    }
+    const path = window.location.pathname || "";
+    const params = new URLSearchParams(window.location.search || "");
+    const hasQueryInvite = params.has("invite") || params.has("i");
+    const hasPathInvite = /^\/(?:invite|i)\//i.test(path);
+    if (!hasQueryInvite && !hasPathInvite) return;
+    window.history.replaceState({}, "", "/");
   } catch {
     /* ignore */
   }
@@ -78,8 +84,10 @@ function clearInvitePath() {
 function writeInvitePath(code) {
   try {
     if (!code) return;
-    const next = `/invite/${encodeURIComponent(code)}`;
-    if (window.location.pathname !== next) {
+    // Root query form — required because Vite builds with base "./" and
+    // deep paths like /invite/:code break relative JS/CSS asset loading.
+    const next = `/?invite=${encodeURIComponent(code)}`;
+    if (`${window.location.pathname}${window.location.search}` !== next) {
       window.history.replaceState({}, "", next);
     }
   } catch {
