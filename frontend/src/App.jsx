@@ -41,6 +41,7 @@ import MessageList from "./components/chat/MessageList";
 import MessageComposer from "./components/chat/MessageComposer";
 import CallOverlay from "./components/CallOverlay";
 import GroupCallIncomingModal from "./components/GroupCallIncomingModal";
+import { requestFeedbackNudge } from "./components/feedback/FeedbackNudgeBanner";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
@@ -56,8 +57,11 @@ function normalizeGroups(payload) {
 
 function parseInviteCodeFromLocation() {
   try {
+    const params = new URLSearchParams(window.location.search || "");
+    const fromQuery = (params.get("invite") || params.get("i") || "").trim();
+    if (fromQuery) return fromQuery;
     const path = window.location.pathname || "";
-    const match = path.match(/^\/(?:invite|i)\/([A-Za-z0-9_-]+)/i);
+    const match = path.match(/^\/(?:invite|i)\/([A-Za-z0-9_-]+)\/?$/i);
     return match?.[1] || null;
   } catch {
     return null;
@@ -66,9 +70,12 @@ function parseInviteCodeFromLocation() {
 
 function clearInvitePath() {
   try {
-    if (/^\/(?:invite|i)\//i.test(window.location.pathname || "")) {
-      window.history.replaceState({}, "", "/");
-    }
+    const path = window.location.pathname || "";
+    const params = new URLSearchParams(window.location.search || "");
+    const hasQueryInvite = params.has("invite") || params.has("i");
+    const hasPathInvite = /^\/(?:invite|i)\//i.test(path);
+    if (!hasQueryInvite && !hasPathInvite) return;
+    window.history.replaceState({}, "", "/");
   } catch {
     /* ignore */
   }
@@ -77,8 +84,10 @@ function clearInvitePath() {
 function writeInvitePath(code) {
   try {
     if (!code) return;
-    const next = `/invite/${encodeURIComponent(code)}`;
-    if (window.location.pathname !== next) {
+    // Root query form — required because Vite builds with base "./" and
+    // deep paths like /invite/:code break relative JS/CSS asset loading.
+    const next = `/?invite=${encodeURIComponent(code)}`;
+    if (`${window.location.pathname}${window.location.search}` !== next) {
       window.history.replaceState({}, "", next);
     }
   } catch {
@@ -250,10 +259,43 @@ export default function App() {
   const typingGroupTimeoutsRef = useRef(new Map());
   const call = useCall(socketApi);
   const groupCall = useGroupCall(socketApi, me?.id);
+  const wasDmInCallRef = useRef(false);
+  const wasGroupInCallRef = useRef(false);
+  const lastDmCallDurationRef = useRef(0);
+  const lastGroupCallDurationRef = useRef(0);
 
   useEffect(() => {
     preloadIceServers().catch(() => {});
   }, []);
+
+  // Soft feedback nudge after voice/video calls end (≥45s)
+  useEffect(() => {
+    if (call?.isInCall) {
+      wasDmInCallRef.current = true;
+      lastDmCallDurationRef.current = Number(call.duration) || 0;
+      return;
+    }
+    if (wasDmInCallRef.current) {
+      wasDmInCallRef.current = false;
+      const secs = lastDmCallDurationRef.current || 0;
+      lastDmCallDurationRef.current = 0;
+      requestFeedbackNudge({ trigger: "after_call", callDurationMs: secs * 1000 });
+    }
+  }, [call?.isInCall, call?.duration]);
+
+  useEffect(() => {
+    if (groupCall?.isInCall) {
+      wasGroupInCallRef.current = true;
+      lastGroupCallDurationRef.current = Number(groupCall.duration) || 0;
+      return;
+    }
+    if (wasGroupInCallRef.current) {
+      wasGroupInCallRef.current = false;
+      const secs = lastGroupCallDurationRef.current || 0;
+      lastGroupCallDurationRef.current = 0;
+      requestFeedbackNudge({ trigger: "after_call", callDurationMs: secs * 1000 });
+    }
+  }, [groupCall?.isInCall, groupCall?.duration]);
 
   useEffect(() => {
     myIdRef.current = me?.id ?? null;

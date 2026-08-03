@@ -236,9 +236,15 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
                     onClick={() => handleSelect(gif)}
                   >
                     <img
-                      src={gif.images?.fixed_height_small?.url || gif.images?.preview_gif?.url}
+                      src={
+                        gif.images?.fixed_width_small?.url ||
+                        gif.images?.fixed_height_small?.url ||
+                        gif.images?.preview_gif?.url
+                      }
                       alt={gif.title || "GIF"}
                       loading="lazy"
+                      decoding="async"
+                      draggable={false}
                     />
                   </button>
                 ))

@@ -1032,6 +1032,7 @@
 
 .giphy-panel {
   position: fixed;
+  height: min(480px, calc(100vh - 96px));
   max-height: min(480px, calc(100vh - 96px));
   display: flex;
   flex-direction: column;
@@ -1157,35 +1158,48 @@
 
 .giphy-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   padding: 0 10px 10px;
+  overflow-x: hidden;
   overflow-y: auto;
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 180px;
+  align-content: start;
 }
 
+/* Padding-bottom square cells — more reliable than aspect-ratio on <button> */
 .giphy-cell {
   position: relative;
+  display: block;
+  width: 100%;
+  height: 0;
+  padding: 0;
+  padding-bottom: 100%;
   border: none;
   border-radius: 10px;
   overflow: hidden;
   cursor: pointer;
-  padding: 0;
   background: #2b2d33;
-  aspect-ratio: 1 / 1;
   outline: 2px solid transparent;
-  transition: transform 0.12s ease, outline-color 0.12s ease;
+  transition: outline-color 0.12s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 .giphy-cell:hover {
-  transform: scale(1.03);
+  outline-color: var(--primary, #5865f2);
+  z-index: 1;
+}
+.giphy-cell:focus-visible {
   outline-color: var(--primary, #5865f2);
 }
 .giphy-cell img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  pointer-events: none;
 }
 
 .giphy-state {

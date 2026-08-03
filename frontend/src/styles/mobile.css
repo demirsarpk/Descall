@@ -411,6 +411,103 @@
   flex-shrink: 0;
 }
 
+/* ── Feedback nudge banner (mirrors notif banner, auto-hides ~10s) ── */
+.app-feedback-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px 12px;
+  background: linear-gradient(90deg, #4752c4 0%, #5865f2 55%, #6a5cff 100%);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+.app-feedback-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: min(520px, 58vw);
+}
+.app-feedback-banner-text strong {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.app-feedback-banner-text span {
+  font-size: 12px;
+  opacity: 0.92;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-feedback-banner-btn {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(255, 255, 255, 0.22);
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.app-feedback-banner-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.app-feedback-banner-dismiss {
+  margin-left: 4px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.app-feedback-banner-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.35);
+  transform-origin: left center;
+  animation: feedback-nudge-progress 10s linear forwards;
+}
+@keyframes feedback-nudge-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (max-width: 640px) {
+  .app-feedback-banner {
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px 12px;
+  }
+  .app-feedback-banner-text {
+    max-width: none;
+    flex: 1;
+  }
+  .app-feedback-banner-text span {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+
 /* Mobile bottom tab bar (primary nav) */
 @media (max-width: 768px) {
   .app-root.is-mobile {
