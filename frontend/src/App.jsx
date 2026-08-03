@@ -442,12 +442,13 @@ export default function App() {
     };
     
     socketApi.on("user:updated", handleUserUpdated);
-    socketApi.on("user:profile:updated", ({ user }) => {
+    const handleProfileUpdated = ({ user }) => {
       if (user) applyProfileUpdate(user);
-    });
+    };
+    socketApi.on("user:profile:updated", handleProfileUpdated);
     return () => {
       socketApi.off("user:updated", handleUserUpdated);
-      socketApi.off("user:profile:updated");
+      socketApi.off("user:profile:updated", handleProfileUpdated);
     };
   }, [socketApi, commitSessionUser, applyProfileUpdate]);
 
@@ -556,7 +557,7 @@ export default function App() {
         connectSocket(token, { transports: ["polling"] });
         return;
       }
-      if (msg.toLowerCase().includes("xhr poll error") || msg.toLowerCase().includes("authentication failed") || msg.toLowerCase().includes("authentication required")) {
+      if (msg.toLowerCase().includes("authentication failed") || msg.toLowerCase().includes("authentication required")) {
         clearToken(); clearUser(); setMe(null); socket.disconnect();
       }
       if (msg.toLowerCase().includes("xhr poll error")) {
@@ -719,6 +720,24 @@ export default function App() {
       setDmHasMore(!!hasMore);
     });
 
+    socket.on("dm:error", ({ message, tempId, toUserId } = {}) => {
+      if (tempId && toUserId) {
+        setDmByUserId((prev) => {
+          const cur = prev[toUserId] ?? [];
+          if (!cur.some((m) => m.id === tempId)) return prev;
+          return {
+            ...prev,
+            [toUserId]: cur.map((m) =>
+              m.id === tempId ? { ...m, sending: false, failed: true } : m
+            ),
+          };
+        });
+      }
+      if (message) {
+        toast(message, "error");
+      }
+    });
+
     socket.on("dm:message", (message) => {
       const convWith = message?.convWith;
       if (!convWith) return;
@@ -865,6 +884,22 @@ export default function App() {
         const cur = prev[groupId] ?? [];
         return { ...prev, [groupId]: cur.filter((m) => m.id !== tempId) };
       });
+    });
+
+    socket.on("group:message:error", ({ groupId, tempId, message } = {}) => {
+      if (groupId && tempId) {
+        setGroupMessagesById((prev) => {
+          const cur = prev[groupId] ?? [];
+          if (!cur.some((m) => m.id === tempId)) return prev;
+          return {
+            ...prev,
+            [groupId]: cur.map((m) =>
+              m.id === tempId ? { ...m, sending: false, failed: true } : m
+            ),
+          };
+        });
+      }
+      if (message) toast(message, "error");
     });
 
     socket.on("mention:received", ({ groupId, dmConversationId, from, text, groupName }) => {
@@ -1277,7 +1312,28 @@ export default function App() {
           let normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
           const rx = await fetchConversationReactions("group", grp.id);
           normalized = mergeReactionsIntoMessages(normalized, rx);
-          setGroupMessagesById((prev) => ({ ...prev, [grp.id]: normalized }));
+          setGroupMessagesById((prev) => {
+            const existing = prev[grp.id] || [];
+            // Preserve ephemeral socket-only rows (casino boards, pending sends)
+            const keep = existing.filter((m) =>
+              m?.isGameMessage ||
+              m?.sending ||
+              m?.failed ||
+              (typeof m?.id === "string" && (m.id.startsWith("temp-") || m.id.startsWith("casino-"))) ||
+              (typeof m?.type === "string" && m.type.startsWith("game_"))
+            );
+            const byId = new Map(normalized.map((m) => [m.id, m]));
+            for (const m of keep) {
+              if (!byId.has(m.id)) byId.set(m.id, m);
+            }
+            // Keep chronological order: DB messages + any keep-only at end if missing timestamps
+            const merged = Array.from(byId.values()).sort((a, b) => {
+              const ta = new Date(a.timestamp || a.created_at || 0).getTime();
+              const tb = new Date(b.timestamp || b.created_at || 0).getTime();
+              return ta - tb;
+            });
+            return { ...prev, [grp.id]: merged };
+          });
         })
         .catch(console.error);
     }

@@ -10,7 +10,12 @@ import {
   resolveScreenCaptureSize,
   GROUP_SCREEN_DEFAULT_QUALITY,
 } from "../lib/webrtcScreenShare";
+import {
+  applyRemoteOffer,
+  isPolitePeer,
+} from "../lib/webrtcNegotiation";
 import { getIceServers, preloadIceServers } from "../lib/iceConfig";
+import { getUser } from "../lib/storage";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -190,8 +195,14 @@ export function useCall(socket) {
   const screenSharingRef = useRef(false);
   const stopScreenShareRef = useRef(null);
   const cleanupTimerRef = useRef(null);
+  const socketRef = useRef(socket);
+  const callTypeRef = useRef(callType);
+  const makingOfferRef = useRef(false);
+  const iceRestartAttemptedRef = useRef(false);
 
   useEffect(() => { peerRef.current = peer; }, [peer]);
+  useEffect(() => { socketRef.current = socket; }, [socket]);
+  useEffect(() => { callTypeRef.current = callType; }, [callType]);
 
   // Enumerate audio devices on mount and on device change
   useEffect(() => {
@@ -239,6 +250,8 @@ export function useCall(socket) {
     pendingIceRef.current = [];
     screenSenderRef.current = null;
     screenSharingRef.current = false;
+    makingOfferRef.current = false;
+    iceRestartAttemptedRef.current = false;
     setMode(null);
     setCallType(null);
     setPeer(null);
@@ -381,8 +394,9 @@ export function useCall(socket) {
     };
 
     pc.onicecandidate = (e) => {
-      if (e.candidate && peerRef.current?.id && socket?.connected) {
-        socket.emit("call:ice-candidate", { toUserId: peerRef.current.id, candidate: e.candidate });
+      const sock = socketRef.current;
+      if (e.candidate && peerRef.current?.id && sock?.connected) {
+        sock.emit("call:ice-candidate", { toUserId: peerRef.current.id, candidate: e.candidate });
       }
     };
 
@@ -390,8 +404,10 @@ export function useCall(socket) {
       const state = pc.connectionState;
       if (state === "connected") {
         setMode("active");
+        modeRef.current = "active";
         setConnectionQuality("good");
         setPeerConnectionState("connected");
+        iceRestartAttemptedRef.current = false;
       } else if (state === "connecting") {
         setPeerConnectionState("connecting");
         setConnectionQuality("connecting");
@@ -411,6 +427,7 @@ export function useCall(socket) {
       if (ice === "connected" || ice === "completed") {
         setConnectionQuality("good");
         setPeerConnectionState("connected");
+        iceRestartAttemptedRef.current = false;
       } else if (ice === "checking") {
         setPeerConnectionState("connecting");
         setConnectionQuality("connecting");
@@ -418,6 +435,16 @@ export function useCall(socket) {
         setPeerConnectionState("reconnecting");
         setConnectionQuality("poor");
       } else if (ice === "failed") {
+        // One automatic ICE restart before giving up
+        if (!iceRestartAttemptedRef.current && modeRef.current === "active") {
+          iceRestartAttemptedRef.current = true;
+          try {
+            pc.restartIce();
+            setPeerConnectionState("reconnecting");
+            setConnectionQuality("poor");
+            return;
+          } catch { /* fall through */ }
+        }
         setPeerConnectionState("disconnected");
         setConnectionQuality("failed");
       }
@@ -427,19 +454,25 @@ export function useCall(socket) {
     // Skip while dialing — startCall already sends the initial offer; a second
     // offer from negotiationneeded can race and confuse the callee popup.
     pc.onnegotiationneeded = async () => {
+      const sock = socketRef.current;
       try {
         if (modeRef.current !== "active") return;
-        if (!peerRef.current?.id || !socket?.connected) return;
+        if (!peerRef.current?.id || !sock?.connected) return;
+        if (makingOfferRef.current) return;
+        makingOfferRef.current = true;
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        socket.emit("call:offer", {
+        sock.emit("call:offer", {
           toUserId: peerRef.current.id,
           offer: pc.localDescription,
-          callType: callType || "voice",
+          callType: callTypeRef.current || "voice",
         });
       } catch { /* ignore */ }
+      finally {
+        makingOfferRef.current = false;
+      }
     };
-  }, [socket, callType, markRemoteMediaReady]);
+  }, [markRemoteMediaReady]);
 
   useEffect(() => {
     if (!socket) return;
@@ -451,12 +484,18 @@ export function useCall(socket) {
       const isRenegotiation = pc && modeRef.current === "active" && peerRef.current?.id === fromUser.id;
       
       if (isRenegotiation) {
-        // Renegotiation: update remote description and create answer
+        // Renegotiation with glare handling (same polite-peer rule as group calls)
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(offer));
+          const myId = getUser()?.id || null;
+          const polite = isPolitePeer(myId, fromUser.id);
+          const { accepted } = await applyRemoteOffer(pc, offer, {
+            polite,
+            makingOffer: Boolean(makingOfferRef.current),
+          });
+          if (!accepted) return;
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          socket.emit("call:answer", { toUserId: fromUser.id, answer: pc.localDescription });
+          socketRef.current?.emit("call:answer", { toUserId: fromUser.id, answer: pc.localDescription });
           await flushIce(pc);
           // Peer upgraded voice → video (camera on): update UI mode
           if (incomingType === "video") setCallType("video");
@@ -505,6 +544,7 @@ export function useCall(socket) {
 
     const onIce = async ({ fromUserId, candidate } = {}) => {
       if (!candidate || !fromUserId) return;
+      if (peerRef.current?.id && fromUserId !== peerRef.current.id) return;
       const pc = pcRef.current;
       if (!pc || !pc.remoteDescription) {
         pendingIceRef.current.push(candidate);
@@ -743,25 +783,33 @@ export function useCall(socket) {
           for (let i = 0; i < 10 && pc.signalingState !== "stable"; i += 1) {
             await new Promise((r) => setTimeout(r, 100));
           }
-          if (pc.signalingState === "stable") {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            if (peerRef.current?.id && socket?.connected) {
-              socket.emit("call:offer", {
-                toUserId: peerRef.current.id,
-                offer: pc.localDescription,
-                callType: "video",
-              });
+          // Prefer onnegotiationneeded (fires from addTrack). Manual offer only if
+          // negotiationneeded did not already fire while we waited for stable.
+          if (pc.signalingState === "stable" && !makingOfferRef.current) {
+            const sock = socketRef.current;
+            makingOfferRef.current = true;
+            try {
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              if (peerRef.current?.id && sock?.connected) {
+                sock.emit("call:offer", {
+                  toUserId: peerRef.current.id,
+                  offer: pc.localDescription,
+                  callType: "video",
+                });
+              }
+            } finally {
+              makingOfferRef.current = false;
             }
           } else {
-            console.warn("[WebRTC] camera renegotiate skipped — signaling not stable");
+            console.warn("[WebRTC] camera renegotiate skipped — signaling not stable or offer in flight");
           }
         }
       } catch (err) {
         console.error("[WebRTC] toggleCamera failed:", err);
       }
     }
-  }, [cameraOn, socket]);
+  }, [cameraOn]);
 
   // Keep stopScreenShareRef always pointing to latest stopScreenShare
   useEffect(() => {
@@ -816,18 +864,27 @@ export function useCall(socket) {
       setScreenStream(screenStream);
       screenSharingRef.current = true;
 
-      // Manual renegotiation fallback
+      // Manual renegotiation fallback only if onnegotiationneeded did not fire
       setTimeout(async () => {
-        if (pc.signalingState === "stable" && peerRef.current?.id && socket?.connected) {
+        const sock = socketRef.current;
+        if (
+          pc.signalingState === "stable" &&
+          !makingOfferRef.current &&
+          peerRef.current?.id &&
+          sock?.connected
+        ) {
+          makingOfferRef.current = true;
           try {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
-            socket.emit("call:offer", {
+            sock.emit("call:offer", {
               toUserId: peerRef.current.id,
               offer: pc.localDescription,
-              callType: "screen",
+              callType: callTypeRef.current || "voice",
             });
           } catch (err) {
+          } finally {
+            makingOfferRef.current = false;
           }
         }
       }, 500);
@@ -842,12 +899,12 @@ export function useCall(socket) {
       };
 
       setScreenSharing(true);
-      if (peerRef.current?.id && socket?.connected) {
-        socket.emit("screen:share-start", { toUserId: peerRef.current.id });
+      if (peerRef.current?.id && socketRef.current?.connected) {
+        socketRef.current.emit("screen:share-start", { toUserId: peerRef.current.id });
       }
     } catch (err) {
     }
-  }, [socket]);
+  }, []);
 
   const stopScreenShare = useCallback(() => {
     const pc = pcRef.current;
@@ -865,10 +922,10 @@ export function useCall(socket) {
     screenSharingRef.current = false;
     setScreenStream(null);
     setScreenSharing(false);
-    if (peerRef.current?.id && socket?.connected) {
-      socket.emit("screen:share-stop", { toUserId: peerRef.current.id });
+    if (peerRef.current?.id && socketRef.current?.connected) {
+      socketRef.current.emit("screen:share-stop", { toUserId: peerRef.current.id });
     }
-  }, [socket]);
+  }, []);
 
   const restartScreenShareWithQuality = useCallback(
     async (nextQuality) => {

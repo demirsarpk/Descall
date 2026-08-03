@@ -386,7 +386,22 @@ async function handleBlackjackAction(io, socket, userId, username, groupId, acti
     return;
   }
 
+  let result;
   if (action === "double") {
+    if (!instance.canDouble) {
+      emitGameUpdate(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `❌ DOUBLE is only available on your first two cards.`,
+          instance.getPublicState(),
+          "game_update",
+          userId
+        )
+      );
+      return;
+    }
     const extra = instance.originalBet;
     const credits = await getUserCredits(userId);
     if ((credits.credits || 0) < extra) {
@@ -408,22 +423,40 @@ async function handleBlackjackAction(io, socket, userId, username, groupId, acti
       socket.emit("game:notice", { groupId, text: "Could not double bet." });
       return;
     }
-  }
 
-  const result = GameManager.action(userId, groupId, action);
-  if (result.error) {
-    emitGameUpdate(
-      io,
-      socket,
-      groupId,
-      createGameMessage(
-        `❌ ${result.error}`,
-        result.game || instance.getPublicState(),
-        "game_update",
-        userId
-      )
-    );
-    return;
+    result = GameManager.action(userId, groupId, action);
+    if (result.error) {
+      // Refund the double stake — action failed after debit
+      await applyCreditDelta(userId, extra);
+      emitGameUpdate(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `❌ ${result.error}`,
+          result.game || instance.getPublicState(),
+          "game_update",
+          userId
+        )
+      );
+      return;
+    }
+  } else {
+    result = GameManager.action(userId, groupId, action);
+    if (result.error) {
+      emitGameUpdate(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `❌ ${result.error}`,
+          result.game || instance.getPublicState(),
+          "game_update",
+          userId
+        )
+      );
+      return;
+    }
   }
 
   const state = result.game;
