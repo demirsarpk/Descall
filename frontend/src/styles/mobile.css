@@ -178,16 +178,38 @@
     padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
   }
 
-  /* Members panel: full-width sheet on mobile */
+  /* Members panel: right sheet + backdrop */
+  .members-panel-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 399;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
   .members-panel {
     position: fixed !important;
     top: 0;
     right: 0;
     bottom: 0;
     width: min(85vw, 300px) !important;
+    max-width: 100%;
     z-index: 400;
     padding-top: env(safe-area-inset-top, 0px);
-    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.45);
+    border-left: 1px solid var(--border-2);
+  }
+
+  .members-panel-header {
+    padding-top: 12px;
+  }
+
+  .member-row {
+    padding: 8px 10px;
+    min-height: 44px;
   }
 
   /* User / settings panels — above drawer + notif banner */

@@ -17,7 +17,7 @@ import { isVisiblyOnline } from "../../lib/presence";
 import CallsView from "../calls/CallsView";
 import GroupInviteModal from "../groups/GroupInviteModal";
 import { markFeedbackSubmitted } from "../../lib/feedbackNudge";
-import { useT } from "../../context/LocaleContext";
+import { useLocale, useT } from "../../context/LocaleContext";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -679,15 +679,16 @@ function SectionChevron({ expanded }) {
   );
 }
 
-function formatConversationTime(iso, t) {
+function formatConversationTime(iso, t, locale) {
   if (!iso) return "";
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
     const now = new Date();
+    const loc = locale === "tr" ? "tr-TR" : locale === "en" ? "en-US" : undefined;
     const sameDay = d.toDateString() === now.toDateString();
     if (sameDay) {
-      return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
     }
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
@@ -695,9 +696,9 @@ function formatConversationTime(iso, t) {
     const weekAgo = new Date(now);
     weekAgo.setDate(now.getDate() - 6);
     if (d >= weekAgo) {
-      return d.toLocaleDateString(undefined, { weekday: "short" });
+      return d.toLocaleDateString(loc, { weekday: "short" });
     }
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return d.toLocaleDateString(loc, { month: "short", day: "numeric" });
   } catch {
     return "";
   }
@@ -738,6 +739,7 @@ const LIST_LAYOUT_TRANSITION = {
 
 function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect, isMobile, unreadById = {} }) {
   const t = useT();
+  const { locale } = useLocale();
   const safeDms = Array.isArray(dms) ? dms : [];
 
   return (
@@ -761,7 +763,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
               const isOnline = isVisiblyOnline(onlineUsers, dm.id);
               const isActive = activeDmUser?.id === dm.id;
               const unread = dm.unreadCount || unreadById[dm.id] || 0;
-              const timeLabel = formatConversationTime(dm.lastActivity, t);
+              const timeLabel = formatConversationTime(dm.lastActivity, t, locale);
 
               return (
                 <motion.button
@@ -1258,6 +1260,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
 
 function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed, isMobile, unreadById = {} }) {
   const t = useT();
+  const { locale } = useLocale();
   const safeGroups = Array.isArray(groups) ? groups : [];
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(null);   // group object
@@ -1353,8 +1356,8 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                 safeGroups.map((group) => {
                   const isActive = activeGroup?.id === group.id;
                   const unread = group.unreadCount || unreadById[group.id] || 0;
-                  const timeLabel = formatConversationTime(group.lastActivity, t);
-                  const preview = group.lastMessage || `${group.memberCount || 0} members`;
+                  const timeLabel = formatConversationTime(group.lastActivity, t, locale);
+                  const preview = group.lastMessage || t("No messages yet");
                   const swipeOpen = isMobile && swipeOpenId === group.id;
 
                   return (
