@@ -7,6 +7,7 @@ import {
 import GiphyPicker from "./GiphyPicker";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
+import { encodeVoiceContent, pickRecorderMime, extensionForMime } from "../../lib/voiceMessage";
 
 const EMOJI_CATEGORIES = [
   { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖","😺","😸","😹","😻","😼","😽","🙀","😿","😾"] },
@@ -354,21 +355,42 @@ export default function MessageComposer({
 
   const startRecording = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          channelCount: 1,
+        },
+      });
+      const mimeType = pickRecorderMime();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      const actualMime = recorder.mimeType || mimeType || "audio/webm";
       audioChunksRef.current = [];
       recordingTimeRef.current = 0;
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
       recorder.onstop = async () => {
         stopWaveform();
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        const durationSec = recordingTimeRef.current;
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        const blob = new Blob(audioChunksRef.current, { type: actualMime });
+        if (!blob.size) {
+          setUploadError("Empty recording — try again.");
+          setTimeout(() => setUploadError(""), 4000);
+          return;
+        }
+        const durationSec = Math.max(1, recordingTimeRef.current || 1);
         setUploading(true);
         try {
           const formData = new FormData();
-          formData.append("file", blob, `voice-${Date.now()}.webm`);
+          const ext = extensionForMime(actualMime);
+          formData.append("file", blob, `voice-${Date.now()}.${ext}`);
           const res = await fetch(`${API_BASE_URL}/api/media/upload`, {
             method: "POST",
             headers: { Authorization: `Bearer ${getToken()}` },
@@ -379,10 +401,12 @@ export default function MessageComposer({
           onSend?.(withReply({
             type: "media",
             mediaUrl: data.url,
-            mediaType: "audio",
-            originalName: data.originalName,
-            size: data.size,
+            mediaType: "voice",
+            mimeType: actualMime,
+            originalName: data.originalName || `voice.${ext}`,
+            size: data.size || blob.size,
             duration: durationSec,
+            text: encodeVoiceContent(durationSec),
           }));
           onClearReply?.();
         } catch (err) {
@@ -392,7 +416,16 @@ export default function MessageComposer({
           setUploading(false);
         }
       };
-      recorder.start();
+      recorder.onerror = () => {
+        stopWaveform();
+        stream.getTracks().forEach((t) => t.stop());
+        if (timerRef.current) clearInterval(timerRef.current);
+        setIsRecording(false);
+        setUploadError("Recording failed.");
+        setTimeout(() => setUploadError(""), 4000);
+      };
+      // timeslice helps finalize duration metadata on some browsers
+      recorder.start(250);
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
       setRecordingTime(0);
@@ -401,6 +434,16 @@ export default function MessageComposer({
         setRecordingTime((t) => {
           const next = t + 1;
           recordingTimeRef.current = next;
+          if (next >= 120) {
+            // auto-stop at 2 minutes
+            try {
+              mediaRecorderRef.current?.state === "recording" && mediaRecorderRef.current.stop();
+            } catch {
+              /* ignore */
+            }
+            setIsRecording(false);
+            if (timerRef.current) clearInterval(timerRef.current);
+          }
           return next;
         });
       }, 1000);
@@ -413,8 +456,23 @@ export default function MessageComposer({
   }, [onSend, replyTo, onClearReply]);
 
   const stopRecording = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    mediaRecorderRef.current?.stop();
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      try {
+        rec.requestData?.();
+      } catch {
+        /* ignore */
+      }
+      try {
+        rec.stop();
+      } catch {
+        /* ignore */
+      }
+    }
     setIsRecording(false);
   }, []);
 

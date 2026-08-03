@@ -99,7 +99,7 @@ function registerGroupHandlers(io, socket, state) {
   });
 
   // Group message — persist to DB then broadcast
-  socket.on("group:message", async ({ groupId, tempId, content, mediaUrl, mediaType, replyTo }) => {
+  socket.on("group:message", async ({ groupId, tempId, content, mediaUrl, mediaType, duration, replyTo }) => {
     if (!groupId || (!content?.trim() && !mediaUrl)) {
       appendErrorLog("group:message", "Missing required parameters", { groupId, hasContent: !!content, hasMedia: !!mediaUrl }, myId, socket.user?.username);
       if (tempId) {
@@ -108,7 +108,15 @@ function registerGroupHandlers(io, socket, state) {
       return;
     }
 
-    const trimmedContent = content?.trim() || null;
+    const isVoice = mediaType === "voice" || mediaType === "audio";
+    let trimmedContent = content?.trim() || null;
+    if (isVoice && mediaUrl) {
+      const dur = Math.max(0, Math.round(Number(duration) || 0));
+      // Persist duration in content so it survives page reload (no DB column needed)
+      if (!trimmedContent || !trimmedContent.startsWith("__voice__:")) {
+        trimmedContent = `__voice__:${dur || 1}`;
+      }
+    }
 
     // Check if this is a game command (starts with /)
     if (trimmedContent && trimmedContent.startsWith('/')) {
@@ -140,7 +148,7 @@ function registerGroupHandlers(io, socket, state) {
         sender_id: myId,
         content: trimmedContent,
         media_url: mediaUrl || null,
-        media_type: mediaType || null,
+        media_type: isVoice ? "voice" : (mediaType || null),
         message_type: "text",
       })
       .select("id, created_at")
@@ -170,7 +178,10 @@ function registerGroupHandlers(io, socket, state) {
       sender_id: myId,
       content: trimmedContent,
       media_url: mediaUrl,
-      media_type: mediaType,
+      media_type: isVoice ? "voice" : mediaType,
+      duration: isVoice
+        ? Math.max(0, Math.round(Number(duration) || Number(String(trimmedContent || "").replace(/^__voice__:/, "")) || 0))
+        : null,
       created_at: row?.created_at ?? new Date().toISOString(),
       reply_to: replyMeta,
       replyTo: replyMeta,
