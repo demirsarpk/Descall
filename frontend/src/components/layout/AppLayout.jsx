@@ -205,7 +205,7 @@ export default function AppLayout({
 
   return (
     <div
-      className={`app-root${isMobile ? " is-mobile" : ""}${mobileDrawerOpen ? " mobile-drawer-open" : ""}${userPanelOpen ? " mobile-settings-open" : ""}`}
+      className={`app-root${isMobile ? " is-mobile" : ""}${mobileDrawerOpen ? " mobile-drawer-open" : ""}${userPanelOpen ? " mobile-settings-open" : ""}${isMobile && inConversation ? " in-conversation" : ""}`}
       data-view={activeView}
     >
       <AnimatePresence>
@@ -397,7 +397,7 @@ export default function AppLayout({
         )}
       </AnimatePresence>
 
-      {isMobile && !userPanelOpen && (
+      {isMobile && !userPanelOpen && !inConversation && (
         <nav className="mobile-tab-bar" aria-label="Primary">
           <button
             type="button"

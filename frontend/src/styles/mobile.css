@@ -565,6 +565,24 @@
     padding-bottom: 4px;
   }
 
+  /* Conversation open: hide tab bar + drop its reserved gap so composer sits at bottom */
+  .app-root.is-mobile.in-conversation {
+    padding-bottom: 0;
+  }
+
+  .app-root.is-mobile.in-conversation .mobile-tab-bar {
+    display: none !important;
+  }
+
+  .app-root.is-mobile.in-conversation .composer-container {
+    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-root.is-mobile.in-conversation .main-panel {
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
+  }
+
   /* Keyboard open: drop tab-bar reserve, size to visual viewport, hide tabs */
   html.kb-open .app-root.is-mobile {
     padding-bottom: 0;
