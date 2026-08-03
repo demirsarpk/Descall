@@ -126,6 +126,9 @@ function pushNotification(io, userId, n) {
 function broadcastUsers(io) {
   const list = [];
   for (const [id, p] of presence) {
+    // Invisible users must not appear in the online roster at all —
+    // remapping status to "offline" still leaked them via membership checks.
+    if (p.status === "invisible") continue;
     const cached = getCachedPublicUser(id);
     list.push({
       id,
@@ -643,17 +646,17 @@ function registerSocketHandlers(io) {
     socket.on("dm:send", async ({ toUserId, tempId, text, mediaUrl, mediaType, mimeType, size, originalName, replyTo } = {}) => {
       if (bannedUserIds.has(myId)) {
         appendErrorLog("dm:send", "User is banned", { toUserId }, myId, me.username);
-        return socket.emit("dm:error", { message: "You are banned." });
+        return socket.emit("dm:error", { message: "You are banned.", tempId: tempId || null, toUserId });
       }
       if (dmBlockPairs.has(convKey(myId, toUserId))) {
         appendErrorLog("dm:send", "Conversation blocked", { toUserId }, myId, me.username);
-        return socket.emit("dm:error", { message: "Conversation blocked." });
+        return socket.emit("dm:error", { message: "Conversation blocked.", tempId: tempId || null, toUserId });
       }
       const now = Date.now();
       const last = rateLimitDm.get(myId) || 0;
       if (now - last < systemConfig.dmRateLimitMs) {
         appendErrorLog("dm:send", "Rate limited", { toUserId }, myId, me.username);
-        return socket.emit("dm:error", { message: "Rate limited." });
+        return socket.emit("dm:error", { message: "Rate limited.", tempId: tempId || null, toUserId });
       }
       rateLimitDm.set(myId, now);
       socket.data.activeDmPeer = toUserId;

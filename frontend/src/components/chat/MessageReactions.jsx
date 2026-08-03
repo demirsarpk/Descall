@@ -22,14 +22,17 @@ export default function MessageReactions({
   }, [reactions]);
 
   // Group reactions by emoji
-  const groupedReactions = localReactions.reduce((acc, reaction) => {
-    if (!acc[reaction.emoji]) {
-      acc[reaction.emoji] = { count: 0, users: [], hasMine: false };
+  const groupedReactions = (Array.isArray(localReactions) ? localReactions : []).reduce((acc, reaction) => {
+    const emoji = reaction?.emoji;
+    const userId = reaction?.userId;
+    if (!emoji || !userId) return acc;
+    if (!acc[emoji]) {
+      acc[emoji] = { count: 0, users: [], hasMine: false };
     }
-    acc[reaction.emoji].count++;
-    acc[reaction.emoji].users.push(reaction.userId);
-    if (reaction.userId === currentUserId) {
-      acc[reaction.emoji].hasMine = true;
+    acc[emoji].count++;
+    acc[emoji].users.push(userId);
+    if (userId === currentUserId) {
+      acc[emoji].hasMine = true;
     }
     return acc;
   }, {});

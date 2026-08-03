@@ -5,6 +5,7 @@ import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import { API_BASE_URL } from "../../config/api";
 import { getToken } from "../../lib/storage";
+import { getPresenceStatus } from "../../lib/presence";
 
 function formatMemberSince(iso) {
   if (!iso) return "Unknown";
@@ -52,8 +53,7 @@ export default function UserProfileModal({
   const [mutualFriends, setMutualFriends] = useState([]);
 
   const isSelf = me?.id === userId;
-  const presence = onlineUsers.find((u) => u.id === userId);
-  const status = presence?.status || (presence ? "online" : "offline");
+  const status = getPresenceStatus(onlineUsers, userId);
 
   const fetchProfile = useCallback(async () => {
     if (!userId || !open) return;

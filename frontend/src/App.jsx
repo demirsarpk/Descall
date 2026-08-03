@@ -207,8 +207,13 @@ export default function App() {
   const myIdRef = useRef(null);
   const myGroupsRef = useRef([]);
   const myGuildsRef = useRef([]);
+  const friendsRef = useRef([]);
+  const myStatusRef = useRef(myStatus);
   const transportFallbackStepRef = useRef(0);
   const prevOnlineUsersRef = useRef([]);
+  const activeGuildRef = useRef(null);
+  const typingDmTimeoutRef = useRef(null);
+  const typingGroupTimeoutsRef = useRef(new Map());
   const call = useCall(socketApi);
   const groupCall = useGroupCall(socketApi, me?.id);
 
@@ -219,6 +224,24 @@ export default function App() {
   useEffect(() => {
     myIdRef.current = me?.id ?? null;
   }, [me?.id]);
+
+  useEffect(() => {
+    friendsRef.current = Array.isArray(friends) ? friends : [];
+  }, [friends]);
+
+  useEffect(() => {
+    myStatusRef.current = myStatus;
+  }, [myStatus]);
+
+  const isDnd = useCallback(() => myStatusRef.current === "dnd", []);
+
+  const playUiSound = useCallback((name) => {
+    // Match notificationService: mute social/message sounds under DND
+    if (myStatusRef.current === "dnd" && name !== "incomingCall" && name !== "outgoingCall") {
+      return;
+    }
+    audioManager.play(name);
+  }, []);
 
   useEffect(() => {
     activeDmRef.current = activeDmUser;
@@ -235,6 +258,10 @@ export default function App() {
   useEffect(() => {
     myGuildsRef.current = myGuilds;
   }, [myGuilds]);
+
+  useEffect(() => {
+    activeGuildRef.current = activeGuild;
+  }, [activeGuild]);
 
   const commitSessionUser = useCallback((user) => {
     const normalized = normalizeUser(user);
@@ -415,12 +442,13 @@ export default function App() {
     };
     
     socketApi.on("user:updated", handleUserUpdated);
-    socketApi.on("user:profile:updated", ({ user }) => {
+    const handleProfileUpdated = ({ user }) => {
       if (user) applyProfileUpdate(user);
-    });
+    };
+    socketApi.on("user:profile:updated", handleProfileUpdated);
     return () => {
       socketApi.off("user:updated", handleUserUpdated);
-      socketApi.off("user:profile:updated");
+      socketApi.off("user:profile:updated", handleProfileUpdated);
     };
   }, [socketApi, commitSessionUser, applyProfileUpdate]);
 
@@ -529,7 +557,7 @@ export default function App() {
         connectSocket(token, { transports: ["polling"] });
         return;
       }
-      if (msg.toLowerCase().includes("xhr poll error") || msg.toLowerCase().includes("authentication failed") || msg.toLowerCase().includes("authentication required")) {
+      if (msg.toLowerCase().includes("authentication failed") || msg.toLowerCase().includes("authentication required")) {
         clearToken(); clearUser(); setMe(null); socket.disconnect();
       }
       if (msg.toLowerCase().includes("xhr poll error")) {
@@ -583,9 +611,17 @@ export default function App() {
           return;
         }
         setTypingDmUser(typing ? fromUser : null);
+        // Auto-clear stuck typing if peer disconnects without typing:stop
+        if (typingDmTimeoutRef.current) clearTimeout(typingDmTimeoutRef.current);
+        if (typing) {
+          typingDmTimeoutRef.current = setTimeout(() => {
+            setTypingDmUser((cur) => (cur?.id === fromUser.id ? null : cur));
+          }, 3500);
+        }
       } else if (context === "group" && groupId) {
         setTypingGroupUsers((prev) => {
-          const groupMap = new Map(prev[groupId] ?? []);
+          const cur = prev[groupId];
+          const groupMap = cur instanceof Map ? new Map(cur) : new Map();
           if (typing) {
             groupMap.set(fromUser.id, fromUser);
           } else {
@@ -593,28 +629,45 @@ export default function App() {
           }
           return { ...prev, [groupId]: groupMap };
         });
+        const key = `${groupId}:${fromUser.id}`;
+        if (typingGroupTimeoutsRef.current.has(key)) {
+          clearTimeout(typingGroupTimeoutsRef.current.get(key));
+          typingGroupTimeoutsRef.current.delete(key);
+        }
+        if (typing) {
+          const t = setTimeout(() => {
+            setTypingGroupUsers((prev) => {
+              const cur = prev[groupId];
+              const groupMap = cur instanceof Map ? new Map(cur) : new Map();
+              groupMap.delete(fromUser.id);
+              return { ...prev, [groupId]: groupMap };
+            });
+            typingGroupTimeoutsRef.current.delete(key);
+          }, 3500);
+          typingGroupTimeoutsRef.current.set(key, t);
+        }
       }
     });
 
     socket.on("users:update", (users) => {
       const newUsers = (users ?? []).map((u) => normalizeUser(u));
       const prevIds = new Set(prevOnlineUsersRef.current.map((u) => u.id));
-      const friendsSet = new Set(friends.map((f) => f.id));
+      const friendsSet = new Set((friendsRef.current || []).map((f) => f.id));
 
-      // Check if any friends just came online
-      const newOnlineFriends = (newUsers || []).filter(
-        (u) => !prevIds.has(u.id) && friendsSet.has(u.id) && u.id !== myIdRef.current
-      );
-      
+      // Check if any friends just came online (invisible never counts as online)
+      const newOnlineFriends = (newUsers || []).filter((u) => {
+        if (!u?.id || prevIds.has(u.id) || !friendsSet.has(u.id) || u.id === myIdRef.current) return false;
+        const st = u.status || "online";
+        return st === "online" || st === "idle" || st === "dnd";
+      });
+
       if (newOnlineFriends.length > 0) {
-        // Play notification sound for friends coming online (use notification type)
-        audioManager.play("notification");
-        // Send notification for first friend coming online
+        playUiSound("notification");
         if (newOnlineFriends[0]) {
           notificationService.friendOnline({ username: resolveDisplayName(newOnlineFriends[0]) });
         }
       }
-      
+
       prevOnlineUsersRef.current = newUsers;
       setOnlineUsers(newUsers);
     });
@@ -669,6 +722,24 @@ export default function App() {
       setDmHasMore(!!hasMore);
     });
 
+    socket.on("dm:error", ({ message, tempId, toUserId } = {}) => {
+      if (tempId && toUserId) {
+        setDmByUserId((prev) => {
+          const cur = prev[toUserId] ?? [];
+          if (!cur.some((m) => m.id === tempId)) return prev;
+          return {
+            ...prev,
+            [toUserId]: cur.map((m) =>
+              m.id === tempId ? { ...m, sending: false, failed: true } : m
+            ),
+          };
+        });
+      }
+      if (message) {
+        toast(message, "error");
+      }
+    });
+
     socket.on("dm:message", (message) => {
       const convWith = message?.convWith;
       if (!convWith) return;
@@ -680,7 +751,7 @@ export default function App() {
 
       setDmByUserId((prev) => {
         const cur = prev[convWith] ?? [];
-        const isSelf = message.from?.id === me?.id;
+        const isSelf = message.from?.id === myIdRef.current;
         // Replace optimistic (sending) message by tempId echo, or dedupe by real id
         if (isSelf && message.tempId) {
           const hasTemp = cur.some((m) => m.id === message.tempId);
@@ -693,13 +764,13 @@ export default function App() {
         return { ...prev, [convWith]: [...cur, message] };
       });
       // Only notify for messages from others (not self)
-      const currentUserId = me?.id;
+      const currentUserId = myIdRef.current;
       const isFromOther = message.from?.id && message.from.id !== currentUserId;
       if (isFromOther) {
         socket.emit("dm:delivered", { msgId: message.id, fromUserId: message.from.id });
         // Local unread bump if not viewing this conversation (server also syncs)
         if (activeDmRef.current?.id !== convWith) {
-          audioManager.play("message");
+          playUiSound("message");
           // Send native notification
           notificationService.newMessage({
             from: message.from?.username || 'Birisi',
@@ -793,10 +864,11 @@ export default function App() {
       }
 
       // Notify for messages from others in non-active group
-      const isFromMe = normalized.from.id === me?.id;
+      const isFromMe = normalized.from.id === myIdRef.current;
       const isActiveGroup = activeGroupRef.current?.id === groupId;
       if (!isFromMe && !isActiveGroup) {
         setGroupUnread((prev) => ({ ...prev, [groupId]: (prev[groupId] || 0) + 1 }));
+        playUiSound("message");
         const grp = myGroupsRef.current.find((g) => g.id === groupId);
         notificationService.groupMessage({
           groupName: grp?.name || "Grup",
@@ -814,6 +886,22 @@ export default function App() {
         const cur = prev[groupId] ?? [];
         return { ...prev, [groupId]: cur.filter((m) => m.id !== tempId) };
       });
+    });
+
+    socket.on("group:message:error", ({ groupId, tempId, message } = {}) => {
+      if (groupId && tempId) {
+        setGroupMessagesById((prev) => {
+          const cur = prev[groupId] ?? [];
+          if (!cur.some((m) => m.id === tempId)) return prev;
+          return {
+            ...prev,
+            [groupId]: cur.map((m) =>
+              m.id === tempId ? { ...m, sending: false, failed: true } : m
+            ),
+          };
+        });
+      }
+      if (message) toast(message, "error");
     });
 
     socket.on("mention:received", ({ groupId, dmConversationId, from, text, groupName }) => {
@@ -874,8 +962,8 @@ export default function App() {
         });
         if (idx >= 0) {
           const prevMsg = cur[idx];
-          // Never interrupt a live hand with lobby/help (fixes board vanishing on click)
-          const prevLive = ["playing", "dealer", "dealing"].includes(
+          // Never interrupt a live or finished hand with lobby/help (Again must survive)
+          const prevLive = ["playing", "dealer", "dealing", "finished"].includes(
             prevMsg?.gameData?.status
           );
           if (prevLive && !isCasinoBoardIncoming(message)) {
@@ -1057,11 +1145,10 @@ export default function App() {
     socket.on("guild:deleted", ({ guildId } = {}) => {
       if (!guildId) return;
       setMyGuilds((prev) => prev.filter((g) => g.id !== guildId));
-      setActiveGuild((prev) => (prev?.id === guildId ? null : prev));
-      setActiveGuildChannel((prev) => {
-        const activeG = myGuildsRef.current.find((g) => g.id === activeGuild?.id);
-        return activeG?.channels?.find((c) => c.id === prev?.id) ?? null;
-      });
+      if (activeGuildRef.current?.id === guildId) {
+        setActiveGuild(null);
+        setActiveGuildChannel(null);
+      }
     });
 
     socket.on("guild:left", ({ guildId } = {}) => {
@@ -1194,7 +1281,8 @@ export default function App() {
         socketRef.current.emit("groups:rejoin", ids);
       }
     } catch (err) {
-      setMyGroups([]);
+      // Keep previous list — a transient API failure should not wipe the sidebar
+      console.error("[groups] fetch failed", err);
     }
   }, []);
 
@@ -1226,7 +1314,28 @@ export default function App() {
           let normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
           const rx = await fetchConversationReactions("group", grp.id);
           normalized = mergeReactionsIntoMessages(normalized, rx);
-          setGroupMessagesById((prev) => ({ ...prev, [grp.id]: normalized }));
+          setGroupMessagesById((prev) => {
+            const existing = prev[grp.id] || [];
+            // Preserve ephemeral socket-only rows (casino boards, pending sends)
+            const keep = existing.filter((m) =>
+              m?.isGameMessage ||
+              m?.sending ||
+              m?.failed ||
+              (typeof m?.id === "string" && (m.id.startsWith("temp-") || m.id.startsWith("casino-"))) ||
+              (typeof m?.type === "string" && m.type.startsWith("game_"))
+            );
+            const byId = new Map(normalized.map((m) => [m.id, m]));
+            for (const m of keep) {
+              if (!byId.has(m.id)) byId.set(m.id, m);
+            }
+            // Keep chronological order: DB messages + any keep-only at end if missing timestamps
+            const merged = Array.from(byId.values()).sort((a, b) => {
+              const ta = new Date(a.timestamp || a.created_at || 0).getTime();
+              const tb = new Date(b.timestamp || b.created_at || 0).getTime();
+              return ta - tb;
+            });
+            return { ...prev, [grp.id]: merged };
+          });
         })
         .catch(console.error);
     }
@@ -1285,6 +1394,65 @@ export default function App() {
     socketRef.current?.emit("dm:history", { withUserId: friend.id });
     socketRef.current?.emit("dm:set_active", { withUserId: friend.id });
   };
+
+  // Desktop/web notification click → open the related DM or group
+  useEffect(() => {
+    const onNotifClick = (event) => {
+      const detail = event?.detail;
+      // Electron sends { title, body, tag, data }; web Notification sends data directly
+      const data = detail?.data && typeof detail.data === "object" ? detail.data : detail;
+      if (!data || typeof data !== "object") return;
+      const type = data.type;
+
+      if (type === "dm" || type === "missed-call") {
+        const peerId = data.conversationId || data.fromId;
+        if (!peerId) return;
+        const friend =
+          friendsRef.current.find((f) => f.id === peerId) ||
+          { id: peerId, username: data.from || "User" };
+        handleOpenDm(friend);
+        return;
+      }
+
+      if (type === "group" || type === "group-call" || (type === "mention" && data.groupId)) {
+        const groupId = data.groupId;
+        if (!groupId) return;
+        const group =
+          myGroupsRef.current.find((g) => g.id === groupId) ||
+          { id: groupId, name: data.groupName || "Grup" };
+        setReplyTo(null);
+        setActiveDmUser(null);
+        setActiveGroup(group);
+        socketRef.current?.emit("dm:set_active", { withUserId: null });
+        setGroupUnread((u) => {
+          if (!u[groupId]) return u;
+          const n = { ...u };
+          delete n[groupId];
+          return n;
+        });
+        socketRef.current?.emit("group:join", groupId);
+        return;
+      }
+
+      if (type === "mention" && data.dmConversationId) {
+        const peerId = data.dmConversationId;
+        const friend =
+          friendsRef.current.find((f) => f.id === peerId) ||
+          { id: peerId, username: data.from || "User" };
+        handleOpenDm(friend);
+        return;
+      }
+
+      if (type === "friend-request") {
+        // Open friends list focus is enough — status is already in sidebar
+        return;
+      }
+    };
+
+    window.addEventListener("descall:notification-click", onNotifClick);
+    return () => window.removeEventListener("descall:notification-click", onNotifClick);
+    // handleOpenDm closes over dmUnread/dmByUserId — rebind when those change
+  }, [dmUnread, dmByUserId]);
 
   const handleSendDm = (toUserId, text) => {
     socketRef.current?.emit("dm:send", { toUserId, text });

@@ -398,38 +398,8 @@ function createMainWindow() {
     mainWindow?.webContents?.send('window:maximized', false);
   });
 
-  // Notification handlers
+  // Notification permission probe (actual show goes through module-level IPC below)
   ipcMain.handle('notification:request-permission', async () => true);
-
-  const dispatchNotification = ({ title, body, tag, data, requireInteraction = false, silent = false, avatarUrl = null }) => {
-    const type = data?.type === 'call' || data?.type === 'group-call' ? 'call'
-      : data?.type === 'mention' ? 'mention'
-      : 'default';
-
-    showNotificationWindow({
-      title: title || 'Descall',
-      body: body || '',
-      type,
-      avatarUrl: avatarUrl || null,
-      duration: requireInteraction ? 0 : 5000,
-      onClick: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.focus();
-        }
-        mainWindow?.webContents?.send('notification:click', { title, body, tag, data });
-      },
-    });
-  };
-
-  ipcMain.on('notification:show', (_, { title, options = {} }) => {
-    dispatchNotification({ title, ...options });
-  });
-
-  ipcMain.handle('show-notification', (_, payload) => {
-    dispatchNotification(payload || {});
-  });
 
   // Allow screen capture permissions
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
@@ -750,8 +720,8 @@ autoUpdater.on('update-downloaded', (info) => {
 // tag → BrowserWindow — prevents duplicate notifications for the same event
 const activeNotifByTag = new Map();
 
-ipcMain.on('notification:show', (event, { title, options = {} } = {}) => {
-  const { body, tag = 'descall', data = {} } = options;
+function showAppNotification({ title, options = {} } = {}) {
+  const { body, tag = 'descall', data = {}, requireInteraction = false, avatarUrl = null } = options;
 
   // Deduplicate: close any existing window with the same tag
   if (activeNotifByTag.has(tag)) {
@@ -760,27 +730,37 @@ ipcMain.on('notification:show', (event, { title, options = {} } = {}) => {
     activeNotifByTag.delete(tag);
   }
 
-  const isCall    = data.type === 'call' || data.type === 'group-call';
-  const notifType = isCall ? 'call' : (tag.startsWith('mention') ? 'mention' : 'default');
-  const duration  = isCall ? 0 : 5000;
+  const isCall    = data?.type === 'call' || data?.type === 'group-call';
+  const notifType = isCall ? 'call' : (String(tag).startsWith('mention') ? 'mention' : 'default');
+  const duration  = isCall || requireInteraction ? 0 : 5000;
 
   const win = showNotificationWindow({
-    title,
-    body,
-    type:     notifType,
+    title: title || 'Descall',
+    body: body || '',
+    type: notifType,
+    avatarUrl: avatarUrl || null,
     duration,
-    onClick:  () => {
-      mainWindow?.show();
-      mainWindow?.focus();
-      mainWindow?.webContents.send('notification:click', data);
+    onClick: () => {
+      if (mainWindow) {
+        mainWindow.show();
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
+      // Always send a consistent envelope so the renderer can route by data.type
+      mainWindow?.webContents?.send('notification:click', {
+        title,
+        body,
+        tag,
+        data: data || {},
+      });
     },
     onAccept: isCall ? () => {
       mainWindow?.show();
       mainWindow?.focus();
-      mainWindow?.webContents.send('notification:call-accept', data);
+      mainWindow?.webContents?.send('notification:call-accept', data || {});
     } : undefined,
     onDecline: isCall ? () => {
-      mainWindow?.webContents.send('notification:call-decline', data);
+      mainWindow?.webContents?.send('notification:call-decline', data || {});
     } : undefined,
   });
 
@@ -790,6 +770,27 @@ ipcMain.on('notification:show', (event, { title, options = {} } = {}) => {
       if (activeNotifByTag.get(tag) === win) activeNotifByTag.delete(tag);
     });
   }
+  return win;
+}
+
+ipcMain.on('notification:show', (_event, payload = {}) => {
+  showAppNotification(payload);
+});
+
+ipcMain.handle('show-notification', (_event, payload = {}) => {
+  const title = payload?.title;
+  const options = payload?.options
+    ? payload.options
+    : {
+        body: payload?.body,
+        tag: payload?.tag,
+        data: payload?.data,
+        requireInteraction: payload?.requireInteraction,
+        silent: payload?.silent,
+        avatarUrl: payload?.avatarUrl,
+      };
+  showAppNotification({ title, options });
+  return true;
 });
 
 // IPC handlers
