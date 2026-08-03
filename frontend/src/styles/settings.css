@@ -1057,3 +1057,135 @@
     align-items: flex-start;
   }
 }
+
+/* ── Valorant / Riot link ── */
+.riot-link-card .riot-link-pad {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.riot-link-lead {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-1);
+}
+
+.riot-link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.riot-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.riot-link-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.riot-link-error {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-2);
+  font-size: 12.5px;
+  color: #f23f43;
+  background: rgba(242, 63, 67, 0.08);
+}
+
+.riot-rso-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.val-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 70, 85, 0.14), rgba(15, 25, 35, 0.35));
+  border: 1px solid rgba(255, 70, 85, 0.28);
+}
+
+.val-badge--compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  margin-top: 6px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.val-badge-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.val-badge-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: #ff4655;
+  flex-shrink: 0;
+}
+
+.val-badge-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.val-badge-verified {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 650;
+  color: #23a55a;
+}
+
+.val-badge-id {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-0);
+  word-break: break-all;
+}
+
+.val-badge-rank {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ff8a93;
+}
+
+.val-badge-region {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.val-badge-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uhc-text .val-badge--compact {
+  margin-top: 8px;
+}

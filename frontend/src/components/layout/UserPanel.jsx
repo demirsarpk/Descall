@@ -13,6 +13,8 @@ import { API_BASE_URL } from "../../config/api";
 import { normalizeUser } from "../../lib/userProfile";
 import { setSoundEnabled, getAudioSettings } from "../../lib/audioManager";
 import { useMobile } from "../../hooks/useMobile";
+import RiotLinkCard from "../settings/RiotLinkCard";
+import ValorantBadge from "../social/ValorantBadge";
 
 /* ─── Helpers ─── */
 const SETTINGS_KEY = "descall_user_settings";
@@ -496,9 +498,14 @@ const UserPanel = forwardRef(function UserPanel({
                   <h3>{displayName || me?.username || "User"}</h3>
                   <span className="us-muted">@{me?.username?.toLowerCase() || "user"}</span>
                   {customStatus && <span className="us-status-pill">{customStatus}</span>}
+                  {me?.valorant?.linked && (
+                    <ValorantBadge valorant={me.valorant} compact />
+                  )}
                 </div>
               </div>
             </div>
+
+            <RiotLinkCard />
 
             <section className="us-section">
               <h4 className="us-section-label">Account details</h4>

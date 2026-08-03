@@ -25,3 +25,9 @@
 ### Services
 - Backend: `frontend/backend` (Express + Socket.IO). Frontend Vite app is served from backend `dist` in production; local UI via Vite. See `README.md` / `frontend/package.json` scripts.
 - Secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` (required); `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` (optional until OAuth is enabled).
+
+### Valorant / Riot account link
+- Users link Valorant from **Settings → My Account** with **Name#TAG only**. Rank + Riot ID appear on profile/hover/LFG **only after a successful link**.
+- **Real rank requires `HENRIK_API_KEY`** on Render (HenrikDev dashboard / Discord). Without it, link returns 503 Unauthorized — staging logs show `[Riot] MMR lookup: Unauthorized`.
+- Lookup uses Henrik MMR v3 (`/valorant/v3/mmr/{region}/pc/{name}/{tag}`) with v2 fallback; region auto-detect from account when possible.
+- SQL: `supabase/migrations/20260803_riot_account_link.sql` → `user_riot_accounts`. Routes: `/riot` + `/api/riot`. Public card on `GET /auth/me` / `GET /auth/users/:id` as `user.valorant`.

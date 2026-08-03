@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageSquare, Users, Settings,
-  UserPlus, Phone, Shield, Plus, Zap
+  UserPlus, Phone, Shield, Plus, Zap, Crosshair
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { STATUS_META } from "../../lib/presence";
@@ -32,6 +32,7 @@ export default function NavigationRail({
   const navItems = [
     { id: "chat",     icon: MessageSquare, label: "Chats"    },
     { id: "groups",   icon: Users,         label: "Groups"   },
+    { id: "play",     icon: Crosshair,     label: "Play"     },
     { id: "friends",  icon: UserPlus,      label: "Friends"  },
     { id: "activity", icon: Zap,           label: "Activity" },
     { id: "calls",    icon: Phone,         label: "Calls"    },
