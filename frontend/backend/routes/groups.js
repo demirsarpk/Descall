@@ -155,7 +155,7 @@ async function getUserGroups(userId) {
       if (memberIds.length > 0) {
         const { data: users, error: usersError } = await supabase
           .from("users")
-          .select("id, username, avatar_url, status")
+          .select("id, username, avatar_url, status, is_admin")
           .in("id", memberIds);
         
         if (usersError) {

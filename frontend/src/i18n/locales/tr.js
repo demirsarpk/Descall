@@ -1921,7 +1921,8 @@ export const phrases = {
   "Export My Data": "Verilerimi Dışa Aktar",
   "Saving...": "Kaydediliyor...",
   "No members": "Üye yok",
-  "📞 Call": "📞 Arama"
+  "📞 Call": "📞 Arama",
+  "Descall staff": "Descall yetkilisi"
 };
 
 const locale = { nested, phrases };

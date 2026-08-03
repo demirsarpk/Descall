@@ -31,6 +31,7 @@ async function loadPublicValorant(userId) {
 
 function authUserPayload(user) {
   const displayName = user.display_name || user.displayName || null;
+  const isAdmin = Boolean(user.is_admin) || user.username === "admin";
   return {
     id: user.id,
     username: user.username,
@@ -42,6 +43,8 @@ function authUserPayload(user) {
     customStatus: user.custom_status || user.customStatus || null,
     bannerUrl: user.banner_url || user.bannerUrl || null,
     updated_at: user.updated_at || null,
+    is_admin: isAdmin,
+    isAdmin,
   };
 }
 
@@ -368,7 +371,7 @@ router.get("/users/:userId", requireAuth, async (req, res) => {
     const { userId } = req.params;
     const { data: user, error } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, created_at")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at")
       .eq("id", userId)
       .single();
 

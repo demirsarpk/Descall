@@ -7,8 +7,10 @@ import { API_BASE_URL } from "../../config/api";
 import { getToken } from "../../lib/storage";
 import { getPresenceStatus } from "../../lib/presence";
 import ValorantBadge from "./ValorantBadge";
+import AdminBadge from "./AdminBadge";
 import { getUserValorant } from "../../api/riot";
 import { useT } from "../../context/LocaleContext";
+import { isUserAdmin } from "../../lib/userProfile";
 
 function formatMemberSince(iso, t) {
   if (!iso) return t("Unknown");
@@ -277,7 +279,14 @@ export default function UserProfileModal({
 
               {/* Display name + @username + status */}
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text-0)", lineHeight: 1.2 }}>
+                <div
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 700,
+                    color: "var(--text-0)",
+                    lineHeight: 1.2,
+                  }}
+                >
                   {displayName}
                 </div>
                 {displayName !== displayUsername && (
@@ -285,12 +294,18 @@ export default function UserProfileModal({
                     @{displayUsername}
                   </div>
                 )}
+                {isUserAdmin(profile || { username: displayUsername }) && (
+                  <AdminBadge
+                    user={profile || { username: displayUsername, is_admin: true }}
+                    variant="chip"
+                  />
+                )}
                 <div
                   style={{
                     fontSize: 12,
                     color: STATUS_COLOR[status] || STATUS_COLOR.offline,
                     fontWeight: 500,
-                    marginTop: 3,
+                    marginTop: 6,
                     display: "flex",
                     alignItems: "center",
                     gap: 5,

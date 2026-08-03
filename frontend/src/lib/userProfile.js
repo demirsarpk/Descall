@@ -10,6 +10,14 @@ function cleanDisplayName(value) {
   return trimmed || null;
 }
 
+/** True when the user is Descall staff (DB flag or legacy username "admin"). */
+export function isUserAdmin(user) {
+  if (!user) return false;
+  if (user.is_admin === true || user.isAdmin === true) return true;
+  if (user.role === "admin") return true;
+  return user.username === "admin";
+}
+
 export function normalizeUser(user) {
   if (!user) return null;
   const avatarUrl = user.avatarUrl || user.avatar_url || null;
@@ -21,6 +29,7 @@ export function normalizeUser(user) {
     user.updatedAt ??
     null;
   const displayName = cleanDisplayName(user.displayName ?? user.display_name ?? null);
+  const admin = isUserAdmin(user);
 
   return {
     ...user,
@@ -32,6 +41,8 @@ export function normalizeUser(user) {
     bio: user.bio || null,
     customStatus: user.customStatus || user.custom_status || null,
     bannerUrl: user.bannerUrl || user.banner_url || null,
+    is_admin: admin,
+    isAdmin: admin,
   };
 }
 
@@ -121,6 +132,10 @@ export function mergeUserProfiles(...parts) {
     out.customStatus = customStatus;
     out.custom_status = customStatus;
   }
+  if (list.some((p) => isUserAdmin(p))) {
+    out.is_admin = true;
+    out.isAdmin = true;
+  }
   return normalizeUser(out);
 }
 
@@ -154,6 +169,12 @@ export function patchUserProfile(user, patch = {}) {
       next.bannerUrl = b;
       next.banner_url = b;
     }
+  }
+
+  if ("is_admin" in patch || "isAdmin" in patch) {
+    const admin = Boolean(patch.is_admin ?? patch.isAdmin);
+    next.is_admin = admin;
+    next.isAdmin = admin;
   }
 
   const version =

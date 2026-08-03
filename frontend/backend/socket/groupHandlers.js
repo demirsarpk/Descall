@@ -189,15 +189,21 @@ function registerGroupHandlers(io, socket, state) {
         const cached = getCachedPublicUser(myId);
         const avatar = resolveSocketAvatar(socket);
         const displayName = cached?.displayName || socket.user.display_name || socket.user.displayName || null;
+        const username = cached?.username || socket.user.username;
+        const isAdmin =
+          Boolean(cached?.is_admin || cached?.isAdmin || socket.user?.is_admin) ||
+          username === "admin";
         return {
           id: myId,
-          username: cached?.username || socket.user.username,
+          username,
           displayName,
           display_name: displayName,
           avatar_url: avatar,
           avatarUrl: avatar,
           avatarVersion: cached?.avatarVersion || cached?.updated_at || null,
           updated_at: cached?.updated_at || null,
+          is_admin: isAdmin,
+          isAdmin,
         };
       })(),
     };

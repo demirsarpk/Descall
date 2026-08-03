@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Avatar } from "../ui/Avatar";
 import { pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import ValorantBadge from "./ValorantBadge";
+import AdminBadge from "./AdminBadge";
 import { getUserValorant } from "../../api/riot";
 import { useT } from "../../context/LocaleContext";
 
@@ -127,7 +128,10 @@ export default function UserHoverCard({ user, anchor }) {
           />
         </div>
         <div className="uhc-text">
-          <div className="uhc-name">{display}</div>
+          <div className="uhc-name">
+            {display}
+            <AdminBadge user={user} variant="inline" />
+          </div>
           <div className="uhc-handle">@{user.username || t("user")}</div>
           <div className={`uhc-status ${statusClass}`}>
             <span className="uhc-dot" /> {statusLabel}

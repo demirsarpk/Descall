@@ -1002,6 +1002,10 @@
 }
 
 .friend-name {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
   font-size: 14px;
   font-weight: 500;
   color: var(--text-1);
@@ -2378,7 +2382,8 @@
 .member-name-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 6px;
   min-width: 0;
 }
 

@@ -24,6 +24,11 @@ function normalizeProfileRow(row) {
   };
 }
 
+function isAdminProfile(profile) {
+  if (!profile) return false;
+  return Boolean(profile.is_admin) || profile.username === "admin";
+}
+
 function toPublicUser(profile) {
   if (!profile) return null;
   return {
@@ -35,7 +40,8 @@ function toPublicUser(profile) {
     bio: profile.bio || null,
     customStatus: profile.custom_status || null,
     bannerUrl: profile.banner_url || null,
-    is_admin: profile.is_admin,
+    is_admin: isAdminProfile(profile),
+    isAdmin: isAdminProfile(profile),
     avatarVersion: profile.updated_at,
     updated_at: profile.updated_at,
     created_at: profile.created_at,
@@ -164,6 +170,8 @@ async function broadcastUserProfileUpdate(io, userId) {
       avatar_url: cached?.avatar_url || pres.avatar_url || null,
       avatarVersion: cached?.updated_at || null,
       updated_at: cached?.updated_at || null,
+      is_admin: isAdminProfile(cached) || (pres.username === "admin"),
+      isAdmin: isAdminProfile(cached) || (pres.username === "admin"),
     });
   }
   io.emit("users:update", list);
@@ -178,9 +186,11 @@ function enrichFriendEntry(userId) {
   const p = presence.get(userId);
   const cached = userProfileById.get(userId);
   const lastSeen = lastSeenByUserId.get(userId) || null;
+  const username = cached?.username || usernameById.get(userId) || p?.username || "?";
+  const admin = isAdminProfile(cached) || username === "admin";
   return {
     id: userId,
-    username: cached?.username || usernameById.get(userId) || p?.username || "?",
+    username,
     displayName: cached?.display_name || null,
     avatarUrl: cached?.avatar_url || p?.avatar_url || null,
     status: p ? publicPresenceStatus(p.status) : "offline",
@@ -192,6 +202,8 @@ function enrichFriendEntry(userId) {
     lastSeen: p ? null : lastSeen,
     avatarVersion: cached?.updated_at || null,
     updated_at: cached?.updated_at || null,
+    is_admin: admin,
+    isAdmin: admin,
   };
 }
 
@@ -203,6 +215,7 @@ module.exports = {
   getCachedPublicUser,
   getAvatarUrl,
   toPublicUser,
+  isAdminProfile,
   broadcastUserProfileUpdate,
   enrichFriendEntry,
   publicPresenceStatus,

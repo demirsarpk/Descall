@@ -54,6 +54,10 @@
 }
 
 .message-author {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-0);
