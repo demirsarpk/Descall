@@ -13,6 +13,7 @@ import {
   getLfgLobby,
   updateLfgLobby,
 } from "../../api/lfg";
+import { getRiotStatus } from "../../api/riot";
 import { Avatar } from "../ui/Avatar";
 import PartyCodeReveal from "./PartyCodeReveal";
 
@@ -70,6 +71,8 @@ export default function LfgWorkspace({
   const [joinRank, setJoinRank] = useState("");
   const [busy, setBusy] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [linkedRank, setLinkedRank] = useState("");
+  const [linkedRegion, setLinkedRegion] = useState("");
 
   const ranks = meta.ranks?.length ? meta.ranks : FALLBACK_RANKS;
   const filterCount = [filters.mode, filters.region, filters.myRank, filters.mic].filter(Boolean).length;
@@ -100,6 +103,27 @@ export default function LfgWorkspace({
   useEffect(() => {
     getLfgMeta()
       .then(setMeta)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    getRiotStatus()
+      .then((res) => {
+        const rank = res.valorant?.rankTier || res.valorant?.rank || "";
+        const region = res.valorant?.region || "";
+        if (rank) {
+          setLinkedRank(rank);
+          setFilters((f) => ({ ...f, myRank: f.myRank || rank }));
+          setJoinRank((j) => j || rank);
+        }
+        if (region && ["eu", "na", "ap", "tr"].includes(region)) {
+          setLinkedRegion(region);
+          setFilters((f) => ({
+            ...f,
+            region: f.region || region,
+          }));
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -414,6 +438,8 @@ export default function LfgWorkspace({
             meta={meta}
             ranks={ranks}
             busy={busy}
+            defaultHostRank={linkedRank || filters.myRank || "Gold 2"}
+            defaultRegion={linkedRegion || filters.region || "eu"}
             onClose={() => setShowCreate(false)}
             onSubmit={handleCreate}
           />
@@ -522,13 +548,17 @@ function LobbyDetail({
   );
 }
 
-function CreateLobbyModal({ meta, ranks, busy, onClose, onSubmit }) {
+function CreateLobbyModal({ meta, ranks, busy, defaultHostRank, defaultRegion, onClose, onSubmit }) {
+  const hostRank = defaultHostRank && ranks.includes(defaultHostRank) ? defaultHostRank : "Gold 2";
+  const hostIdx = ranks.indexOf(hostRank);
+  const rankMin = ranks[Math.max(0, hostIdx - 2)] || "Gold 1";
+  const rankMax = ranks[Math.min(ranks.length - 1, hostIdx + 3)] || "Platinum 3";
   const [form, setForm] = useState({
     mode: "competitive",
-    region: "eu",
-    hostRank: "Gold 2",
-    rankMin: "Gold 1",
-    rankMax: "Platinum 3",
+    region: defaultRegion || "eu",
+    hostRank,
+    rankMin,
+    rankMax,
     partySizeCurrent: 1,
     partySizeMax: 5,
     micRequired: true,
