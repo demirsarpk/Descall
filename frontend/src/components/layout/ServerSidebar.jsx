@@ -61,6 +61,8 @@ export default function ServerSidebar({
   me = null,
   onStartCall,
   onOpenChatFromCalls,
+  onStartGroupCall,
+  onOpenGroupFromCalls,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
@@ -453,11 +455,17 @@ export default function ServerSidebar({
               compact
               me={me}
               friends={friends}
+              groups={groups}
               onlineUsers={onlineUsers}
               socket={socket}
               onStartCall={onStartCall}
+              onStartGroupCall={onStartGroupCall}
               onOpenChat={(user) => {
                 onOpenChatFromCalls?.(user);
+                onMobileClose?.();
+              }}
+              onOpenGroup={(group) => {
+                onOpenGroupFromCalls?.(group);
                 onMobileClose?.();
               }}
             />

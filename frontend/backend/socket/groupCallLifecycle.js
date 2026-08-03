@@ -3,6 +3,7 @@
  */
 const supabase = require("../db/supabase");
 const { activeGroupCalls } = require("../runtime/sharedState");
+const { mapGroupCallRow } = require("../lib/dmCallLog");
 
 async function getGroupMemberIds(groupId) {
   const { data } = await supabase
@@ -44,6 +45,47 @@ async function emitBannerUpdate(io, groupId) {
   });
 }
 
+async function pushGroupCallHistory(io, groupId, activeCall, endedBy, endedAt, durationSeconds) {
+  if (!activeCall?.dbCallId) return;
+
+  let groupMeta = { id: groupId, name: "Group", avatar_url: null };
+  try {
+    const { data } = await supabase
+      .from("groups")
+      .select("id, name, avatar_url")
+      .eq("id", groupId)
+      .maybeSingle();
+    if (data) groupMeta = data;
+  } catch {
+    /* ignore */
+  }
+
+  const callRow = {
+    id: activeCall.dbCallId,
+    group_id: groupId,
+    started_by: activeCall.initiatorId,
+    call_type: activeCall.callType,
+    started_at: activeCall.startTime
+      ? new Date(activeCall.startTime).toISOString()
+      : null,
+    ended_at: endedAt,
+    duration_seconds: durationSeconds,
+    participant_count: activeCall.allParticipants.size,
+    status: "ended",
+    group_name: groupMeta.name,
+    group_avatar_url: groupMeta.avatar_url,
+  };
+
+  const memberIds = await getGroupMemberIds(groupId);
+  const participantIds = new Set(activeCall.allParticipants || []);
+
+  for (const userId of new Set([...memberIds, ...participantIds])) {
+    const joined = participantIds.has(userId);
+    const record = mapGroupCallRow(callRow, userId, { joined });
+    io.to(`user:${userId}`).emit("calls:updated", { call: record });
+  }
+}
+
 async function endGroupCall(io, groupId, endedBy, activeCall) {
   if (!activeCall) return;
 
@@ -62,6 +104,8 @@ async function endGroupCall(io, groupId, endedBy, activeCall) {
   };
 
   const dbCallId = activeCall.dbCallId;
+  // Snapshot participants before deleting active call
+  const participantSnapshot = new Set(activeCall.allParticipants || []);
   activeGroupCalls.delete(groupId);
 
   if (dbCallId) {
@@ -71,7 +115,7 @@ async function endGroupCall(io, groupId, endedBy, activeCall) {
         ended_at: endedAt,
         ended_by: endedBy,
         duration_seconds: durationSeconds,
-        participant_count: activeCall.allParticipants.size,
+        participant_count: participantSnapshot.size,
         status: "ended",
       })
       .eq("id", dbCallId)
@@ -105,6 +149,19 @@ async function endGroupCall(io, groupId, endedBy, activeCall) {
   await broadcastToGroupMembers(io, groupId, "group:call:ended", endedPayload);
   await broadcastToGroupMembers(io, groupId, "group:call:summary", { groupId, summary });
   await broadcastToGroupMembers(io, groupId, "group:call:banner-update", { groupId, banner: null });
+
+  try {
+    await pushGroupCallHistory(
+      io,
+      groupId,
+      { ...activeCall, allParticipants: participantSnapshot, dbCallId },
+      endedBy,
+      endedAt,
+      durationSeconds
+    );
+  } catch (err) {
+    console.warn("[GroupCall] history push failed:", err?.message || err);
+  }
 }
 
 async function removeUserFromGroupCall(io, groupId, userId, socket) {
