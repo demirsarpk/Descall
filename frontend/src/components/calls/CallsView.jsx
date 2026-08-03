@@ -56,9 +56,11 @@ function statusMeta(call) {
   return { label: "Outgoing", Icon: PhoneOutgoing, tone: "ok" };
 }
 
-function callTitle(call) {
-  if (call.kind === "group") return call.group?.name || "Group";
-  return resolveDisplayName(call.peer);
+function callTitle(call, t) {
+  if (call.kind === "group") return call.group?.name || t("Group");
+  const name = resolveDisplayName(call.peer);
+  if (!name || call.peer?.username === "Unknown") return t("Unknown");
+  return name;
 }
 
 function normalizeServerCall(raw, meId) {
@@ -381,7 +383,7 @@ export default function CallsView({
                 const peerStatus = !isGroup
                   ? getPresenceStatus(onlineUsers, call.peer?.id)
                   : null;
-                const title = callTitle(call);
+                const title = callTitle(call, t);
                 return (
                   <motion.div
                     key={call.id}

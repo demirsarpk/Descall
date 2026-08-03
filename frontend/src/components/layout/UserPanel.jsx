@@ -412,11 +412,11 @@ const UserPanel = forwardRef(function UserPanel({
         setTimeout(() => setProfileSaved(false), 2000);
       } else {
         const data = await res.json().catch(() => ({}));
-        setProfileError(data.error || "Failed to save profile");
+        setProfileError(data.error || t("Failed to save profile"));
         setTimeout(() => setProfileError(""), 3000);
       }
     } catch {
-      setProfileError("Network error while saving profile");
+      setProfileError(t("Network error while saving profile"));
       setTimeout(() => setProfileError(""), 3000);
     } finally {
       setSavingProfile(false);
@@ -429,12 +429,12 @@ const UserPanel = forwardRef(function UserPanel({
     e.target.value = "";
     const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
     if (!allowed.includes(file.type)) {
-      setProfileError("Avatar must be JPG, PNG, WebP, or GIF.");
+      setProfileError(t("Avatar must be JPG, PNG, WebP, or GIF."));
       setTimeout(() => setProfileError(""), 3000);
       return;
     }
     if (file.size > 8 * 1024 * 1024) {
-      setProfileError("Avatar must be 8 MB or smaller.");
+      setProfileError(t("Avatar must be 8 MB or smaller."));
       setTimeout(() => setProfileError(""), 3000);
       return;
     }
@@ -473,7 +473,7 @@ const UserPanel = forwardRef(function UserPanel({
   };
 
   const handleLogoutClick = () => {
-    if (window.confirm("Are you sure you want to log out?")) onLogout?.();
+    if (window.confirm(t("Are you sure you want to log out?"))) onLogout?.();
   };
 
   const copyUserId = async () => {
@@ -536,26 +536,26 @@ const UserPanel = forwardRef(function UserPanel({
             <RiotLinkCard />
 
             <section className="us-section">
-              <h4 className="us-section-label">Account details</h4>
+              <h4 className="us-section-label">{t("Account details")}</h4>
               <div className="us-card">
                 <div className="us-info-row">
-                  <span className="us-muted">Username</span>
+                  <span className="us-muted">{t("Username")}</span>
                   <span className="us-info-value">{me?.username || "User"}</span>
                 </div>
                 <div className="us-info-row">
-                  <span className="us-muted">Email</span>
-                  <span className="us-info-value">{me?.email || "Not set"}</span>
+                  <span className="us-muted">{t("Email")}</span>
+                  <span className="us-info-value">{me?.email || t("Not set")}</span>
                 </div>
                 <div className="us-info-row">
-                  <span className="us-muted">User ID</span>
-                  <button type="button" className="us-copy-btn" onClick={copyUserId} title="Copy ID">
+                  <span className="us-muted">{t("User ID")}</span>
+                  <button type="button" className="us-copy-btn" onClick={copyUserId} title={t("Copy ID")}>
                     <span className="us-info-value mono">{me?.id || "—"}</span>
                     {copiedId ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 </div>
                 <div className="us-info-row">
-                  <span className="us-muted">Status</span>
-                  <span className="us-online-dot">Online</span>
+                  <span className="us-muted">{t("Status")}</span>
+                  <span className="us-online-dot">{t("Online")}</span>
                 </div>
               </div>
             </section>
@@ -564,7 +564,7 @@ const UserPanel = forwardRef(function UserPanel({
               <section className="us-section">
                 <button type="button" className="us-danger-btn" onClick={handleLogoutClick}>
                   <LogOut size={16} />
-                  Log Out
+                  {t("Log Out")}
                 </button>
               </section>
             )}
@@ -574,7 +574,7 @@ const UserPanel = forwardRef(function UserPanel({
       case "profile":
         return (
           <div className="us-tab">
-            <p className="us-lead">Update how others see you across Descall.</p>
+            <p className="us-lead">{t("Update how others see you across Descall.")}</p>
 
             <div
               className="us-profile-preview"
@@ -598,34 +598,34 @@ const UserPanel = forwardRef(function UserPanel({
             </div>
 
             <section className="us-section">
-              <h4 className="us-section-label">Identity</h4>
+              <h4 className="us-section-label">{t("Identity")}</h4>
               <div className="us-card us-form">
                 <label className="us-field">
-                  <span><Type size={13} /> Display name</span>
+                  <span><Type size={13} /> {t("Display name")}</span>
                   <input
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Your display name"
+                    placeholder={t("Your display name")}
                     maxLength={32}
                   />
                 </label>
                 <label className="us-field">
-                  <span><User size={13} /> Bio</span>
+                  <span><User size={13} /> {t("Bio")}</span>
                   <textarea
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="Tell others about yourself…"
+                    placeholder={t("Tell others about yourself…")}
                     rows={3}
                     maxLength={190}
                   />
                   <em className="us-char">{bio.length}/190</em>
                 </label>
                 <label className="us-field">
-                  <span><MonitorSpeaker size={13} /> Custom status</span>
+                  <span><MonitorSpeaker size={13} /> {t("Custom status")}</span>
                   <input
                     value={customStatus}
                     onChange={(e) => setCustomStatus(e.target.value)}
-                    placeholder="What's on your mind?"
+                    placeholder={t("What's on your mind?")}
                     maxLength={60}
                   />
                 </label>
@@ -633,7 +633,7 @@ const UserPanel = forwardRef(function UserPanel({
             </section>
 
             <section className="us-section">
-              <h4 className="us-section-label">Photos</h4>
+              <h4 className="us-section-label">{t("Photos")}</h4>
               <div className="us-card us-form">
                 <div className="us-avatar-block">
                   <button
@@ -656,7 +656,7 @@ const UserPanel = forwardRef(function UserPanel({
                     <input
                       value={avatarUrl}
                       onChange={(e) => setAvatarUrl(e.target.value)}
-                      placeholder="Paste image or GIF URL…"
+                      placeholder={t("Paste image or GIF URL…")}
                     />
                     <div className="us-btn-row">
                       <button
@@ -666,7 +666,7 @@ const UserPanel = forwardRef(function UserPanel({
                         disabled={avatarUploading}
                       >
                         <Upload size={14} />
-                        {avatarUploading ? "Uploading…" : "Upload"}
+                        {avatarUploading ? t("Uploading…") : t("Upload")}
                       </button>
                       {avatarUrl && (
                         <button type="button" className="us-btn ghost-danger" onClick={() => setAvatarUrl("")}>
@@ -710,7 +710,7 @@ const UserPanel = forwardRef(function UserPanel({
                 onClick={handleSaveProfile}
                 disabled={savingProfile}
               >
-                {profileSaved ? <><Check size={16} /> Saved</> : savingProfile ? "Saving…" : "Save changes"}
+                {profileSaved ? <><Check size={16} /> {t("Saved")}</> : savingProfile ? t("Saving…") : t("Save changes")}
               </button>
             </div>
           </div>
@@ -719,9 +719,9 @@ const UserPanel = forwardRef(function UserPanel({
       case "appearance":
         return (
           <div className="us-tab">
-            <p className="us-lead">Choose how Descall looks on this device.</p>
+            <p className="us-lead">{t("Choose how Descall looks on this device.")}</p>
             <section className="us-section">
-              <h4 className="us-section-label">Theme</h4>
+              <h4 className="us-section-label">{t("Theme")}</h4>
               <div className="us-theme-grid">
                 <button
                   type="button"
@@ -731,7 +731,7 @@ const UserPanel = forwardRef(function UserPanel({
                   <div className="us-theme-swatch dark" />
                   <div className="us-theme-meta">
                     <Moon size={15} />
-                    <span>Dark</span>
+                    <span>{t("Dark")}</span>
                   </div>
                   {darkMode && <Check size={14} className="us-theme-check" />}
                 </button>
@@ -743,7 +743,7 @@ const UserPanel = forwardRef(function UserPanel({
                   <div className="us-theme-swatch light" />
                   <div className="us-theme-meta">
                     <Sun size={15} />
-                    <span>Light</span>
+                    <span>{t("Light")}</span>
                   </div>
                   {!darkMode && <Check size={14} className="us-theme-check" />}
                 </button>
@@ -751,7 +751,7 @@ const UserPanel = forwardRef(function UserPanel({
             </section>
 
             <section className="us-section">
-              <h4 className="us-section-label">Accent color</h4>
+              <h4 className="us-section-label">{t("Accent color")}</h4>
               <div className="us-accent-grid">
                 {ACCENT_SWATCHES.map((swatch) => (
                   <button
@@ -767,7 +767,7 @@ const UserPanel = forwardRef(function UserPanel({
             </section>
 
             <section className="us-section">
-              <h4 className="us-section-label">Chat font size</h4>
+              <h4 className="us-section-label">{t("Chat font size")}</h4>
               <div className="us-font-size-row">
                 <Type size={14} />
                 <input
@@ -777,22 +777,22 @@ const UserPanel = forwardRef(function UserPanel({
                   step={1}
                   value={chatFontSize}
                   onChange={(e) => setChatFontSize(Number(e.target.value))}
-                  aria-label="Chat font size"
+                  aria-label={t("Chat font size")}
                 />
                 <span style={{ fontSize: 12, color: "var(--text-muted)", width: 36 }}>{chatFontSize}px</span>
               </div>
               <div className="us-font-preview" style={{ marginTop: 10 }}>
-                The quick brown fox jumps over the lazy dog.
+                {t("The quick brown fox jumps over the lazy dog")}
               </div>
             </section>
 
             <section className="us-section">
-              <h4 className="us-section-label">Density</h4>
+              <h4 className="us-section-label">{t("Density")}</h4>
               <div className="us-segmented">
                 {[
-                  { id: "compact", label: "Compact" },
-                  { id: "comfortable", label: "Comfortable" },
-                  { id: "spacious", label: "Spacious" },
+                  { id: "compact", label: t("Compact") },
+                  { id: "comfortable", label: t("Comfortable") },
+                  { id: "spacious", label: t("Spacious") },
                 ].map((opt) => (
                   <button
                     key={opt.id}
@@ -807,12 +807,12 @@ const UserPanel = forwardRef(function UserPanel({
             </section>
 
             <section className="us-section">
-              <h4 className="us-section-label">Message bubbles</h4>
+              <h4 className="us-section-label">{t("Message bubbles")}</h4>
               <div className="us-segmented">
                 {[
-                  { id: "modern", label: "Modern" },
-                  { id: "classic", label: "Classic" },
-                  { id: "minimal", label: "Minimal" },
+                  { id: "modern", label: t("Modern") },
+                  { id: "classic", label: t("Classic") },
+                  { id: "minimal", label: t("Minimal") },
                 ].map((opt) => (
                   <button
                     key={opt.id}
@@ -825,13 +825,13 @@ const UserPanel = forwardRef(function UserPanel({
                 ))}
               </div>
               <div className={`us-bubble-preview bubble-${bubbleStyle}`}>
-                <div className="us-bubble-demo other">Hey — how’s it going?</div>
-                <div className="us-bubble-demo own">Pretty good! You?</div>
+                <div className="us-bubble-demo other">{t("Hey — how’s it going?")}</div>
+                <div className="us-bubble-demo own">{t("Pretty good! You?")}</div>
               </div>
             </section>
 
             <section className="us-section">
-              <h4 className="us-section-label">Status</h4>
+              <h4 className="us-section-label">{t("Status")}</h4>
               <div className="us-card stack">
                 {["online", "idle", "dnd", "invisible"].map((key) => (
                   <button
@@ -855,12 +855,12 @@ const UserPanel = forwardRef(function UserPanel({
                       }}
                     />
                     {key === "online"
-                      ? "Online"
+                      ? t("Online")
                       : key === "idle"
-                      ? "Idle"
+                      ? t("Idle")
                       : key === "dnd"
-                      ? "Do Not Disturb"
-                      : "Invisible"}
+                      ? t("Do Not Disturb")
+                      : t("Invisible")}
                     {myStatus === key && <Check size={14} style={{ marginLeft: "auto" }} />}
                   </button>
                 ))}
@@ -944,13 +944,13 @@ const UserPanel = forwardRef(function UserPanel({
       case "voice":
         return (
           <div className="us-tab">
-            <p className="us-lead">Pick the devices used for calls on this browser.</p>
+            <p className="us-lead">{t("Pick the devices used for calls on this browser.")}</p>
             <section className="us-section">
               <div className="us-card us-form">
                 <label className="us-field">
-                  <span><Mic size={13} /> Microphone</span>
+                  <span><Mic size={13} /> {t("Microphone")}</span>
                   <select value={selectedAudioIn} onChange={(e) => setSelectedAudioIn(e.target.value)}>
-                    <option value="">System default</option>
+                    <option value="">{t("System default")}</option>
                     {audioInputs.map((d) => (
                       <option key={d.deviceId} value={d.deviceId}>
                         {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
@@ -959,9 +959,9 @@ const UserPanel = forwardRef(function UserPanel({
                   </select>
                 </label>
                 <label className="us-field">
-                  <span><Headphones size={13} /> Speaker</span>
+                  <span><Headphones size={13} /> {t("Speaker")}</span>
                   <select value={selectedAudioOut} onChange={(e) => setSelectedAudioOut(e.target.value)}>
-                    <option value="">System default</option>
+                    <option value="">{t("System default")}</option>
                     {audioOutputs.map((d) => (
                       <option key={d.deviceId} value={d.deviceId}>
                         {d.label || `Speaker ${d.deviceId.slice(0, 6)}`}
@@ -970,9 +970,9 @@ const UserPanel = forwardRef(function UserPanel({
                   </select>
                 </label>
                 <label className="us-field">
-                  <span><Camera size={13} /> Camera</span>
+                  <span><Camera size={13} /> {t("Camera")}</span>
                   <select value={selectedVideoIn} onChange={(e) => setSelectedVideoIn(e.target.value)}>
-                    <option value="">System default</option>
+                    <option value="">{t("System default")}</option>
                     {videoInputs.map((d) => (
                       <option key={d.deviceId} value={d.deviceId}>
                         {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
@@ -981,13 +981,13 @@ const UserPanel = forwardRef(function UserPanel({
                   </select>
                 </label>
                 <button type="button" className="us-btn ghost" onClick={refreshDevices}>
-                  <RefreshCw size={14} /> Refresh devices
+                  <RefreshCw size={14} /> {t("Refresh devices")}
                 </button>
               </div>
             </section>
 
             <section className="us-section">
-              <h4 className="us-section-label">Microphone test</h4>
+              <h4 className="us-section-label">{t("Microphone test")}</h4>
               <div className="us-card us-mic-test">
                 <div className="us-mic-bar">
                   <div
@@ -998,11 +998,11 @@ const UserPanel = forwardRef(function UserPanel({
                 <div className="us-btn-row">
                   {!micTesting ? (
                     <button type="button" className="us-btn primary" onClick={startMicTest}>
-                      <Mic size={14} /> Test mic
+                      <Mic size={14} /> {t("Test mic")}
                     </button>
                   ) : (
                     <button type="button" className="us-btn ghost" onClick={stopMicTest}>
-                      Stop
+                      {t("Stop")}
                     </button>
                   )}
                 </div>
@@ -1014,22 +1014,22 @@ const UserPanel = forwardRef(function UserPanel({
       case "sound":
         return (
           <div className="us-tab">
-            <p className="us-lead">Choose which in-app sounds play.</p>
+            <p className="us-lead">{t("Choose which in-app sounds play.")}</p>
             <section className="us-section">
               <div className="us-card stack">
                 <SettingRow
                   icon={Bell}
-                  title="Message sounds"
-                  description="Play a sound when a new message arrives"
+                  title={t("Message sounds")}
+                  description={t("Play a sound when a new message arrives")}
                 >
-                  <Toggle value={msgSounds} onChange={handleMsgSounds} label="Message sounds" />
+                  <Toggle value={msgSounds} onChange={handleMsgSounds} label={t("Message sounds")} />
                 </SettingRow>
                 <SettingRow
                   icon={Volume2}
-                  title="Call sounds"
-                  description="Ring and call connection sounds"
+                  title={t("Call sounds")}
+                  description={t("Ring and call connection sounds")}
                 >
-                  <Toggle value={callSounds} onChange={handleCallSounds} label="Call sounds" />
+                  <Toggle value={callSounds} onChange={handleCallSounds} label={t("Call sounds")} />
                 </SettingRow>
               </div>
             </section>
@@ -1224,7 +1224,7 @@ const UserPanel = forwardRef(function UserPanel({
               className="us-main-scroll"
             >
               {!isMobile && activeTab !== "overview" && (
-                <h3 className="us-page-title">{TAB_TITLES[activeTab]}</h3>
+                <h3 className="us-page-title">{tabTitles[activeTab]}</h3>
               )}
               {renderTab()}
             </motion.div>

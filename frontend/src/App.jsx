@@ -477,25 +477,25 @@ export default function App() {
     const token = getToken();
     const bootStatus = document.getElementById("boot-status");
     if (!token) {
-      if (bootStatus) bootStatus.textContent = "Almost ready";
+      if (bootStatus) bootStatus.textContent = tRuntime("Almost ready");
       setSessionChecked(true);
       return;
     }
-    if (bootStatus) bootStatus.textContent = "Signing in";
+    if (bootStatus) bootStatus.textContent = tRuntime("Signing in");
     let cancelled = false;
     (async () => {
       try {
         const { user } = await getMe(token);
         if (!cancelled) {
           commitSessionUser(user);
-          if (bootStatus) bootStatus.textContent = "Welcome back";
+          if (bootStatus) bootStatus.textContent = tRuntime("Welcome back");
         }
       } catch (err) {
         if (!cancelled) {
           clearToken();
           clearUser();
           setMe(null);
-          if (bootStatus) bootStatus.textContent = "Almost ready";
+          if (bootStatus) bootStatus.textContent = tRuntime("Almost ready");
         }
       } finally {
         if (!cancelled) setSessionChecked(true);

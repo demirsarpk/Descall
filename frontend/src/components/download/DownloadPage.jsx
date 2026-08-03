@@ -186,7 +186,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
 
   const handleDownload = () => {
     if (selectedPlatform !== 'windows') {
-      setReleaseError('Desktop installer is available for Windows only. Sign in above to use Descall in your browser.');
+      setReleaseError(t("Desktop installer is available for Windows only. Sign in above to use Descall in your browser."));
       return;
     }
     const downloadUrl =
@@ -233,7 +233,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            {t("Descall")} Desktop
+            {t("Descall")} {t("Desktop")}
             <span className="gradient-text"> {t("Experience")}</span>
           </motion.h1>
 
@@ -327,11 +327,11 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                   <currentPlatform.icon size={32} color="white" />
                 </div>
                 <div className="platform-details">
-                  <h3>Descall for {currentPlatform.name}</h3>
+                  <h3>{t("Descall for {name}", { name: currentPlatform.name })}</h3>
                   <p>
                     {selectedPlatform === 'windows'
                       ? `${currentPlatform.file}${releaseLabel ? ` • ${releaseLabel}` : ''} • ${currentPlatform.size}`
-                      : `${currentPlatform.file} • Web app`}
+                      : `${currentPlatform.file} • ${t("Web app")}`}
                   </p>
                 </div>
               </div>
@@ -341,18 +341,18 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                 <div className="req-item">
                   <CheckCircle2 size={16} />
                   <span>
-                    {selectedPlatform === 'windows' && 'Windows 10/11 (64-bit) — desktop installer'}
-                    {selectedPlatform === 'mac' && 'macOS — use Descall in your browser (no desktop build)'}
-                    {selectedPlatform === 'linux' && 'Linux — use Descall in your browser (no desktop build)'}
+                    {selectedPlatform === 'windows' && t("Windows 10/11 (64-bit) — desktop installer")}
+                    {selectedPlatform === 'mac' && t("macOS — use Descall in your browser (no desktop build)")}
+                    {selectedPlatform === 'linux' && t("Linux — use Descall in your browser (no desktop build)")}
                   </span>
                 </div>
                 <div className="req-item">
                   <CheckCircle2 size={16} />
-                  <span>64-bit processor</span>
+                  <span>{t("64-bit processor")}</span>
                 </div>
                 <div className="req-item">
                   <CheckCircle2 size={16} />
-                  <span>500 MB free space</span>
+                  <span>{t("500 MB free space")}</span>
                 </div>
               </div>
 
@@ -401,7 +401,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
               className="github-link"
             >
               <Github size={16} />
-              <span>All releases on GitHub</span>
+              <span>{t("All releases on GitHub")}</span>
             </a>
             <button
               type="button"
@@ -410,7 +410,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
               onClick={() => fetchLatestRelease()}
             >
               <Zap size={16} />
-              <span>Check for updates</span>
+              <span>{t("Check for updates")}</span>
             </button>
           </div>
         </motion.div>
@@ -424,8 +424,8 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
           viewport={{ once: true }}
           className="section-header"
         >
-          <h2>Why Choose Descall?</h2>
-          <p>Experience the next generation of communication</p>
+          <h2>{t("Why Choose Descall?")}</h2>
+          <p>{t("Experience the next generation of communication")}</p>
         </motion.div>
 
         <div className="features-grid">
@@ -457,31 +457,31 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             whileHover={{ scale: 1.05 }}
           >
             <Shield size={32} />
-            <h4>End-to-End Security</h4>
-            <p>Your conversations are encrypted and secure</p>
+            <h4>{t("End-to-End Security")}</h4>
+            <p>{t("Your conversations are encrypted and secure")}</p>
           </motion.div>
           <motion.div 
             className="trust-item"
             whileHover={{ scale: 1.05 }}
           >
             <Zap size={32} />
-            <h4>Lightning Fast</h4>
-            <p>Built for speed with native performance</p>
+            <h4>{t("Lightning Fast")}</h4>
+            <p>{t("Built for speed with native performance")}</p>
           </motion.div>
           <motion.div 
             className="trust-item"
             whileHover={{ scale: 1.05 }}
           >
             <Globe size={32} />
-            <h4>Global Network</h4>
-            <p>Connect with anyone, anywhere in the world</p>
+            <h4>{t("Global Network")}</h4>
+            <p>{t("Connect with anyone, anywhere in the world")}</p>
           </motion.div>
         </div>
       </section>
 
       {/* Footer */}
       <footer className="download-footer">
-        <p>© 2026 Descall. All rights reserved.</p>
+        <p>{t("© 2026 Descall. All rights reserved.")}</p>
       </footer>
 
       {/* Login Modal */}
@@ -505,8 +505,8 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
               <X size={20} />
             </button>
             
-            <h2>{isRegistering ? 'Create Account' : 'Welcome Back'}</h2>
-            <p>{isRegistering ? 'Join Descall today' : 'Sign in to your account'}</p>
+            <h2>{isRegistering ? t("Create Account") : t("Welcome Back")}</h2>
+            <p>{isRegistering ? t("Join Descall today") : t("Sign in to your account")}</p>
             
             {authError && <div className="auth-error">{authError}</div>}
 
@@ -528,7 +528,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             />
 
             <div className="auth-divider" aria-hidden="true">
-              <span>or</span>
+              <span>{t("or")}</span>
             </div>
             
             <form onSubmit={async (e) => {
@@ -551,23 +551,23 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
               }
             }}>
               <div className="form-group">
-                <label>Username</label>
+                <label>{t("Username")}</label>
                 <input 
                   type="text" 
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter username"
+                  placeholder={t("Enter username")}
                   required
                 />
               </div>
               
               <div className="form-group">
-                <label>Password</label>
+                <label>{t("Password")}</label>
                 <input 
                   type="password" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
+                  placeholder={t("Enter password")}
                   required
                 />
               </div>
@@ -577,18 +577,18 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                 className="submit-btn"
                 disabled={isSubmitting || authLoading}
               >
-                {(isSubmitting || authLoading) ? 'Loading...' : (isRegistering ? 'Create Account' : 'Sign In')}
+                {(isSubmitting || authLoading) ? t("Loading...") : (isRegistering ? t("Create Account") : t("Sign In"))}
               </button>
             </form>
             
             <div className="auth-switch">
-              {isRegistering ? 'Already have an account?' : "Don't have an account?"}
+              {isRegistering ? t("Already have an account?") : t("Don't have an account?")}
               <button 
                 type="button"
                 className="switch-btn"
                 onClick={() => setIsRegistering(!isRegistering)}
               >
-                {isRegistering ? 'Sign In' : 'Create Account'}
+                {isRegistering ? t("Sign In") : t("Create Account")}
               </button>
             </div>
           </motion.div>

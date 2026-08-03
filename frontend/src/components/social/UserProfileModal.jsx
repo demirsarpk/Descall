@@ -8,9 +8,10 @@ import { getToken } from "../../lib/storage";
 import { getPresenceStatus } from "../../lib/presence";
 import ValorantBadge from "./ValorantBadge";
 import { getUserValorant } from "../../api/riot";
+import { useT } from "../../context/LocaleContext";
 
-function formatMemberSince(iso) {
-  if (!iso) return "Unknown";
+function formatMemberSince(iso, t) {
+  if (!iso) return t("Unknown");
   try {
     return new Date(iso).toLocaleDateString(undefined, {
       day: "numeric",
@@ -18,7 +19,7 @@ function formatMemberSince(iso) {
       year: "numeric",
     });
   } catch {
-    return "Unknown";
+    return t("Unknown");
   }
 }
 
@@ -32,7 +33,6 @@ function generateBannerGradient(username) {
   return `linear-gradient(135deg, hsl(${hue}, 65%, 28%) 0%, hsl(${(hue + 40) % 360}, 55%, 18%) 100%)`;
 }
 
-const STATUS_LABEL = { online: "Online", offline: "Offline", idle: "Idle", dnd: "Do Not Disturb" };
 const STATUS_COLOR = { online: "#23a55a", offline: "#80848e", idle: "#f0b232", dnd: "#f23f43" };
 
 export default function UserProfileModal({
@@ -47,6 +47,7 @@ export default function UserProfileModal({
   onStartDm,
   onFriendSent,
 }) {
+  const t = useT();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [friendState, setFriendState] = useState("none"); // "none" | "friend" | "sent"
@@ -167,11 +168,17 @@ export default function UserProfileModal({
     }
   };
 
-  const displayUsername = profile?.username || username || "Unknown";
+  const displayUsername = profile?.username || username || t("Unknown");
   const displayName =
     profile?.displayName || profile?.display_name || displayUsername;
   const displayAvatar = profile?.avatarUrl ?? avatarUrl ?? null;
   const bannerGradient = generateBannerGradient(displayUsername);
+  const statusLabel = {
+    online: t("Online"),
+    offline: t("Offline"),
+    idle: t("Idle"),
+    dnd: t("Do Not Disturb"),
+  }[status] || t("Offline");
 
   return (
     <AnimatePresence>
@@ -299,7 +306,7 @@ export default function UserProfileModal({
                       flexShrink: 0,
                     }}
                   />
-                  {STATUS_LABEL[status] || STATUS_LABEL.offline}
+                  {statusLabel}
                 </div>
               </div>
 
@@ -326,7 +333,7 @@ export default function UserProfileModal({
 
               {/* Member since */}
               {loading ? (
-                <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16 }}>Loading…</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16 }}>{t("Loading…")}</div>
               ) : profile?.createdAt ? (
                 <div style={{ marginBottom: 14 }}>
                   <div
@@ -339,10 +346,10 @@ export default function UserProfileModal({
                       marginBottom: 3,
                     }}
                   >
-                    Member Since
+                    {t("Member Since")}
                   </div>
                   <div style={{ fontSize: 13, color: "var(--text-1)", fontWeight: 500 }}>
-                    {formatMemberSince(profile.createdAt)}
+                    {formatMemberSince(profile.createdAt, t)}
                   </div>
                 </div>
               ) : null}
@@ -360,7 +367,7 @@ export default function UserProfileModal({
                       marginBottom: 6,
                     }}
                   >
-                    Mutual Friends
+                    {t("Mutual Friends")}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ display: "flex" }}>
@@ -393,7 +400,15 @@ export default function UserProfileModal({
                     <span style={{ fontSize: 12, color: "var(--text-1)", fontWeight: 500 }}>
                       {mutualFriends.length === 1
                         ? `${mutualFriends[0].username}`
-                        : `${mutualFriends[0].username} and ${mutualFriends.length - 1} other${mutualFriends.length - 1 > 1 ? "s" : ""}`}
+                        : mutualFriends.length - 1 === 1
+                        ? t("{name} and {count} other", {
+                            name: mutualFriends[0].username,
+                            count: 1,
+                          })
+                        : t("{name} and {count} others", {
+                            name: mutualFriends[0].username,
+                            count: mutualFriends.length - 1,
+                          })}
                     </span>
                   </div>
                 </div>
@@ -450,11 +465,11 @@ export default function UserProfileModal({
                     }}
                   >
                     {friendState === "friend" ? (
-                      <><UserMinus size={15} /> {friendLoading ? "Removing…" : "Friends"}</>
+                      <><UserMinus size={15} /> {friendLoading ? t("Removing…") : t("Friends")}</>
                     ) : friendState === "sent" ? (
-                      <><Check size={15} /> Sent</>
+                      <><Check size={15} /> {t("Sent")}</>
                     ) : (
-                      <><UserPlus size={15} /> {friendLoading ? "Sending…" : "Add Friend"}</>
+                      <><UserPlus size={15} /> {friendLoading ? t("Sending…") : t("Add Friend")}</>
                     )}
                   </motion.button>
 
@@ -478,7 +493,7 @@ export default function UserProfileModal({
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.color = "var(--text-0)"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = "var(--surface-3)"; e.currentTarget.style.color = "var(--text-1)"; }}
-                    title="Send Message"
+                    title={t("Send Message")}
                   >
                     <MessageSquare size={16} />
                   </motion.button>

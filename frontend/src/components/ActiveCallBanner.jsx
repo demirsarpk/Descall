@@ -2,19 +2,21 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, LogIn, X } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
+import { useT } from "../context/LocaleContext";
 
 /**
  * Ongoing call bubble — same shape as CallSummaryBubble but green/live.
  */
 export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
+  const t = useT();
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     if (!banner) { setElapsed(0); return; }
     const base = banner.startTime ? Math.floor((Date.now() - banner.startTime) / 1000) : 0;
     setElapsed(Math.max(0, base));
-    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(timer);
   }, [banner?.groupId]);
 
   if (!banner) return null;
@@ -23,6 +25,7 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
   const mins = Math.floor(elapsed / 60).toString().padStart(2, "0");
   const secs = (elapsed % 60).toString().padStart(2, "0");
   const durationLabel = `${mins}:${secs}`;
+  const participantCount = banner.participantCount ?? 1;
 
   return (
     <AnimatePresence>
@@ -45,20 +48,20 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="call-banner-title">
-              {isVideo ? "Video call" : "Voice call"}
+              {isVideo ? t("Video call") : t("Voice call")}
             </div>
             <div className="call-banner-meta">
               <span className="call-banner-live">{durationLabel}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <Users size={11} />
                 <span>
-                  {banner.participantCount ?? 1} participant{(banner.participantCount ?? 1) !== 1 ? "s" : ""} joined
+                  {t("{count} participants joined", { count: participantCount })}
                 </span>
               </div>
             </div>
             {banner.initiatorUsername && (
               <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
-                Started by {banner.initiatorUsername}
+                {t("Started by {name}", { name: banner.initiatorUsername })}
               </div>
             )}
           </div>
@@ -71,11 +74,11 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
             onClick={onJoin}
           >
             <LogIn size={14} />
-            Join
+            {t("Join")}
           </motion.button>
 
           {onDismiss && (
-            <button type="button" className="call-banner-dismiss" onClick={onDismiss} aria-label="Dismiss">
+            <button type="button" className="call-banner-dismiss" onClick={onDismiss} aria-label={t("Dismiss")}>
               <X size={13} />
             </button>
           )}

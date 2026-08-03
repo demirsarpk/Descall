@@ -620,7 +620,7 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
   };
 
 // Helper function to format time ago
-function getTimeAgo(date) {
+function getTimeAgo(date, t) {
   const now = new Date();
   const diffMs = now - date;
   const diffSec = Math.floor(diffMs / 1000);
@@ -628,10 +628,10 @@ function getTimeAgo(date) {
   const diffHour = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHour / 24);
 
-  if (diffSec < 60) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHour < 24) return `${diffHour}h ago`;
-  if (diffDay < 7) return `${diffDay}d ago`;
+  if (diffSec < 60) return t("Just now");
+  if (diffMin < 60) return t("{count}m ago", { count: diffMin });
+  if (diffHour < 24) return t("{count}h ago", { count: diffHour });
+  if (diffDay < 7) return t("{count}d ago", { count: diffDay });
   return date.toLocaleDateString();
 }
 
@@ -743,41 +743,41 @@ function getTimeAgo(date) {
       <div className="admin-body">
         {tab === "overview" && (
           <section className="admin-section">
-            <h2>Server stats</h2>
+            <h2>{t("Server stats")}</h2>
             {stats && (
               <div className="admin-grid">
                 <div className="admin-card">
-                  <span>Uptime (s)</span>
+                  <span>{t("Uptime (s)")}</span>
                   <strong>{Math.floor(stats.uptime)}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>Online</span>
+                  <span>{t("Online")}</span>
                   <strong>{stats.onlineUsers}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>#general msgs</span>
+                  <span>{t("#general msgs")}</span>
                   <strong>{stats.generalMessageCount}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>DM threads</span>
+                  <span>{t("DM threads")}</span>
                   <strong>{stats.dmConversationKeys}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>Banned</span>
+                  <span>{t("Banned")}</span>
                   <strong>{stats.bannedUsers}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>Audit entries</span>
+                  <span>{t("Audit entries")}</span>
                   <strong>{stats.auditEntries}</strong>
                 </div>
               </div>
             )}
             <RippleButton type="button" onClick={() => act(loadStats)} disabled={busy}>
-              Refresh
+              {t("Refresh")}
             </RippleButton>
             {snapshot && (
               <div className="admin-live">
-                <h3>Live socket snapshot</h3>
+                <h3>{t("Live socket snapshot")}</h3>
                 <pre className="admin-pre">{JSON.stringify(snapshot, null, 2)}</pre>
               </div>
             )}
@@ -789,9 +789,9 @@ function getTimeAgo(date) {
             {/* Activity Header with Stats */}
             <div className="activity-header">
               <div className="activity-title-section">
-                <h2>24-Hour Activity Monitor</h2>
+                <h2>{t("24-Hour Activity Monitor")}</h2>
                 <p className="activity-subtitle">
-                  Real-time tracking of user registrations and online activity
+                  {t("Real-time tracking of user registrations and online activity")}
                 </p>
               </div>
               <div className="activity-stats-grid">
@@ -806,8 +806,8 @@ function getTimeAgo(date) {
                   </div>
                   <div className="stat-content">
                     <span className="stat-number">{recentRegistrations.length}</span>
-                    <span className="stat-label">New Registrations</span>
-                    <span className="stat-time">Last 24h</span>
+                    <span className="stat-label">{t("New Registrations")}</span>
+                    <span className="stat-time">{t("Last 24h")}</span>
                   </div>
                 </motion.div>
                 <motion.div 
@@ -821,8 +821,8 @@ function getTimeAgo(date) {
                   </div>
                   <div className="stat-content">
                     <span className="stat-number">{recentOnlineUsers.length}</span>
-                    <span className="stat-label">Active Users</span>
-                    <span className="stat-time">Last 24h</span>
+                    <span className="stat-label">{t("Active Users")}</span>
+                    <span className="stat-time">{t("Last 24h")}</span>
                   </div>
                 </motion.div>
               </div>
@@ -833,9 +833,9 @@ function getTimeAgo(date) {
               <div className="last-updated">
                 <Clock size={14} />
                 <span>
-                  Last updated: {activityLastUpdated 
+                  {t("Last updated")}: {activityLastUpdated 
                     ? activityLastUpdated.toLocaleTimeString() 
-                    : "Never"}
+                    : t("Never")}
                 </span>
               </div>
               <RippleButton 
@@ -845,7 +845,7 @@ function getTimeAgo(date) {
                 className="refresh-btn"
               >
                 <RefreshCw size={16} className={activityLoading ? "spin" : ""} />
-                {activityLoading ? "Loading..." : "Refresh Now"}
+                {activityLoading ? t("Loading...") : t("Refresh Now")}
               </RippleButton>
             </div>
 
@@ -857,7 +857,7 @@ function getTimeAgo(date) {
                 onClick={() => setActivitySubTab("registrations")}
               >
                 <UserCheck size={16} />
-                New Registrations
+                {t("New Registrations")}
                 <span className="badge">{recentRegistrations.length}</span>
               </button>
               <button
@@ -866,7 +866,7 @@ function getTimeAgo(date) {
                 onClick={() => setActivitySubTab("online")}
               >
                 <Wifi size={16} />
-                Online Activity
+                {t("Online Activity")}
                 <span className="badge">{recentOnlineUsers.length}</span>
               </button>
             </div>
@@ -882,13 +882,13 @@ function getTimeAgo(date) {
                 {recentRegistrations.length === 0 ? (
                   <div className="empty-state">
                     <Users size={48} className="empty-icon" />
-                    <h3>No New Registrations</h3>
-                    <p>No users registered in the last 24 hours</p>
+                    <h3>{t("No New Registrations")}</h3>
+                    <p>{t("No users registered in the last 24 hours")}</p>
                   </div>
                 ) : (
                   <div className="activity-timeline">
                     {recentRegistrations.map((user, index) => {
-                      const timeAgo = getTimeAgo(new Date(user.created_at));
+                      const timeAgo = getTimeAgo(new Date(user.created_at), t);
                       return (
                         <motion.div
                           key={user.id}
@@ -934,13 +934,13 @@ function getTimeAgo(date) {
                 {recentOnlineUsers.length === 0 ? (
                   <div className="empty-state">
                     <WifiOff size={48} className="empty-icon" />
-                    <h3>No Online Activity</h3>
-                    <p>No users were online in the last 24 hours</p>
+                    <h3>{t("No Online Activity")}</h3>
+                    <p>{t("No users were online in the last 24 hours")}</p>
                   </div>
                 ) : (
                   <div className="activity-timeline">
                     {recentOnlineUsers.map((user, index) => {
-                      const timeAgo = getTimeAgo(new Date(user.last_seen));
+                      const timeAgo = getTimeAgo(new Date(user.last_seen), t);
                       const isCurrentlyOnline = user.isOnline;
                       return (
                         <motion.div
@@ -960,7 +960,7 @@ function getTimeAgo(date) {
                                 <span className="username">
                                   {user.username}
                                   {isCurrentlyOnline && (
-                                    <span className="online-indicator">● Online Now</span>
+                                    <span className="online-indicator">● {t("Online Now")}</span>
                                   )}
                                 </span>
                                 <span className="user-id">{user.id.slice(0, 8)}...</span>
@@ -968,7 +968,7 @@ function getTimeAgo(date) {
                             </div>
                             <div className="time-info">
                               <span className={`time-badge ${isCurrentlyOnline ? "online" : ""}`}>
-                                {isCurrentlyOnline ? "Currently Online" : timeAgo}
+                                {isCurrentlyOnline ? t("Currently Online") : timeAgo}
                               </span>
                               <span className="exact-time">
                                 {new Date(user.last_seen).toLocaleString()}
@@ -1102,7 +1102,7 @@ function getTimeAgo(date) {
                   {t("admin.growthSubtitle")}
                 </p>
               </div>
-              <div className="period-selector" role="tablist" aria-label="Growth period">
+              <div className="period-selector" role="tablist" aria-label={t("Growth period")}>
                 <button
                   type="button"
                   className={growthPeriod === "24h" ? "active" : ""}
@@ -1115,14 +1115,14 @@ function getTimeAgo(date) {
                   className={growthPeriod === "7d" ? "active" : ""}
                   onClick={() => setGrowthPeriod("7d")}
                 >
-                  7 Days
+                  {t("7 Days")}
                 </button>
                 <button
                   type="button"
                   className={growthPeriod === "30d" ? "active" : ""}
                   onClick={() => setGrowthPeriod("30d")}
                 >
-                  30 Days
+                  {t("30 Days")}
                 </button>
               </div>
             </div>
@@ -1131,9 +1131,9 @@ function getTimeAgo(date) {
               <div className="last-updated">
                 <Clock size={14} />
                 <span>
-                  Last updated: {growthLastUpdated
+                  {t("Last updated")}: {growthLastUpdated
                     ? growthLastUpdated.toLocaleTimeString()
-                    : "Never"}
+                    : t("Never")}
                 </span>
               </div>
               <RippleButton
@@ -1143,25 +1143,25 @@ function getTimeAgo(date) {
                 className="refresh-btn"
               >
                 <RefreshCw size={16} className={growthLoading ? "spin" : ""} />
-                {growthLoading ? "Loading..." : "Refresh"}
+                {growthLoading ? t("Loading...") : t("Refresh")}
               </RippleButton>
             </div>
 
             <div className="growth-summary">
               <motion.div className="summary-card accent-green" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                <span className="summary-label">New ({growthPeriod})</span>
+                <span className="summary-label">{t("New ({period})", { period: growthPeriod })}</span>
                 <span className="summary-value">{periodNew}</span>
               </motion.div>
               <motion.div className="summary-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-                <span className="summary-label">New (7 days)</span>
+                <span className="summary-label">{t("New (7 days)")}</span>
                 <span className="summary-value">{weekNew}</span>
               </motion.div>
               <motion.div className="summary-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                <span className="summary-label">New (30 days)</span>
+                <span className="summary-label">{t("New (30 days)")}</span>
                 <span className="summary-value">{monthNew}</span>
               </motion.div>
               <motion.div className="summary-card accent-blue" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-                <span className="summary-label">Total Users</span>
+                <span className="summary-label">{t("Total Users")}</span>
                 <span className="summary-value">{totalUsers}</span>
               </motion.div>
             </div>
@@ -1171,16 +1171,16 @@ function getTimeAgo(date) {
               {chartDays.length === 0 ? (
                 <div className="empty-state">
                   <TrendingUp size={40} className="empty-icon" />
-                  <h3>No growth data yet</h3>
-                  <p>Registration trends will appear here</p>
+                  <h3>{t("No growth data yet")}</h3>
+                  <p>{t("Registration trends will appear here")}</p>
                 </div>
               ) : (
-                <div className="growth-chart" role="img" aria-label="Daily new registrations chart">
+                <div className="growth-chart" role="img" aria-label={t("Daily New Registrations")}>
                   {chartDays.map((day, index) => {
                     const height = day.newUsers > 0 ? Math.max(8, (day.newUsers / maxUsers) * 100) : 0;
                     const d = new Date(day.date);
                     return (
-                      <div key={day.date} className="chart-bar-wrapper" title={`${day.date}: ${day.newUsers} new`}>
+                      <div key={day.date} className="chart-bar-wrapper" title={t("{date}: {count} new", { date: day.date, count: day.newUsers })}>
                         <div className="chart-bar-container">
                           <motion.div
                             className={`chart-bar${day.newUsers === 0 ? " is-empty" : ""}`}
@@ -1323,21 +1323,21 @@ function getTimeAgo(date) {
                 className="refresh-btn"
               >
                 <RefreshCw size={16} className={busy ? "spin" : ""} />
-                Refresh
+                {t("Refresh")}
               </RippleButton>
             </div>
 
             <div className="admin-users-hero">
               <motion.div className="hero-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                <div className="hero-label">Total Users</div>
+                <div className="hero-label">{t("Total Users")}</div>
                 <div className="hero-value">{users.length}</div>
               </motion.div>
               <motion.div className="hero-card online" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-                <div className="hero-label">Online Now</div>
+                <div className="hero-label">{t("Online Now")}</div>
                 <div className="hero-value">{usersOnlineCount}</div>
               </motion.div>
               <motion.div className="hero-card admins" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                <div className="hero-label">Admins</div>
+                <div className="hero-label">{t("Admins")}</div>
                 <div className="hero-value">{usersAdminCount}</div>
               </motion.div>
             </div>
@@ -1345,12 +1345,12 @@ function getTimeAgo(date) {
             <div className="admin-toolbar">
               <input
                 className="admin-input"
-                placeholder="Search username or ID…"
+                placeholder={t("Search username or ID…")}
                 value={userQ}
                 onChange={(e) => setUserQ(e.target.value)}
               />
               <RippleButton type="button" onClick={() => act(loadAllUsers)} disabled={busy}>
-                Search
+                {t("Search")}
               </RippleButton>
             </div>
 
@@ -1359,19 +1359,19 @@ function getTimeAgo(date) {
                 <thead>
                   <tr>
                     <th></th>
-                    <th>Username</th>
-                    <th>ID</th>
-                    <th>Status</th>
-                    <th>Joined</th>
-                    <th>Admin</th>
-                    <th>Actions</th>
+                    <th>{t("Username")}</th>
+                    <th>{t("ID")}</th>
+                    <th>{t("Status")}</th>
+                    <th>{t("Joined")}</th>
+                    <th>{t("Admin")}</th>
+                    <th>{t("Actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredUsers.length === 0 ? (
                     <tr>
                       <td colSpan={7} style={{ textAlign: "center", color: "rgba(244,246,251,0.45)", padding: 28 }}>
-                        {users.length === 0 ? "No users loaded" : "No users match your search"}
+                        {users.length === 0 ? t("No users loaded") : t("No users match your search")}
                       </td>
                     </tr>
                   ) : (
@@ -1384,9 +1384,9 @@ function getTimeAgo(date) {
                     <td className="mono">{u.id.slice(0, 8)}…</td>
                     <td className="admin-status">
                       {u.isOnline ? (
-                        <span className="admin-badge online">Online</span>
+                        <span className="admin-badge online">{t("Online")}</span>
                       ) : (
-                        <span className="admin-badge offline">Offline</span>
+                        <span className="admin-badge offline">{t("Offline")}</span>
                       )}
                     </td>
                     <td style={{ fontSize: 12, color: "var(--text-muted)" }}>
@@ -1394,9 +1394,9 @@ function getTimeAgo(date) {
                     </td>
                     <td className="admin-status">
                       {u.is_admin ? (
-                        <span className="admin-badge">Admin</span>
+                        <span className="admin-badge">{t("Admin")}</span>
                       ) : (
-                        <span className="admin-badge-false">User</span>
+                        <span className="admin-badge-false">{t("User")}</span>
                       )}
                     </td>
                     <td className="admin-actions">
@@ -1426,7 +1426,7 @@ function getTimeAgo(date) {
                             })
                           }
                         >
-                          Remove Admin
+                          {t("Remove Admin")}
                         </button>
                       ) : (
                         <button
@@ -1454,7 +1454,7 @@ function getTimeAgo(date) {
                             })
                           }
                         >
-                          Make Admin
+                          {t("Make Admin")}
                         </button>
                       )}
                     </td>

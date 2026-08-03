@@ -5,13 +5,14 @@ import { Avatar } from "../ui/Avatar";
 import { pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import ValorantBadge from "./ValorantBadge";
 import { getUserValorant } from "../../api/riot";
+import { useT } from "../../context/LocaleContext";
 
-const STATUS = {
-  online: { label: "Online", className: "st-online" },
-  idle: { label: "Idle", className: "st-idle" },
-  dnd: { label: "Do Not Disturb", className: "st-dnd" },
-  invisible: { label: "Invisible", className: "st-invisible" },
-  offline: { label: "Offline", className: "st-offline" },
+const STATUS_CLASS = {
+  online: "st-online",
+  idle: "st-idle",
+  dnd: "st-dnd",
+  invisible: "st-invisible",
+  offline: "st-offline",
 };
 
 const CARD_WIDTH = 280;
@@ -47,6 +48,7 @@ function clampPos(anchor, cardH = 180) {
 }
 
 export default function UserHoverCard({ user, anchor }) {
+  const t = useT();
   const ref = useRef(null);
   const [pos, setPos] = useState(() => clampPos(anchor));
   const [valorant, setValorant] = useState(user?.valorant || null);
@@ -74,7 +76,15 @@ export default function UserHoverCard({ user, anchor }) {
 
   if (!user || !anchor) return null;
 
-  const st = STATUS[user.status] || STATUS.offline;
+  const statusKey = user.status && STATUS_CLASS[user.status] ? user.status : "offline";
+  const statusClass = STATUS_CLASS[statusKey];
+  const statusLabel = {
+    online: t("Online"),
+    idle: t("Idle"),
+    dnd: t("Do Not Disturb"),
+    invisible: t("Invisible"),
+    offline: t("Offline"),
+  }[statusKey];
   const lastSeenLabel = user.lastSeen ? formatLastSeen(user.lastSeen) : null;
   const display = resolveDisplayName(user);
   const banner = user.bannerUrl || user.banner_url;
@@ -118,15 +128,15 @@ export default function UserHoverCard({ user, anchor }) {
         </div>
         <div className="uhc-text">
           <div className="uhc-name">{display}</div>
-          <div className="uhc-handle">@{user.username || "user"}</div>
-          <div className={`uhc-status ${st.className}`}>
-            <span className="uhc-dot" /> {st.label}
+          <div className="uhc-handle">@{user.username || t("user")}</div>
+          <div className={`uhc-status ${statusClass}`}>
+            <span className="uhc-dot" /> {statusLabel}
           </div>
           {customStatus && <p className="uhc-custom-status">{customStatus}</p>}
           {valorant?.linked && <ValorantBadge valorant={valorant} compact />}
           {bio && <p className="uhc-bio">{bio}</p>}
-          {!bio && lastSeenLabel && st.className === "st-offline" && (
-            <p className="uhc-bio">Last seen {lastSeenLabel}</p>
+          {!bio && lastSeenLabel && statusClass === "st-offline" && (
+            <p className="uhc-bio">{t("Last seen {time}", { time: lastSeenLabel })}</p>
           )}
         </div>
       </div>

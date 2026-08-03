@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Link2, Copy, Check, RefreshCw, Users } from "lucide-react";
 import { createGroupInviteLink } from "../../api/groups";
 import { Avatar } from "../ui/Avatar";
+import { useT } from "../../context/LocaleContext";
 
 const EXPIRY_OPTIONS = [
   { hours: 1, label: "1 hour" },
@@ -14,6 +15,7 @@ const EXPIRY_OPTIONS = [
 ];
 
 export default function GroupInviteModal({ group, open, onClose }) {
+  const t = useT();
   const [expiresInHours, setExpiresInHours] = useState(24 * 7);
   const [invite, setInvite] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -35,7 +37,7 @@ export default function GroupInviteModal({ group, open, onClose }) {
         });
         if (!cancelled) setInvite(res.invite);
       } catch (err) {
-        if (!cancelled) setError(err.message || "Could not create invite");
+        if (!cancelled) setError(err.message || t("Could not create invite"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -43,7 +45,7 @@ export default function GroupInviteModal({ group, open, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [open, group?.id]);
+  }, [open, group?.id, t]);
 
   const regenerate = async (hours = expiresInHours) => {
     if (!group?.id) return;
@@ -57,7 +59,7 @@ export default function GroupInviteModal({ group, open, onClose }) {
       });
       setInvite(res.invite);
     } catch (err) {
-      setError(err.message || "Could not create invite");
+      setError(err.message || t("Could not create invite"));
     } finally {
       setLoading(false);
     }
@@ -71,7 +73,7 @@ export default function GroupInviteModal({ group, open, onClose }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      setError("Could not copy to clipboard");
+      setError(t("Could not copy to clipboard"));
     }
   };
 
@@ -91,7 +93,7 @@ export default function GroupInviteModal({ group, open, onClose }) {
         <motion.div
           className="invite-modal"
           role="dialog"
-          aria-label="Invite people"
+          aria-label={t("Invite people")}
           initial={{ opacity: 0, y: 16, scale: 0.97 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 12, scale: 0.97 }}
@@ -100,26 +102,28 @@ export default function GroupInviteModal({ group, open, onClose }) {
         >
           <header className="invite-modal-header">
             <div>
-              <h2>Invite people</h2>
-              <p>Share a link — friends can join this group instantly</p>
+              <h2>{t("Invite people")}</h2>
+              <p>{t("Share a link — friends can join this group instantly")}</p>
             </div>
-            <button type="button" className="invite-modal-close" onClick={onClose} aria-label="Close">
+            <button type="button" className="invite-modal-close" onClick={onClose} aria-label={t("Close")}>
               <X size={18} />
             </button>
           </header>
 
           <div className="invite-modal-group">
-            <Avatar name={group?.name || "Group"} size={44} user={group} />
+            <Avatar name={group?.name || t("Group")} size={44} user={group} />
             <div>
-              <strong>{group?.name || "Group"}</strong>
+              <strong>{group?.name || t("Group")}</strong>
               <span>
                 <Users size={12} />
-                {group?.memberCount != null ? `${group.memberCount} members` : "Group chat"}
+                {group?.memberCount != null
+                  ? t("{count} members", { count: group.memberCount })
+                  : t("Group chat")}
               </span>
             </div>
           </div>
 
-          <label className="invite-modal-label">Expire after</label>
+          <label className="invite-modal-label">{t("Expire after")}</label>
           <div className="invite-expiry-row">
             {EXPIRY_OPTIONS.map((opt) => (
               <button
@@ -131,16 +135,16 @@ export default function GroupInviteModal({ group, open, onClose }) {
                   regenerate(opt.hours);
                 }}
               >
-                {opt.label}
+                {t(opt.label)}
               </button>
             ))}
           </div>
 
-          <label className="invite-modal-label">Invite link</label>
+          <label className="invite-modal-label">{t("Invite link")}</label>
           <div className="invite-link-row">
             <div className="invite-link-box">
               <Link2 size={16} />
-              <span>{loading ? "Creating link…" : invite?.url || "—"}</span>
+              <span>{loading ? t("Creating link…") : invite?.url || "—"}</span>
             </div>
             <button
               type="button"
@@ -149,7 +153,7 @@ export default function GroupInviteModal({ group, open, onClose }) {
               disabled={!invite?.url || loading}
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
-              {copied ? "Copied" : "Copy"}
+              {copied ? t("Copied") : t("Copy")}
             </button>
           </div>
 
@@ -160,7 +164,7 @@ export default function GroupInviteModal({ group, open, onClose }) {
             disabled={loading}
           >
             <RefreshCw size={14} className={loading ? "spin" : undefined} />
-            Generate new link
+            {t("Generate new link")}
           </button>
 
           {error && <div className="invite-modal-error">{error}</div>}
