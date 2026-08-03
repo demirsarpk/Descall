@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { 
   Shield, Users, MessageSquare, Activity, AlertCircle, Settings, 
@@ -280,8 +280,8 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
     try {
       console.log("[ADMIN] Loading activity data...");
       
-      // Fetch all users
-      const d = await adminFetch("/users");
+      // Fetch all users (high limit for accurate 24h activity)
+      const d = await adminFetch("/users?limit=500");
       console.log("[ADMIN] Users data:", d);
       
       const allUsers = d.users || [];
@@ -342,7 +342,7 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
       const allMessages = messagesRes.messages || [];
       
       // Fetch users for activity data
-      const usersRes = await adminFetch("/users");
+      const usersRes = await adminFetch("/users?limit=500");
       const allUsers = usersRes.users || [];
       
       // Calculate engagement stats
@@ -393,8 +393,9 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
   const loadGrowth = useCallback(async () => {
     setGrowthLoading(true);
     try {
-      const d = await adminFetch("/users");
+      const d = await adminFetch("/users?limit=500");
       const allUsers = d.users || [];
+      const totalUsersCount = Number(d.total) || allUsers.length;
       
       // Generate daily growth data based on registration dates
       const dailyData = {};
@@ -418,8 +419,9 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
         }
       });
       
-      // Calculate cumulative totals
-      let runningTotal = allUsers.length - Object.values(dailyData).reduce((sum, d) => sum + d.newUsers, 0);
+      // Calculate cumulative totals (prefer API exact total when available)
+      const windowRegs = Object.values(dailyData).reduce((sum, day) => sum + day.newUsers, 0);
+      let runningTotal = Math.max(0, totalUsersCount - windowRegs);
       Object.keys(dailyData).sort().forEach(dateKey => {
         runningTotal += dailyData[dateKey].newUsers;
         dailyData[dateKey].totalUsers = runningTotal;
@@ -443,7 +445,7 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
       const allMessages = messagesRes.messages || [];
       
       // Fetch users
-      const usersRes = await adminFetch("/users");
+      const usersRes = await adminFetch("/users?limit=500");
       const allUsers = usersRes.users || [];
       
       // Calculate message counts per user
@@ -630,6 +632,25 @@ function getTimeAgo(date) {
   if (diffDay < 7) return `${diffDay}d ago`;
   return date.toLocaleDateString();
 }
+
+  const filteredUsers = useMemo(() => {
+    const q = userQ.trim().toLowerCase();
+    if (!q) return users || [];
+    return (users || []).filter((u) => {
+      const name = String(u.username || "").toLowerCase();
+      const id = String(u.id || "").toLowerCase();
+      return name.includes(q) || id.includes(q);
+    });
+  }, [users, userQ]);
+
+  const usersOnlineCount = useMemo(
+    () => (users || []).filter((u) => u.isOnline).length,
+    [users]
+  );
+  const usersAdminCount = useMemo(
+    () => (users || []).filter((u) => u.is_admin).length,
+    [users]
+  );
 
   return (
     <motion.div
@@ -1060,9 +1081,18 @@ function getTimeAgo(date) {
           </section>
         )}
 
-        {tab === "growth" && (
+        {tab === "growth" && (() => {
+          const days =
+            growthPeriod === "24h" ? 1 : growthPeriod === "7d" ? 7 : 30;
+          const chartDays = growthData.slice(-days);
+          const maxUsers = Math.max(...chartDays.map((d) => d.newUsers), 1);
+          const periodNew = chartDays.reduce((sum, d) => sum + d.newUsers, 0);
+          const weekNew = growthData.slice(-7).reduce((sum, d) => sum + d.newUsers, 0);
+          const monthNew = growthData.slice(-30).reduce((sum, d) => sum + d.newUsers, 0);
+          const totalUsers = growthData[growthData.length - 1]?.totalUsers || 0;
+
+          return (
           <section className="admin-section admin-growth-section">
-            {/* Growth Header */}
             <div className="activity-header">
               <div className="activity-title-section">
                 <h2>User Growth Analytics</h2>
@@ -1070,20 +1100,23 @@ function getTimeAgo(date) {
                   Daily registration trends and growth metrics
                 </p>
               </div>
-              <div className="period-selector">
-                <button 
+              <div className="period-selector" role="tablist" aria-label="Growth period">
+                <button
+                  type="button"
                   className={growthPeriod === "24h" ? "active" : ""}
                   onClick={() => setGrowthPeriod("24h")}
                 >
                   24h
                 </button>
-                <button 
+                <button
+                  type="button"
                   className={growthPeriod === "7d" ? "active" : ""}
                   onClick={() => setGrowthPeriod("7d")}
                 >
                   7 Days
                 </button>
-                <button 
+                <button
+                  type="button"
                   className={growthPeriod === "30d" ? "active" : ""}
                   onClick={() => setGrowthPeriod("30d")}
                 >
@@ -1092,19 +1125,18 @@ function getTimeAgo(date) {
               </div>
             </div>
 
-            {/* Toolbar */}
             <div className="activity-toolbar">
               <div className="last-updated">
                 <Clock size={14} />
                 <span>
-                  Last updated: {growthLastUpdated 
-                    ? growthLastUpdated.toLocaleTimeString() 
+                  Last updated: {growthLastUpdated
+                    ? growthLastUpdated.toLocaleTimeString()
                     : "Never"}
                 </span>
               </div>
-              <RippleButton 
-                type="button" 
-                onClick={() => act(loadGrowth)} 
+              <RippleButton
+                type="button"
+                onClick={() => act(loadGrowth)}
                 disabled={growthLoading}
                 className="refresh-btn"
               >
@@ -1113,59 +1145,71 @@ function getTimeAgo(date) {
               </RippleButton>
             </div>
 
-            {/* Growth Chart */}
-            <div className="growth-chart-container">
-              <h3>Daily New Registrations</h3>
-              <div className="growth-chart">
-                {growthData.slice(-7).map((day, index) => {
-                  const maxUsers = Math.max(...growthData.slice(-7).map(d => d.newUsers), 1);
-                  const height = day.newUsers > 0 ? (day.newUsers / maxUsers) * 100 : 0;
-                  return (
-                    <div key={day.date} className="chart-bar-wrapper">
-                      <div className="chart-bar-container">
-                        <motion.div 
-                          className="chart-bar"
-                          initial={{ height: 0 }}
-                          animate={{ height: `${height}%` }}
-                          transition={{ delay: index * 0.1, duration: 0.5 }}
-                        >
-                          {day.newUsers > 0 && (
-                            <span className="bar-value">{day.newUsers}</span>
-                          )}
-                        </motion.div>
-                      </div>
-                      <span className="bar-label">
-                        {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+            <div className="growth-summary">
+              <motion.div className="summary-card accent-green" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <span className="summary-label">New ({growthPeriod})</span>
+                <span className="summary-value">{periodNew}</span>
+              </motion.div>
+              <motion.div className="summary-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                <span className="summary-label">New (7 days)</span>
+                <span className="summary-value">{weekNew}</span>
+              </motion.div>
+              <motion.div className="summary-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <span className="summary-label">New (30 days)</span>
+                <span className="summary-value">{monthNew}</span>
+              </motion.div>
+              <motion.div className="summary-card accent-blue" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                <span className="summary-label">Total Users</span>
+                <span className="summary-value">{totalUsers}</span>
+              </motion.div>
             </div>
 
-            {/* Growth Stats */}
-            <div className="growth-summary">
-              <div className="summary-card">
-                <span className="summary-label">New (7 days)</span>
-                <span className="summary-value">
-                  {growthData.slice(-7).reduce((sum, d) => sum + d.newUsers, 0)}
-                </span>
-              </div>
-              <div className="summary-card">
-                <span className="summary-label">New (30 days)</span>
-                <span className="summary-value">
-                  {growthData.slice(-30).reduce((sum, d) => sum + d.newUsers, 0)}
-                </span>
-              </div>
-              <div className="summary-card">
-                <span className="summary-label">Total Users</span>
-                <span className="summary-value">
-                  {growthData[growthData.length - 1]?.totalUsers || 0}
-                </span>
-              </div>
+            <div className="growth-chart-container">
+              <h3>Daily New Registrations</h3>
+              {chartDays.length === 0 ? (
+                <div className="empty-state">
+                  <TrendingUp size={40} className="empty-icon" />
+                  <h3>No growth data yet</h3>
+                  <p>Registration trends will appear here</p>
+                </div>
+              ) : (
+                <div className="growth-chart" role="img" aria-label="Daily new registrations chart">
+                  {chartDays.map((day, index) => {
+                    const height = day.newUsers > 0 ? Math.max(8, (day.newUsers / maxUsers) * 100) : 0;
+                    const d = new Date(day.date);
+                    return (
+                      <div key={day.date} className="chart-bar-wrapper" title={`${day.date}: ${day.newUsers} new`}>
+                        <div className="chart-bar-container">
+                          <motion.div
+                            className={`chart-bar${day.newUsers === 0 ? " is-empty" : ""}`}
+                            initial={{ height: 0 }}
+                            animate={{ height: day.newUsers > 0 ? `${height}%` : 4 }}
+                            transition={{ delay: Math.min(index * 0.04, 0.5), duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                          >
+                            {day.newUsers > 0 && (
+                              <span className="bar-value">{day.newUsers}</span>
+                            )}
+                          </motion.div>
+                        </div>
+                        <span className="bar-label">
+                          {growthPeriod === "30d"
+                            ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                            : d.toLocaleDateString("en-US", { weekday: "short" })}
+                          {growthPeriod !== "30d" && (
+                            <span className="bar-date">
+                              {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </section>
-        )}
+          );
+        })()}
 
         {tab === "topusers" && (
           <section className="admin-section admin-topusers-section">
@@ -1218,7 +1262,14 @@ function getTimeAgo(date) {
 
             {/* Top Users List */}
             <div className="top-users-list">
-              {topUsers.slice(0, 20).map((user, index) => (
+              {(topUsersMetric === "activity"
+                ? [...topUsers].sort((a, b) => {
+                    const ta = a.lastActive ? new Date(a.lastActive).getTime() : 0;
+                    const tb = b.lastActive ? new Date(b.lastActive).getTime() : 0;
+                    return tb - ta;
+                  })
+                : topUsers
+              ).slice(0, 20).map((user, index) => (
                 <motion.div
                   key={user.id}
                   className="top-user-item"
@@ -1256,10 +1307,43 @@ function getTimeAgo(date) {
 
         {tab === "users" && (
           <section className="admin-section">
+            <div className="activity-header">
+              <div className="activity-title-section">
+                <h2>Users</h2>
+                <p className="activity-subtitle">
+                  Manage accounts, roles, and online status
+                </p>
+              </div>
+              <RippleButton
+                type="button"
+                onClick={() => act(loadAllUsers)}
+                disabled={busy}
+                className="refresh-btn"
+              >
+                <RefreshCw size={16} className={busy ? "spin" : ""} />
+                Refresh
+              </RippleButton>
+            </div>
+
+            <div className="admin-users-hero">
+              <motion.div className="hero-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <div className="hero-label">Total Users</div>
+                <div className="hero-value">{users.length}</div>
+              </motion.div>
+              <motion.div className="hero-card online" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                <div className="hero-label">Online Now</div>
+                <div className="hero-value">{usersOnlineCount}</div>
+              </motion.div>
+              <motion.div className="hero-card admins" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <div className="hero-label">Admins</div>
+                <div className="hero-value">{usersAdminCount}</div>
+              </motion.div>
+            </div>
+
             <div className="admin-toolbar">
               <input
                 className="admin-input"
-                placeholder="Search username…"
+                placeholder="Search username or ID…"
                 value={userQ}
                 onChange={(e) => setUserQ(e.target.value)}
               />
@@ -1267,20 +1351,29 @@ function getTimeAgo(date) {
                 Search
               </RippleButton>
             </div>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Username</th>
-                  <th>ID</th>
-                  <th>Status</th>
-                  <th>Joined</th>
-                  <th>Admin</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
+
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Username</th>
+                    <th>ID</th>
+                    <th>Status</th>
+                    <th>Joined</th>
+                    <th>Admin</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: "center", color: "rgba(244,246,251,0.45)", padding: 28 }}>
+                        {users.length === 0 ? "No users loaded" : "No users match your search"}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((u) => (
                   <motion.tr key={u.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <td>
                       <Avatar name={u.username} size={36} user={u} />
@@ -1364,9 +1457,11 @@ function getTimeAgo(date) {
                       )}
                     </td>
                   </motion.tr>
-                ))}
-              </tbody>
-            </table>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
 
