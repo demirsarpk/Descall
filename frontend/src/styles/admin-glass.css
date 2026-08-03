@@ -1073,6 +1073,49 @@
   overflow: hidden;
 }
 
+.feedback-preview {
+  margin: 0;
+  font-size: 0.84rem;
+  color: rgba(244, 246, 251, 0.78);
+  line-height: 1.4;
+}
+
+.attachment-preview,
+.reply-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  margin-right: 10px;
+  font-size: 0.72rem;
+  color: rgba(244, 246, 251, 0.45);
+}
+
+.feedback-detail .detail-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.feedback-detail .detail-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.feedback-detail select {
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.28);
+  color: #f4f6fb;
+  font-size: 0.78rem;
+}
+
 .feedback-meta {
   margin-top: 8px;
   font-size: 0.72rem;
