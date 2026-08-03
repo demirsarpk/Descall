@@ -5,6 +5,35 @@ const { socketToUser } = require("../runtime/sharedState");
 
 const router = express.Router();
 const MAX_GROUP_SIZE = 15;
+const INVITE_CODE_LENGTH = 8;
+
+function generateInviteCode() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  let code = "";
+  for (let i = 0; i < INVITE_CODE_LENGTH; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+async function isGroupMember(groupId, userId) {
+  const { data } = await supabase
+    .from("group_members")
+    .select("group_id")
+    .eq("group_id", groupId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+function publicInviteUrl(req, code) {
+  const origin =
+    process.env.PUBLIC_APP_URL ||
+    req.get("origin") ||
+    `${req.protocol}://${req.get("host")}` ||
+    "https://des-call.onrender.com";
+  return `${String(origin).replace(/\/$/, "")}/invite/${code}`;
+}
 
 // Kullanicinin socket ID'sini bul
 function getUserSocketId(userId) {
@@ -90,6 +119,157 @@ async function getUserGroups(userId) {
   return groupsWithDetails;
 }
 
+// ─── Invite links (Discord-style) ───────────────────────────────────────────
+
+// GET /groups/invite-links/:code — public preview
+router.get("/invite-links/:code", async (req, res) => {
+  try {
+    const code = String(req.params.code || "").trim();
+    if (!code) return res.status(400).json({ error: "Missing invite code" });
+
+    const { data: invite, error } = await supabase
+      .from("group_invite_links")
+      .select("code, group_id, creator_id, max_uses, uses, expires_at, created_at")
+      .eq("code", code)
+      .maybeSingle();
+
+    if (error || !invite) {
+      return res.status(404).json({ error: "Invite invalid or expired" });
+    }
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+      await supabase.from("group_invite_links").delete().eq("code", code);
+      return res.status(410).json({ error: "Invite expired" });
+    }
+    if (invite.max_uses != null && invite.uses >= invite.max_uses) {
+      return res.status(410).json({ error: "Invite has reached max uses" });
+    }
+
+    const { data: group } = await supabase
+      .from("groups")
+      .select("id, name, avatar_url, created_by")
+      .eq("id", invite.group_id)
+      .maybeSingle();
+    if (!group) return res.status(404).json({ error: "Group not found" });
+
+    const { count } = await supabase
+      .from("group_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("group_id", group.id);
+
+    let alreadyMember = false;
+    try {
+      // Optional auth — if Bearer present, check membership
+      const auth = req.headers.authorization || "";
+      if (auth.startsWith("Bearer ")) {
+        // lightly reuse requireAuth pattern without failing public access
+        const { verifyToken } = require("../config/jwt");
+        const decoded = verifyToken(auth.slice(7));
+        if (decoded?.sub) {
+          alreadyMember = await isGroupMember(group.id, decoded.sub);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return res.json({
+      invite: {
+        code: invite.code,
+        expiresAt: invite.expires_at,
+        maxUses: invite.max_uses,
+        uses: invite.uses,
+        url: publicInviteUrl(req, invite.code),
+      },
+      group: {
+        id: group.id,
+        name: group.name,
+        avatarUrl: group.avatar_url,
+        memberCount: count || 0,
+      },
+      alreadyMember,
+    });
+  } catch (err) {
+    console.error("[Groups] invite preview error:", err);
+    return res.status(500).json({ error: "Failed to load invite" });
+  }
+});
+
+// POST /groups/invite-links/:code/join — join via link
+router.post("/invite-links/:code/join", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const code = String(req.params.code || "").trim();
+    if (!code) return res.status(400).json({ error: "Missing invite code" });
+
+    const { data: invite, error } = await supabase
+      .from("group_invite_links")
+      .select("code, group_id, max_uses, uses, expires_at")
+      .eq("code", code)
+      .maybeSingle();
+
+    if (error || !invite) return res.status(404).json({ error: "Invite invalid or expired" });
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+      await supabase.from("group_invite_links").delete().eq("code", code);
+      return res.status(410).json({ error: "Invite expired" });
+    }
+    if (invite.max_uses != null && invite.uses >= invite.max_uses) {
+      return res.status(410).json({ error: "Invite has reached max uses" });
+    }
+
+    if (await isGroupMember(invite.group_id, userId)) {
+      const groups = await getUserGroups(userId);
+      const group = groups.find((g) => g.id === invite.group_id);
+      return res.json({ success: true, alreadyMember: true, group });
+    }
+
+    const { count } = await supabase
+      .from("group_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("group_id", invite.group_id);
+    if ((count || 0) >= MAX_GROUP_SIZE) {
+      return res.status(400).json({ error: `Group is full (max ${MAX_GROUP_SIZE})` });
+    }
+
+    const { error: joinError } = await supabase
+      .from("group_members")
+      .insert({ group_id: invite.group_id, user_id: userId });
+    if (joinError) {
+      console.error("[Groups] invite join insert:", joinError);
+      return res.status(500).json({ error: "Failed to join group" });
+    }
+
+    const nextUses = (invite.uses || 0) + 1;
+    if (invite.max_uses != null && nextUses >= invite.max_uses) {
+      await supabase.from("group_invite_links").delete().eq("code", code);
+    } else {
+      await supabase.from("group_invite_links").update({ uses: nextUses }).eq("code", code);
+    }
+
+    const groups = await getUserGroups(userId);
+    const group = groups.find((g) => g.id === invite.group_id);
+
+    const io = req.app.get("io");
+    if (io && group) {
+      const sockId = getUserSocketId(userId);
+      if (sockId) {
+        const sock = io.sockets.sockets.get(sockId);
+        sock?.join(`group:${group.id}`);
+        sock?.emit("group:invited", { group });
+      }
+      io.to(`group:${group.id}`).emit("group:member:joined", {
+        groupId: group.id,
+        userId,
+        username: req.user.username,
+      });
+    }
+
+    return res.json({ success: true, group });
+  } catch (err) {
+    console.error("[Groups] invite join error:", err);
+    return res.status(500).json({ error: "Failed to join group" });
+  }
+});
+
 // Get all groups where user is member
 router.get("/my", requireAuth, async (req, res) => {
   try {
@@ -162,6 +342,104 @@ router.post("/create", requireAuth, async (req, res) => {
     console.error("[Groups] Create error:", err);
     console.error("[Groups] Stack:", err.stack);
     res.status(500).json({ error: "Failed to create group", details: err.message });
+  }
+});
+
+// POST /groups/:groupId/invite-links — create shareable invite
+router.post("/:groupId/invite-links", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { groupId } = req.params;
+    const { maxUses = null, expiresInHours = 24 * 7 } = req.body || {};
+
+    if (!(await isGroupMember(groupId, userId))) {
+      return res.status(403).json({ error: "You are not a member of this group" });
+    }
+
+    let code = generateInviteCode();
+    for (let i = 0; i < 5; i++) {
+      const { data: existing } = await supabase
+        .from("group_invite_links")
+        .select("code")
+        .eq("code", code)
+        .maybeSingle();
+      if (!existing) break;
+      code = generateInviteCode();
+    }
+
+    const expiresAt =
+      expiresInHours == null || expiresInHours === 0
+        ? null
+        : new Date(Date.now() + Number(expiresInHours) * 60 * 60 * 1000).toISOString();
+
+    const { data: invite, error } = await supabase
+      .from("group_invite_links")
+      .insert({
+        code,
+        group_id: groupId,
+        creator_id: userId,
+        max_uses: maxUses || null,
+        uses: 0,
+        expires_at: expiresAt,
+      })
+      .select("code, group_id, creator_id, max_uses, uses, expires_at, created_at")
+      .single();
+
+    if (error || !invite) {
+      console.error("[Groups] create invite-link:", error);
+      return res.status(500).json({
+        error: error?.message?.includes("group_invite_links")
+          ? "Invite links table missing — run groupInviteLinksMigration.sql"
+          : "Failed to create invite",
+      });
+    }
+
+    return res.status(201).json({
+      invite: {
+        ...invite,
+        url: publicInviteUrl(req, invite.code),
+      },
+    });
+  } catch (err) {
+    console.error("[Groups] POST invite-links error:", err);
+    return res.status(500).json({ error: "Failed to create invite" });
+  }
+});
+
+// GET /groups/:groupId/invite-links — list
+router.get("/:groupId/invite-links", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { groupId } = req.params;
+    if (!(await isGroupMember(groupId, userId))) {
+      return res.status(403).json({ error: "You are not a member of this group" });
+    }
+    const { data: invites, error } = await supabase
+      .from("group_invite_links")
+      .select("code, group_id, creator_id, max_uses, uses, expires_at, created_at")
+      .eq("group_id", groupId)
+      .order("created_at", { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({
+      invites: (invites || []).map((i) => ({ ...i, url: publicInviteUrl(req, i.code) })),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to list invites" });
+  }
+});
+
+// DELETE /groups/:groupId/invite-links/:code
+router.delete("/:groupId/invite-links/:code", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { groupId, code } = req.params;
+    if (!(await isGroupMember(groupId, userId))) {
+      return res.status(403).json({ error: "You are not a member of this group" });
+    }
+    await supabase.from("group_invite_links").delete().eq("group_id", groupId).eq("code", code);
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to revoke invite" });
   }
 });
 
