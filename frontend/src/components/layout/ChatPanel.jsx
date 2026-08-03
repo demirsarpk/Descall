@@ -14,6 +14,7 @@ import ActivityView from "../activity/ActivityView";
 import TypingIndicator from "../chat/TypingIndicator";
 import GuildChatView from "../servers/GuildChatView";
 import EmptyState from "../ui/EmptyState";
+import CallsView from "../calls/CallsView";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { getPresenceStatus, STATUS_META } from "../../lib/presence";
@@ -56,6 +57,8 @@ export default function ChatPanel({
   showMobileBack = false,
   onAddClick,
   onViewChange,
+  onStartCall,
+  onOpenChatFromCalls,
   children
 }) {
   const messagesRef = useRef(null);
@@ -284,6 +287,15 @@ export default function ChatPanel({
           onClearManual={activity?.clearManual}
           onUpdatePrivacy={activity?.updatePrivacy}
           onlineUsers={onlineUsers}
+        />
+      ) : activeView === "calls" && !activeDmUser && !activeGroup ? (
+        <CallsView
+          me={me}
+          friends={friends}
+          onlineUsers={onlineUsers}
+          socket={socket}
+          onStartCall={onStartCall}
+          onOpenChat={onOpenChatFromCalls}
         />
       ) : activeGuildChannel ? (
         <GuildChatView

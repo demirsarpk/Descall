@@ -108,9 +108,10 @@
     overflow: hidden;
   }
 
-  /* Section lists must scroll and render fully on touch browsers */
+  /* Keep overflow hidden so expand/collapse height animation clips cleanly.
+     The parent .sidebar-content remains the scroll container. */
   .app-sidebar-shell .section-content {
-    overflow: visible;
+    overflow: hidden;
     min-height: 0;
   }
 
