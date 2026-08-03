@@ -114,14 +114,14 @@ export default function MessageComposer({
     const el = inputRef.current;
     if (!el) return undefined;
     const onBlur = () => {
-      // Help iOS release residual visualViewport offset after keyboard dismiss.
+      // After keyboard dismiss animation (~280ms) — avoid mid-slide scroll jumps.
       window.setTimeout(() => {
         try {
           window.scrollTo(0, 0);
           document.documentElement.scrollTop = 0;
           document.body.scrollTop = 0;
         } catch { /* ignore */ }
-      }, 50);
+      }, 280);
     };
     el.addEventListener("blur", onBlur);
     return () => el.removeEventListener("blur", onBlur);

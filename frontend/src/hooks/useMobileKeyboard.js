@@ -16,9 +16,11 @@ function resetScroll() {
   }
 }
 
+const KB_CLOSE_ANIM_MS = 280;
+
 /**
  * Keep the mobile shell aligned to the visual viewport while the keyboard
- * is open, and hard-reset scroll/CSS when it closes (fixes stuck elevated composer).
+ * is open, and smooth-reset when it closes (composer slides down with the KB).
  */
 export function useMobileKeyboard(enabled = true) {
   useEffect(() => {
@@ -28,6 +30,7 @@ export function useMobileKeyboard(enabled = true) {
     const vv = window.visualViewport;
     let raf = 0;
     let lastOpen = false;
+    let closeAnimTimer = 0;
 
     const apply = () => {
       const layoutH = window.innerHeight || root.clientHeight || 0;
@@ -35,6 +38,16 @@ export function useMobileKeyboard(enabled = true) {
       const offsetTop = vv?.offsetTop ?? 0;
       const kb = Math.max(0, Math.round(layoutH - vvH - offsetTop));
       const open = kb >= KB_OPEN_THRESHOLD;
+
+      // Closing: enable height transition before the VV jump so the composer
+      // eases down instead of snapping. Opening stays instant to track the KB.
+      if (!open && lastOpen) {
+        root.classList.add("kb-closing");
+        window.clearTimeout(closeAnimTimer);
+        closeAnimTimer = window.setTimeout(() => {
+          root.classList.remove("kb-closing");
+        }, KB_CLOSE_ANIM_MS);
+      }
 
       root.style.setProperty("--vv-height", `${Math.round(vvH)}px`);
       root.style.setProperty("--vv-offset-top", `${Math.round(offsetTop)}px`);
@@ -44,11 +57,12 @@ export function useMobileKeyboard(enabled = true) {
       if (open !== lastOpen) {
         lastOpen = open;
         if (!open) {
-          // Keyboard closed — clear any iOS focus-scroll residue.
-          resetScroll();
-          // Second pass after Safari finishes its close animation.
-          window.setTimeout(resetScroll, 50);
-          window.setTimeout(resetScroll, 180);
+          // Keyboard closed — clear any iOS focus-scroll residue after the slide.
+          window.setTimeout(resetScroll, 40);
+          window.setTimeout(resetScroll, KB_CLOSE_ANIM_MS);
+        } else {
+          root.classList.remove("kb-closing");
+          window.clearTimeout(closeAnimTimer);
         }
       } else if (!open && (window.scrollY || document.documentElement.scrollTop || offsetTop > 1)) {
         resetScroll();
@@ -61,8 +75,10 @@ export function useMobileKeyboard(enabled = true) {
     };
 
     const onFocusOut = () => {
-      // Blur path: wait a tick so iOS can update visualViewport first.
+      // Blur path: wait for visualViewport to settle, then let apply() clear
+      // kb-open — do not yank the class early (that snaps the composer).
       window.setTimeout(schedule, 40);
+      window.setTimeout(schedule, 120);
       window.setTimeout(() => {
         const active = document.activeElement;
         const stillEditing =
@@ -70,12 +86,8 @@ export function useMobileKeyboard(enabled = true) {
           (active.tagName === "INPUT" ||
             active.tagName === "TEXTAREA" ||
             active.isContentEditable);
-        if (!stillEditing) {
-          root.classList.remove("kb-open");
-          root.style.setProperty("--kb-inset", "0px");
-          resetScroll();
-        }
-      }, 120);
+        if (!stillEditing) resetScroll();
+      }, KB_CLOSE_ANIM_MS);
     };
 
     apply();
@@ -90,6 +102,7 @@ export function useMobileKeyboard(enabled = true) {
 
     return () => {
       cancelAnimationFrame(raf);
+      window.clearTimeout(closeAnimTimer);
       if (vv) {
         vv.removeEventListener("resize", schedule);
         vv.removeEventListener("scroll", schedule);
@@ -99,6 +112,7 @@ export function useMobileKeyboard(enabled = true) {
       window.removeEventListener("focusout", onFocusOut);
       document.removeEventListener("visibilitychange", schedule);
       root.classList.remove("kb-open");
+      root.classList.remove("kb-closing");
       root.style.removeProperty("--vv-height");
       root.style.removeProperty("--vv-offset-top");
       root.style.removeProperty("--kb-inset");

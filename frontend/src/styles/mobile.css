@@ -517,6 +517,14 @@
     transition: padding-bottom 0.12s ease;
   }
 
+  /* Keyboard dismiss: ease shell height so the composer slides down with the KB */
+  html.kb-closing .app-root.is-mobile {
+    transition:
+      height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      max-height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      padding-bottom 0.2s ease;
+  }
+
   .app-root.is-mobile .main-panel {
     height: 100%;
     max-height: 100%;
@@ -581,6 +589,12 @@
   .app-root.is-mobile.in-conversation .main-panel {
     height: var(--vv-height, 100dvh);
     max-height: var(--vv-height, 100dvh);
+  }
+
+  html.kb-closing .app-root.is-mobile.in-conversation .main-panel {
+    transition:
+      height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      max-height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   /* Keyboard open: drop tab-bar reserve, size to visual viewport, hide tabs */
