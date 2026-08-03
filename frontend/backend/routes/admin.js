@@ -88,7 +88,7 @@ router.get("/users", async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
     const page = Math.max(0, parseInt(req.query.page || "0", 10) || 0);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || "50", 10) || 50));
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit || "200", 10) || 200));
     const from = page * limit;
     const to = from + limit - 1;
 

@@ -719,9 +719,9 @@ app.get("/api/admin/users", requireAuth, async (req, res) => {
       return res.status(403).json({ success: false, error: "Not authorized" });
     }
     
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from("users")
-      .select("id, username, avatar_url, is_admin")
+      .select("id, username, avatar_url, is_admin, created_at", { count: "exact" })
       .order("username", { ascending: true });
     
     if (error) return res.status(500).json({ success: false, error: error.message });
@@ -735,7 +735,11 @@ app.get("/api/admin/users", requireAuth, async (req, res) => {
     }));
     
     console.log("[ADMIN-USERS] Returning", usersWithStatus.length, "users");
-    return res.json({ success: true, users: usersWithStatus });
+    return res.json({
+      success: true,
+      users: usersWithStatus,
+      total: count ?? usersWithStatus.length,
+    });
   } catch (err) {
     console.error("[ADMIN-USERS] Error:", err);
     return res.status(500).json({ success: false, error: err.message });
