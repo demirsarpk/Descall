@@ -36,6 +36,14 @@ const {
 } = require("../runtime/sharedState");
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
+const { trackOffer, markAnswered, finalizeCall } = require("../lib/dmCallLog");
+
+async function notifyCallHistory(io, record) {
+  if (!record) return;
+  const payload = { call: record };
+  emitToUser(io, record.callerId, "calls:updated", payload);
+  emitToUser(io, record.calleeId, "calls:updated", payload);
+}
 
 function ensureSet(map, key) {
   if (!map.has(key)) map.set(key, new Set());
@@ -812,6 +820,12 @@ function registerSocketHandlers(io) {
       const presenceHit = Boolean(presence.get(targetId)?.socketId);
       const delivered = (room && room.size > 0) || presenceHit;
 
+      trackOffer({
+        callerId: myId,
+        calleeId: targetId,
+        callType: callType || "voice",
+      });
+
       emitToUser(io, targetId, "call:offer", {
         fromUser: {
           id: myId,
@@ -836,6 +850,8 @@ function registerSocketHandlers(io) {
 
     socket.on("call:answer", ({ toUserId, answer } = {}) => {
       if (typeof toUserId !== "string" || !answer) return;
+      // Callee answers → caller is toUserId
+      markAnswered({ callerId: toUserId, calleeId: myId });
       emitToUser(io, toUserId, "call:answer", {
         fromUserId: myId,
         answer,
@@ -850,19 +866,38 @@ function registerSocketHandlers(io) {
       });
     });
 
-    socket.on("call:end", ({ toUserId } = {}) => {
+    socket.on("call:end", async ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
       emitToUser(io, toUserId, "call:ended", { fromUserId: myId });
+      try {
+        const record = await finalizeCall(myId, toUserId, "completed");
+        await notifyCallHistory(io, record);
+      } catch (err) {
+        console.warn("[Call] finalize end failed:", err?.message || err);
+      }
     });
 
-    socket.on("call:cancel", ({ toUserId } = {}) => {
+    socket.on("call:cancel", async ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
       emitToUser(io, toUserId, "call:cancelled", { fromUserId: myId });
+      try {
+        // Unanswered cancel = missed for the callee history
+        const record = await finalizeCall(myId, toUserId, "missed");
+        await notifyCallHistory(io, record);
+      } catch (err) {
+        console.warn("[Call] finalize cancel failed:", err?.message || err);
+      }
     });
 
-    socket.on("call:decline", ({ toUserId } = {}) => {
+    socket.on("call:decline", async ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
       emitToUser(io, toUserId, "call:declined", { fromUserId: myId });
+      try {
+        const record = await finalizeCall(myId, toUserId, "declined");
+        await notifyCallHistory(io, record);
+      } catch (err) {
+        console.warn("[Call] finalize decline failed:", err?.message || err);
+      }
     });
 
     socket.on("screen:share-start", ({ toUserId } = {}) => {

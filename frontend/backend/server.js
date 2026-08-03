@@ -25,6 +25,7 @@ const guildRoutes = require("./routes/guilds");
 const webrtcRoutes = require("./routes/webrtc");
 const appReleaseRoutes = require("./routes/appRelease");
 const errorRoutes = require("./routes/errors");
+const callsRoutes = require("./routes/calls");
 const state = require("./runtime/sharedState");
 
 // Inline feedback - no external file needed
@@ -138,6 +139,7 @@ app.use("/groups", groupRoutes);
 app.use("/reactions", reactionRoutes);
 app.use("/friends", friendsRoutes);
 app.use("/guilds", guildRoutes);
+app.use("/calls", callsRoutes);
 
 // /api/* aliases — frontend calls mix /api/... and /... so support both
 app.use("/api/auth", authRoutes);
@@ -151,6 +153,7 @@ app.use("/api/guilds", guildRoutes);
 app.use("/api/webrtc", webrtcRoutes);
 app.use("/api/errors", errorRoutes);
 app.use("/api/app", appReleaseRoutes);
+app.use("/api/calls", callsRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)

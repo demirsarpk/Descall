@@ -655,8 +655,14 @@
 .section-content {
   padding: 0 0 0 4px;
   margin: 0;
-  overflow: visible;
+  overflow: hidden;
   min-height: 0;
+}
+
+.section-chevron {
+  color: inherit;
+  flex-shrink: 0;
+  line-height: 0;
 }
 
 /* ─── DM Items ─── */

@@ -56,8 +56,10 @@
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.6),
     0 24px 80px rgba(0, 0, 0, 0.75);
-  /* Never slide from a side — always a centered card */
+  /* Centered card enter/exit via framer-motion */
   transform-origin: center center;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 
 .user-settings.is-mobile {
@@ -68,6 +70,14 @@
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   flex-direction: column;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.user-settings-shell.is-mobile {
+  background: rgba(0, 0, 0, 0.45);
+  align-items: stretch;
+  justify-content: stretch;
 }
 
 /* ── Sidebar ── */
