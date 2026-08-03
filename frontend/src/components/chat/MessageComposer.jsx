@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Mic, Smile,
-  Plus, Gift, Image, FileText, X, StopCircle, Loader2, Reply
+  Plus, Gift, Image, FileText, X, StopCircle, Loader2, Reply, Dice5, HelpCircle, Wallet, Trophy
 } from "lucide-react";
 import GiphyPicker from "./GiphyPicker";
 import { getToken } from "../../lib/storage";
@@ -12,6 +12,46 @@ const EMOJI_CATEGORIES = [
   { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖","😺","😸","😹","😻","😼","😽","🙀","😿","😾"] },
   { name: "Gestures", emojis: ["👋","🤚","🖐️","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦵","🦿","🦶","👂","🦻","👃","🧠","🫀","🫁","🦷","🦴","👀","👁️","👅","👄","💋","🩸"] },
   { name: "Hearts", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","❣️","💕","💞","💓","💗","💖","💘","💝","💟"] },
+];
+
+/** Group chat slash commands — shown when the user types `/` */
+const SLASH_COMMANDS = [
+  {
+    id: "bj",
+    command: "/bj",
+    insert: "/bj 100",
+    label: "Blackjack",
+    hint: "Start a hand — /bj 100",
+    Icon: Dice5,
+    groupOnly: true,
+  },
+  {
+    id: "help",
+    command: "/help",
+    insert: "/help",
+    label: "Casino help",
+    hint: "Show blackjack commands",
+    Icon: HelpCircle,
+    groupOnly: true,
+  },
+  {
+    id: "credits",
+    command: "/credits",
+    insert: "/credits",
+    label: "Credits",
+    hint: "Check your balance",
+    Icon: Wallet,
+    groupOnly: true,
+  },
+  {
+    id: "top",
+    command: "/top",
+    insert: "/top",
+    label: "Leaderboard",
+    hint: "Top credit balances",
+    Icon: Trophy,
+    groupOnly: true,
+  },
 ];
 
 export default function MessageComposer({
@@ -31,6 +71,7 @@ export default function MessageComposer({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showGiphy, setShowGiphy] = useState(false);
+  const [slashIndex, setSlashIndex] = useState(0);
   const [recordingTime, setRecordingTime] = useState(0);
   const [waveBars, setWaveBars] = useState(() => Array(24).fill(0.15));
   const [uploading, setUploading] = useState(false);
@@ -115,6 +156,41 @@ export default function MessageComposer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDmUser?.id, activeGroup?.id]);
 
+  const slashMatches = useMemo(() => {
+    // Slash menu is for group casino commands
+    if (!activeGroup) return [];
+    const raw = message;
+    // Only while composing a leading slash token (no spaces yet, or "/bj " still editing command)
+    if (!raw.startsWith("/")) return [];
+    const firstToken = raw.split(/\s/)[0] || "";
+    if (raw.includes(" ") && firstToken.length > 1) {
+      // Already chose a command with args — hide picker
+      return [];
+    }
+    const q = firstToken.toLowerCase();
+    return SLASH_COMMANDS.filter((cmd) => {
+      if (cmd.groupOnly && !activeGroup) return false;
+      return cmd.command.startsWith(q) || q === "/";
+    });
+  }, [message, activeGroup]);
+
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slashMatches.length, message]);
+
+  const applySlashCommand = useCallback((cmd) => {
+    if (!cmd) return;
+    setMessage(cmd.insert);
+    setSlashIndex(0);
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      const pos = cmd.insert.length;
+      el.selectionStart = el.selectionEnd = pos;
+    });
+  }, []);
+
   const withReply = (payload) => {
     if (!replyTo) return payload;
     const replyMeta = {
@@ -149,6 +225,28 @@ export default function MessageComposer({
   };
 
   const handleKeyDown = (e) => {
+    if (slashMatches.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashIndex((i) => (i + 1) % slashMatches.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        e.preventDefault();
+        applySlashCommand(slashMatches[slashIndex] || slashMatches[0]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMessage("");
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -399,6 +497,44 @@ export default function MessageComposer({
             >
               <X size={14} />
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {slashMatches.length > 0 && (
+          <motion.div
+            className="slash-command-menu"
+            role="listbox"
+            aria-label="Slash commands"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.14 }}
+          >
+            <div className="slash-command-header">Commands</div>
+            {slashMatches.map((cmd, idx) => {
+              const Icon = cmd.Icon;
+              const active = idx === slashIndex;
+              return (
+                <button
+                  key={cmd.id}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  className={`slash-command-item ${active ? "active" : ""}`}
+                  onMouseEnter={() => setSlashIndex(idx)}
+                  onClick={() => applySlashCommand(cmd)}
+                >
+                  <span className="slash-command-ico"><Icon size={18} /></span>
+                  <span className="slash-command-copy">
+                    <strong>{cmd.command}</strong>
+                    <span>{cmd.hint}</span>
+                  </span>
+                  <span className="slash-command-label">{cmd.label}</span>
+                </button>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>

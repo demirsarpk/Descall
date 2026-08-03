@@ -373,7 +373,7 @@ function registerSocketHandlers(io) {
     }
 
     if (!userRoles.has(myId)) {
-      userRoles.set(myId, me.username === "admin" ? "admin" : "user");
+      userRoles.set(myId, me.username === "admin" || me.is_admin ? "admin" : "user");
     }
     userSessionStartMs.set(myId, Date.now());
 
@@ -406,9 +406,14 @@ function registerSocketHandlers(io) {
         me.custom_status = profile.custom_status;
         me.banner_url = profile.banner_url;
         me.updated_at = profile.updated_at;
+        me.is_admin = Boolean(profile.is_admin);
         socket.user.avatar_url = profile.avatar_url;
         socket.user.display_name = profile.display_name;
         socket.user.displayName = profile.display_name;
+        socket.user.is_admin = Boolean(profile.is_admin);
+        if (profile.is_admin || me.username === "admin") {
+          userRoles.set(myId, "admin");
+        }
         const p = presence.get(myId);
         if (p) {
           p.avatar_url = profile.avatar_url;
