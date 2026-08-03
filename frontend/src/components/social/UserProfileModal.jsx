@@ -6,6 +6,8 @@ import StatusBadge from "../ui/StatusBadge";
 import { API_BASE_URL } from "../../config/api";
 import { getToken } from "../../lib/storage";
 import { getPresenceStatus } from "../../lib/presence";
+import ValorantBadge from "./ValorantBadge";
+import { getUserValorant } from "../../api/riot";
 
 function formatMemberSince(iso) {
   if (!iso) return "Unknown";
@@ -51,6 +53,7 @@ export default function UserProfileModal({
   const [friendLoading, setFriendLoading] = useState(false);
   const [friendError, setFriendError] = useState("");
   const [mutualFriends, setMutualFriends] = useState([]);
+  const [valorant, setValorant] = useState(null);
 
   const isSelf = me?.id === userId;
   const status = getPresenceStatus(onlineUsers, userId);
@@ -65,8 +68,18 @@ export default function UserProfileModal({
       if (!res.ok) throw new Error("Not found");
       const data = await res.json();
       setProfile(data.user);
+      setValorant(data.user?.valorant || null);
+      if (!data.user?.valorant) {
+        try {
+          const v = await getUserValorant(userId);
+          setValorant(v.valorant || null);
+        } catch {
+          /* optional */
+        }
+      }
     } catch {
       setProfile(null);
+      setValorant(null);
     } finally {
       setLoading(false);
     }
@@ -292,6 +305,24 @@ export default function UserProfileModal({
 
               {/* Divider */}
               <div style={{ height: 1, background: "var(--border-2)", margin: "0 -16px 12px" }} />
+
+              {valorant?.linked && (
+                <div style={{ marginBottom: 14 }}>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.6px",
+                      color: "var(--text-muted)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Valorant
+                  </div>
+                  <ValorantBadge valorant={valorant} />
+                </div>
+              )}
 
               {/* Member since */}
               {loading ? (
