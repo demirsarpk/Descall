@@ -29,7 +29,7 @@ function resolveSocketAvatar(socket) {
 const MENTION_PATTERN = /@(\w{1,32})/g;
 
 // Game commands that should be intercepted
-const GAME_COMMANDS = ['bj', 'blackjack', 'hit', 'stand', 'stay', 'double', 'credits', 'bakiye', 'balance', 'top', 'lider', 'help', 'yardım', 'commands', 'jb'];
+const GAME_COMMANDS = ['bj', 'blackjack', 'hit', 'stand', 'stay', 'double', 'credits', 'bakiye', 'balance', 'top', 'lider', 'help', 'yardım', 'commands', 'jb', 'daily'];
 const COMMAND_REGEX = /^\/(\w+)(?:\s+(\S+))?/;
 
 function extractMentionedUsernames(text) {
