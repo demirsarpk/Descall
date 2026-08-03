@@ -1,4 +1,4 @@
-const STORAGE_KEY = "descall_call_history_v1";
+const STORAGE_KEY = "descall_call_history_v2";
 const MAX = 80;
 
 export function loadCachedCalls(userId) {
