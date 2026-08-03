@@ -1692,7 +1692,9 @@ export const phrases = {
   "Server returned invalid JSON: {message}": "Server returned invalid JSON: {message}",
   "HTTP {status}: {detail}": "HTTP {status}: {detail}",
   "Failed to submit feedback: {message}": "Failed to submit feedback: {message}",
-  "Copied!": "Copied!"
+  "Copied!": "Copied!",
+  "No members": "No members",
+  "📞 Call": "📞 Call"
 };
 
 const locale = { nested, phrases };

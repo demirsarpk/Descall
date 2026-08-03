@@ -1919,7 +1919,9 @@ export const phrases = {
   "HTTP {status}: {detail}": "HTTP {status}: {detail}",
   "Failed to submit feedback: {message}": "Geri bildirim gönderilemedi: {message}",
   "Export My Data": "Verilerimi Dışa Aktar",
-  "Saving...": "Kaydediliyor..."
+  "Saving...": "Kaydediliyor...",
+  "No members": "Üye yok",
+  "📞 Call": "📞 Arama"
 };
 
 const locale = { nested, phrases };

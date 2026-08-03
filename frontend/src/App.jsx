@@ -170,6 +170,29 @@ function normalizeGroupMessage(m) {
   };
 }
 
+/** Sidebar preview text for a normalized group message (username: body). */
+function formatGroupPreviewFromMsg(msg, t = (k) => k) {
+  if (!msg) return null;
+  if (msg.type === "call_summary") {
+    const who = msg.from?.username || msg.username || null;
+    const body = t("📞 Call");
+    return (who ? `${who}: ${body}` : body).slice(0, 80);
+  }
+  const who =
+    msg.from?.username ||
+    msg.username ||
+    msg.sender?.username ||
+    null;
+  let body = null;
+  const text = String(msg.text || "").trim();
+  if (text) body = text;
+  else if (msg.mediaType === "image") body = t("📷 Photo");
+  else if (msg.mediaType === "voice" || msg.mediaType === "audio") body = t("🎤 Voice message");
+  else if (msg.mediaUrl) body = t("📎 Attachment");
+  if (!body) return null;
+  return (who ? `${who}: ${body}` : body).slice(0, 80);
+}
+
 async function fetchConversationReactions(type, conversationId) {
   if (!type || !conversationId) return {};
   try {
@@ -691,6 +714,34 @@ export default function App() {
       getMyGroups().then((raw) => {
         const groups = normalizeGroups(raw);
         setMyGroups(groups);
+        // Seed list previews from API lastMessage/lastActivity (same idea as friend:list).
+        setGroupPreviews((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const g of groups) {
+            if (g?.id && g.lastMessage && g.lastMessage !== next[g.id]) {
+              next[g.id] = g.lastMessage;
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+        setGroupLastActivity((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const g of groups) {
+            if (!g?.id || !g.lastActivity) continue;
+            const prevTs = next[g.id] ? new Date(next[g.id]).getTime() : 0;
+            const nextTs = new Date(g.lastActivity).getTime();
+            if (!prevTs || nextTs >= prevTs) {
+              if (next[g.id] !== g.lastActivity) {
+                next[g.id] = g.lastActivity;
+                changed = true;
+              }
+            }
+          }
+          return changed ? next : prev;
+        });
         // Rejoin after groups load — connect-time rejoin often runs with empty list.
         const ids = groups.map((g) => g.id).filter(Boolean);
         if (ids.length > 0 && socket.connected) {
@@ -1053,9 +1104,11 @@ export default function App() {
       });
 
       setGroupLastActivity((prev) => ({ ...prev, [groupId]: normalized.timestamp }));
-      if (normalized.text) {
-        const preview = `${normalized.from.username}: ${normalized.text}`;
-        setGroupPreviews((prev) => ({ ...prev, [groupId]: preview.slice(0, 80) }));
+      {
+        const preview = formatGroupPreviewFromMsg(normalized);
+        if (preview) {
+          setGroupPreviews((prev) => ({ ...prev, [groupId]: preview }));
+        }
       }
 
       // Notify for messages from others in non-active group
@@ -1471,6 +1524,33 @@ export default function App() {
       const raw = await getMyGroups();
       const groups = normalizeGroups(raw);
       setMyGroups(groups);
+      setGroupPreviews((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const g of groups) {
+          if (g?.id && g.lastMessage && g.lastMessage !== next[g.id]) {
+            next[g.id] = g.lastMessage;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      setGroupLastActivity((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const g of groups) {
+          if (!g?.id || !g.lastActivity) continue;
+          const prevTs = next[g.id] ? new Date(next[g.id]).getTime() : 0;
+          const nextTs = new Date(g.lastActivity).getTime();
+          if (!prevTs || nextTs >= prevTs) {
+            if (next[g.id] !== g.lastActivity) {
+              next[g.id] = g.lastActivity;
+              changed = true;
+            }
+          }
+        }
+        return changed ? next : prev;
+      });
       const ids = groups.map((g) => g.id).filter(Boolean);
       if (ids.length > 0 && socketRef.current?.connected) {
         socketRef.current.emit("groups:rejoin", ids);
@@ -1559,10 +1639,18 @@ export default function App() {
         const rx = await fetchConversationReactions("group", activeGroup.id);
         normalized = mergeReactionsIntoMessages(normalized, rx);
         setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
+        const last = normalized[normalized.length - 1];
+        const preview = formatGroupPreviewFromMsg(last, t);
+        if (preview) {
+          setGroupPreviews((prev) => ({ ...prev, [activeGroup.id]: preview }));
+        }
+        if (last?.timestamp) {
+          setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: last.timestamp }));
+        }
       })
       .catch((err) => console.error("[App] fetch group messages error:", err))
       .finally(() => setMessagesLoading(false));
-  }, [activeGroup?.id]);
+  }, [activeGroup?.id, t]);
 
   useEffect(() => {
     if (me?.id) {
@@ -1846,12 +1934,20 @@ export default function App() {
   }, [friends, dmLastActivity, dmPreviews, dmUnread, dmByUserId, t]);
 
   const sortedGroups = useMemo(() => {
-    const list = (myGroups || []).map((g) => ({
-      ...g,
-      lastMessage: groupPreviews[g.id] || g.lastMessage || null,
-      lastActivity: groupLastActivity[g.id] || g.lastActivity || g.updated_at || g.created_at || null,
-      unreadCount: groupUnread[g.id] || 0,
-    }));
+    const list = (myGroups || []).map((g) => {
+      const cached = groupMessagesById[g.id];
+      const lastCached =
+        Array.isArray(cached) && cached.length > 0 ? cached[cached.length - 1] : null;
+      const cachedPreview = formatGroupPreviewFromMsg(lastCached, t);
+      const cachedActivity = lastCached?.timestamp || lastCached?.created_at || null;
+      return {
+        ...g,
+        lastMessage: groupPreviews[g.id] || g.lastMessage || cachedPreview || null,
+        lastActivity:
+          groupLastActivity[g.id] || g.lastActivity || cachedActivity || g.updated_at || g.created_at || null,
+        unreadCount: groupUnread[g.id] || 0,
+      };
+    });
     return list.sort((a, b) => {
       const ta = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
       const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
@@ -1859,7 +1955,7 @@ export default function App() {
       if ((b.unreadCount || 0) !== (a.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
       return (a.name || "").localeCompare(b.name || "");
     });
-  }, [myGroups, groupLastActivity, groupPreviews, groupUnread]);
+  }, [myGroups, groupLastActivity, groupPreviews, groupUnread, groupMessagesById, t]);
 
   // HTML boot splash covers first paint; dismiss once session is resolved
   useEffect(() => {
@@ -2162,13 +2258,15 @@ export default function App() {
               }
               setGroupPreviews((prev) => ({
                 ...prev,
-                [activeGroup.id]: isMediaObject
-                  ? `${me?.username || "You"}: ${
-                      msg.mediaType === "voice" || msg.mediaType === "audio"
-                        ? "🎤 Voice message"
-                        : "📎 Attachment"
-                    }`
-                  : `${me?.username || "You"}: ${String(textStr).slice(0, 60)}`,
+                [activeGroup.id]: formatGroupPreviewFromMsg(
+                  {
+                    from: { username: me?.username || t("You") },
+                    text: isMediaObject ? "" : textStr,
+                    mediaType: isMediaObject ? msg.mediaType : undefined,
+                    mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
+                  },
+                  t
+                ) || `${me?.username || t("You")}: ${String(textStr).slice(0, 60)}`,
               }));
               if (isMediaObject) {
                 const isVoice = msg.mediaType === "voice" || msg.mediaType === "audio";

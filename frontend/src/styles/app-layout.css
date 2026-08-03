@@ -1008,9 +1008,20 @@
 }
 
 /* ─── Main Panel (Chat Area) ─── */
+.chat-panel-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .main-panel {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
   overflow: hidden;
   background: var(--surface-0);
@@ -2202,19 +2213,26 @@
   color: var(--text-muted);
 }
 
+/* ─── Members panel (Discord-adjacent) ─── */
+.members-panel-backdrop {
+  display: none;
+}
+
 .members-panel {
   position: absolute;
   right: 0;
   top: 0;
   bottom: 0;
-  width: 240px;
+  width: 260px;
   max-width: 100%;
   background: var(--surface-1);
   border-left: 1px solid var(--border-2);
-  padding: 16px;
-  overflow-y: auto;
+  padding: 0;
+  overflow: hidden;
   z-index: 10;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 @media (max-width: 719px) {
@@ -2223,7 +2241,7 @@
   }
 
   .members-panel {
-    width: min(100%, 280px);
+    width: min(100%, 300px);
   }
 
   .sidebar-search {
@@ -2242,49 +2260,172 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 14px 12px 10px 16px;
+  border-bottom: 1px solid var(--border-1, var(--border-2));
 }
 
-.members-panel h4 {
-  font-size: 13px;
-  font-weight: 600;
+.members-panel-header h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.04em;
   margin: 0;
+  min-width: 0;
+}
+
+.members-panel-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-3, var(--text-muted));
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1;
+}
+
+.members-panel-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 8px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-3, var(--border-2)) transparent;
+}
+
+.members-section {
+  margin-bottom: 8px;
+}
+
+.members-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0;
+  padding: 8px 8px 4px;
+}
+
+.members-section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .member-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px;
+  padding: 7px 8px;
   border-radius: 8px;
-  margin-bottom: 4px;
-  transition: background 0.15s;
+  margin: 0;
+  transition: background 0.12s ease, opacity 0.12s ease;
+  cursor: default;
+  min-width: 0;
 }
 
 .member-row:hover {
   background: var(--surface-2);
 }
 
+.member-row.is-offline {
+  opacity: 0.58;
+}
+
+.member-row.is-offline:hover {
+  opacity: 0.8;
+}
+
 .member-avatar-wrap {
   position: relative;
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.member-name {
+.members-panel .status-badge {
+  border-color: var(--surface-1);
+}
+
+.member-row:hover .status-badge {
+  border-color: var(--surface-2);
+}
+
+.member-meta {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.member-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.member-name {
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 14px;
-  color: var(--text-0);
+  font-weight: 500;
+  color: var(--text-1, var(--text-0));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.member-owner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 1px 5px 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--warning, #f0b232) 16%, transparent);
+  color: var(--warning, #f0b232);
+  line-height: 1;
+}
+
+.member-owner-text {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.member-status-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+
+.members-empty {
+  margin: 24px 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 /* ─── Announcements Section ─── */

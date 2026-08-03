@@ -43,6 +43,65 @@ function getUserSocketId(userId) {
   return null;
 }
 
+function formatGroupListPreview(msg) {
+  if (!msg) return null;
+  const username = msg.sender?.username || msg.sender_username || null;
+  const mediaType = msg.media_type || msg.mediaType || null;
+  const messageType = msg.message_type || msg.type || null;
+  let body = null;
+
+  if (messageType === "call_summary") {
+    body = "📞 Call";
+  } else {
+    const raw = String(msg.content || msg.text || "").trim();
+    if (raw && !raw.startsWith("__voice__:") && !raw.startsWith("{")) {
+      body = raw;
+    } else if (mediaType === "image") {
+      body = "📷 Photo";
+    } else if (mediaType === "voice" || mediaType === "audio" || raw.startsWith("__voice__:")) {
+      body = "🎤 Voice message";
+    } else if (msg.media_url || msg.mediaUrl) {
+      body = "📎 Attachment";
+    } else if (raw) {
+      body = raw.slice(0, 80);
+    }
+  }
+
+  if (!body) return null;
+  const preview = username ? `${username}: ${body}` : body;
+  return preview.slice(0, 80);
+}
+
+async function getLastMessagesByGroupIds(groupIds) {
+  const map = new Map();
+  if (!Array.isArray(groupIds) || groupIds.length === 0) return map;
+
+  await Promise.all(
+    groupIds.map(async (groupId) => {
+      const { data, error } = await supabase
+        .from("group_messages")
+        .select(`
+          content,
+          media_type,
+          media_url,
+          message_type,
+          created_at,
+          sender:sender_id (id, username)
+        `)
+        .eq("group_id", groupId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (error) {
+        console.error("[Groups] Last message fetch error:", groupId, error.message);
+        return;
+      }
+      if (data?.[0]) map.set(groupId, data[0]);
+    })
+  );
+
+  return map;
+}
+
 // Helper: User'in member oldugu gruplari getir (member detaylari ile)
 async function getUserGroups(userId) {
   // once group_members tablosundan group_id'leri al
@@ -73,6 +132,8 @@ async function getUserGroups(userId) {
     console.error("[Groups] Groups fetch error:", groupsError);
     return [];
   }
+
+  const lastByGroup = await getLastMessagesByGroupIds(groupIds);
   
   // Her grup icin member count ve member listesini al
   const groupsWithDetails = await Promise.all(
@@ -105,6 +166,7 @@ async function getUserGroups(userId) {
       }
       
       const membership = memberships.find(m => m.group_id === group.id);
+      const last = lastByGroup.get(group.id) || null;
       
       return {
         ...group,
@@ -112,6 +174,8 @@ async function getUserGroups(userId) {
         memberIds: memberIds, // Grup arama icin gerekli
         members: members, // Grup detay icin
         joinedAt: membership?.joined_at,
+        lastMessage: formatGroupListPreview(last),
+        lastActivity: last?.created_at || group.created_at || null,
       };
     })
   );

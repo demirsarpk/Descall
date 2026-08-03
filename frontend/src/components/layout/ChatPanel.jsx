@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, Video, Users, Hash,
   Settings, Search, MessageSquare, X, ChevronDown, ChevronRight, Menu, ChevronLeft,
-  UserPlus, Plus
+  UserPlus, Plus, Crown
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -17,7 +17,7 @@ import EmptyState from "../ui/EmptyState";
 import CallsView from "../calls/CallsView";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
-import { getPresenceStatus, STATUS_META } from "../../lib/presence";
+import { getPresenceStatus, STATUS_META, isVisiblyOnline } from "../../lib/presence";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
 
@@ -87,6 +87,11 @@ export default function ChatPanel({
 
   useEffect(() => {
     scrollToBottom();
+  }, [activeDmUser, activeGroup]);
+
+  // Close members sheet when leaving a conversation surface
+  useEffect(() => {
+    if (!activeDmUser && !activeGroup) setShowMembers(false);
   }, [activeDmUser, activeGroup]);
 
   const getTitle = () => {
@@ -165,7 +170,7 @@ export default function ChatPanel({
   })();
 
   return (
-    <>
+    <div className="chat-panel-shell">
       <main className="main-panel">
         {/* Header — hidden on activity view since ActivityView has its own header */}
         <header className="panel-header" style={activeView === "activity" ? { display: 'none' } : {}}>
@@ -377,35 +382,128 @@ export default function ChatPanel({
       )}
     </main>
 
-    {/* Members Panel - Absolute positioned sidebar */}
+    {/* Members Panel */}
     <AnimatePresence>
       {showMembers && (
-        <motion.aside
-          className="members-panel"
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 240, opacity: 1 }}
-          exit={{ width: 0, opacity: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="members-panel-header">
-            <h4>{t("Members")}</h4>
-            <button className="icon-btn" onClick={() => setShowMembers(false)} title={t("Close")}>
-              <X size={16} />
-            </button>
-          </div>
-          {(activeGroup?.members?.length > 0 ? activeGroup.members : activeDmUser ? [activeDmUser] : []).map((m) => (
-            <div key={m.id} className="member-row">
-              <div className="member-avatar-wrap">
-                <Avatar name={resolveDisplayName(m)} size={32} user={m} />
-                <StatusBadge status={getPresenceStatus(onlineUsers, m.id)} />
-              </div>
-              <span className="member-name">{resolveDisplayName(m)}</span>
-            </div>
-          ))}
-        </motion.aside>
+        <>
+          <motion.div
+            key="members-backdrop"
+            className="members-panel-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setShowMembers(false)}
+            aria-hidden="true"
+          />
+          <motion.aside
+            key="members-panel"
+            className="members-panel"
+            role="complementary"
+            aria-label={t("Members")}
+            initial={isMobile ? { x: "100%" } : { x: 24, opacity: 0 }}
+            animate={isMobile ? { x: 0 } : { x: 0, opacity: 1 }}
+            exit={isMobile ? { x: "100%" } : { x: 24, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+          >
+            {(() => {
+              const raw =
+                activeGroup?.members?.length > 0
+                  ? activeGroup.members
+                  : activeDmUser
+                    ? [activeDmUser]
+                    : [];
+              const ownerId = activeGroup?.created_by ?? null;
+              const decorated = raw.map((m) => {
+                const status = getPresenceStatus(onlineUsers, m.id);
+                return {
+                  ...m,
+                  _status: status,
+                  _online: isVisiblyOnline(onlineUsers, m.id),
+                  _isOwner: ownerId != null && m.id === ownerId,
+                };
+              });
+              const online = decorated
+                .filter((m) => m._online)
+                .sort((a, b) => Number(b._isOwner) - Number(a._isOwner) || resolveDisplayName(a).localeCompare(resolveDisplayName(b)));
+              const offline = decorated
+                .filter((m) => !m._online)
+                .sort((a, b) => Number(b._isOwner) - Number(a._isOwner) || resolveDisplayName(a).localeCompare(resolveDisplayName(b)));
+
+              const renderRow = (m) => {
+                const name = resolveDisplayName(m);
+                const statusLabel = t(STATUS_META[m._status]?.label || "Offline");
+                return (
+                  <div
+                    key={m.id}
+                    className={`member-row${m._online ? "" : " is-offline"}`}
+                  >
+                    <div className="member-avatar-wrap">
+                      <Avatar name={name} size={36} user={m} />
+                      <StatusBadge status={m._status} />
+                    </div>
+                    <div className="member-meta">
+                      <div className="member-name-row">
+                        <span className="member-name">{name}</span>
+                        {m._isOwner && (
+                          <span className="member-owner-badge" title={t("Owner")}>
+                            <Crown size={11} strokeWidth={2.25} aria-hidden="true" />
+                            <span className="member-owner-text">{t("Owner")}</span>
+                          </span>
+                        )}
+                      </div>
+                      <span className="member-status-label">{statusLabel}</span>
+                    </div>
+                  </div>
+                );
+              };
+
+              return (
+                <>
+                  <div className="members-panel-header">
+                    <h4>
+                      {t("Members")}
+                      <span className="members-panel-count">{decorated.length}</span>
+                    </h4>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => setShowMembers(false)}
+                      title={t("Close")}
+                      aria-label={t("Close")}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="members-panel-scroll">
+                    {online.length > 0 && (
+                      <section className="members-section">
+                        <h5 className="members-section-label">
+                          {t("Online — {count}", { count: online.length })}
+                        </h5>
+                        <div className="members-section-list">{online.map(renderRow)}</div>
+                      </section>
+                    )}
+                    {offline.length > 0 && (
+                      <section className="members-section">
+                        <h5 className="members-section-label">
+                          {t("Offline — {count}", { count: offline.length })}
+                        </h5>
+                        <div className="members-section-list">{offline.map(renderRow)}</div>
+                      </section>
+                    )}
+                    {decorated.length === 0 && (
+                      <p className="members-empty">{t("No members")}</p>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </motion.aside>
+        </>
       )}
     </AnimatePresence>
-  </>
+    </div>
   );
 }
 
