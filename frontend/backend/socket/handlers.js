@@ -64,6 +64,43 @@ function convKey(a, b) {
   return [a, b].sort().join("::");
 }
 
+/** Last-message preview text for DM list rows. */
+function formatDmPreview(msg) {
+  if (!msg) return null;
+  const raw = String(msg.text || "").trim();
+  if (raw && !raw.startsWith("__voice__:")) return raw;
+  if (msg.mediaType === "image") return "📷 Photo";
+  if (msg.mediaType === "voice" || msg.mediaType === "audio" || raw.startsWith("__voice__:")) {
+    return "🎤 Voice message";
+  }
+  if (msg.mediaUrl) return "📎 Attachment";
+  return null;
+}
+
+function getLastDmMessage(myId, peerId) {
+  const arr = dmHistory.get(convKey(myId, peerId));
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  return arr[arr.length - 1];
+}
+
+/** Build preview + activity maps for every DM thread involving this user. */
+function buildDmPreviewMaps(userId) {
+  const dmPreviewsByPeer = {};
+  const dmLastActivityByPeer = {};
+  for (const [key, arr] of dmHistory) {
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    const parts = String(key).split("::");
+    if (parts.length !== 2 || !parts.includes(userId)) continue;
+    const peerId = parts[0] === userId ? parts[1] : parts[0];
+    const last = arr[arr.length - 1];
+    const preview = formatDmPreview(last);
+    if (preview) dmPreviewsByPeer[peerId] = preview;
+    const ts = last?.timestamp || last?.created_at || null;
+    if (ts) dmLastActivityByPeer[peerId] = ts;
+  }
+  return { dmPreviewsByPeer, dmLastActivityByPeer };
+}
+
 /** Attach persisted emoji reactions onto an in-memory message list. */
 async function attachReactions(messages, conversationType, conversationId) {
   if (!Array.isArray(messages) || messages.length === 0 || !conversationType || !conversationId) {
@@ -180,7 +217,12 @@ function getFriendList(userId) {
   if (!set) return [];
   const out = [];
   for (const fid of set) {
-    out.push(enrichFriendEntry(fid));
+    const last = getLastDmMessage(userId, fid);
+    out.push({
+      ...enrichFriendEntry(fid),
+      lastMessage: formatDmPreview(last),
+      lastActivity: last?.timestamp || last?.created_at || null,
+    });
   }
   return out.sort((a, b) => a.username.localeCompare(b.username));
 }
@@ -213,8 +255,11 @@ function buildSyncState(userId) {
   for (const [k, v] of dmMap) {
     dmUnreadByPeer[k] = v;
   }
+  const { dmPreviewsByPeer, dmLastActivityByPeer } = buildDmPreviewMaps(userId);
   return {
     dmUnreadByPeer,
+    dmPreviewsByPeer,
+    dmLastActivityByPeer,
     notifications: getNotifications(userId),
   };
 }
