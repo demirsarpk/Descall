@@ -698,7 +698,17 @@ export default function App() {
     });
 
     socket.on("sync:state", (state) => {
-      if (state?.dmUnreadByPeer && typeof state.dmUnreadByPeer === "object") setDmUnread({ ...state.dmUnreadByPeer });
+      if (state?.dmUnreadByPeer && typeof state.dmUnreadByPeer === "object") {
+        setDmUnread({ ...state.dmUnreadByPeer });
+      }
+      // Seed DM list previews from server memory (fills "No messages yet" on load).
+      // Existing client previews win so live dm:message updates are not overwritten.
+      if (state?.dmPreviewsByPeer && typeof state.dmPreviewsByPeer === "object") {
+        setDmPreviews((prev) => ({ ...state.dmPreviewsByPeer, ...prev }));
+      }
+      if (state?.dmLastActivityByPeer && typeof state.dmLastActivityByPeer === "object") {
+        setDmLastActivity((prev) => ({ ...state.dmLastActivityByPeer, ...prev }));
+      }
       if (Array.isArray(state?.notifications)) setNotifications(state.notifications);
     });
 
@@ -773,7 +783,38 @@ export default function App() {
       setOnlineUsers(newUsers);
     });
 
-    socket.on("friend:list", (list) => setFriends((list ?? []).map((u) => normalizeUser(u))));
+    socket.on("friend:list", (list) => {
+      const normalized = (list ?? []).map((u) => normalizeUser(u));
+      setFriends(normalized);
+      // Server now attaches lastMessage/lastActivity from dmHistory — seed list previews.
+      setDmPreviews((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const f of normalized) {
+          if (f?.id && f.lastMessage && f.lastMessage !== next[f.id]) {
+            next[f.id] = f.lastMessage;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      setDmLastActivity((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const f of normalized) {
+          if (!f?.id || !f.lastActivity) continue;
+          const prevTs = next[f.id] ? new Date(next[f.id]).getTime() : 0;
+          const nextTs = new Date(f.lastActivity).getTime();
+          if (!prevTs || nextTs >= prevTs) {
+            if (next[f.id] !== f.lastActivity) {
+              next[f.id] = f.lastActivity;
+              changed = true;
+            }
+          }
+        }
+        return changed ? next : prev;
+      });
+    });
     socket.on("friend:requests", (list) => setFriendRequests((list ?? []).map((u) => normalizeUser(u))));
     socket.on("friend:request:incoming", ({ from }) => {
       if (!from) return;
@@ -825,7 +866,12 @@ export default function App() {
               : last.mediaUrl
                 ? "📎 Attachment"
                 : "");
-        if (previewText) setDmPreviews((p) => (p[withUserId] ? p : { ...p, [withUserId]: previewText }));
+        if (previewText) {
+          setDmPreviews((p) => {
+            if (p[withUserId] === previewText) return p;
+            return { ...p, [withUserId]: previewText };
+          });
+        }
       }
     });
 
@@ -1753,12 +1799,28 @@ export default function App() {
   }, [isConnected, reconnectState]);
 
   const sortedDms = useMemo(() => {
-    const list = (friends || []).map((f) => ({
-      ...f,
-      lastMessage: dmPreviews[f.id] || f.lastMessage || null,
-      lastActivity: dmLastActivity[f.id] || f.lastActivity || null,
-      unreadCount: dmUnread[f.id] || 0,
-    }));
+    const list = (friends || []).map((f) => {
+      const cached = dmByUserId?.[f.id];
+      const lastCached =
+        Array.isArray(cached) && cached.length > 0 ? cached[cached.length - 1] : null;
+      const cachedPreview = lastCached
+        ? lastCached.text
+          || (lastCached.mediaType === "image"
+            ? "📷 Photo"
+            : lastCached.mediaType === "voice" || lastCached.mediaType === "audio"
+              ? "🎤 Voice message"
+              : lastCached.mediaUrl
+                ? "📎 Attachment"
+                : null)
+        : null;
+      const cachedActivity = lastCached?.timestamp || lastCached?.created_at || null;
+      return {
+        ...f,
+        lastMessage: dmPreviews[f.id] || f.lastMessage || cachedPreview || null,
+        lastActivity: dmLastActivity[f.id] || f.lastActivity || cachedActivity || null,
+        unreadCount: dmUnread[f.id] || 0,
+      };
+    });
     return list.sort((a, b) => {
       const ta = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
       const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
@@ -1766,7 +1828,7 @@ export default function App() {
       if ((b.unreadCount || 0) !== (a.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
       return (a.username || "").localeCompare(b.username || "");
     });
-  }, [friends, dmLastActivity, dmPreviews, dmUnread]);
+  }, [friends, dmLastActivity, dmPreviews, dmUnread, dmByUserId]);
 
   const sortedGroups = useMemo(() => {
     const list = (myGroups || []).map((g) => ({
