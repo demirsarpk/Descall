@@ -18,7 +18,9 @@ function normalizeProfileRow(row) {
     custom_status: row.custom_status || null,
     banner_url: row.banner_url || null,
     presence_status: row.presence_status || "online",
+    is_admin: Boolean(row.is_admin),
     updated_at: row.updated_at || new Date().toISOString(),
+    created_at: row.created_at || null,
   };
 }
 
@@ -47,14 +49,14 @@ async function loadUserProfile(userId) {
   let error = null;
   ({ data, error } = await supabase
     .from("users")
-    .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, presence_status")
+    .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, presence_status, is_admin, created_at")
     .eq("id", userId)
     .single());
 
   if (error) {
     ({ data, error } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, updated_at")
+      .select("id, username, avatar_url, display_name, updated_at, is_admin")
       .eq("id", userId)
       .single());
   }
