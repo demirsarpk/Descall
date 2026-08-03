@@ -1,0 +1,112 @@
+/* ── Voice message bubbles ── */
+.voice-message-bubble {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: min(220px, 72vw);
+  max-width: min(320px, 85vw);
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.voice-message-bubble.own {
+  background: color-mix(in srgb, var(--primary, #5865f2) 22%, transparent);
+  border-color: color-mix(in srgb, var(--primary, #5865f2) 35%, transparent);
+}
+
+.voice-message-bubble.has-error .voice-duration {
+  color: #ed4245;
+  font-size: 11px;
+}
+
+.voice-message-bubble.is-broken {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 10px 12px;
+}
+
+.voice-play-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  background: var(--primary, #5865f2);
+}
+
+.voice-message-bubble.own .voice-play-btn {
+  background: #fff;
+  color: var(--primary, #5865f2);
+}
+
+.voice-play-btn:hover {
+  filter: brightness(1.06);
+}
+
+.voice-waveform-container {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.voice-waveform-bars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 100%;
+  width: 100%;
+}
+
+.voice-bar {
+  flex: 1;
+  min-width: 2px;
+  max-width: 4px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.28);
+  align-self: center;
+}
+
+.voice-bar.played {
+  background: var(--primary, #5865f2);
+}
+
+.voice-message-bubble.own .voice-bar {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.voice-message-bubble.own .voice-bar.played {
+  background: #fff;
+}
+
+.voice-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+
+.voice-duration {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-2, #b5bac1);
+  min-width: 36px;
+  text-align: right;
+}

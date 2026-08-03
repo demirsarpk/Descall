@@ -648,7 +648,7 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("dm:send", async ({ toUserId, tempId, text, mediaUrl, mediaType, mimeType, size, originalName, replyTo } = {}) => {
+    socket.on("dm:send", async ({ toUserId, tempId, text, mediaUrl, mediaType, mimeType, size, originalName, duration, replyTo } = {}) => {
       if (bannedUserIds.has(myId)) {
         appendErrorLog("dm:send", "User is banned", { toUserId }, myId, me.username);
         return socket.emit("dm:error", { message: "You are banned.", tempId: tempId || null, toUserId });
@@ -676,16 +676,22 @@ function registerSocketHandlers(io) {
             from: replyTo.from || null,
           }
         : null;
+      const isVoice = mediaType === "voice" || mediaType === "audio";
+      const voiceDuration = isVoice ? Math.max(0, Math.round(Number(duration) || 0)) : null;
+      const storedText = isVoice
+        ? (String(text || "").startsWith("__voice__:") ? text : `__voice__:${voiceDuration || 1}`)
+        : (text || "");
       arr.push({
         id: messageId,
         from: sender,
         to: { id: toUserId },
-        text: text || "",
+        text: isVoice ? "" : storedText,
         mediaUrl,
-        mediaType,
+        mediaType: isVoice ? "voice" : mediaType,
         mimeType,
         size,
         originalName,
+        duration: voiceDuration,
         replyTo: replyMeta,
         timestamp: new Date().toISOString(),
       });
@@ -707,12 +713,13 @@ function registerSocketHandlers(io) {
       const messagePayload = {
         id: messageId,
         from: sender,
-        text,
+        text: isVoice ? "" : storedText,
         mediaUrl,
-        mediaType,
+        mediaType: isVoice ? "voice" : mediaType,
         mimeType,
         size,
         originalName,
+        duration: voiceDuration,
         replyTo: replyMeta,
         timestamp: new Date().toISOString(),
       };

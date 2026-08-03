@@ -42,6 +42,7 @@ import MessageComposer from "./components/chat/MessageComposer";
 import CallOverlay from "./components/CallOverlay";
 import GroupCallIncomingModal from "./components/GroupCallIncomingModal";
 import { requestFeedbackNudge } from "./components/feedback/FeedbackNudgeBanner";
+import { parseVoiceMeta, encodeVoiceContent } from "./lib/voiceMessage";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
@@ -148,18 +149,20 @@ function normalizeGroupMessage(m) {
     avatar_url: m.sender?.avatar_url,
     updated_at: m.sender?.updated_at,
   });
+  const voice = parseVoiceMeta(m.content, m.media_type);
   return {
     id: m.id,
     from: sender,
     username: sender?.username || "Unknown",
     displayName: sender?.displayName || null,
     avatarUrl: sender?.avatarUrl,
-    text: m.content || "",
+    text: voice.isVoice ? "" : (m.content || ""),
     timestamp: m.created_at || new Date().toISOString(),
     mediaUrl: m.media_url,
-    mediaType: m.media_type,
+    mediaType: voice.isVoice ? "voice" : m.media_type,
     originalName: m.original_name,
     size: m.file_size,
+    duration: voice.duration ?? m.duration ?? null,
     reactions: Array.isArray(m.reactions) ? m.reactions : [],
     replyTo: m.replyTo || m.reply_to || null,
   };
@@ -794,10 +797,20 @@ export default function App() {
 
     socket.on("dm:history", ({ withUserId, messages }) => {
       if (!withUserId) return;
-      setDmByUserId((prev) => ({ ...prev, [withUserId]: messages ?? [] }));
+      const normalized = (messages ?? []).map((m) => {
+        const voice = parseVoiceMeta(m.text, m.mediaType);
+        if (!voice.isVoice) return m;
+        return {
+          ...m,
+          text: "",
+          mediaType: "voice",
+          duration: m.duration ?? voice.duration ?? 0,
+        };
+      });
+      setDmByUserId((prev) => ({ ...prev, [withUserId]: normalized }));
       setMessagesLoading(false);
-      setDmHasMore((messages?.length ?? 0) >= 50);
-      const last = Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1] : null;
+      setDmHasMore((normalized?.length ?? 0) >= 50);
+      const last = Array.isArray(normalized) && normalized.length > 0 ? normalized[normalized.length - 1] : null;
       if (last) {
         const ts = last.timestamp || last.created_at;
         if (ts) setDmLastActivity((prev) => {
@@ -805,7 +818,13 @@ export default function App() {
           return { ...prev, [withUserId]: ts };
         });
         const previewText = last.text
-          || (last.mediaType === "image" ? "📷 Photo" : last.mediaUrl ? "📎 Attachment" : "");
+          || (last.mediaType === "image"
+            ? "📷 Photo"
+            : last.mediaType === "voice" || last.mediaType === "audio"
+              ? "🎤 Voice message"
+              : last.mediaUrl
+                ? "📎 Attachment"
+                : "");
         if (previewText) setDmPreviews((p) => (p[withUserId] ? p : { ...p, [withUserId]: previewText }));
       }
     });
@@ -841,38 +860,53 @@ export default function App() {
     socket.on("dm:message", (message) => {
       const convWith = message?.convWith;
       if (!convWith) return;
-      const ts = message.timestamp || new Date().toISOString();
-      const previewText = message.text
-        || (message.mediaType === "image" ? "📷 Photo" : message.mediaUrl ? "📎 Attachment" : "");
+      const voice = parseVoiceMeta(message.text, message.mediaType);
+      const normalizedMsg = voice.isVoice
+        ? {
+            ...message,
+            text: "",
+            mediaType: "voice",
+            duration: message.duration ?? voice.duration ?? 0,
+          }
+        : message;
+      const ts = normalizedMsg.timestamp || new Date().toISOString();
+      const previewText = normalizedMsg.text
+        || (normalizedMsg.mediaType === "image"
+          ? "📷 Photo"
+          : normalizedMsg.mediaType === "voice" || normalizedMsg.mediaType === "audio"
+            ? "🎤 Voice message"
+            : normalizedMsg.mediaUrl
+              ? "📎 Attachment"
+              : "");
       setDmLastActivity((prev) => ({ ...prev, [convWith]: ts }));
       if (previewText) setDmPreviews((prev) => ({ ...prev, [convWith]: previewText }));
 
       setDmByUserId((prev) => {
         const cur = prev[convWith] ?? [];
-        const isSelf = message.from?.id === myIdRef.current;
+        const isSelf = normalizedMsg.from?.id === myIdRef.current;
         // Replace optimistic (sending) message by tempId echo, or dedupe by real id
-        if (isSelf && message.tempId) {
-          const hasTemp = cur.some((m) => m.id === message.tempId);
+        if (isSelf && normalizedMsg.tempId) {
+          const hasTemp = cur.some((m) => m.id === normalizedMsg.tempId);
           if (hasTemp) {
-            return { ...prev, [convWith]: cur.map((m) => m.id === message.tempId ? { ...message, sending: false } : m) };
+            return { ...prev, [convWith]: cur.map((m) => m.id === normalizedMsg.tempId ? { ...normalizedMsg, sending: false } : m) };
           }
         }
-        const alreadyExists = cur.some((m) => m.id === message.id);
+        const alreadyExists = cur.some((m) => m.id === normalizedMsg.id);
         if (alreadyExists) return prev;
-        return { ...prev, [convWith]: [...cur, message] };
+        return { ...prev, [convWith]: [...cur, normalizedMsg] };
       });
       // Only notify for messages from others (not self)
       const currentUserId = myIdRef.current;
-      const isFromOther = message.from?.id && message.from.id !== currentUserId;
+      const isFromOther = normalizedMsg.from?.id && normalizedMsg.from.id !== currentUserId;
       if (isFromOther) {
-        socket.emit("dm:delivered", { msgId: message.id, fromUserId: message.from.id });
+        socket.emit("dm:delivered", { msgId: normalizedMsg.id, fromUserId: normalizedMsg.from.id });
         // Local unread bump if not viewing this conversation (server also syncs)
         if (activeDmRef.current?.id !== convWith) {
           playUiSound("message");
           // Send native notification
           notificationService.newMessage({
-            from: message.from?.username || 'Birisi',
-            text: message.text || '',
+            from: normalizedMsg.from?.username || 'Birisi',
+            text: normalizedMsg.text || (normalizedMsg.mediaType === "voice" ? "🎤 Voice message" : ""),
             preview: message.text?.substring(0, 100),
             conversationId: convWith
           });
@@ -931,18 +965,20 @@ export default function App() {
         avatar_url: message.sender?.avatar_url,
         updated_at: message.sender?.updated_at,
       });
+      const voice = parseVoiceMeta(message.content, message.media_type);
       const normalized = {
         id: message.id,
         from: sender,
         username: sender?.username || "Unknown",
         displayName: sender?.displayName || null,
         avatarUrl: sender?.avatarUrl,
-        text: message.content || "",
+        text: voice.isVoice ? "" : (message.content || ""),
         timestamp: message.created_at || new Date().toISOString(),
         mediaUrl: message.media_url,
-        mediaType: message.media_type,
+        mediaType: voice.isVoice ? "voice" : message.media_type,
         originalName: message.original_name,
         size: message.file_size,
+        duration: voice.duration ?? message.duration ?? null,
         replyTo: message.replyTo || message.reply_to || null,
       };
       setGroupMessagesById((prev) => {
@@ -1967,6 +2003,7 @@ export default function App() {
                 mediaType: isMediaObject ? msg.mediaType : undefined,
                 originalName: isMediaObject ? msg.originalName : undefined,
                 size: isMediaObject ? msg.size : undefined,
+                duration: isMediaObject ? msg.duration : undefined,
                 replyTo: replyMeta || undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
@@ -1979,19 +2016,25 @@ export default function App() {
               setDmPreviews((prev) => ({
                 ...prev,
                 [activeDmUser.id]: isMediaObject
-                  ? (msg.mediaType === "image" ? "📷 Photo" : "📎 Attachment")
+                  ? (msg.mediaType === "image"
+                    ? "📷 Photo"
+                    : msg.mediaType === "voice" || msg.mediaType === "audio"
+                      ? "🎤 Voice message"
+                      : "📎 Attachment")
                   : String(textPayload).slice(0, 80),
               }));
               if (isMediaObject) {
+                const isVoice = msg.mediaType === "voice" || msg.mediaType === "audio";
                 socketRef.current?.emit("dm:send", {
                   toUserId: activeDmUser.id,
                   tempId,
-                  text: "",
+                  text: isVoice ? encodeVoiceContent(msg.duration || 0) : "",
                   mediaUrl: msg.mediaUrl,
-                  mediaType: msg.mediaType,
+                  mediaType: isVoice ? "voice" : msg.mediaType,
                   mimeType: msg.mimeType,
                   size: msg.size,
                   originalName: msg.originalName,
+                  duration: msg.duration,
                   replyTo: replyMeta || undefined,
                 });
               } else {
@@ -2025,6 +2068,7 @@ export default function App() {
                 mediaType: isMediaObject ? msg.mediaType : undefined,
                 originalName: isMediaObject ? msg.originalName : undefined,
                 size: isMediaObject ? msg.size : undefined,
+                duration: isMediaObject ? msg.duration : undefined,
                 replyTo: replyMeta || undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
@@ -2042,16 +2086,22 @@ export default function App() {
               setGroupPreviews((prev) => ({
                 ...prev,
                 [activeGroup.id]: isMediaObject
-                  ? `${me?.username || "You"}: 📎 Attachment`
+                  ? `${me?.username || "You"}: ${
+                      msg.mediaType === "voice" || msg.mediaType === "audio"
+                        ? "🎤 Voice message"
+                        : "📎 Attachment"
+                    }`
                   : `${me?.username || "You"}: ${String(textStr).slice(0, 60)}`,
               }));
               if (isMediaObject) {
+                const isVoice = msg.mediaType === "voice" || msg.mediaType === "audio";
                 socketRef.current?.emit("group:message", {
                   groupId: activeGroup.id,
                   tempId,
-                  content: "",
+                  content: isVoice ? encodeVoiceContent(msg.duration || 0) : "",
                   mediaUrl: msg.mediaUrl,
-                  mediaType: msg.mediaType,
+                  mediaType: isVoice ? "voice" : msg.mediaType,
+                  duration: msg.duration,
                   replyTo: replyMeta || undefined,
                 });
               } else {

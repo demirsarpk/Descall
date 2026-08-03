@@ -10,7 +10,16 @@ const router = express.Router();
 
 const ALLOWED_IMAGE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ALLOWED_VIDEO = ["video/mp4", "video/webm"];
-const ALLOWED_AUDIO = ["audio/webm", "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4"];
+const ALLOWED_AUDIO = [
+  "audio/webm",
+  "audio/mpeg",
+  "audio/wav",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/aac",
+  "audio/x-m4a",
+  "audio/m4a",
+];
 const ALLOWED_DOCUMENT = [
   "application/pdf",
   "application/msword",
