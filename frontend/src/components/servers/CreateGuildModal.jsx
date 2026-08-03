@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Camera, Users } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 export default function CreateGuildModal({ onClose, onCreate }) {
+  const t = useT();
   const [name, setName] = useState("");
   const [iconUrl, setIconUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -11,7 +13,7 @@ export default function CreateGuildModal({ onClose, onCreate }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError("Server name is required");
+      setError(t("Server name is required"));
       return;
     }
     setLoading(true);
@@ -19,7 +21,7 @@ export default function CreateGuildModal({ onClose, onCreate }) {
     try {
       await onCreate({ name: name.trim(), iconUrl: iconUrl.trim() || undefined });
     } catch (err) {
-      setError(err.message || "Failed to create server");
+      setError(err.message || t("Failed to create server"));
     } finally {
       setLoading(false);
     }
@@ -49,8 +51,8 @@ export default function CreateGuildModal({ onClose, onCreate }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h2>Create Your Server</h2>
-          <p>Give your new server a personality with a name and an icon. You can always change it later.</p>
+          <h2>{t("Create Your Server")}</h2>
+          <p>{t("Give your new server a personality with a name and an icon. You can always change it later.")}</p>
           <button className="modal-close-btn" onClick={onClose}>
             <X size={20} />
           </button>
@@ -59,7 +61,7 @@ export default function CreateGuildModal({ onClose, onCreate }) {
         <form onSubmit={handleSubmit}>
           <div className="guild-icon-preview">
             {iconUrl ? (
-              <img src={iconUrl} alt="Server icon" />
+              <img src={iconUrl} alt={t("Server icon")} />
             ) : (
               <div className="guild-icon-placeholder">{initials || <Users size={28} />}</div>
             )}
@@ -69,12 +71,12 @@ export default function CreateGuildModal({ onClose, onCreate }) {
           </div>
 
           <div className="form-group">
-            <label>Server Name</label>
+            <label>{t("Server Name")}</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Gaming Squad"
+              placeholder={t("e.g. Gaming Squad")}
               maxLength={100}
               autoFocus
               className={error ? "error" : ""}
@@ -83,7 +85,7 @@ export default function CreateGuildModal({ onClose, onCreate }) {
           </div>
 
           <div className="form-group">
-            <label>Icon URL (optional)</label>
+            <label>{t("Icon URL (optional)")}</label>
             <input
               type="url"
               value={iconUrl}
@@ -94,10 +96,10 @@ export default function CreateGuildModal({ onClose, onCreate }) {
 
           <div className="modal-actions">
             <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancel
+              {t("Cancel")}
             </button>
             <button type="submit" className="btn-primary" disabled={loading || !name.trim()}>
-              {loading ? "Creating..." : "Create Server"}
+              {loading ? t("Creating...") : t("Create Server")}
             </button>
           </div>
         </form>

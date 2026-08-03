@@ -112,14 +112,14 @@ export default function UserFeedbackButton({ socket, user }) {
       const responseText = await res.text();
       
       if (!responseText) {
-        throw new Error("Server returned empty response");
+        throw new Error(t("Server returned empty response"));
       }
       
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (parseErr) {
-        throw new Error(`Server returned invalid JSON: ${parseErr.message}`);
+        throw new Error(t("Server returned invalid JSON: {message}", { message: parseErr.message }));
       }
       
       if (res.ok) {
@@ -134,10 +134,10 @@ export default function UserFeedbackButton({ socket, user }) {
           setAttachments([]);
         }, 2000);
       } else {
-        throw new Error(data.error || data.details || `HTTP ${res.status}: ${responseText.slice(0, 100)}`);
+        throw new Error(data.error || data.details || t("HTTP {status}: {detail}", { status: res.status, detail: responseText.slice(0, 100) }));
       }
     } catch (err) {
-      setError("Failed to submit feedback: " + err.message);
+      setError(t("Failed to submit feedback: {message}", { message: err.message }));
       setTimeout(() => setError(""), 5000);
     } finally {
       setIsSubmitting(false);
@@ -271,7 +271,7 @@ export default function UserFeedbackButton({ socket, user }) {
                             disabled={attachments.length >= 5}
                           >
                             <Image size={16} />
-                            Attach Screenshot {attachments.length > 0 && `(${attachments.length}/5)`}
+                            {t("Attach screenshots ({count}/5)", { count: attachments.length })}
                           </RippleButton>
                           
                           {attachments.length > 0 && (

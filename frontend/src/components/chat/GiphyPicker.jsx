@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, TrendingUp, Loader2 } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 const GIPHY_API_KEY = "dtgxSdCkeVkjYcEeEpSYlqP4mmv4LQgi";
 const GIPHY_API_URL = "https://api.giphy.com/v1/gifs";
 
 export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef }) {
+  const t = useT();
   const [searchQuery, setSearchQuery] = useState("");
   const [gifs, setGifs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -21,7 +23,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
     setError(null);
     try {
       const res = await fetch(`${GIPHY_API_URL}/trending?api_key=${GIPHY_API_KEY}&limit=30&rating=g`);
-      if (!res.ok) throw new Error("Failed to fetch trending GIFs");
+      if (!res.ok) throw new Error(t("Failed to fetch trending GIFs"));
       const data = await res.json();
       setGifs(data.data || []);
     } catch (err) {
@@ -29,7 +31,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const searchGifs = useCallback(async (query) => {
     if (!query.trim()) {
@@ -42,7 +44,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
       const res = await fetch(
         `${GIPHY_API_URL}/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=30&rating=g`
       );
-      if (!res.ok) throw new Error("Failed to search GIFs");
+      if (!res.ok) throw new Error(t("Failed to search GIFs"));
       const data = await res.json();
       setGifs(data.data || []);
     } catch (err) {
@@ -50,7 +52,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
     } finally {
       setLoading(false);
     }
-  }, [fetchTrending]);
+  }, [fetchTrending, t]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -59,8 +61,8 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
       return;
     }
     fetchTrending();
-    const t = setTimeout(() => searchInputRef.current?.focus(), 60);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => searchInputRef.current?.focus(), 60);
+    return () => clearTimeout(timer);
   }, [isOpen, fetchTrending]);
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
   }, [isOpen, anchorRef]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       if (searchQuery) {
         searchGifs(searchQuery);
         setActiveTab("search");
@@ -97,7 +99,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
         setActiveTab("trending");
       }
     }, 280);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [searchQuery, searchGifs, fetchTrending, activeTab]);
 
   useEffect(() => {
@@ -141,7 +143,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
             ref={panelRef}
             className="giphy-panel"
             role="dialog"
-            aria-label="GIF picker"
+            aria-label={t("GIF picker")}
             style={{
               bottom: panelPos.bottom,
               left: panelPos.left,
@@ -156,9 +158,9 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
             <header className="giphy-header">
               <div className="giphy-brand">
                 <span className="giphy-logo">GIPHY</span>
-                <span className="giphy-sub">Pick a GIF</span>
+                <span className="giphy-sub">{t("Pick a GIF")}</span>
               </div>
-              <button type="button" className="giphy-close" onClick={onClose} aria-label="Close">
+              <button type="button" className="giphy-close" onClick={onClose} aria-label={t("Close")}>
                 <X size={16} />
               </button>
             </header>
@@ -168,7 +170,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search GIFs…"
+                placeholder={t("Search GIFs…")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -181,7 +183,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
                     fetchTrending();
                     setActiveTab("trending");
                   }}
-                  aria-label="Clear search"
+                  aria-label={t("Clear search")}
                 >
                   <X size={14} />
                 </button>
@@ -199,7 +201,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
                 }}
               >
                 <TrendingUp size={13} />
-                Trending
+                {t("Trending")}
               </button>
               <button
                 type="button"
@@ -207,7 +209,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
                 onClick={() => searchInputRef.current?.focus()}
               >
                 <Search size={13} />
-                Search
+                {t("Search")}
               </button>
             </div>
 
@@ -215,17 +217,17 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
               {loading ? (
                 <div className="giphy-state">
                   <Loader2 size={26} className="giphy-spin" />
-                  <span>Loading GIFs…</span>
+                  <span>{t("Loading GIFs…")}</span>
                 </div>
               ) : error ? (
                 <div className="giphy-state is-error">
                   <p>{error}</p>
                   <button type="button" onClick={fetchTrending}>
-                    Retry
+                    {t("Retry")}
                   </button>
                 </div>
               ) : gifs.length === 0 ? (
-                <div className="giphy-state">No GIFs found. Try another search.</div>
+                <div className="giphy-state">{t("No GIFs found. Try another search.")}</div>
               ) : (
                 gifs.map((gif) => (
                   <button
@@ -251,7 +253,7 @@ export default function GiphyPicker({ isOpen, onClose, onSelectGif, anchorRef })
               )}
             </div>
 
-            <footer className="giphy-footer">Powered by GIPHY</footer>
+            <footer className="giphy-footer">{t("Powered by GIPHY")}</footer>
           </motion.div>
         </motion.div>
       )}

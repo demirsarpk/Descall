@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Avatar from "../ui/Avatar";
+import { useT } from "../../context/LocaleContext";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 
@@ -28,6 +29,7 @@ export default function MessageBubble({
   onOpenProfile,
   compact = false,
 }) {
+  const t = useT();
   const [hover, setHover] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.text || "");
@@ -57,7 +59,7 @@ export default function MessageBubble({
             type="button"
             className="msg-avatar-btn"
             onClick={() => onOpenProfile?.(message)}
-            title="Profile"
+            title={t("Profile")}
           >
             <Avatar
               name={message.from?.displayName || message.displayName || message.username || "?"}
@@ -115,7 +117,7 @@ export default function MessageBubble({
             />
             <div className="msg-edit-actions">
               <button type="button" className="btn-ghost sm" onClick={saveEdit}>
-                Save
+                {t("Save")}
               </button>
               <button
                 type="button"
@@ -125,7 +127,7 @@ export default function MessageBubble({
                   setEditing(false);
                 }}
               >
-                Cancel
+                {t("Cancel")}
               </button>
             </div>
           </div>
@@ -179,10 +181,10 @@ export default function MessageBubble({
               {isOwn && (
                 <>
                   <button type="button" className="toolbar-btn" onClick={() => setEditing(true)}>
-                    Edit
+                    {t("Edit")}
                   </button>
                   <button type="button" className="toolbar-btn danger" onClick={() => onDelete?.(message.id)}>
-                    Delete
+                    {t("Delete")}
                   </button>
                 </>
               )}

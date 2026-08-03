@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Clock, Edit3, X, ChevronDown, Lock, Users, EyeOff, Monitor } from 'lucide-react';
+import { useT } from '../../context/LocaleContext';
 
 const TYPE_COLOR = {
   game:     '#23a55a',
@@ -13,11 +14,13 @@ const TYPE_COLOR = {
   app:      '#747f8d',
 };
 
-const PRIVACY_OPTIONS = [
-  { value: 'friends', label: 'Visible to Friends', icon: Users,  desc: 'Friends can see your activity' },
-  { value: 'only-me', label: 'Only Me',            icon: Lock,   desc: 'Shows as "Online" to friends' },
-  { value: 'hidden',  label: 'Hidden',             icon: EyeOff, desc: 'Hidden from activity panel' },
-];
+function getPrivacyOptions(t) {
+  return [
+    { value: 'friends', label: t('Visible to Friends'), icon: Users,  desc: t('Friends can see your activity') },
+    { value: 'only-me', label: t('Only Me'),            icon: Lock,   desc: t('Shows as "Online" to friends') },
+    { value: 'hidden',  label: t('Hidden'),             icon: EyeOff, desc: t('Hidden from activity panel') },
+  ];
+}
 
 function formatDuration(seconds) {
   if (!seconds) return '0m';
@@ -27,19 +30,20 @@ function formatDuration(seconds) {
   return `${m}m`;
 }
 
-function formatRelativeTime(dateStr) {
+function formatRelativeTime(dateStr, t) {
   if (!dateStr) return '';
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60000);
   const h = Math.floor(m / 60);
   const d = Math.floor(h / 24);
-  if (d > 0) return `${d}d ago`;
-  if (h > 0) return `${h}h ago`;
-  if (m > 0) return `${m}m ago`;
-  return 'just now';
+  if (d > 0) return t('{count}d ago', { count: d });
+  if (h > 0) return t('{count}h ago', { count: h });
+  if (m > 0) return t('{count}m ago', { count: m });
+  return t('just now');
 }
 
 function CurrentActivityCard({ activity, manualOverride, onClearManual, isElectron }) {
+  const t = useT();
   const accentColor = activity ? (TYPE_COLOR[activity.appType] || '#5865f2') : '#5865f2';
 
   return (
@@ -50,19 +54,19 @@ function CurrentActivityCard({ activity, manualOverride, onClearManual, isElectr
         </div>
         <div className="activity-current-info">
           <div className="activity-current-label">
-            {activity ? 'Currently Active' : 'No Activity Detected'}
+            {activity ? t('Currently Active') : t('No Activity Detected')}
           </div>
           <div className="activity-current-display" style={{ color: activity ? accentColor : 'var(--text-muted)' }}>
-            {activity?.displayName || (isElectron ? 'Launch a game or app to start tracking' : 'Manual status only in browser')}
+            {activity?.displayName || (isElectron ? t('Launch a game or app to start tracking') : t('Manual status only in browser'))}
           </div>
           {activity?.startedAt && (
             <div className="activity-current-since">
-              Started {formatRelativeTime(activity.startedAt)}
+              {t('Started {time}', { time: formatRelativeTime(activity.startedAt, t) })}
             </div>
           )}
         </div>
         {manualOverride && (
-          <button className="activity-clear-manual-btn" onClick={onClearManual} title="Clear manual status">
+          <button className="activity-clear-manual-btn" onClick={onClearManual} title={t('Clear manual status')}>
             <X size={16} />
           </button>
         )}
@@ -70,7 +74,7 @@ function CurrentActivityCard({ activity, manualOverride, onClearManual, isElectr
       {!isElectron && (
         <div className="activity-web-notice">
           <Monitor size={14} />
-          <span>Automatic activity detection requires the <strong>Descall desktop app</strong></span>
+          <span>{t('Automatic activity detection requires the')} <strong>{t('Descall desktop app')}</strong></span>
         </div>
       )}
     </div>
@@ -78,12 +82,13 @@ function CurrentActivityCard({ activity, manualOverride, onClearManual, isElectr
 }
 
 function ManualStatusModal({ onSet, onClose }) {
+  const t = useT();
   const [text, setText] = useState('');
   const [expiresIn, setExpiresIn] = useState('4h');
 
   const SUGGESTIONS = [
-    '🎮 Gaming', '🎵 Listening to Music', '📚 Studying', '💼 Working',
-    '🍕 Taking a break', '🎬 Watching something', '💻 Coding',
+    `🎮 ${t('Gaming')}`, `🎵 ${t('Listening to Music')}`, `📚 ${t('Studying')}`, `💼 ${t('Working')}`,
+    `🍕 ${t('Taking a break')}`, `🎬 ${t('Watching something')}`, `💻 ${t('Coding')}`,
   ];
 
   return (
@@ -104,14 +109,14 @@ function ManualStatusModal({ onSet, onClose }) {
         <div className="activity-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Edit3 size={18} style={{ color: 'var(--primary)' }} />
-            <h3>Set Custom Status</h3>
+            <h3>{t('Set Custom Status')}</h3>
           </div>
           <button className="icon-btn" onClick={onClose}><X size={18} /></button>
         </div>
 
         <input
           className="activity-modal-input"
-          placeholder="What are you up to?"
+          placeholder={t('What are you up to?')}
           value={text}
           maxLength={80}
           onChange={e => setText(e.target.value)}
@@ -128,9 +133,9 @@ function ManualStatusModal({ onSet, onClose }) {
         </div>
 
         <div className="activity-modal-expiry">
-          <span className="activity-modal-label">Clears in</span>
+          <span className="activity-modal-label">{t('Clears in')}</span>
           <div className="activity-expiry-options">
-            {[['1h', '1 Hour'], ['4h', '4 Hours'], [null, 'Until Cleared']].map(([val, label]) => (
+            {[['1h', t('1 Hour')], ['4h', t('4 Hours')], [null, t('Until Cleared')]].map(([val, label]) => (
               <button
                 key={label}
                 className={`activity-expiry-btn${expiresIn === val ? ' active' : ''}`}
@@ -147,7 +152,7 @@ function ManualStatusModal({ onSet, onClose }) {
           disabled={!text.trim()}
           onClick={() => onSet(text.trim(), expiresIn)}
         >
-          Set Status
+          {t('Set Status')}
         </button>
       </motion.div>
     </motion.div>
@@ -155,6 +160,7 @@ function ManualStatusModal({ onSet, onClose }) {
 }
 
 function HistoryRow({ entry }) {
+  const t = useT();
   const accentColor = TYPE_COLOR[entry.app_type] || '#747f8d';
   return (
     <div className="activity-history-row">
@@ -163,7 +169,7 @@ function HistoryRow({ entry }) {
       </div>
       <div className="activity-history-info">
         <span className="activity-history-name">{entry.display_name}</span>
-        <span className="activity-history-time">{formatRelativeTime(entry.started_at)}</span>
+        <span className="activity-history-time">{formatRelativeTime(entry.started_at, t)}</span>
       </div>
       <div className="activity-history-duration">
         {formatDuration(entry.duration_sec)}
@@ -186,10 +192,12 @@ export default function ActivityView({
   onUpdatePrivacy,
   onlineUsers,
 }) {
+  const t = useT();
   const [showManualModal,  setShowManualModal]  = useState(false);
   const [showPrivacyMenu,  setShowPrivacyMenu]  = useState(false);
   const [activeTab,        setActiveTab]        = useState('history');
 
+  const PRIVACY_OPTIONS = getPrivacyOptions(t);
   const currentPrivacy = PRIVACY_OPTIONS.find(p => p.value === settings.privacy) || PRIVACY_OPTIONS[0];
   const PrivacyIcon    = currentPrivacy.icon;
 
@@ -211,8 +219,8 @@ export default function ActivityView({
             <Zap size={20} />
           </div>
           <div>
-            <h1 className="activity-view-title">Activity</h1>
-            <p className="activity-view-subtitle">Your presence and history</p>
+            <h1 className="activity-view-title">{t('Activity')}</h1>
+            <p className="activity-view-subtitle">{t('Your presence and history')}</p>
           </div>
         </div>
 
@@ -260,7 +268,7 @@ export default function ActivityView({
           {/* Manual status */}
           <button className="activity-set-status-btn" onClick={() => setShowManualModal(true)}>
             <Edit3 size={14} />
-            <span>Set Status</span>
+            <span>{t('Set Status')}</span>
           </button>
         </div>
       </div>
@@ -284,9 +292,9 @@ export default function ActivityView({
             onClick={() => setActiveTab(tab)}
           >
             {tab === 'history' ? (
-              <><Clock size={14} /> History</>
+              <><Clock size={14} /> {t('History')}</>
             ) : (
-              <><Zap size={14} /> Friends</>
+              <><Zap size={14} /> {t('Friends')}</>
             )}
           </button>
         ))}
@@ -312,8 +320,8 @@ export default function ActivityView({
               ) : (
                 <div className="activity-tab-empty">
                   <Clock size={32} />
-                  <p>No activity history yet</p>
-                  <span>Start using apps and games to see them here</span>
+                  <p>{t('No activity history yet')}</p>
+                  <span>{t('Start using apps and games to see them here')}</span>
                 </div>
               )}
             </motion.div>
@@ -347,7 +355,7 @@ export default function ActivityView({
                           </span>
                         </div>
                         <span className="activity-friend-feed-time">
-                          {formatRelativeTime(pres.startedAt)}
+                          {formatRelativeTime(pres.startedAt, t)}
                         </span>
                       </div>
                     );
@@ -356,8 +364,8 @@ export default function ActivityView({
               ) : (
                 <div className="activity-tab-empty">
                   <Zap size={32} />
-                  <p>No friend activity</p>
-                  <span>Friends' active sessions will appear here</span>
+                  <p>{t('No friend activity')}</p>
+                  <span>{t("Friends' active sessions will appear here")}</span>
                 </div>
               )}
             </motion.div>

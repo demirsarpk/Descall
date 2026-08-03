@@ -14,6 +14,7 @@ import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
 import UserHoverCard from "../social/UserHoverCard";
 import { mergeUserProfiles, pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
+import { useT } from "../../context/LocaleContext";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 const PICKER_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👏", "🤔", "👎"];
@@ -56,7 +57,7 @@ function dayKeyOf(iso) {
   }
 }
 
-function formatDayLabel(iso) {
+function formatDayLabel(iso, t) {
   if (!iso) return "";
   try {
     const date = new Date(iso);
@@ -64,8 +65,8 @@ function formatDayLabel(iso) {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const that = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const diffDays = Math.round((today - that) / 86400000);
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Yesterday";
+    if (diffDays === 0) return t("Today");
+    if (diffDays === 1) return t("Yesterday");
     return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   } catch {
     return "";
@@ -91,6 +92,7 @@ export default function MessageList({
   unreadCount = 0,
   onReply,
 }) {
+  const t = useT();
   const messagesEndRef = useRef(null);
   const [profileTarget, setProfileTarget] = useState(null);
   const [hoverUser, setHoverUser] = useState(null);
@@ -131,7 +133,7 @@ export default function MessageList({
         flush();
         grouped.push({
           isDaySep: true,
-          label: formatDayLabel(msg.timestamp),
+          label: formatDayLabel(msg.timestamp, t),
           id: `day-${dayKey}-${index}`,
         });
       }
@@ -195,7 +197,7 @@ export default function MessageList({
 
     flush();
     return grouped;
-  }, [messages, unreadCount]);
+  }, [messages, unreadCount, t]);
 
   if (loading) {
     return (
@@ -218,7 +220,7 @@ export default function MessageList({
         if (group.isUnreadSep) {
           return (
             <div key={group.id || `unread-${groupIndex}`} className="message-unread-sep">
-              <span>New messages</span>
+              <span>{t("New messages")}</span>
             </div>
           );
         }
@@ -357,6 +359,7 @@ function MessageBubble({
   conversationId,
   onReply,
 }) {
+  const t = useT();
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [swiping, setSwiping] = useState(false);
@@ -486,17 +489,17 @@ function MessageBubble({
               e.stopPropagation();
               onReply?.(reply.id ? { ...reply, id: reply.id } : reply);
             }}
-            title="Replying to"
+            title={t("Replying to")}
           >
             <span className="message-reply-author">
-              {reply.from?.username || reply.username || "Message"}
+              {reply.from?.username || reply.username || t("Message")}
             </span>
             <span className="message-reply-text">
               {reply.text
                 ? String(reply.text).slice(0, 120)
                 : reply.mediaType
                 ? `📎 ${reply.mediaType}`
-                : "Original message"}
+                : t("Original message")}
             </span>
           </button>
         )}
@@ -515,7 +518,7 @@ function MessageBubble({
             ) : message.mediaType === "image" ? (
               <img
                 src={message.mediaUrl}
-                alt={message.originalName || "Image"}
+                alt={message.originalName || t("Image")}
                 className="message-image"
                 style={{ maxWidth: 400, maxHeight: 300, borderRadius: 8, display: "block", cursor: "pointer" }}
                 onClick={() => window.open(message.mediaUrl, "_blank")}
@@ -545,7 +548,7 @@ function MessageBubble({
                   <FileText size={18} />
                 </div>
                 <div className="message-file-meta">
-                  <div className="message-file-name">{message.originalName || "File"}</div>
+                  <div className="message-file-name">{message.originalName || t("File")}</div>
                   {message.size && (
                     <div className="message-file-size">
                       {message.size < 1024 * 1024
@@ -575,7 +578,7 @@ function MessageBubble({
           <div className="message-footer">
             <span
               className="message-status"
-              title={message.sending ? "Sending…" : message.deliveredAt ? "Delivered" : "Sent"}
+              title={message.sending ? t("Sending…") : message.deliveredAt ? t("Delivered") : t("Sent")}
               style={{ opacity: message.sending ? 0.4 : 1 }}
             >
               {message.deliveredAt ? "✓✓" : "✓"}
@@ -605,7 +608,7 @@ function MessageBubble({
                       ev.stopPropagation();
                       emitReact(e);
                     }}
-                    title={`React ${e}`}
+                    title={`${t("React")} ${e}`}
                   >
                     {e}
                   </button>
@@ -614,7 +617,7 @@ function MessageBubble({
               <button
                 type="button"
                 className={`hover-bar-btn ${pickerOpen ? "active" : ""}`}
-                title="More reactions"
+                title={t("More reactions")}
                 onClick={(ev) => {
                   ev.stopPropagation();
                   setPickerOpen((v) => !v);
@@ -625,7 +628,7 @@ function MessageBubble({
               <button
                 type="button"
                 className="hover-bar-btn"
-                title="Reply"
+                title={t("Reply")}
                 onClick={(ev) => {
                   ev.stopPropagation();
                   triggerReply();
@@ -644,8 +647,8 @@ function MessageBubble({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="message-inline-picker-head">
-                      <span>React</span>
-                      <button type="button" onClick={() => setPickerOpen(false)} aria-label="Close">
+                      <span>{t("React")}</span>
+                      <button type="button" onClick={() => setPickerOpen(false)} aria-label={t("Close")}>
                         <X size={12} />
                       </button>
                     </div>

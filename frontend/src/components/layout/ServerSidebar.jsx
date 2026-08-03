@@ -117,11 +117,11 @@ export default function ServerSidebar({
   useEffect(() => {
     if (!socket) return;
     const onFriendError = ({ message }) => {
-      setAddError(message || "Friend action failed.");
+      setAddError(message || t("Friend action failed."));
       setTimeout(() => setAddError(""), 4000);
     };
     const onFriendSent = ({ to } = {}) => {
-      setAddSuccess(to ? `Request sent to ${to}` : "Request sent.");
+      setAddSuccess(to ? t("Request sent to {to}", { to }) : t("Request sent."));
       setTimeout(() => setAddSuccess(""), 3000);
     };
     socket.on("friend:error", onFriendError);
@@ -130,7 +130,7 @@ export default function ServerSidebar({
       socket.off("friend:error", onFriendError);
       socket.off("friend:request:sent", onFriendSent);
     };
-  }, [socket]);
+  }, [socket, t]);
 
   useEffect(() => {
     if (showAnnouncements && announcements.length === 0) {
@@ -162,7 +162,7 @@ export default function ServerSidebar({
       socket?.emit("friend:request", { toUsername: friendUsername.trim() });
       setFriendUsername("");
     } catch (err) {
-      setAddError("Failed to send friend request");
+      setAddError(t("Failed to send friend request"));
     } finally {
       setAddLoading(false);
     }
@@ -185,8 +185,8 @@ export default function ServerSidebar({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.details || `Failed to create group (status ${res.status})`);
-      setAddSuccess(`Group "${groupName.trim()}" created`);
+      if (!res.ok) throw new Error(data.error || data.details || t("Failed to create group (status {status})", { status: res.status }));
+      setAddSuccess(t('Group "{name}" created', { name: groupName.trim() }));
       setGroupName("");
       setSelectedGroupMembers([]);
       setTimeout(() => setAddSuccess(""), 3000);
@@ -195,7 +195,7 @@ export default function ServerSidebar({
       if (data.group) onGroupCreated?.(data.group);
       onRefreshGroups?.();
     } catch (err) {
-      setAddError(err.message || "Network error. Is backend deployed?");
+      setAddError(err.message || t("Network error. Is backend deployed?"));
     } finally {
       setAddLoading(false);
     }
@@ -329,45 +329,45 @@ export default function ServerSidebar({
                 {feedbackSent ? (
                   <div className="feedback-success">
                     <div className="feedback-success-icon">✓</div>
-                    <h3>Thanks for your feedback!</h3>
-                    <p>We review every submission and use it to make Descall better.</p>
-                    <button className="feedback-close-btn" onClick={() => { setShowFeedback(false); setFeedbackSent(false); }}>Close</button>
+                    <h3>{t("Thanks for your feedback!")}</h3>
+                    <p>{t("We review every submission and use it to make Descall better.")}</p>
+                    <button className="feedback-close-btn" onClick={() => { setShowFeedback(false); setFeedbackSent(false); }}>{t("Close")}</button>
                   </div>
                 ) : (
                   <>
                     <div className="feedback-header">
                       <div className="feedback-header-left">
                         <MessageSquarePlus size={20} />
-                        <h3>Send Feedback</h3>
+                        <h3>{t("Send Feedback")}</h3>
                       </div>
                       <button className="icon-btn" onClick={() => setShowFeedback(false)}><X size={18} /></button>
                     </div>
 
                     <div className="feedback-type-row">
                       {[
-                        { id: 'suggestion', label: 'Suggestion', icon: <Lightbulb size={14} /> },
-                        { id: 'bug', label: 'Bug Report', icon: <Bug size={14} /> },
-                        { id: 'praise', label: 'Praise', icon: <Star size={14} /> },
-                      ].map(t => (
+                        { id: 'suggestion', label: t('Suggestion'), icon: <Lightbulb size={14} /> },
+                        { id: 'bug', label: t('Bug Report'), icon: <Bug size={14} /> },
+                        { id: 'praise', label: t('Praise'), icon: <Star size={14} /> },
+                      ].map(ft => (
                         <button
-                          key={t.id}
-                          className={`feedback-type-btn${feedbackType === t.id ? ' active' : ''}`}
-                          onClick={() => setFeedbackType(t.id)}
+                          key={ft.id}
+                          className={`feedback-type-btn${feedbackType === ft.id ? ' active' : ''}`}
+                          onClick={() => setFeedbackType(ft.id)}
                         >
-                          {t.icon} {t.label}
+                          {ft.icon} {ft.label}
                         </button>
                       ))}
                     </div>
 
                     <div className="feedback-rating-row">
-                      <span className="feedback-rating-label">Overall experience</span>
+                      <span className="feedback-rating-label">{t("Overall experience")}</span>
                       <div className="feedback-stars">
                         {[1,2,3,4,5].map(n => (
                           <button
                             key={n}
                             className={`feedback-star${feedbackRating >= n ? ' active' : ''}`}
                             onClick={() => setFeedbackRating(n)}
-                            aria-label={`${n} star`}
+                            aria-label={t("{n} star", { n })}
                           >
                             <Star size={18} />
                           </button>
@@ -377,7 +377,7 @@ export default function ServerSidebar({
 
                     <textarea
                       className="feedback-textarea"
-                      placeholder={feedbackType === 'bug' ? 'Describe the bug — what happened and how to reproduce it…' : feedbackType === 'praise' ? 'Tell us what you love about Descall…' : 'Share your idea or suggestion…'}
+                      placeholder={feedbackType === 'bug' ? t('Describe the bug — what happened and how to reproduce it…') : feedbackType === 'praise' ? t('Tell us what you love about Descall…') : t('Share your idea or suggestion…')}
                       value={feedbackText}
                       onChange={e => setFeedbackText(e.target.value)}
                       rows={5}
@@ -407,7 +407,7 @@ export default function ServerSidebar({
                         markFeedbackSubmitted();
                       }}
                     >
-                      {feedbackSending ? 'Sending…' : 'Submit Feedback'}
+                      {feedbackSending ? t('Sending…') : t('Submit Feedback')}
                     </button>
                   </>
                 )}
@@ -421,7 +421,7 @@ export default function ServerSidebar({
           <Search size={16} className="search-icon" />
           <input
             type="text"
-            placeholder="Search"
+            placeholder={t("Search")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="search-input"
@@ -513,7 +513,7 @@ export default function ServerSidebar({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="add-modal-header">
-                  <h3>Create New</h3>
+                  <h3>{t("Create New")}</h3>
                   <button className="icon-btn" onClick={() => setShowAddModal(false)}><X size={18} /></button>
                 </div>
 
@@ -613,16 +613,16 @@ export default function ServerSidebar({
 
                 <div className="announcements-modal-content">
                   {announcementsLoading ? (
-                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>Loading announcements...</div>
+                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>{t("Loading announcements...")}</div>
                   ) : announcements.length === 0 ? (
-                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>No announcements</div>
+                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>{t("No announcements")}</div>
                   ) : (
                     announcements.map((a) => (
                       <div key={a.id} className="announcement-item">
                         <div className="announcement-title">{a.title}</div>
                         <div className="announcement-content">{a.content}</div>
                         <div className="announcement-meta">
-                          {a.author && <span className="announcement-author">By {a.author}</span>}
+                          {a.author && <span className="announcement-author">{t("By {author}", { author: a.author })}</span>}
                           {a.createdAt && <span className="announcement-date">{new Date(a.createdAt).toLocaleDateString()}</span>}
                         </div>
                       </div>
@@ -679,7 +679,7 @@ function SectionChevron({ expanded }) {
   );
 }
 
-function formatConversationTime(iso) {
+function formatConversationTime(iso, t) {
   if (!iso) return "";
   try {
     const d = new Date(iso);
@@ -691,7 +691,7 @@ function formatConversationTime(iso) {
     }
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+    if (d.toDateString() === yesterday.toDateString()) return t("Yesterday");
     const weekAgo = new Date(now);
     weekAgo.setDate(now.getDate() - 6);
     if (d >= weekAgo) {
@@ -761,7 +761,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
               const isOnline = isVisiblyOnline(onlineUsers, dm.id);
               const isActive = activeDmUser?.id === dm.id;
               const unread = dm.unreadCount || unreadById[dm.id] || 0;
-              const timeLabel = formatConversationTime(dm.lastActivity);
+              const timeLabel = formatConversationTime(dm.lastActivity, t);
 
               return (
                 <motion.button
@@ -877,7 +877,7 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
               <UserRoundPlus size={16} />
             </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-0)" }}>Add Member</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-0)" }}>{t("Add Member")}</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{group.name}</div>
             </div>
           </div>
@@ -907,7 +907,7 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search friends…"
+              placeholder={t("Search friends…")}
               style={{
                 width: "100%", padding: "8px 10px 8px 32px",
                 background: "var(--surface-2)", border: "1px solid var(--border-3)",
@@ -973,6 +973,7 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
 }
 
 function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, onInvite, anchorRef }) {
+  const t = useT();
   const menuRef = useRef(null);
   const [position, setPosition] = useState({ top: 0, left: 0, visibility: "hidden" });
 
@@ -1062,7 +1063,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, onIn
         onMouseLeave={(e) => e.currentTarget.style.background = "none"}
       >
         <Link2 size={14} style={{ color: "var(--primary)" }} />
-        Invite People
+        {t("Invite People")}
       </button>
       <div style={{ height: 1, background: "var(--border-2)", margin: "2px 0" }} />
       <button
@@ -1077,7 +1078,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, onIn
         onMouseLeave={(e) => e.currentTarget.style.background = "none"}
       >
         <UserRoundPlus size={14} style={{ color: "var(--text-muted)" }} />
-        Add Member
+        {t("Add Member")}
       </button>
       <div style={{ height: 1, background: "var(--border-2)", margin: "2px 0" }} />
       <button
@@ -1092,7 +1093,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, onIn
         onMouseLeave={(e) => e.currentTarget.style.background = "none"}
       >
         <Edit3 size={14} style={{ color: "var(--text-muted)" }} />
-        Rename Group
+        {t("Rename Group")}
       </button>
       <div style={{ height: 1, background: "var(--border-2)", margin: "2px 0" }} />
       <button
@@ -1107,7 +1108,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, onIn
         onMouseLeave={(e) => e.currentTarget.style.background = "none"}
       >
         <LogOut size={14} />
-        Leave Group
+        {t("Leave Group")}
       </button>
     </motion.div>,
     document.body
@@ -1115,6 +1116,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, onIn
 }
 
 function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger = false, onConfirm, onCancel }) {
+  const t = useT();
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1154,7 +1156,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger = fals
               fontSize: 13, fontWeight: 600,
             }}
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             onClick={onConfirm}
@@ -1173,6 +1175,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger = fals
 }
 
 function RenameDialog({ group, onConfirm, onCancel }) {
+  const t = useT();
   const [value, setValue] = useState(group.name);
   const trimmed = value.trim();
   const valid = trimmed.length >= 2 && trimmed.length <= 50 && trimmed !== group.name;
@@ -1205,7 +1208,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "var(--text-0)" }}>Rename Group</h3>
+        <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "var(--text-0)" }}>{t("Rename Group")}</h3>
         <input
           autoFocus
           value={value}
@@ -1231,7 +1234,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
               fontSize: 13, fontWeight: 600,
             }}
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             onClick={() => valid && onConfirm(trimmed)}
@@ -1245,7 +1248,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
             }}
           >
             <Check size={13} style={{ display: "inline", marginRight: 5, verticalAlign: "middle" }} />
-            Rename
+            {t("Rename")}
           </button>
         </div>
       </motion.div>
@@ -1350,7 +1353,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                 safeGroups.map((group) => {
                   const isActive = activeGroup?.id === group.id;
                   const unread = group.unreadCount || unreadById[group.id] || 0;
-                  const timeLabel = formatConversationTime(group.lastActivity);
+                  const timeLabel = formatConversationTime(group.lastActivity, t);
                   const preview = group.lastMessage || `${group.memberCount || 0} members`;
                   const swipeOpen = isMobile && swipeOpenId === group.id;
 
@@ -1439,9 +1442,9 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
       <AnimatePresence>
         {confirmLeave && (
           <ConfirmDialog
-            title="Leave Group"
-            message={`Are you sure you want to leave "${confirmLeave.name}"? You won't be able to see its messages anymore.`}
-            confirmLabel="Leave"
+            title={t("Leave Group")}
+            message={t('Are you sure you want to leave "{name}"? You won\'t be able to see its messages anymore.', { name: confirmLeave.name })}
+            confirmLabel={t("Leave")}
             danger
             onConfirm={() => handleLeave(confirmLeave)}
             onCancel={() => setConfirmLeave(null)}
@@ -1520,6 +1523,7 @@ function SwipeableGroupRow({
   onSwipeOpenChange,
   onCloseOthers,
 }) {
+  const t = useT();
   const startX = useRef(0);
   const startY = useRef(0);
   const startOffset = useRef(0);
@@ -1622,19 +1626,19 @@ function SwipeableGroupRow({
         <div className="group-swipe-actions" aria-hidden={!swipeOpen}>
           <button type="button" className="group-swipe-btn invite" onClick={() => onAction?.("invite")}>
             <Link2 size={15} />
-            <span>Invite</span>
+            <span>{t("Invite")}</span>
           </button>
           <button type="button" className="group-swipe-btn add" onClick={() => onAction?.("add")}>
             <UserRoundPlus size={15} />
-            <span>Add</span>
+            <span>{t("Add")}</span>
           </button>
           <button type="button" className="group-swipe-btn rename" onClick={() => onAction?.("rename")}>
             <Edit3 size={15} />
-            <span>Rename</span>
+            <span>{t("Rename")}</span>
           </button>
           <button type="button" className="group-swipe-btn leave" onClick={() => onAction?.("leave")}>
             <LogOut size={15} />
-            <span>Leave</span>
+            <span>{t("Leave")}</span>
           </button>
         </div>
       </div>
@@ -1731,7 +1735,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                     </div>
                     <span className="friend-name" style={{ flex: 1, fontSize: 13 }}>{req.username}</span>
                     <button
-                      title="Accept"
+                      title={t("Accept")}
                       onClick={() => onAcceptFriend?.(req.id)}
                       style={{
                         width: 26, height: 26, borderRadius: 6, border: "none",
@@ -1745,7 +1749,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                       <UserPlus size={13} />
                     </button>
                     <button
-                      title="Decline"
+                      title={t("Decline")}
                       onClick={() => onDeclineFriend?.(req.id)}
                       style={{
                         width: 26, height: 26, borderRadius: 6, border: "none",
@@ -1765,7 +1769,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
 
             {onlineFriends.length > 0 && (
               <div className="friend-category">
-                <span className="category-label">Online — {onlineFriends.length}</span>
+                <span className="category-label">{t("Online — {count}", { count: onlineFriends.length })}</span>
                 {onlineFriends.map((friend) => (
                   <motion.button
                     key={friend.id}
@@ -1799,7 +1803,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
 
             {offlineFriends.length > 0 && (
               <div className="friend-category">
-                <span className="category-label">Offline — {offlineFriends.length}</span>
+                <span className="category-label">{t("Offline — {count}", { count: offlineFriends.length })}</span>
                 {offlineFriends.map((friend) => (
                   <motion.button
                     key={friend.id}

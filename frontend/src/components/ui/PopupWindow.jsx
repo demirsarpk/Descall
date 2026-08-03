@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Maximize2, Minimize2, Square } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * Popup Window System
@@ -12,7 +13,7 @@ import { X, Maximize2, Minimize2, Square } from "lucide-react";
 export default function PopupWindow({
   isOpen,
   onClose,
-  title = "Popup",
+  title,
   children,
   initialPosition = { x: 100, y: 100 },
   initialSize = { width: 400, height: 300 },
@@ -23,6 +24,8 @@ export default function PopupWindow({
   alwaysOnTop = true,
   className = "",
 }) {
+  const t = useT();
+  const windowTitle = title ?? t("Popup");
   const [position, setPosition] = useState(initialPosition);
   const [size, setSize] = useState(initialSize);
   const [isDragging, setIsDragging] = useState(false);
@@ -207,7 +210,7 @@ export default function PopupWindow({
           }}
         >
           <span style={{ color: 'var(--text)', fontWeight: 500, fontSize: 14 }}>
-            {title}
+            {windowTitle}
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -225,7 +228,7 @@ export default function PopupWindow({
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text)'}
               onMouseLeave={(e) => e.currentTarget.style.color = 'var(--muted)'}
-              title={isMaximized ? "Restore" : "Maximize"}
+              title={isMaximized ? t("Restore") : t("Maximize")}
             >
               {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
@@ -244,7 +247,7 @@ export default function PopupWindow({
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = 'var(--danger)'}
               onMouseLeave={(e) => e.currentTarget.style.color = 'var(--muted)'}
-              title="Close"
+              title={t("Close")}
             >
               <X size={16} />
             </button>

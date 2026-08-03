@@ -1,9 +1,11 @@
 import { Video, Phone, Users, Clock } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * WhatsApp-style ended call summary bubble rendered inside the message list.
  */
 export default function CallSummaryBubble({ summary }) {
+  const t = useT();
   if (!summary) return null;
 
   const isVideo = summary.callType === "video";
@@ -15,10 +17,10 @@ export default function CallSummaryBubble({ summary }) {
       ? `${mins}m${secs > 0 ? ` ${secs}s` : ""}`
       : secs > 0
       ? `${secs}s`
-      : "< 1s";
+      : t("< 1s");
 
   const timeLabel = summary.endedAt
-    ? new Date(summary.endedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(summary.endedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
     : "";
 
   return (
@@ -30,7 +32,7 @@ export default function CallSummaryBubble({ summary }) {
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="call-summary-title">
-            {isVideo ? "Video call" : "Voice call"}
+            {isVideo ? t("Video call") : t("Voice call")}
           </div>
           <div className="call-summary-meta">
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -40,13 +42,13 @@ export default function CallSummaryBubble({ summary }) {
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <Users size={11} />
               <span>
-                {summary.participantCount} participant{summary.participantCount !== 1 ? "s" : ""} joined
+                {t("{count} participants joined", { count: summary.participantCount ?? 0 })}
               </span>
             </div>
           </div>
           {summary.initiatorUsername && (
             <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
-              Started by {summary.initiatorUsername}
+              {t("Started by {name}", { name: summary.initiatorUsername })}
             </div>
           )}
         </div>

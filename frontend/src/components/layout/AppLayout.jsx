@@ -220,7 +220,7 @@ export default function AppLayout({
             className="app-notif-banner"
           >
             <Bell size={15} style={{ flexShrink: 0 }} />
-            <span>Mesaj, arama ve mention bildirimleri almak için izin verin</span>
+            <span>{t("Allow notifications for messages, calls, and mentions")}</span>
             <button
               type="button"
               className="app-notif-banner-btn"
@@ -229,7 +229,7 @@ export default function AppLayout({
                 setNotifBannerDismissed(true);
               }}
             >
-              İzin Ver
+              {t("Allow")}
             </button>
             <button
               type="button"

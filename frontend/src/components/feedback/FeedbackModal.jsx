@@ -264,7 +264,9 @@ export default function FeedbackModal({ isOpen, onClose }) {
                     </div>
                     <div className="mb-4">
                       <span className="text-xs text-[#9da5b5] uppercase tracking-wider">{t("Priority")}</span>
-                      <p className="text-white text-sm font-medium capitalize">{priority}</p>
+                      <p className="text-white text-sm font-medium">
+                        {t(PRIORITIES.find((p) => p.id === priority)?.label || "Medium")}
+                      </p>
                     </div>
 
                     <textarea

@@ -383,7 +383,7 @@ export default function MessageComposer({
         }
         const blob = new Blob(audioChunksRef.current, { type: actualMime });
         if (!blob.size) {
-          setUploadError("Empty recording — try again.");
+          setUploadError(t("Empty recording — try again."));
           setTimeout(() => setUploadError(""), 4000);
           return;
         }
@@ -423,7 +423,7 @@ export default function MessageComposer({
         stream.getTracks().forEach((t) => t.stop());
         if (timerRef.current) clearInterval(timerRef.current);
         setIsRecording(false);
-        setUploadError("Recording failed.");
+        setUploadError(t("Recording failed."));
         setTimeout(() => setUploadError(""), 4000);
       };
       // timeslice helps finalize duration metadata on some browsers
@@ -451,7 +451,7 @@ export default function MessageComposer({
       }, 1000);
     } catch (err) {
       console.error("Recording failed:", err);
-      setUploadError("Microphone access denied.");
+      setUploadError(t("Microphone access denied."));
       setTimeout(() => setUploadError(""), 4000);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -526,13 +526,13 @@ export default function MessageComposer({
           >
             <Reply size={14} />
             <div className="composer-reply-meta">
-              <strong>Replying to {replyTo.from?.displayName || replyTo.from?.display_name || replyTo.from?.username || "message"}</strong>
+              <strong>{t("Replying to")} {replyTo.from?.displayName || replyTo.from?.display_name || replyTo.from?.username || t("message")}</strong>
               <span>
                 {replyTo.text
                   ? String(replyTo.text).slice(0, 100)
                   : replyTo.mediaType
                   ? `📎 ${replyTo.mediaType}`
-                  : "Message"}
+                  : t("Message")}
               </span>
             </div>
             <button type="button" className="composer-reply-clear" onClick={() => onClearReply?.()} aria-label={t("Cancel reply")}>
@@ -558,7 +558,7 @@ export default function MessageComposer({
               </div>
             )}
             <div className="composer-attach-meta">
-              <strong>{pendingAttach.originalName || "Attachment"}</strong>
+              <strong>{pendingAttach.originalName || t("Attachment")}</strong>
               <span>{pendingAttach.mediaType}</span>
             </div>
             <button
@@ -568,7 +568,7 @@ export default function MessageComposer({
                 if (pendingAttach.previewUrl) URL.revokeObjectURL(pendingAttach.previewUrl);
                 setPendingAttach(null);
               }}
-              aria-label="Remove attachment"
+              aria-label={t("Remove attachment")}
             >
               <X size={14} />
             </button>
@@ -581,13 +581,13 @@ export default function MessageComposer({
           <motion.div
             className="slash-command-menu"
             role="listbox"
-            aria-label="Slash commands"
+            aria-label={t("Slash commands")}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.14 }}
           >
-            <div className="slash-command-header">Commands</div>
+            <div className="slash-command-header">{t("Commands")}</div>
             {slashMatches.map((cmd, idx) => {
               const Icon = cmd.Icon;
               const active = idx === slashIndex;
@@ -604,9 +604,9 @@ export default function MessageComposer({
                   <span className="slash-command-ico"><Icon size={18} /></span>
                   <span className="slash-command-copy">
                     <strong>{cmd.command}</strong>
-                    <span>{cmd.hint}</span>
+                    <span>{t(cmd.hint)}</span>
                   </span>
-                  <span className="slash-command-label">{cmd.label}</span>
+                  <span className="slash-command-label">{t(cmd.label)}</span>
                 </button>
               );
             })}
@@ -624,15 +624,15 @@ export default function MessageComposer({
           >
             <button className="attachment-item" onClick={() => { imageInputRef.current?.click(); setShowAttachmentMenu(false); }}>
               <div className="attachment-icon"><Image size={24} /></div>
-              <span className="attachment-label">Upload Image</span>
+              <span className="attachment-label">{t("Upload Image")}</span>
             </button>
             <button className="attachment-item" onClick={() => { fileInputRef.current?.click(); setShowAttachmentMenu(false); }}>
               <div className="attachment-icon"><FileText size={24} /></div>
-              <span className="attachment-label">Upload File</span>
+              <span className="attachment-label">{t("Upload File")}</span>
             </button>
             <button className="attachment-item" onClick={() => { setShowGiphy(true); setShowAttachmentMenu(false); }}>
               <div className="attachment-icon"><Gift size={24} /></div>
-              <span className="attachment-label">Send GIF</span>
+              <span className="attachment-label">{t("Send GIF")}</span>
             </button>
           </motion.div>
         )}
@@ -647,13 +647,13 @@ export default function MessageComposer({
             className="emoji-picker"
           >
             <div className="emoji-picker-header">
-              <span>Emojis</span>
+              <span>{t("Emojis")}</span>
               <button className="emoji-picker-close" onClick={() => setShowEmojiPicker(false)}><X size={14} /></button>
             </div>
             <div className="emoji-picker-body">
               {EMOJI_CATEGORIES.map((cat) => (
                 <div key={cat.name} className="emoji-category">
-                  <span className="emoji-category-name">{cat.name}</span>
+                  <span className="emoji-category-name">{t(cat.name)}</span>
                   <div className="emoji-grid">
                     {cat.emojis.map((em) => (
                       <button key={em} className="emoji-btn" onClick={() => insertEmoji(em)}>{em}</button>
@@ -676,7 +676,7 @@ export default function MessageComposer({
           onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          title="Add Attachment"
+          title={t("Add Attachment")}
         >
           <Plus size={24} />
         </motion.button>
@@ -686,7 +686,7 @@ export default function MessageComposer({
         {uploading ? (
           <div className="recording-bar">
             <Loader2 size={16} className="spin" style={{ animation: "spin 1s linear infinite" }} />
-            <span className="recording-label">Uploading file…</span>
+            <span className="recording-label">{t("Uploading file…")}</span>
           </div>
         ) : isRecording ? (
           <div className="recording-bar recording-wave">

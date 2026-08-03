@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useT } from "../../context/LocaleContext";
 
 export default function Modal({ open, onClose, title, children, wide }) {
+  const t = useT();
   useEffect(() => {
     if (!open) return;
     const h = (e) => e.key === "Escape" && onClose?.();
@@ -31,7 +33,7 @@ export default function Modal({ open, onClose, title, children, wide }) {
             {title && (
               <header className="modal-header">
                 <h2>{title}</h2>
-                <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+                <button type="button" className="modal-close" onClick={onClose} aria-label={t("Close")}>
                   ×
                 </button>
               </header>

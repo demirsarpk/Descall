@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, Grid, Maximize2, Users, Minimize2, Settings, Sparkles, Activity, Check, X } from "lucide-react";
 import RippleButton from "./ui/RippleButton";
 import VoiceEffectsPanel from "./VoiceEffectsPanel";
+import { useT } from "../context/LocaleContext";
 // VideoConferenceMobile component was removed - using responsive design instead
 
 /**
@@ -45,9 +46,10 @@ export default function VideoConference({
   onAudioInputChange = () => {},
   onAudioOutputChange = () => {},
 }) {
+  const t = useT();
   const safeParticipants = Array.isArray(participants) ? participants : [];
   const remoteStreamMap = remoteStreams?.current instanceof Map ? remoteStreams.current : new Map();
-  
+ 
 
   const [viewMode, setViewMode] = useState("grid");
   const [showAudioSettings, setShowAudioSettings] = useState(false);
@@ -224,7 +226,7 @@ export default function VideoConference({
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           background: 'rgba(0,0,0,0.6)', padding: '4px 10px', borderRadius: 8, fontSize: 12, color: '#fff'
         }}>
-          <span>{safeParticipants.length + 1} participants</span>
+          <span>{t("{count} participants", { count: safeParticipants.length + 1 })}</span>
           {duration > 0 && <span>{Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}</span>}
         </div>
         <button
@@ -260,7 +262,7 @@ export default function VideoConference({
       }}>
         <div className="vc-title" style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
           <Users size={18} />
-          <span>{safeParticipants.length + 1} participants</span>
+          <span>{t("{count} participants", { count: safeParticipants.length + 1 })}</span>
         </div>
         <div className="vc-view-toggle" style={{ display: 'flex', gap: 8 }}>
           <button className={viewMode === "grid" ? "active" : ""} onClick={() => setViewMode("grid")}
@@ -272,7 +274,7 @@ export default function VideoConference({
             <Maximize2 size={18} />
           </button>
           {onMinimize && (
-            <button onClick={onMinimize} title="Minimize"
+            <button onClick={onMinimize} title={t("Minimize")}
               style={{ 
                 background: 'rgba(255, 255, 255, 0.1)', 
                 border: '1px solid rgba(255, 255, 255, 0.2)', 
@@ -308,11 +310,11 @@ export default function VideoConference({
                   autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                  <span>You</span>
+                  <span>{t("You")}</span>
                 </div>
               )}
               <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', borderRadius: 6, padding: '2px 6px', color: '#fff', fontSize: 11 }}>
-                {isMuted ? <MicOff size={12} /> : <Mic size={12} />} You
+                {isMuted ? <MicOff size={12} /> : <Mic size={12} />} {t("You")}
               </div>
             </div>
 
@@ -332,7 +334,7 @@ export default function VideoConference({
                   )}
                   <div style={{ position: 'absolute', bottom: 4, left: 4, background: 'rgba(0,0,0,0.6)', borderRadius: 6, padding: '2px 6px', color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
                     {p.isScreenSharing && <Monitor size={12} />}
-                    {p.username || 'User'}
+                    {p.username || t("User")}
                   </div>
                 </div>
               );
@@ -351,7 +353,7 @@ export default function VideoConference({
                     autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : (
                   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                    <span>You</span>
+                    <span>{t("You")}</span>
                   </div>
                 )
               ) : focusParticipant ? (
@@ -369,12 +371,12 @@ export default function VideoConference({
                   )}
                   <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.6)', borderRadius: 8, padding: '4px 10px', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
                     {focusParticipant.isScreenSharing && <Monitor size={14} />}
-                    {focusParticipant.username || 'User'}
+                    {focusParticipant.username || t("User")}
                   </div>
                 </div>
               ) : (
                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                  <span>No participant</span>
+                  <span>{t("No participant")}</span>
                 </div>
               )}
             </div>
@@ -390,9 +392,9 @@ export default function VideoConference({
                     <video ref={el => { if (el && el.srcObject !== localStream) el.srcObject = localStream; }}
                       autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12 }}>You</div>
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12 }}>{t("You")}</div>
                   )}
-                  <div style={{ position: 'absolute', bottom: 2, left: 4, color: '#fff', fontSize: 10, background: 'rgba(0,0,0,0.5)', padding: '1px 4px', borderRadius: 4 }}>You</div>
+                  <div style={{ position: 'absolute', bottom: 2, left: 4, color: '#fff', fontSize: 10, background: 'rgba(0,0,0,0.5)', padding: '1px 4px', borderRadius: 4 }}>{t("You")}</div>
                 </div>
               )}
               {thumbnailParticipants.map(p => (
@@ -405,7 +407,7 @@ export default function VideoConference({
                       {p.username?.[0] || 'U'}
                     </div>
                   )}
-                  <div style={{ position: 'absolute', bottom: 2, left: 4, color: '#fff', fontSize: 10, background: 'rgba(0,0,0,0.5)', padding: '1px 4px', borderRadius: 4 }}>{p.username || 'User'}</div>
+                  <div style={{ position: 'absolute', bottom: 2, left: 4, color: '#fff', fontSize: 10, background: 'rgba(0,0,0,0.5)', padding: '1px 4px', borderRadius: 4 }}>{p.username || t("User")}</div>
                 </div>
               ))}
             </div>
@@ -419,25 +421,25 @@ export default function VideoConference({
           position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)',
           background: 'rgba(0,0,0,0.9)', padding: 20, borderRadius: 12, zIndex: 1002, minWidth: 300,
         }}>
-          <h4 style={{ color: '#fff', margin: '0 0 15px', fontSize: 14 }}>Audio Devices</h4>
+          <h4 style={{ color: '#fff', margin: '0 0 15px', fontSize: 14 }}>{t("Audio Devices")}</h4>
           <div style={{ marginBottom: 15 }}>
-            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>Microphone (Input)</label>
+            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>{t("Microphone (Input)")}</label>
             <select value={selectedAudioInput || ''} onChange={e => onAudioInputChange?.(e.target.value)}
               style={{ width: '100%', padding: '8px 12px', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: 6, fontSize: 13 }}>
-              <option value="">Default</option>
-              {(audioInputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${d.deviceId.slice(0, 8)}...`}</option>)}
+              <option value="">{t("Default")}</option>
+              {(audioInputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `${t("Microphone")} ${d.deviceId.slice(0, 8)}...`}</option>)}
             </select>
           </div>
           <div style={{ marginBottom: 15 }}>
-            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>Speaker (Output)</label>
+            <label style={{ color: '#aaa', fontSize: 12, display: 'block', marginBottom: 8 }}>{t("Speaker (Output)")}</label>
             <select value={selectedAudioOutput || ''} onChange={e => onAudioOutputChange?.(e.target.value)}
               style={{ width: '100%', padding: '8px 12px', background: '#333', color: '#fff', border: '1px solid #555', borderRadius: 6, fontSize: 13 }}>
-              <option value="">Default</option>
-              {(audioOutputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0, 8)}...`}</option>)}
+              <option value="">{t("Default")}</option>
+              {(audioOutputDevices || []).map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `${t("Speaker")} ${d.deviceId.slice(0, 8)}...`}</option>)}
             </select>
           </div>
           <button onClick={() => setShowAudioSettings(false)}
-            style={{ width: '100%', padding: 8, background: '#444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Close</button>
+            style={{ width: '100%', padding: 8, background: '#444', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>{t("Close")}</button>
         </div>
       )}
 
@@ -495,11 +497,11 @@ export default function VideoConference({
               padding: 16, borderRadius: 12, zIndex: 1002, minWidth: 280, maxHeight: 400, overflowY: 'auto',
             }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>Screen Quality</span>
+              <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{t("Screen Quality")}</span>
               <button onClick={() => setShowScreenQuality(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}><X size={14} /></button>
             </div>
             <div style={{ marginBottom: 12 }}>
-              <label style={{ color: '#aaa', fontSize: 11, marginBottom: 6, display: 'block' }}>Resolution</label>
+              <label style={{ color: '#aaa', fontSize: 11, marginBottom: 6, display: 'block' }}>{t("Resolution")}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
                 {['480p','720p','1080p'].map(r => (
                   <button key={r} onClick={() => handleResolutionChange(r)}
@@ -510,7 +512,7 @@ export default function VideoConference({
               </div>
             </div>
             <div>
-              <label style={{ color: '#aaa', fontSize: 11, marginBottom: 6, display: 'block' }}>FPS</label>
+              <label style={{ color: '#aaa', fontSize: 11, marginBottom: 6, display: 'block' }}>{t("FPS")}</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4 }}>
                 {[15, 30, 60].map(f => (
                   <button key={f} onClick={() => handleFpsChange(f)}
