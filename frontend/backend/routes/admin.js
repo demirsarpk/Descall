@@ -92,22 +92,30 @@ router.get("/users", async (req, res) => {
     const from = page * limit;
     const to = from + limit - 1;
 
-    let query = supabase.from("users").select("id, username, created_at, avatar_url", { count: "exact" });
+    let query = supabase.from("users").select("id, username, created_at, avatar_url, is_admin", { count: "exact" });
     if (q) {
       query = query.ilike("username", `%${q}%`);
     }
     const { data, error, count } = await query.order("username", { ascending: true }).range(from, to);
     if (error) return res.status(500).json({ error: error.message });
 
-    const rows = (data || []).map((u) => ({
-      ...u,
-      isOnline: state.presence.has(u.id),
-      last_seen: state.userLastLoginAt.get(u.id) || u.last_seen || null,
-      banned: state.bannedUserIds.has(u.id),
-      role: state.userRoles.get(u.id) || "user",
-      lastLoginAt: state.userLastLoginAt.get(u.id) || null,
-      onlineMsTotal: state.userOnlineAccumMs.get(u.id) || 0,
-    }));
+    const rows = (data || []).map((u) => {
+      const isAdmin = Boolean(u.is_admin) || u.username === "admin";
+      // Keep in-memory role map in sync with durable DB flag
+      if (isAdmin) state.userRoles.set(u.id, "admin");
+      else if (state.userRoles.get(u.id) === "admin") state.userRoles.set(u.id, "user");
+      const role = isAdmin ? "admin" : (state.userRoles.get(u.id) || "user");
+      return {
+        ...u,
+        is_admin: isAdmin,
+        isOnline: state.presence.has(u.id),
+        last_seen: state.userLastLoginAt.get(u.id) || u.last_seen || null,
+        banned: state.bannedUserIds.has(u.id),
+        role,
+        lastLoginAt: state.userLastLoginAt.get(u.id) || null,
+        onlineMsTotal: state.userOnlineAccumMs.get(u.id) || 0,
+      };
+    });
 
     res.json({ users: rows, total: count ?? rows.length, page, limit });
   } catch (e) {
@@ -170,12 +178,70 @@ router.patch("/users/:id", async (req, res) => {
     const { role } = req.body || {};
     if (role && ["user", "mod", "admin"].includes(role)) {
       state.userRoles.set(req.params.id, role);
+      // Persist admin flag to DB — in-memory role alone does not grant AdminPanel access
+      if (role === "admin" || role === "user") {
+        const { error } = await supabase
+          .from("users")
+          .update({ is_admin: role === "admin" })
+          .eq("id", req.params.id);
+        if (error) return res.status(500).json({ error: error.message });
+        const io = getIo(req);
+        io?.to(`user:${req.params.id}`)?.emit("user:updated", { is_admin: role === "admin" });
+      }
       audit(req.user, "user_role", req.params.id, { role });
     }
     notifyAdminRoom(getIo(req), { type: "user_patch", id: req.params.id });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: "Patch failed." });
+  }
+});
+
+// Durable make/remove admin — used by AdminPanel Users tab
+router.put("/make-admin/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    if (!userId) return res.status(400).json({ success: false, error: "Missing userId" });
+    const { data, error } = await supabase
+      .from("users")
+      .update({ is_admin: true })
+      .eq("id", userId)
+      .select("id, username, avatar_url, is_admin")
+      .single();
+    if (error) return res.status(500).json({ success: false, error: error.message });
+    state.userRoles.set(userId, "admin");
+    audit(req.user, "make_admin", userId, {});
+    const io = getIo(req);
+    io?.to(`user:${userId}`)?.emit("user:updated", { is_admin: true });
+    notifyAdminRoom(io, { type: "user_admin", id: userId, is_admin: true });
+    return res.json({ success: true, user: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.put("/remove-admin/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    if (!userId) return res.status(400).json({ success: false, error: "Missing userId" });
+    if (userId === req.user.id) {
+      return res.status(400).json({ success: false, error: "Cannot remove your own admin." });
+    }
+    const { data, error } = await supabase
+      .from("users")
+      .update({ is_admin: false })
+      .eq("id", userId)
+      .select("id, username, avatar_url, is_admin")
+      .single();
+    if (error) return res.status(500).json({ success: false, error: error.message });
+    state.userRoles.set(userId, "user");
+    audit(req.user, "remove_admin", userId, {});
+    const io = getIo(req);
+    io?.to(`user:${userId}`)?.emit("user:updated", { is_admin: false });
+    notifyAdminRoom(io, { type: "user_admin", id: userId, is_admin: false });
+    return res.json({ success: true, user: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

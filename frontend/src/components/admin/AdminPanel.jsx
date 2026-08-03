@@ -221,7 +221,11 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
       const d = await res.json();
       
       console.log("[ADMIN] Users response:", d);
-      setUsers(d.users || []);
+      const list = (d.users || []).map((u) => ({
+        ...u,
+        is_admin: Boolean(u.is_admin) || u.role === "admin" || u.username === "admin",
+      }));
+      setUsers(list);
     } catch (e) {
       console.error("[ADMIN] Failed to load users:", e);
       setErr(e.message);
@@ -1307,17 +1311,22 @@ function getTimeAgo(date) {
                           className="admin-btn-red"
                           onClick={() =>
                             act(async () => {
-                              console.log("[ADMIN] Removing admin for user:", u.id);
                               const token = localStorage.getItem("descall_token");
                               const res = await fetch(`${API_BASE_URL}/api/admin/remove-admin/${u.id}`, {
                                 method: "PUT",
                                 headers: { Authorization: `Bearer ${token}` },
                               });
-                              console.log("[ADMIN] Remove admin response:", res.status);
                               if (res.ok) {
+                                setUsers((prev) =>
+                                  (prev || []).map((x) =>
+                                    x.id === u.id ? { ...x, is_admin: false, role: "user" } : x
+                                  )
+                                );
                                 await loadAllUsers();
-                                console.log("[ADMIN] Calling onAdminChanged...");
                                 onAdminChanged?.();
+                              } else {
+                                const body = await res.json().catch(() => ({}));
+                                setErr(body.error || body.message || `Remove admin failed (${res.status})`);
                               }
                             })
                           }
@@ -1328,27 +1337,27 @@ function getTimeAgo(date) {
                         <button
                           type="button"
                           className="admin-btn-green"
-                          onClick={async () => {
-                            console.log("[ADMIN] Make Admin button clicked for user:", u.id);
-                            try {
+                          onClick={() =>
+                            act(async () => {
                               const token = localStorage.getItem("descall_token");
-                              console.log("[ADMIN] Token:", !!token);
                               const res = await fetch(`${API_BASE_URL}/api/admin/make-admin/${u.id}`, {
                                 method: "PUT",
                                 headers: { Authorization: `Bearer ${token}` },
                               });
-                              console.log("[ADMIN] Make admin response:", res.status);
                               if (res.ok) {
+                                setUsers((prev) =>
+                                  (prev || []).map((x) =>
+                                    x.id === u.id ? { ...x, is_admin: true, role: "admin" } : x
+                                  )
+                                );
                                 await loadAllUsers();
-                                console.log("[ADMIN] Calling onAdminChanged...");
                                 onAdminChanged?.();
                               } else {
-                                console.error("[ADMIN] Make admin failed:", res.status);
+                                const body = await res.json().catch(() => ({}));
+                                setErr(body.error || body.message || `Make admin failed (${res.status})`);
                               }
-                            } catch (err) {
-                              console.error("[ADMIN] Make admin error:", err);
-                            }
-                          }}
+                            })
+                          }
                         >
                           Make Admin
                         </button>
