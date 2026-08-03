@@ -73,8 +73,8 @@ export default function ChatPanel({
     if (!activeDmUser && !activeGroup) return [];
     if (activeDmUser) return typingDmUser ? [resolveDisplayName(typingDmUser)] : [];
     const groupMap = typingGroupUsers?.[activeGroup.id];
-    if (!groupMap) return [];
-    return [...groupMap.values()].map((u) => resolveDisplayName(u));
+    if (!(groupMap instanceof Map)) return [];
+    return Array.from(groupMap.values()).map((u) => resolveDisplayName(u));
   }, [activeDmUser, activeGroup, typingDmUser, typingGroupUsers]);
 
   const scrollToBottom = () => {

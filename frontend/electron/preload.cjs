@@ -40,6 +40,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update:downloading', handler);
     return () => ipcRenderer.off('update:downloading', handler);
   },
+  onUpdateInstalling: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('update:installing', handler);
+    return () => ipcRenderer.off('update:installing', handler);
+  },
   onUpdateProgress: (callback) => {
     const handler = (_, data) => callback(data);
     ipcRenderer.on('update:progress', handler);
@@ -64,8 +69,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Notifications
   requestNotificationPermission: () => ipcRenderer.invoke('notification:request-permission'),
   showNotification: (title, options) => ipcRenderer.send('notification:show', { title, options }),
-  onNotificationClick:   (callback) => ipcRenderer.on('notification:click',        (_, data) => callback(data)),
-  onNotificationClicked: (callback) => ipcRenderer.on('notification:click',        (_, data) => callback(data)),
+  onNotificationClick: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('notification:click', handler);
+    return () => ipcRenderer.off('notification:click', handler);
+  },
+  onNotificationClicked: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on('notification:click', handler);
+    return () => ipcRenderer.off('notification:click', handler);
+  },
   onCallAccept: (callback) => {
     const handler = (_, data) => callback(data);
     ipcRenderer.on('notification:call-accept', handler);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, forwardRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Mic, Headphones, Bell, User, LogOut, Moon, Sun,
@@ -142,14 +142,14 @@ const TAB_TITLES = {
   sound: "Sound Effects",
 };
 
-export default function UserPanel({
+const UserPanel = forwardRef(function UserPanel({
   me,
   onClose,
   onLogout,
   onProfileUpdated,
   myStatus = "online",
   onStatusChange,
-}) {
+}, ref) {
   const { isMobile } = useMobile();
   const [activeTab, setActiveTab] = useState("overview");
   const [mobileDetail, setMobileDetail] = useState(false);
@@ -1038,6 +1038,7 @@ export default function UserPanel({
 
   return (
     <motion.div
+      ref={ref}
       className={`user-settings-shell ${isMobile ? "is-mobile" : "is-desktop"}`}
       variants={shellVariants}
       initial="hidden"
@@ -1159,4 +1160,6 @@ export default function UserPanel({
     </motion.div>
     </motion.div>
   );
-}
+});
+
+export default UserPanel;

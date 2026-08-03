@@ -9,6 +9,7 @@ import {
 /* ── Playing card ─────────────────────────────────────────────── */
 
 function PlayingCard({ card, hidden = false, index = 0 }) {
+  if (!card && !hidden) return null;
   if (hidden || card?.hidden) {
     return (
       <motion.div
@@ -69,9 +70,9 @@ function HandRow({ label, hand, hideHole, highlight }) {
       <div className="bj-cards">
         {cards.map((card, i) => (
           <PlayingCard
-            key={card.id || `${card.rank}-${i}`}
+            key={card?.id || `${card?.rank || "x"}-${card?.suit || "x"}-${i}`}
             card={card}
-            hidden={Boolean(card.hidden)}
+            hidden={Boolean(card?.hidden)}
             index={i}
           />
         ))}
@@ -423,14 +424,14 @@ export default function GameMessageBubble({
   const targetGroupId = groupId || message.groupId;
 
   const emitCommand = (command, args) => {
-    if (!socket || !targetGroupId) return;
+    if (!socket?.connected || !targetGroupId) return;
     setBusy(true);
     socket.emit("game:command", { groupId: targetGroupId, command, args });
     setTimeout(() => setBusy(false), 400);
   };
 
   const emitAction = (action) => {
-    if (!socket || !targetGroupId) return;
+    if (!socket?.connected || !targetGroupId) return;
     setBusy(true);
     socket.emit("game:action", { groupId: targetGroupId, action, gameId: gameData?.id });
     setTimeout(() => setBusy(false), 400);

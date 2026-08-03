@@ -94,9 +94,9 @@ class NotificationService {
     return document.hasFocus();
   }
 
-  async show({ title, body, tag = 'descall', requireInteraction = false, silent = false, data = {} }) {
+  async show({ title, body, tag = 'descall', requireInteraction = false, silent = false, data = {}, avatarUrl = null }) {
     if (!this.initialized) {
-      this.pendingNotifications.push({ title, body, tag, requireInteraction, silent, data });
+      this.pendingNotifications.push({ title, body, tag, requireInteraction, silent, data, avatarUrl });
       await this.init();
       return;
     }
@@ -128,7 +128,7 @@ class NotificationService {
     }
 
     if (this.isElectron) {
-      window.electronAPI.showNotification(title, { body, tag, data });
+      window.electronAPI.showNotification(title, { body, tag, data, requireInteraction, silent, avatarUrl });
     } else {
       this._showWebNotification({ title, body, tag, requireInteraction, silent, data });
     }

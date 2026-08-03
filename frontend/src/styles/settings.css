@@ -64,7 +64,8 @@
 
 .user-settings.is-mobile {
   width: 100%;
-  height: 100dvh;
+  height: var(--vv-height, 100dvh);
+  max-height: var(--vv-height, 100dvh);
   border-radius: 0;
   box-shadow: none;
   padding-top: env(safe-area-inset-top, 0px);

@@ -42,6 +42,7 @@ export default function MessageComposer({
   const imageInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const recordingTimeRef = useRef(0);
   const timerRef = useRef(null);
   const typingTimerRef = useRef(null);
   const isTypingRef = useRef(false);
@@ -249,11 +250,13 @@ export default function MessageComposer({
       const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
       const recorder = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
+      recordingTimeRef.current = 0;
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
         stopWaveform();
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        const durationSec = recordingTimeRef.current;
         setUploading(true);
         try {
           const formData = new FormData();
@@ -271,7 +274,7 @@ export default function MessageComposer({
             mediaType: "audio",
             originalName: data.originalName,
             size: data.size,
-            duration: recordingTime,
+            duration: durationSec,
           }));
           onClearReply?.();
         } catch (err) {
@@ -286,14 +289,20 @@ export default function MessageComposer({
       setIsRecording(true);
       setRecordingTime(0);
       startWaveform(stream);
-      timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
+      timerRef.current = setInterval(() => {
+        setRecordingTime((t) => {
+          const next = t + 1;
+          recordingTimeRef.current = next;
+          return next;
+        });
+      }, 1000);
     } catch (err) {
       console.error("Recording failed:", err);
       setUploadError("Microphone access denied.");
       setTimeout(() => setUploadError(""), 4000);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onSend, replyTo, onClearReply, recordingTime]);
+  }, [onSend, replyTo, onClearReply]);
 
   const stopRecording = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Zap } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import StatusBadge from '../ui/StatusBadge';
+import { getPresenceStatus, isVisiblyOnline } from '../../lib/presence';
 
 const TYPE_COLOR = {
   game:          '#23a55a',
@@ -18,7 +19,8 @@ const TYPE_COLOR = {
 };
 
 function PresenceCard({ friend, presence, onlineUsers }) {
-  const isOnline = onlineUsers?.some?.(u => u.id === friend.id) || onlineUsers?.has?.(friend.id);
+  const status = getPresenceStatus(onlineUsers, friend.id);
+  const isOnline = isVisiblyOnline(onlineUsers, friend.id);
   const accentColor = presence ? (TYPE_COLOR[presence.appType] || '#5865f2') : null;
 
   return (
@@ -33,7 +35,7 @@ function PresenceCard({ friend, presence, onlineUsers }) {
     >
       <div className="activity-presence-avatar">
         <Avatar name={friend.username} user={friend} size={36} />
-        <StatusBadge status={isOnline ? 'online' : 'offline'} />
+        <StatusBadge status={isOnline ? status : 'offline'} />
       </div>
       <div className="activity-presence-info">
         <span className="activity-presence-name">{friend.username}</span>
@@ -56,7 +58,7 @@ export default function ActivitySidebar({ friends, friendPresence, onlineUsers }
     const idle   = [];
     for (const friend of (friends || [])) {
       const presence = friendPresence?.[friend.id];
-      const isOnline = onlineUsers?.some?.(u => u.id === friend.id) || onlineUsers?.has?.(friend.id);
+      const isOnline = isVisiblyOnline(onlineUsers, friend.id);
       if (!isOnline) continue;
       if (presence?.displayName) {
         active.push({ friend, presence });

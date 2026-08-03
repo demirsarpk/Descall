@@ -150,6 +150,7 @@ async function broadcastUserProfileUpdate(io, userId) {
 
   const list = [];
   for (const [id, pres] of presence) {
+    if (pres.status === "invisible") continue;
     const cached = userProfileById.get(id);
     list.push({
       id,

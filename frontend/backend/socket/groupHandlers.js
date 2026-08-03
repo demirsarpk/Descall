@@ -102,6 +102,9 @@ function registerGroupHandlers(io, socket, state) {
   socket.on("group:message", async ({ groupId, tempId, content, mediaUrl, mediaType, replyTo }) => {
     if (!groupId || (!content?.trim() && !mediaUrl)) {
       appendErrorLog("group:message", "Missing required parameters", { groupId, hasContent: !!content, hasMedia: !!mediaUrl }, myId, socket.user?.username);
+      if (tempId) {
+        socket.emit("group:message:error", { groupId, tempId, message: "Missing message content." });
+      }
       return;
     }
 
@@ -145,6 +148,12 @@ function registerGroupHandlers(io, socket, state) {
 
     if (error) {
       console.error("[GroupMessage] DB insert error:", error.message);
+      socket.emit("group:message:error", {
+        groupId,
+        tempId: tempId || null,
+        message: "Failed to send message. Please try again.",
+      });
+      return;
     }
 
     const replyMeta = replyTo && typeof replyTo === "object"
