@@ -973,34 +973,55 @@ export default function UserPanel({
     if (panelRef.current && !panelRef.current.contains(e.target)) onClose?.();
   };
 
-  const shellVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1], when: "beforeChildren" },
-    },
-    exit: {
-      opacity: 0,
-      transition: { duration: 0.18, ease: [0.4, 0, 1, 1], when: "afterChildren" },
-    },
-  };
-
-  const panelVariants = isMobile
+  const shellVariants = isMobile
     ? {
-        hidden: { y: 48, opacity: 0 },
+        // Mobile sheet: dim backdrop in parallel with the slide-up panel
+        hidden: { opacity: 0 },
         visible: {
-          y: 0,
           opacity: 1,
-          transition: { type: "spring", stiffness: 420, damping: 34, mass: 0.9 },
+          transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] },
         },
         exit: {
-          y: 28,
           opacity: 0,
-          transition: { duration: 0.18, ease: [0.4, 0, 1, 1] },
+          transition: { duration: 0.18, ease: [0.4, 0, 1, 1], delay: 0.04 },
         },
       }
     : {
-        hidden: { opacity: 0, scale: 0.92, y: 22 },
+        hidden: { opacity: 0 },
+        visible: {
+          opacity: 1,
+          transition: {
+            duration: 0.2,
+            ease: [0.22, 1, 0.36, 1],
+            when: "beforeChildren",
+          },
+        },
+        exit: {
+          opacity: 0,
+          transition: {
+            duration: 0.18,
+            ease: [0.4, 0, 1, 1],
+            when: "afterChildren",
+          },
+        },
+      };
+
+  // Mobile: full-screen sheet from the bottom (clearly visible).
+  // Desktop: centered card scale + rise.
+  const panelVariants = isMobile
+    ? {
+        hidden: { y: "100%" },
+        visible: {
+          y: 0,
+          transition: { type: "spring", stiffness: 420, damping: 36, mass: 0.9 },
+        },
+        exit: {
+          y: "100%",
+          transition: { duration: 0.22, ease: [0.4, 0, 1, 1] },
+        },
+      }
+    : {
+        hidden: { opacity: 0, scale: 0.92, y: 24 },
         visible: {
           opacity: 1,
           scale: 1,
@@ -1010,7 +1031,7 @@ export default function UserPanel({
         exit: {
           opacity: 0,
           scale: 0.96,
-          y: 12,
+          y: 14,
           transition: { duration: 0.16, ease: [0.4, 0, 1, 1] },
         },
       };

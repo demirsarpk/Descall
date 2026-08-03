@@ -32,6 +32,7 @@ export default function AppLayout({
   onVideoCall,
   onGroupVoiceCall,
   onGroupVideoCall,
+  onStartCall,
   onAdminClick,
   isAdmin,
   onRefreshGroups,
@@ -141,10 +142,26 @@ export default function AppLayout({
     if (isMobile) setMobileDrawerOpen(false);
   }, [onGroupSelect, isMobile]);
 
+  const handleOpenChatFromCalls = useCallback((user) => {
+    if (!user?.id) return;
+    setActiveView("chat");
+    handleDmSelect(user);
+  }, [handleDmSelect]);
+
+  const handleStartCall = useCallback((user, type = "voice") => {
+    if (!user?.id) return;
+    onStartCall?.(user, type);
+  }, [onStartCall]);
+
   const handleViewChange = useCallback((view) => {
     setActiveView(view);
+    if (view === "calls" || view === "activity" || view === "friends") {
+      // Leave conversation so the dedicated view can fill the main panel
+      if (activeDmUser) onDmSelect?.(null);
+      if (activeGroup) onGroupSelect?.(null);
+    }
     if (isMobile) setMobileDrawerOpen(true);
-  }, [isMobile]);
+  }, [isMobile, activeDmUser, activeGroup, onDmSelect, onGroupSelect]);
 
   const handleMobileBack = useCallback(() => {
     if (activeDmUser) onDmSelect?.(null);
@@ -254,6 +271,7 @@ export default function AppLayout({
             friends={friends}
             onlineUsers={onlineUsers}
             socket={socket}
+            me={me}
             onDmSelect={handleDmSelect}
             onGroupSelect={handleGroupSelect}
             showAddModal={showAddModal}
@@ -273,6 +291,8 @@ export default function AppLayout({
             isMobile={isMobile}
             dmUnread={dmUnread}
             groupUnread={groupUnread}
+            onStartCall={handleStartCall}
+            onOpenChatFromCalls={handleOpenChatFromCalls}
           />
         )}
       </div>
@@ -313,6 +333,8 @@ export default function AppLayout({
         showMobileBack={isMobile && inConversation}
         onAddClick={handleAddClick}
         onViewChange={handleViewChange}
+        onStartCall={handleStartCall}
+        onOpenChatFromCalls={handleOpenChatFromCalls}
       >
         {children}
       </ChatPanel>

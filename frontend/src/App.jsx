@@ -1754,6 +1754,10 @@ export default function App() {
             }
             if (activeDmUser && call?.startCall) call.startCall(activeDmUser, "video");
           }}
+          onStartCall={(user, type = "voice") => {
+            if (groupCall?.isInCall) return;
+            if (user && call?.startCall) call.startCall(user, type);
+          }}
           onGroupVoiceCall={() => {
             if (!activeGroup || !groupCall) return;
             if (groupCall.isInCall && groupCall.activeGroupId === activeGroup.id) return;

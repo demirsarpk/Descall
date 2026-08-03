@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
-  ChevronDown, ChevronRight, Bell, UserPlus, X, User, Users, Megaphone,
+  ChevronDown, Bell, UserPlus, X, User, Users, Megaphone,
   MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus, RefreshCw, MessageSquarePlus, Star, Bug, Lightbulb, ChevronDown as ChevronDownIcon
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
@@ -12,6 +12,7 @@ import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { addMemberToGroup } from "../../api/groups";
 import { resolveDisplayName } from "../../lib/userProfile";
+import CallsView from "../calls/CallsView";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -57,6 +58,9 @@ export default function ServerSidebar({
   isMobile = false,
   dmUnread = {},
   groupUnread = {},
+  me = null,
+  onStartCall,
+  onOpenChatFromCalls,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
@@ -443,6 +447,21 @@ export default function ServerSidebar({
               isMobile={isMobile}
             />
           )}
+
+          {activeView === "calls" && (
+            <CallsView
+              compact
+              me={me}
+              friends={friends}
+              onlineUsers={onlineUsers}
+              socket={socket}
+              onStartCall={onStartCall}
+              onOpenChat={(user) => {
+                onOpenChatFromCalls?.(user);
+                onMobileClose?.();
+              }}
+            />
+          )}
         </div>
 
         {/* Add Friend / Create Group Modal - Moved to main component scope */}
@@ -590,8 +609,44 @@ export default function ServerSidebar({
 }
 
 function SidebarSectionContent({ expanded, children }) {
-  if (!expanded) return null;
-  return <div className="section-content">{children}</div>;
+  return (
+    <AnimatePresence initial={false}>
+      {expanded && (
+        <motion.div
+          key="section-body"
+          className="section-content"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          style={{ overflow: "hidden" }}
+        >
+          <motion.div
+            initial={{ y: -6 }}
+            animate={{ y: 0 }}
+            exit={{ y: -4 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {children}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function SectionChevron({ expanded }) {
+  return (
+    <motion.span
+      className="section-chevron"
+      animate={{ rotate: expanded ? 0 : -90 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      style={{ display: "inline-flex", transformOrigin: "50% 50%" }}
+      aria-hidden="true"
+    >
+      <ChevronDown size={16} />
+    </motion.span>
+  );
 }
 
 function formatConversationTime(iso) {
@@ -661,7 +716,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
         onClick={onToggle}
       >
         <span className="section-title">Chats</span>
-        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        <SectionChevron expanded={expanded} />
       </button>
 
       <SidebarSectionContent expanded={expanded}>
@@ -1224,7 +1279,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
           onClick={onToggle}
         >
           <span className="section-title">Groups</span>
-          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          <SectionChevron expanded={expanded} />
         </button>
 
         <SidebarSectionContent expanded={expanded}>
@@ -1373,16 +1428,17 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
         onClick={onToggle}
         style={{ position: "relative" }}
       >
-        <span className="section-title">Friends</span>
+        <span className="section-title" style={{ flex: 1, textAlign: "left" }}>Friends</span>
         {pendingRequests.length > 0 && (
           <span style={{
             background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 700,
             borderRadius: 10, padding: "1px 6px", minWidth: 16, textAlign: "center", lineHeight: "16px",
+            marginRight: 6,
           }}>
             {pendingRequests.length}
           </span>
         )}
-        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        <SectionChevron expanded={expanded} />
       </button>
 
       <SidebarSectionContent expanded={expanded}>
