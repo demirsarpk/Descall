@@ -8,6 +8,7 @@ import {
   getConnectionStatusLabel,
   DM_PARTICIPANT_EXIT_MS,
 } from "../../hooks/useDmRemoteParticipant";
+import { useT } from "../../context/LocaleContext";
 
 const PARTICIPANT_EASE = [0.16, 1, 0.3, 1];
 
@@ -28,7 +29,9 @@ const enterVariants = {
 };
 
 function ConnectionBadge({ status }) {
-  const label = getConnectionStatusLabel(status);
+  const t = useT();
+  const labelRaw = getConnectionStatusLabel(status);
+  const label = labelRaw ? t(labelRaw) : labelRaw;
   if (!label) return null;
 
   const isReconnecting = status === "reconnecting" || status === "connecting";
@@ -60,6 +63,7 @@ function ConnectionBadge({ status }) {
 }
 
 function ConnectingPlaceholder({ username, user, status }) {
+  const t = useT();
   return (
     <motion.div
       layout
@@ -100,7 +104,7 @@ function ConnectingPlaceholder({ username, user, status }) {
       </motion.div>
       <div style={{ textAlign: "center", padding: "0 12px" }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 6 }}>
-          {username || "Participant"}
+          {username || t("Participant")}
         </div>
         <ConnectionBadge status={status || "connecting"} />
       </div>
@@ -119,7 +123,8 @@ export default function DmRemoteParticipantSlot({
   isSpeaking = false,
   isMuted = false,
 }) {
-  const username = displayPeer?.username || "User";
+  const t = useT();
+  const username = displayPeer?.username || t("User");
   const user = displayPeer;
 
   const remoteVideoCallbackRef = useCallback(
@@ -241,7 +246,7 @@ export default function DmRemoteParticipantSlot({
                   background: "rgba(237,66,69,0.85)",
                   flexShrink: 0,
                 }}
-                title="Muted"
+                title={t("Muted")}
               >
                 <MicOff size={12} color="#fff" />
               </span>
@@ -258,7 +263,7 @@ export default function DmRemoteParticipantSlot({
                   background: "rgba(59,165,93,0.85)",
                   flexShrink: 0,
                 }}
-                title="Speaking"
+                title={t("Speaking")}
               >
                 <Mic size={12} color="#fff" />
               </span>

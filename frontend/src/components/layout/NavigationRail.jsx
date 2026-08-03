@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,6 +9,7 @@ import { Avatar } from "../ui/Avatar";
 import { STATUS_META } from "../../lib/presence";
 import { getUser } from "../../lib/storage";
 import { resolveAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
+import { useT } from "../../context/LocaleContext";
 
 const STATUS_OPTIONS = ["online", "idle", "dnd", "invisible"];
 
@@ -24,19 +25,23 @@ export default function NavigationRail({
   myStatus = "online",
   onStatusChange,
 }) {
+  const t = useT();
   const [statusOpen, setStatusOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const avatarBtnRef = useRef(null);
   const menuRef = useRef(null);
 
-  const navItems = [
-    { id: "chat",     icon: MessageSquare, label: "Chats"    },
-    { id: "groups",   icon: Users,         label: "Groups"   },
-    { id: "play",     icon: Crosshair,     label: "Play"     },
-    { id: "friends",  icon: UserPlus,      label: "Friends"  },
-    { id: "activity", icon: Zap,           label: "Activity" },
-    { id: "calls",    icon: Phone,         label: "Calls"    },
-  ];
+  const navItems = useMemo(
+    () => [
+      { id: "chat", icon: MessageSquare, label: t("nav.chats") },
+      { id: "groups", icon: Users, label: t("nav.groups") },
+      { id: "play", icon: Crosshair, label: t("nav.play") },
+      { id: "friends", icon: UserPlus, label: t("nav.friends") },
+      { id: "activity", icon: Zap, label: t("Activity") },
+      { id: "calls", icon: Phone, label: t("nav.calls") },
+    ],
+    [t]
+  );
 
   const statusKey = STATUS_META[myStatus] ? myStatus : "online";
 
@@ -114,13 +119,13 @@ export default function NavigationRail({
           className="status-picker status-picker-portal"
           style={{ top: menuPos.top, left: menuPos.left }}
           role="menu"
-          aria-label="Status"
+          aria-label={t("Status")}
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
           transition={{ duration: 0.14 }}
         >
-          <div className="status-picker-header">Set status</div>
+          <div className="status-picker-header">{t("Set status")}</div>
           {STATUS_OPTIONS.map((key) => (
             <button
               key={key}
@@ -137,7 +142,9 @@ export default function NavigationRail({
                 className={`status-picker-dot status-${key}`}
                 style={{ background: STATUS_META[key]?.color || "var(--text-muted)" }}
               />
-              <span className="status-picker-label">{STATUS_META[key]?.label || key}</span>
+              <span className="status-picker-label">
+                {t(key === "dnd" ? "Do Not Disturb" : STATUS_META[key]?.label || key)}
+              </span>
             </button>
           ))}
           <div className="status-picker-divider" />
@@ -151,7 +158,7 @@ export default function NavigationRail({
             }}
           >
             <Settings size={15} />
-            <span className="status-picker-label">User Settings</span>
+            <span className="status-picker-label">{t("settings.title")}</span>
           </button>
         </motion.div>
       )}
@@ -191,7 +198,7 @@ export default function NavigationRail({
           onClick={onAddClick}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          title="Add New"
+          title={t("Add New")}
         >
           <Plus size={24} strokeWidth={2} />
         </motion.button>
@@ -201,7 +208,7 @@ export default function NavigationRail({
           onClick={onUserClick}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          title="User Settings"
+          title={t("settings.title")}
         >
           <Settings size={24} strokeWidth={2} />
         </motion.button>
@@ -212,7 +219,7 @@ export default function NavigationRail({
             onClick={onAdminClick}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            title="Admin Panel"
+            title={t("admin.title")}
           >
             <Shield size={24} strokeWidth={2} />
           </motion.button>
@@ -225,7 +232,7 @@ export default function NavigationRail({
           ref={avatarBtnRef}
           className="rail-user-panel"
           onClick={() => setStatusOpen((v) => !v)}
-          title={`${STATUS_META[statusKey]?.label || "Online"} — change status`}
+          title={`${t(statusKey === "dnd" ? "Do Not Disturb" : STATUS_META[statusKey]?.label || "Online")} — ${t("change status")}`}
           aria-haspopup="menu"
           aria-expanded={statusOpen}
         >

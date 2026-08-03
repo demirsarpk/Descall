@@ -10,6 +10,7 @@ import {
   markFeedbackNudgeShown,
   openFeedbackModal,
 } from "../../lib/feedbackNudge";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * Top banner (same vibe as notification permission) — auto-hides after 10s.
@@ -18,6 +19,7 @@ import {
  *  - custom event `descall:feedback-nudge` { trigger, callDurationMs }
  */
 export default function FeedbackNudgeBanner({ enabled = true }) {
+  const t = useT();
   const [banner, setBanner] = useState(null);
   const hideTimerRef = useRef(null);
   const softTriedRef = useRef(false);
@@ -116,7 +118,7 @@ export default function FeedbackNudgeBanner({ enabled = true }) {
           <button
             type="button"
             className="app-feedback-banner-dismiss"
-            aria-label="Dismiss"
+            aria-label={t("Dismiss")}
             onClick={() => hide(true)}
           >
             <X size={14} />

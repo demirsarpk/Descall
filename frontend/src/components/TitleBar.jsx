@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { Minus, Square, X } from "lucide-react";
+import { useT } from "../context/LocaleContext";
 
 /**
  * Frameless Electron title bar — always mounted while the desktop app runs.
  * Adds `body.electron-app` so layout offsets below this bar (no overlap).
  */
 export default function TitleBar() {
+  const t = useT();
   const [isMaximized, setIsMaximized] = useState(false);
   const isElectron =
     typeof window !== "undefined" && !!window.electronAPI?.isElectron;
@@ -34,7 +36,7 @@ export default function TitleBar() {
         <div className="titlebar-logo" aria-hidden>
           D
         </div>
-        <span className="titlebar-title">Descall</span>
+        <span className="titlebar-title">{t("Descall")}</span>
       </div>
 
       <div className="titlebar-controls">
@@ -42,8 +44,8 @@ export default function TitleBar() {
           type="button"
           className="win-btn minimize"
           onClick={() => window.electronAPI?.minimizeWindow?.()}
-          title="Minimize"
-          aria-label="Minimize"
+          title={t("Minimize")}
+          aria-label={t("Minimize")}
         >
           <Minus size={16} strokeWidth={2} />
         </button>
@@ -51,8 +53,8 @@ export default function TitleBar() {
           type="button"
           className="win-btn maximize"
           onClick={() => window.electronAPI?.maximizeWindow?.()}
-          title={isMaximized ? "Restore" : "Maximize"}
-          aria-label={isMaximized ? "Restore" : "Maximize"}
+          title={isMaximized ? t("Restore") : t("Maximize")}
+          aria-label={isMaximized ? t("Restore") : t("Maximize")}
         >
           {isMaximized ? (
             <Square size={12} strokeWidth={2} />
@@ -64,8 +66,8 @@ export default function TitleBar() {
           type="button"
           className="win-btn close"
           onClick={() => window.electronAPI?.closeWindow?.()}
-          title="Close"
-          aria-label="Close"
+          title={t("Close")}
+          aria-label={t("Close")}
         >
           <X size={16} strokeWidth={2} />
         </button>

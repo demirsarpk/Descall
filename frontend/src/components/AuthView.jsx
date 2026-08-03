@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { MessageCircle, UserPlus, Lock, Mail } from "lucide-react";
 import GoogleSignInButton from "./auth/GoogleSignInButton";
+import { useT } from "../context/LocaleContext";
 
 function DescallLogo({ size = 60 }) {
   return (
@@ -37,6 +38,7 @@ function DescallLogo({ size = 60 }) {
 }
 
 export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, error }) {
+  const t = useT();
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -68,8 +70,8 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
       >
         <div className="auth-logo-container">
           <DescallLogo size={80} />
-          <h1 className="auth-title">Descall</h1>
-          <p className="auth-subtitle">Connect with friends through voice, video, and messaging</p>
+          <h1 className="auth-title">{t("Descall")}</h1>
+          <p className="auth-subtitle">{t("Connect with friends through voice, video, and messaging")}</p>
         </div>
 
         <div className="auth-tabs">
@@ -79,7 +81,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
             type="button"
           >
             <MessageCircle size={18} />
-            <span>Login</span>
+            <span>{t("Login")}</span>
           </button>
           <button
             className={`auth-tab ${mode === "register" ? "active" : ""}`}
@@ -87,7 +89,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
             type="button"
           >
             <UserPlus size={18} />
-            <span>Register</span>
+            <span>{t("Register")}</span>
           </button>
         </div>
 
@@ -99,7 +101,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
         />
 
         <div className="auth-divider" aria-hidden="true">
-          <span>or</span>
+          <span>{t("or")}</span>
         </div>
 
         <form onSubmit={submit} className="auth-form">
@@ -107,7 +109,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
             <Mail className="input-icon" size={20} />
             <input
               type="text"
-              placeholder="Username"
+              placeholder={t("Username")}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               maxLength={24}
@@ -119,7 +121,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
             <Lock className="input-icon" size={20} />
             <input
               type="password"
-              placeholder="Password"
+              placeholder={t("Password")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               maxLength={72}
@@ -135,17 +137,17 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
             disabled={loading || !username.trim() || !password}
           >
             {loading ? (
-              <span>Please wait...</span>
+              <span>{t("Please wait...")}</span>
             ) : mode === "login" ? (
-              <span>Login</span>
+              <span>{t("Login")}</span>
             ) : (
-              <span>Create Account</span>
+              <span>{t("Create Account")}</span>
             )}
           </button>
         </form>
 
         <p className="auth-footer">
-          By continuing, you agree to our Terms of Service
+          {t("By continuing, you agree to our Terms of Service")}
         </p>
       </motion.section>
     </main>

@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Phone, PhoneOff, Video, Users } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * FaceTime-style incoming call card — large avatar + ripple rings.
@@ -15,8 +16,9 @@ export default function IncomingCallCard({
   onAccept,
   onDecline,
 }) {
+  const t = useT();
   const isVideo = callType === "video";
-  const name = username || user?.username || "Someone";
+  const name = username || user?.username || t("Someone");
 
   return (
     <motion.div
@@ -44,13 +46,13 @@ export default function IncomingCallCard({
 
       <div className="incoming-call-meta">
         <div className="incoming-call-kind">
-          {isVideo ? "Incoming video call" : "Incoming voice call"}
+          {isVideo ? t("Incoming video call") : t("Incoming voice call")}
         </div>
-        <div className="incoming-call-name">{name} is calling</div>
+        <div className="incoming-call-name">{t("{name} is calling", { name })}</div>
         {(subtitle || isGroup) && (
           <div className="incoming-call-sub">
             {isGroup && <Users size={12} />}
-            <span>{subtitle || "Group call"}</span>
+            <span>{subtitle || t("Group call")}</span>
           </div>
         )}
       </div>
@@ -62,7 +64,7 @@ export default function IncomingCallCard({
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
           onClick={onDecline}
-          title="Decline"
+          title={t("Decline")}
         >
           <PhoneOff size={22} />
         </motion.button>
@@ -72,7 +74,7 @@ export default function IncomingCallCard({
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
           onClick={onAccept}
-          title="Accept"
+          title={t("Accept")}
         >
           <Phone size={22} />
         </motion.button>

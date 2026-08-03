@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback, forwardRef } from "react";
+import { useState, useEffect, useRef, useCallback, forwardRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Mic, Headphones, Bell, User, LogOut, Moon, Sun,
   ChevronRight, ChevronLeft, Palette, Volume2, Camera,
   Type, Upload, Check, MonitorSpeaker, AlertTriangle,
-  Copy, Image as ImageIcon, RefreshCw,
+  Copy, Image as ImageIcon, RefreshCw, Globe,
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -13,6 +13,8 @@ import { API_BASE_URL } from "../../config/api";
 import { normalizeUser } from "../../lib/userProfile";
 import { setSoundEnabled, getAudioSettings } from "../../lib/audioManager";
 import { useMobile } from "../../hooks/useMobile";
+import { useLocale } from "../../context/LocaleContext";
+import { detectDefaultLocale } from "../../i18n/detect";
 import RiotLinkCard from "../settings/RiotLinkCard";
 import ValorantBadge from "../social/ValorantBadge";
 
@@ -111,37 +113,39 @@ function SettingRow({ icon: Icon, title, description, children }) {
   );
 }
 
-const NAV_GROUPS = [
+const NAV_GROUPS_DEF = [
   {
-    label: "Account",
+    labelKey: "settings.account",
     items: [
-      { id: "overview", label: "My Account", icon: User, hint: "Username, email & status" },
-      { id: "profile", label: "Profile", icon: Type, hint: "Avatar, banner & bio" },
+      { id: "overview", labelKey: "settings.myAccount", icon: User, hintKey: "settings.accountHint" },
+      { id: "profile", labelKey: "settings.profile", icon: Type, hintKey: "settings.profileHint" },
     ],
   },
   {
-    label: "App",
+    labelKey: "settings.app",
     items: [
-      { id: "appearance", label: "Appearance", icon: Palette, hint: "Theme & look" },
-      { id: "notifications", label: "Notifications", icon: Bell, hint: "Alerts & sounds" },
+      { id: "appearance", labelKey: "settings.appearance", icon: Palette, hintKey: "settings.appearanceHint" },
+      { id: "notifications", labelKey: "settings.notifications", icon: Bell, hintKey: "settings.notificationsHint" },
+      { id: "language", labelKey: "settings.language", icon: Globe, hintKey: "settings.languageHint" },
     ],
   },
   {
-    label: "Media",
+    labelKey: "settings.media",
     items: [
-      { id: "voice", label: "Voice & Video", icon: Mic, hint: "Devices & mic test" },
-      { id: "sound", label: "Sound Effects", icon: Volume2, hint: "Message & call audio" },
+      { id: "voice", labelKey: "settings.voiceVideo", icon: Mic, hintKey: "settings.voiceHint" },
+      { id: "sound", labelKey: "settings.soundEffects", icon: Volume2, hintKey: "settings.soundHint" },
     ],
   },
 ];
 
-const TAB_TITLES = {
-  overview: "My Account",
-  profile: "Profile",
-  appearance: "Appearance",
-  notifications: "Notifications",
-  voice: "Voice & Video",
-  sound: "Sound Effects",
+const TAB_TITLE_KEYS = {
+  overview: "settings.myAccount",
+  profile: "settings.profile",
+  appearance: "settings.appearance",
+  notifications: "settings.notifications",
+  language: "settings.language",
+  voice: "settings.voiceVideo",
+  sound: "settings.soundEffects",
 };
 
 const UserPanel = forwardRef(function UserPanel({
@@ -153,9 +157,31 @@ const UserPanel = forwardRef(function UserPanel({
   onStatusChange,
 }, ref) {
   const { isMobile } = useMobile();
+  const { t, locale, setLocale, locales } = useLocale();
   const [activeTab, setActiveTab] = useState("overview");
   const [mobileDetail, setMobileDetail] = useState(false);
   const stored = loadSettings();
+
+  const navGroups = useMemo(
+    () =>
+      NAV_GROUPS_DEF.map((g) => ({
+        label: t(g.labelKey),
+        items: g.items.map((item) => ({
+          ...item,
+          label: t(item.labelKey),
+          hint: t(item.hintKey),
+        })),
+      })),
+    [t]
+  );
+
+  const tabTitles = useMemo(() => {
+    const out = {};
+    for (const [id, key] of Object.entries(TAB_TITLE_KEYS)) out[id] = t(key);
+    return out;
+  }, [t]);
+
+  const deviceDefault = useMemo(() => detectDefaultLocale(), []);
 
   /* ── Profile editor ── */
   const [displayName, setDisplayName] = useState(me?.displayName || me?.username || "");
@@ -225,6 +251,7 @@ const UserPanel = forwardRef(function UserPanel({
       selectedAudioIn,
       selectedAudioOut,
       selectedVideoIn,
+      language: locale,
     });
   }, [
     darkMode,
@@ -239,6 +266,7 @@ const UserPanel = forwardRef(function UserPanel({
     selectedAudioIn,
     selectedAudioOut,
     selectedVideoIn,
+    locale,
   ]);
 
   const handleMsgSounds = (v) => {
@@ -844,32 +872,71 @@ const UserPanel = forwardRef(function UserPanel({
       case "notifications":
         return (
           <div className="us-tab">
-            <p className="us-lead">Control desktop and browser alerts.</p>
+            <p className="us-lead">{t("Control desktop and browser alerts.")}</p>
             <section className="us-section">
               <div className="us-card stack">
                 <SettingRow
                   icon={Bell}
-                  title="Message notifications"
-                  description="DMs, group messages, and mentions"
+                  title={t("Message notifications")}
+                  description={t("DMs, group messages, and mentions")}
                 >
                   <Toggle
                     value={msgNotifications}
                     onChange={setMsgNotifications}
-                    label="Message notifications"
+                    label={t("Message notifications")}
                   />
                 </SettingRow>
                 <SettingRow
                   icon={Mic}
-                  title="Call notifications"
-                  description="Incoming voice and video calls"
+                  title={t("Call notifications")}
+                  description={t("Incoming voice and video calls")}
                 >
                   <Toggle
                     value={callNotifications}
                     onChange={setCallNotifications}
-                    label="Call notifications"
+                    label={t("Call notifications")}
                   />
                 </SettingRow>
               </div>
+            </section>
+          </div>
+        );
+
+      case "language":
+        return (
+          <div className="us-tab">
+            <p className="us-lead">{t("settings.languageDesc")}</p>
+            <section className="us-section">
+              <h4 className="us-section-label">{t("settings.appLanguage")}</h4>
+              <div className="us-theme-grid us-lang-grid">
+                {locales.map((opt) => {
+                  const selected = locale === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className={`us-theme-card ${selected ? "selected" : ""}`}
+                      onClick={() => setLocale(opt.id)}
+                    >
+                      <div className="us-theme-meta" style={{ gap: 10 }}>
+                        <Globe size={16} />
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                          <span style={{ fontWeight: 700 }}>{t(opt.labelKey)}</span>
+                          <span style={{ fontSize: 12, opacity: 0.65 }}>{opt.nativeLabel}</span>
+                        </div>
+                      </div>
+                      {selected && <Check size={14} className="us-theme-check" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="us-row-desc" style={{ marginTop: 14 }}>
+                {t("settings.autoDetectHint")}{" "}
+                ({t("Detected from your device")}: {deviceDefault === "tr" ? t("settings.turkish") : t("settings.english")})
+              </p>
+              <p className="us-row-desc" style={{ marginTop: 8 }}>
+                {t("settings.appliesInstantly")}
+              </p>
             </section>
           </div>
         );
@@ -1058,7 +1125,7 @@ const UserPanel = forwardRef(function UserPanel({
       className={`user-settings ${isMobile ? "is-mobile" : "is-desktop"}`}
       role="dialog"
       aria-modal="true"
-      aria-label="User Settings"
+      aria-label={t("settings.title")}
       variants={panelVariants}
       onClick={(e) => e.stopPropagation()}
     >
@@ -1067,11 +1134,11 @@ const UserPanel = forwardRef(function UserPanel({
         <div className="us-sidebar-top">
           <div className="us-sidebar-brand">
             <div>
-              <h2>User Settings</h2>
-              <p>Manage your Descall account</p>
+              <h2>{t("settings.title")}</h2>
+              <p>{t("Manage your Descall account")}</p>
             </div>
             {isMobile && (
-              <button type="button" className="us-icon-btn" onClick={onClose} aria-label="Close">
+              <button type="button" className="us-icon-btn" onClick={onClose} aria-label={t("Close")}>
                 <X size={20} />
               </button>
             )}
@@ -1079,20 +1146,20 @@ const UserPanel = forwardRef(function UserPanel({
 
           <button type="button" className="us-mini-profile" onClick={() => openTab("overview")}>
             <Avatar
-              name={me?.username || "User"}
+              name={me?.username || t("User")}
               size={40}
               user={{ ...me, avatarUrl: avatarUrl || me?.avatarUrl }}
             />
             <div className="us-mini-meta">
-              <strong>{displayName || me?.username || "User"}</strong>
+              <strong>{displayName || me?.username || t("User")}</strong>
               <span>@{me?.username?.toLowerCase() || "user"}</span>
             </div>
             {isMobile && <ChevronRight size={16} className="us-chevron" />}
           </button>
         </div>
 
-        <nav className="us-nav" aria-label="Settings sections">
-          {NAV_GROUPS.map((group) => (
+        <nav className="us-nav" aria-label={t("Settings sections")}>
+          {navGroups.map((group) => (
             <div key={group.label} className="us-nav-group">
               <div className="us-nav-group-label">{group.label}</div>
               {group.items.map((item) => {
@@ -1123,7 +1190,7 @@ const UserPanel = forwardRef(function UserPanel({
         <div className="us-sidebar-foot">
           <button type="button" className="us-logout" onClick={handleLogoutClick}>
             <LogOut size={16} />
-            Log Out
+            {t("settings.logOut")}
           </button>
         </div>
       </aside>
@@ -1132,16 +1199,16 @@ const UserPanel = forwardRef(function UserPanel({
       <section className={`us-main ${showDetail ? "visible" : "hidden"}`}>
         <header className="us-main-header">
           {isMobile ? (
-            <button type="button" className="us-icon-btn" onClick={backToMenu} aria-label="Back">
+            <button type="button" className="us-icon-btn" onClick={backToMenu} aria-label={t("Back")}>
               <ChevronLeft size={22} />
             </button>
           ) : (
             <div className="us-main-heading">
-              <h3>{TAB_TITLES[activeTab]}</h3>
+              <h3>{tabTitles[activeTab]}</h3>
             </div>
           )}
-          {isMobile && <h3 className="us-mobile-title">{TAB_TITLES[activeTab]}</h3>}
-          <button type="button" className="us-icon-btn" onClick={onClose} aria-label="Close settings">
+          {isMobile && <h3 className="us-mobile-title">{tabTitles[activeTab]}</h3>}
+          <button type="button" className="us-icon-btn" onClick={onClose} aria-label={t("Close settings")}>
             <X size={20} />
           </button>
         </header>

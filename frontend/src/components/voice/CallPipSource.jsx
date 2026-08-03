@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PictureInPicture2 } from "lucide-react";
 import { attachSpeakerWatcher, pickCallPipSource } from "../../lib/callPipStream";
+import { useT } from "../../context/LocaleContext";
+import { t as tRuntime } from "../../i18n/runtime";
 
 /**
  * Always-mounted PiP source for active calls.
@@ -32,10 +34,10 @@ function drawAvatarCard(canvas, { username, avatarUrl, subtitle }) {
     ctx.fillStyle = "#f2f3f5";
     ctx.font = `650 ${Math.round(w * 0.06)}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = "center";
-    ctx.fillText(username || "Descall", cx, cy + r + 42);
+    ctx.fillText(username || tRuntime("Descall"), cx, cy + r + 42);
     ctx.fillStyle = "#9aa3b2";
     ctx.font = `500 ${Math.round(w * 0.042)}px system-ui, -apple-system, sans-serif`;
-    ctx.fillText(subtitle || "On a call", cx, cy + r + 72);
+    ctx.fillText(subtitle || tRuntime("On a call"), cx, cy + r + 72);
     ctx.fillStyle = "#5865f2";
     ctx.font = `700 ${Math.round(w * 0.038)}px system-ui, -apple-system, sans-serif`;
     ctx.fillText("DESCALL", cx, h - 36);
@@ -162,6 +164,7 @@ export default function CallPipSource({
   active,
   onApi,
 }) {
+  const t = useT();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const canvasStreamRef = useRef(null);
@@ -244,7 +247,7 @@ export default function CallPipSource({
       drawAvatarCard(canvas, {
         username: source.username || source.label,
         avatarUrl: source.avatarUrl,
-        subtitle: "On a call",
+        subtitle: t("On a call"),
       });
     paint();
     const timer = setInterval(paint, 1000);
@@ -442,9 +445,9 @@ export default function CallPipSource({
     if (!active || !("mediaSession" in navigator)) return undefined;
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: source.label || "Descall Call",
-        artist: "Descall",
-        album: "On a call",
+        title: source.label || t("Descall Call"),
+        artist: t("Descall"),
+        album: t("On a call"),
         artwork: source.avatarUrl
           ? [{ src: source.avatarUrl, sizes: "512x512", type: "image/png" }]
           : [],
@@ -537,7 +540,7 @@ export default function CallPipSource({
           enterPip();
         }}
         style={previewStyle}
-        aria-label="Call picture-in-picture preview"
+        aria-label={t("Call picture-in-picture preview")}
       />
       <canvas
         ref={canvasRef}
@@ -553,11 +556,12 @@ export default function CallPipSource({
 
 /** Compact control used in the call bar */
 export function CallPipButton({ pipApi, narrow = false }) {
+  const t = useT();
   if (!pipApi?.enterPip) return null;
   return (
     <button
       type="button"
-      title={pipApi.pipActive ? "PiP active" : "Picture in Picture"}
+      title={pipApi.pipActive ? t("PiP active") : t("Picture in Picture")}
       onClick={() => {
         pipApi.primeFromGesture?.();
         if (pipApi.pipActive) pipApi.leavePip?.();

@@ -35,6 +35,8 @@ import {
 import audioManager, { initAudioManager } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
 import { useToast } from "./context/ToastContext";
+import { useLocale } from "./context/LocaleContext";
+import { t as tRuntime } from "./i18n/runtime";
 import AdminPanel from "./components/admin/AdminPanel";
 import TitleBar from "./components/TitleBar";
 import MessageList from "./components/chat/MessageList";
@@ -196,6 +198,7 @@ function mergeReactionsIntoMessages(messages, reactionsByMessageId) {
 export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const { toast } = useToast();
+  const { t, setLocale } = useLocale();
   const [authError, setAuthError] = useState("");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [me, setMe] = useState(() => normalizeUser(getUser()));
@@ -270,6 +273,18 @@ export default function App() {
   useEffect(() => {
     preloadIceServers().catch(() => {});
   }, []);
+
+  // Sync account language when user has no explicit local override
+  useEffect(() => {
+    if (!me?.language) return;
+    try {
+      if (!localStorage.getItem("descall_language")) {
+        setLocale(me.language);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [me?.language, setLocale]);
 
   // Riot OAuth / link callback (?riot_link=success|error)
   useEffect(() => {
@@ -1792,11 +1807,11 @@ export default function App() {
 
   const connectionLabel = useMemo(() => {
     if (!isConnected) {
-      if (reconnectState === "reconnecting") return "Reconnecting…";
-      return "Offline";
+      if (reconnectState === "reconnecting") return t("Reconnecting…");
+      return t("Offline");
     }
-    return "Online";
-  }, [isConnected, reconnectState]);
+    return t("Online");
+  }, [isConnected, reconnectState, t]);
 
   const sortedDms = useMemo(() => {
     const list = (friends || []).map((f) => {
@@ -1806,11 +1821,11 @@ export default function App() {
       const cachedPreview = lastCached
         ? lastCached.text
           || (lastCached.mediaType === "image"
-            ? "📷 Photo"
+            ? t("📷 Photo")
             : lastCached.mediaType === "voice" || lastCached.mediaType === "audio"
-              ? "🎤 Voice message"
+              ? t("🎤 Voice message")
               : lastCached.mediaUrl
-                ? "📎 Attachment"
+                ? t("📎 Attachment")
                 : null)
         : null;
       const cachedActivity = lastCached?.timestamp || lastCached?.created_at || null;
@@ -1828,7 +1843,7 @@ export default function App() {
       if ((b.unreadCount || 0) !== (a.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
       return (a.username || "").localeCompare(b.username || "");
     });
-  }, [friends, dmLastActivity, dmPreviews, dmUnread, dmByUserId]);
+  }, [friends, dmLastActivity, dmPreviews, dmUnread, dmByUserId, t]);
 
   const sortedGroups = useMemo(() => {
     const list = (myGroups || []).map((g) => ({

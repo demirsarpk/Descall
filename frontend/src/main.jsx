@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./context/ToastContext";
+import { LocaleProvider } from "./context/LocaleContext";
+import { resolveInitialLocale, translate } from "./i18n";
 /* DESCALL v2.0 — Complete UI rebuild - New modular CSS system */
 import "./styles.css";
 import "./styles/blackjack.css";
@@ -41,14 +43,17 @@ try {
   document.documentElement.setAttribute("data-theme", "dark");
 }
 
+const bootLocale = resolveInitialLocale();
 const statusEl = document.getElementById("boot-status");
-if (statusEl) statusEl.textContent = "Starting app";
+if (statusEl) statusEl.textContent = translate(bootLocale, "Starting app");
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ErrorBoundary>
       <ToastProvider>
-        <App />
+        <LocaleProvider>
+          <App />
+        </LocaleProvider>
       </ToastProvider>
     </ErrorBoundary>
   </React.StrictMode>,

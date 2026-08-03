@@ -19,6 +19,7 @@ import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { getPresenceStatus, STATUS_META } from "../../lib/presence";
 import { resolveDisplayName } from "../../lib/userProfile";
+import { useT } from "../../context/LocaleContext";
 
 export default function ChatPanel({
   activeView,
@@ -64,6 +65,7 @@ export default function ChatPanel({
   groups = [],
   children
 }) {
+  const t = useT();
   const messagesRef = useRef(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -91,22 +93,23 @@ export default function ChatPanel({
     if (activeDmUser) return resolveDisplayName(activeDmUser);
     if (activeGroup) return activeGroup.name;
     if (activeGuildChannel) return activeGuildChannel.name;
-    if (activeView === "chat") return "Chats";
-    if (activeView === "dms") return "Direct Messages";
-    if (activeView === "groups") return "Groups";
-    if (activeView === "calls")    return "Calls";
-    if (activeView === "activity") return "Activity";
-    if (activeView === "servers") return activeGuild?.name || "Servers";
-    return "Descall";
+    if (activeView === "chat") return t("Chats");
+    if (activeView === "dms") return t("Direct Messages");
+    if (activeView === "groups") return t("Groups");
+    if (activeView === "calls")    return t("Calls");
+    if (activeView === "activity") return t("Activity");
+    if (activeView === "servers") return activeGuild?.name || t("Servers");
+    return t("Descall");
   };
 
   const getSubtitle = () => {
     if (activeDmUser) {
       const status = getPresenceStatus(onlineUsers, activeDmUser.id);
-      return STATUS_META[status]?.label || "Offline";
+      const label = STATUS_META[status]?.label || "Offline";
+      return t(label);
     }
     if (activeGroup) {
-      return `${activeGroup.memberCount || 0} members`;
+      return t("{count} members", { count: activeGroup.memberCount || 0 });
     }
     if (activeGuildChannel) {
       return activeGuild?.name || "";
@@ -117,45 +120,45 @@ export default function ChatPanel({
   const emptyCopy = (() => {
     if (activeView === "friends") {
       return {
-        title: "Find your friends",
+        title: t("Find your friends"),
         body: isMobile
-          ? "Open the menu to see friends and who is online"
-          : "Add a friend to start chatting and calling",
-        primary: { label: "Add friend", action: () => onAddClick?.("friend"), icon: UserPlus },
-        secondary: { label: "Browse chats", action: () => onViewChange?.("chat"), icon: MessageSquare },
+          ? t("Open the menu to see friends and who is online")
+          : t("Add a friend to start chatting and calling"),
+        primary: { label: t("Add friend"), action: () => onAddClick?.("friend"), icon: UserPlus },
+        secondary: { label: t("Browse chats"), action: () => onViewChange?.("chat"), icon: MessageSquare },
         icon: Users,
         illustration: "friends",
       };
     }
     if (activeView === "groups") {
       return {
-        title: "No group selected",
+        title: t("No group selected"),
         body: isMobile
-          ? "Open the menu to browse your groups"
-          : "Create a group or pick one from the sidebar",
-        primary: { label: "Create group", action: () => onAddClick?.("group"), icon: Plus },
-        secondary: { label: "Find friends", action: () => onViewChange?.("friends"), icon: UserPlus },
+          ? t("Open the menu to browse your groups")
+          : t("Create a group or pick one from the sidebar"),
+        primary: { label: t("Create group"), action: () => onAddClick?.("group"), icon: Plus },
+        secondary: { label: t("Find friends"), action: () => onViewChange?.("friends"), icon: UserPlus },
         icon: Users,
         illustration: "groups",
       };
     }
     if (activeView === "calls") {
       return {
-        title: "Ready when you are",
-        body: "Pick a DM or group, then start a voice or video call",
-        primary: { label: "Open chats", action: () => onViewChange?.("chat"), icon: MessageSquare },
-        secondary: { label: "Open groups", action: () => onViewChange?.("groups"), icon: Users },
+        title: t("Ready when you are"),
+        body: t("Pick a DM or group, then start a voice or video call"),
+        primary: { label: t("Open chats"), action: () => onViewChange?.("chat"), icon: MessageSquare },
+        secondary: { label: t("Open groups"), action: () => onViewChange?.("groups"), icon: Users },
         icon: Phone,
         illustration: "calls",
       };
     }
     return {
-      title: "Welcome to Descall",
+      title: t("Welcome to Descall"),
       body: isMobile
-        ? "Open the menu to select a conversation"
-        : "Select a conversation — or start a new one",
-      primary: { label: "Start a chat", action: () => onAddClick?.("friend"), icon: UserPlus },
-      secondary: { label: "Create group", action: () => onAddClick?.("group"), icon: Plus },
+        ? t("Open the menu to select a conversation")
+        : t("Select a conversation — or start a new one"),
+      primary: { label: t("Start a chat"), action: () => onAddClick?.("friend"), icon: UserPlus },
+      secondary: { label: t("Create group"), action: () => onAddClick?.("group"), icon: Plus },
       icon: MessageSquare,
       illustration: "chat",
     };
@@ -172,7 +175,7 @@ export default function ChatPanel({
               type="button"
               className="icon-btn mobile-nav-btn"
               onClick={showMobileBack ? onMobileBack : onMenuClick}
-              aria-label={showMobileBack ? "Back to list" : "Open menu"}
+              aria-label={showMobileBack ? t("Back to list") : t("Open menu")}
             >
               {showMobileBack ? <ChevronLeft size={22} /> : <Menu size={20} />}
             </button>
@@ -212,14 +215,14 @@ export default function ChatPanel({
         <div className="header-right">
           <button
             className={`icon-btn ${showSearch ? "active" : ""}`}
-            title="Search"
+            title={t("Search")}
             onClick={() => { setShowSearch(!showSearch); setShowMembers(false); }}
           >
             <Search size={20} />
           </button>
           <button
             className={`icon-btn ${showMembers ? "active" : ""}`}
-            title="Members"
+            title={t("Members")}
             onClick={() => { setShowMembers(!showMembers); setShowSearch(false); }}
           >
             <Users size={20} />
@@ -228,14 +231,14 @@ export default function ChatPanel({
             <>
               <button 
                 className="icon-btn" 
-                title="Voice Call"
+                title={t("Voice Call")}
                 onClick={() => activeGroup ? onGroupVoiceCall?.() : onVoiceCall?.()}
               >
                 <Phone size={20} />
               </button>
               <button 
                 className="icon-btn" 
-                title="Video Call"
+                title={t("Video Call")}
                 onClick={() => activeGroup ? onGroupVideoCall?.() : onVideoCall?.()}
               >
                 <Video size={20} />
@@ -244,7 +247,7 @@ export default function ChatPanel({
           )}
           <button 
             className="icon-btn" 
-            title="Settings"
+            title={t("Settings")}
             onClick={() => onSettings?.()}
           >
             <Settings size={20} />
@@ -319,7 +322,7 @@ export default function ChatPanel({
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search messages..."
+              placeholder={t("Search messages...")}
               autoFocus
             />
             <button className="icon-btn" onClick={() => { setShowSearch(false); setSearchQuery(""); }}><X size={16} /></button>
@@ -385,8 +388,8 @@ export default function ChatPanel({
           transition={{ duration: 0.2 }}
         >
           <div className="members-panel-header">
-            <h4>Members</h4>
-            <button className="icon-btn" onClick={() => setShowMembers(false)} title="Close">
+            <h4>{t("Members")}</h4>
+            <button className="icon-btn" onClick={() => setShowMembers(false)} title={t("Close")}>
               <X size={16} />
             </button>
           </div>

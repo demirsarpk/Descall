@@ -22,30 +22,32 @@ import RippleButton from "../ui/RippleButton";
 import AdminFeedback from "./AdminFeedback";
 import AdminErrorLogs from "./AdminErrorLogs";
 import { Avatar } from "../ui/Avatar";
+import { useT } from "../../context/LocaleContext";
 
 const TABS = [
-  { id: "overview", label: "Overview", icon: BarChart3 },
-  { id: "activity", label: "Activity", icon: ActivityIcon },
-  { id: "engagement", label: "Engagement", icon: Zap },
-  { id: "growth", label: "Growth", icon: TrendingUp },
-  { id: "topusers", label: "Top Users", icon: Star },
-  { id: "users", label: "Users", icon: Users },
-  { id: "messages", label: "Messages", icon: MessageSquare },
-  { id: "dm", label: "DM", icon: Mail },
-  { id: "sockets", label: "Sockets", icon: Wifi },
-  { id: "errors", label: "Error Logs", icon: AlertCircle },
-  { id: "feedback", label: "Feedback", icon: Bell },
-  { id: "announcements", label: "Announcements", icon: Megaphone },
-  { id: "casino", label: "Casino", icon: Coins },
-  { id: "moderation", label: "Moderation", icon: Shield },
-  { id: "analytics", label: "Analytics", icon: Activity },
-  { id: "system", label: "System", icon: Settings },
-  { id: "security", label: "Security", icon: Lock },
-  { id: "maintenance", label: "Maintenance", icon: Server },
-  { id: "audit", label: "Audit", icon: FileText },
+  { id: "overview", label: "admin.overview", icon: BarChart3 },
+  { id: "activity", label: "admin.activity", icon: ActivityIcon },
+  { id: "engagement", label: "admin.engagement", icon: Zap },
+  { id: "growth", label: "admin.growth", icon: TrendingUp },
+  { id: "topusers", label: "admin.topUsers", icon: Star },
+  { id: "users", label: "admin.users", icon: Users },
+  { id: "messages", label: "admin.messages", icon: MessageSquare },
+  { id: "dm", label: "admin.dm", icon: Mail },
+  { id: "sockets", label: "admin.sockets", icon: Wifi },
+  { id: "errors", label: "admin.errors", icon: AlertCircle },
+  { id: "feedback", label: "admin.feedback", icon: Bell },
+  { id: "announcements", label: "admin.announcements", icon: Megaphone },
+  { id: "casino", label: "admin.casino", icon: Coins },
+  { id: "moderation", label: "admin.moderation", icon: Shield },
+  { id: "analytics", label: "admin.analytics", icon: Activity },
+  { id: "system", label: "admin.system", icon: Settings },
+  { id: "security", label: "admin.security", icon: Lock },
+  { id: "maintenance", label: "admin.maintenance", icon: Server },
+  { id: "audit", label: "admin.audit", icon: FileText },
 ];
 
 export default function AdminPanel({ socket, onClose, onAdminChanged }) {
+  const t = useT();
   const [tab, setTab] = useState("overview");
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -699,8 +701,8 @@ function getTimeAgo(date) {
             <Shield size={32} />
           </div>
           <div>
-            <h1>Admin Panel</h1>
-            <p className="admin-sub">System administration & moderation</p>
+            <h1>{t("admin.title")}</h1>
+            <p className="admin-sub">{t("admin.subtitle")}</p>
           </div>
         </div>
         <RippleButton type="button" className="admin-close" onClick={onClose}>
@@ -720,19 +722,19 @@ function getTimeAgo(date) {
       )}
 
       <nav className="admin-tabs">
-        {TABS.map((t) => {
-          const Icon = t.icon;
+        {TABS.map((tabDef) => {
+          const Icon = tabDef.icon;
           return (
             <motion.button
-              key={t.id}
+              key={tabDef.id}
               type="button"
-              className={`admin-tab ${tab === t.id ? "active" : ""}`}
-              onClick={() => setTab(t.id)}
+              className={`admin-tab ${tab === tabDef.id ? "active" : ""}`}
+              onClick={() => setTab(tabDef.id)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
               <Icon size={16} />
-              {t.label}
+              {t(tabDef.label)}
             </motion.button>
           );
         })}
@@ -1095,9 +1097,9 @@ function getTimeAgo(date) {
           <section className="admin-section admin-growth-section">
             <div className="activity-header">
               <div className="activity-title-section">
-                <h2>User Growth Analytics</h2>
+                <h2>{t("admin.growthTitle")}</h2>
                 <p className="activity-subtitle">
-                  Daily registration trends and growth metrics
+                  {t("admin.growthSubtitle")}
                 </p>
               </div>
               <div className="period-selector" role="tablist" aria-label="Growth period">
@@ -1165,7 +1167,7 @@ function getTimeAgo(date) {
             </div>
 
             <div className="growth-chart-container">
-              <h3>Daily New Registrations</h3>
+              <h3>{t("admin.dailyRegs")}</h3>
               {chartDays.length === 0 ? (
                 <div className="empty-state">
                   <TrendingUp size={40} className="empty-icon" />
@@ -1309,9 +1311,9 @@ function getTimeAgo(date) {
           <section className="admin-section">
             <div className="activity-header">
               <div className="activity-title-section">
-                <h2>Users</h2>
+                <h2>{t("admin.users")}</h2>
                 <p className="activity-subtitle">
-                  Manage accounts, roles, and online status
+                  {t("admin.manageUsers")}
                 </p>
               </div>
               <RippleButton
