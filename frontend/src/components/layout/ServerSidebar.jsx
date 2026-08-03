@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
   ChevronDown, Bell, UserPlus, X, User, Users, Megaphone,
-  MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus, RefreshCw, MessageSquarePlus, Star, Bug, Lightbulb, ChevronDown as ChevronDownIcon
+  MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus, RefreshCw, MessageSquarePlus, Star, Bug, Lightbulb, ChevronDown as ChevronDownIcon,
+  Link2,
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -14,6 +15,7 @@ import { addMemberToGroup } from "../../api/groups";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { isVisiblyOnline } from "../../lib/presence";
 import CallsView from "../calls/CallsView";
+import GroupInviteModal from "../groups/GroupInviteModal";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -949,7 +951,7 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
   );
 }
 
-function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anchorRef }) {
+function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, onInvite, anchorRef }) {
   const menuRef = useRef(null);
   const [position, setPosition] = useState({ top: 0, left: 0, visibility: "hidden" });
 
@@ -1028,6 +1030,21 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anch
       onClick={(e) => e.stopPropagation()}
     >
       <button
+        onClick={() => { onInvite?.(); onClose(); }}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 14px", background: "none", border: "none",
+          cursor: "pointer", fontSize: 13, color: "var(--text-1)",
+          transition: "background 0.1s",
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-3)"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+      >
+        <Link2 size={14} style={{ color: "var(--primary)" }} />
+        Invite People
+      </button>
+      <div style={{ height: 1, background: "var(--border-2)", margin: "2px 0" }} />
+      <button
         onClick={() => { onAddMember(); onClose(); }}
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 10,
@@ -1038,7 +1055,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anch
         onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-3)"}
         onMouseLeave={(e) => e.currentTarget.style.background = "none"}
       >
-        <UserRoundPlus size={14} style={{ color: "var(--primary)" }} />
+        <UserRoundPlus size={14} style={{ color: "var(--text-muted)" }} />
         Add Member
       </button>
       <div style={{ height: 1, background: "var(--border-2)", margin: "2px 0" }} />
@@ -1221,6 +1238,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
   const [confirmLeave, setConfirmLeave] = useState(null);   // group object
   const [confirmRename, setConfirmRename] = useState(null); // group object
   const [addMemberGroup, setAddMemberGroup] = useState(null); // group object
+  const [inviteGroup, setInviteGroup] = useState(null); // group object
   const [actionError, setActionError] = useState("");
   const menuRef = useRef(null);
   const dotBtnRefs = useRef({});
@@ -1370,6 +1388,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                             onLeave={() => setConfirmLeave(group)}
                             onRename={() => setConfirmRename(group)}
                             onAddMember={() => setAddMemberGroup(group)}
+                            onInvite={() => setInviteGroup(group)}
                             anchorRef={{ current: dotBtnRefs.current[group.id] }}
                           />
                         )}
@@ -1414,6 +1433,12 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
           />
         )}
       </AnimatePresence>
+
+      <GroupInviteModal
+        group={inviteGroup}
+        open={Boolean(inviteGroup)}
+        onClose={() => setInviteGroup(null)}
+      />
     </>
   );
 }

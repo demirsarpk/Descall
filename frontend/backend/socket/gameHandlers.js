@@ -16,8 +16,10 @@ const COMMAND_REGEX = /^\/(\w+)(?:\s+(\S+))?/;
 const VALID_COMMANDS = new Set([
   "bj", "blackjack", "hit", "stand", "stay", "double",
   "credits", "bakiye", "balance", "top", "lider",
-  "help", "yardım", "commands", "jb",
+  "help", "yardım", "commands", "jb", "daily",
 ]);
+
+const DAILY_BONUS = 250;
 
 function msgId() {
   return `game-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -245,6 +247,9 @@ async function handleGameCommand(io, socket, userId, username, groupId, fullComm
     case "top":
     case "lider":
       await handleLeaderboard(io, socket, userId, groupId);
+      break;
+    case "daily":
+      await handleDailyClaim(io, socket, userId, username, groupId);
       break;
     case "help":
     case "yardım":
@@ -527,6 +532,110 @@ function buildResultText(username, state) {
   return lines.join("\n");
 }
 
+async function handleDailyClaim(io, socket, userId, username, groupId) {
+  try {
+    const credits = await getUserCredits(userId);
+    const last = credits.last_daily_claim ? new Date(credits.last_daily_claim) : null;
+    const now = new Date();
+    const sameUtcDay =
+      last &&
+      last.getUTCFullYear() === now.getUTCFullYear() &&
+      last.getUTCMonth() === now.getUTCMonth() &&
+      last.getUTCDate() === now.getUTCDate();
+
+    if (sameUtcDay) {
+      const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+      const hours = Math.max(1, Math.ceil((next - now) / (60 * 60 * 1000)));
+      emitToGroup(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `**Daily bonus** already claimed today.\n\nCome back in about **${hours}h**.\nBalance: **${(credits.credits || 0).toLocaleString()}**`,
+          { credits: credits.credits, userId, dailyClaimed: true },
+          "game_credits",
+          userId
+        )
+      );
+      return;
+    }
+
+    // Atomic-ish claim: only succeed if last claim is older than today (or null)
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+    const nextCredits = Math.max(0, (credits.credits || 0) + DAILY_BONUS);
+    let query = supabase
+      .from("user_credits")
+      .update({
+        credits: nextCredits,
+        last_daily_claim: now.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .eq("user_id", userId);
+
+    if (credits.last_daily_claim) {
+      query = query.lt("last_daily_claim", todayStart);
+    } else {
+      query = query.is("last_daily_claim", null);
+    }
+
+    const { data, error } = await query.select("*").maybeSingle();
+
+    if (error) {
+      // Column may not exist yet — fall back to applyCreditDelta + best-effort stamp
+      console.warn("[Game] daily claim update:", error.message || error);
+      const updated = await applyCreditDelta(userId, DAILY_BONUS);
+      await supabase
+        .from("user_credits")
+        .update({ last_daily_claim: now.toISOString() })
+        .eq("user_id", userId);
+      emitToGroup(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `**Daily bonus** claimed!\n\n+**${DAILY_BONUS.toLocaleString()}** credits\nBalance: **${(updated?.credits ?? nextCredits).toLocaleString()}**\n\nCome back tomorrow for more.`,
+          { credits: updated?.credits ?? nextCredits, userId, dailyClaimed: true },
+          "game_credits",
+          userId
+        )
+      );
+      return;
+    }
+
+    if (!data) {
+      // Lost race or already claimed
+      const fresh = await getUserCredits(userId);
+      emitToGroup(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `**Daily bonus** already claimed today.\n\nBalance: **${(fresh.credits || 0).toLocaleString()}**`,
+          { credits: fresh.credits, userId, dailyClaimed: true },
+          "game_credits",
+          userId
+        )
+      );
+      return;
+    }
+
+    emitToGroup(
+      io,
+      socket,
+      groupId,
+      createGameMessage(
+        `🎁 **@${username}** claimed the daily bonus!\n\n+**${DAILY_BONUS.toLocaleString()}** credits\nBalance: **${(data.credits || 0).toLocaleString()}**`,
+        { credits: data.credits, userId, dailyClaimed: true },
+        "game_credits",
+        userId
+      )
+    );
+  } catch (err) {
+    console.error("[Game] daily:", err.message || err);
+    socket.emit("game:notice", { groupId, text: "Could not claim daily bonus." });
+  }
+}
+
 async function handleCreditsCheck(io, socket, userId, groupId) {
   const credits = await getUserCredits(userId);
   const content =
@@ -595,12 +704,13 @@ async function handleHelp(io, socket, userId, groupId, unknownCommand = null) {
     `\`/bj <amount>\` — deal a hand\n` +
     `\`/hit\` · \`/stand\` · \`/double\`\n\n` +
     `**Info**\n` +
-    `\`/credits\` · \`/top\` · \`/help\`\n\n` +
+    `\`/credits\` · \`/top\` · \`/daily\` · \`/help\`\n\n` +
     `**Rules**\n` +
     `• Beat the dealer without busting (21)\n` +
     `• Dealer hits soft 17\n` +
     `• Blackjack pays 3:2\n` +
     `• Win pays 1:1 · Push returns stake\n` +
+    `• Daily bonus: **${DAILY_BONUS.toLocaleString()}** credits once per day\n` +
     `• Starting bankroll: ${STARTING_CREDITS.toLocaleString()} credits`;
 
   emitToGroup(
