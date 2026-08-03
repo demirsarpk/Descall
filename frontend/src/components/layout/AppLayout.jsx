@@ -11,6 +11,7 @@ import LfgWorkspace from "../lfg/LfgWorkspace";
 import { useActivity } from "../../hooks/useActivity";
 import { useMobile } from "../../hooks/useMobile";
 import { useMobileKeyboard } from "../../hooks/useMobileKeyboard";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * Single shared layout — desktop grid, mobile drawer adaptation.
@@ -75,6 +76,7 @@ export default function AppLayout({
   replyTo = null,
   onClearReply,
 }) {
+  const t = useT();
   const { isMobile } = useMobile();
   useMobileKeyboard(isMobile);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -252,7 +254,7 @@ export default function AppLayout({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            aria-label="Close menu"
+            aria-label={t("Close menu")}
             onClick={closeMobileDrawer}
           />
         )}
@@ -398,14 +400,14 @@ export default function AppLayout({
       </AnimatePresence>
 
       {isMobile && !userPanelOpen && !inConversation && (
-        <nav className="mobile-tab-bar" aria-label="Primary">
+        <nav className="mobile-tab-bar" aria-label={t("Primary")}>
           <button
             type="button"
             className={`mobile-tab ${activeView === "chat" ? "active" : ""}`}
             onClick={() => handleViewChange("chat")}
           >
             <MessageSquare size={20} />
-            <span>Chat</span>
+            <span>{t("Chat")}</span>
           </button>
           <button
             type="button"
@@ -413,7 +415,7 @@ export default function AppLayout({
             onClick={() => handleViewChange("friends")}
           >
             <Users size={20} />
-            <span>Friends</span>
+            <span>{t("Friends")}</span>
           </button>
           <button
             type="button"
@@ -421,7 +423,7 @@ export default function AppLayout({
             onClick={() => handleViewChange("play")}
           >
             <Crosshair size={20} />
-            <span>Play</span>
+            <span>{t("Play")}</span>
           </button>
           <button
             type="button"
@@ -429,7 +431,7 @@ export default function AppLayout({
             onClick={() => handleViewChange("calls")}
           >
             <Phone size={20} />
-            <span>Calls</span>
+            <span>{t("Calls")}</span>
           </button>
           <button
             type="button"
@@ -437,7 +439,7 @@ export default function AppLayout({
             onClick={() => handleViewChange("activity")}
           >
             <Activity size={20} />
-            <span>Activity</span>
+            <span>{t("Activity")}</span>
           </button>
           <button
             type="button"
@@ -445,7 +447,7 @@ export default function AppLayout({
             onClick={openUserPanel}
           >
             <Settings size={20} />
-            <span>You</span>
+            <span>{t("You")}</span>
           </button>
         </nav>
       )}

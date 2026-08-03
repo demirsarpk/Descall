@@ -23,6 +23,7 @@ import {
 } from "../../lib/callHistoryCache";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { getPresenceStatus } from "../../lib/presence";
+import { useT } from "../../context/LocaleContext";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -102,6 +103,7 @@ export default function CallsView({
   onOpenGroup,
   compact = false,
 }) {
+  const t = useT();
   const meId = me?.id;
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -148,7 +150,7 @@ export default function CallsView({
       setCalls(enriched);
       saveCachedCalls(meId, enriched);
     } catch (err) {
-      setError(err?.message || "Could not load call history");
+      setError(err?.message || t("Could not load call history"));
       // Keep in-memory list on fetch failure; only fall back to disk cache if empty
       setCalls((prev) => (Array.isArray(prev) && prev.length > 0 ? prev : loadCachedCalls(meId)));
     } finally {
@@ -257,18 +259,18 @@ export default function CallsView({
       {!compact && (
         <div className="calls-hero">
           <div className="calls-hero-copy">
-            <h2>Calls</h2>
-            <p>Quick-dial friends or jump back into recent DM & group calls.</p>
+            <h2>{t("Calls")}</h2>
+            <p>{t("Quick-dial friends or jump back into recent DM & group calls.")}</p>
           </div>
           <button
             type="button"
             className="calls-refresh-btn"
             onClick={() => refresh({ soft: true })}
             disabled={refreshing}
-            title="Refresh"
+            title={t("Refresh")}
           >
             <RefreshCw size={16} className={refreshing ? "spin-refresh" : ""} />
-            Refresh
+            {t("Refresh")}
           </button>
         </div>
       )}
@@ -277,8 +279,8 @@ export default function CallsView({
         <section className="calls-section">
           <div className="calls-section-head">
             <Users size={14} />
-            <span>Quick dial</span>
-            <em>{onlineFriends.length} online</em>
+            <span>{t("Quick dial")}</span>
+            <em>{t("{count} online", { count: onlineFriends.length })}</em>
           </div>
           <div className="calls-quick-dial">
             {onlineFriends.map((friend) => {
@@ -295,7 +297,7 @@ export default function CallsView({
                     type="button"
                     className="calls-quick-avatar"
                     onClick={() => onOpenChat?.(friend)}
-                    title={`Open chat with ${resolveDisplayName(friend)}`}
+                    title={t("Open chat with {name}", { name: resolveDisplayName(friend) })}
                   >
                     <Avatar name={resolveDisplayName(friend)} size={compact ? 40 : 48} user={friend} />
                     <StatusBadge status={status || "online"} />
@@ -305,7 +307,7 @@ export default function CallsView({
                     <button
                       type="button"
                       className="calls-icon-btn"
-                      title="Voice call"
+                      title={t("Voice call")}
                       onClick={() => onStartCall?.(friend, "voice")}
                     >
                       <Phone size={15} />
@@ -313,7 +315,7 @@ export default function CallsView({
                     <button
                       type="button"
                       className="calls-icon-btn is-video"
-                      title="Video call"
+                      title={t("Video call")}
                       onClick={() => onStartCall?.(friend, "video")}
                     >
                       <Video size={15} />
@@ -329,8 +331,8 @@ export default function CallsView({
       <section className="calls-section calls-history-section">
         <div className="calls-section-head">
           <Phone size={14} />
-          <span>Recent</span>
-          {missedCount > 0 && <em className="is-missed">{missedCount} missed</em>}
+          <span>{t("Recent")}</span>
+          {missedCount > 0 && <em className="is-missed">{t("{count} missed", { count: missedCount })}</em>}
         </div>
 
         <div className="calls-toolbar">
@@ -342,7 +344,7 @@ export default function CallsView({
                 className={`calls-filter-chip ${filter === f.id ? "active" : ""}`}
                 onClick={() => setFilter(f.id)}
               >
-                {f.label}
+                {t(f.label)}
               </button>
             ))}
           </div>
@@ -351,7 +353,7 @@ export default function CallsView({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search calls"
+              placeholder={t("Search calls")}
             />
           </div>
         </div>
@@ -359,12 +361,12 @@ export default function CallsView({
         {error && <div className="calls-error">{error}</div>}
 
         {loading ? (
-          <div className="calls-empty">Loading call history…</div>
+          <div className="calls-empty">{t("Loading call history…")}</div>
         ) : filtered.length === 0 ? (
           <div className="calls-empty">
             <Phone size={28} />
-            <strong>{filter === "missed" ? "No missed calls" : "No calls yet"}</strong>
-            <span>Start a voice or video call from Quick dial, a chat, or a group.</span>
+            <strong>{filter === "missed" ? t("No missed calls") : t("No calls yet")}</strong>
+            <span>{t("Start a voice or video call from Quick dial, a chat, or a group.")}</span>
           </div>
         ) : (
           <div className="calls-list">
@@ -415,9 +417,9 @@ export default function CallsView({
                           <Icon size={13} />
                           <TypeIcon size={13} />
                           <span>
-                            {meta.label}
+                            {t(meta.label)}
                             {call.participantCount
-                              ? ` · ${call.participantCount} people`
+                              ? ` · ${t("{count} people", { count: call.participantCount })}`
                               : ""}
                             {duration ? ` · ${duration}` : ""}
                           </span>
@@ -428,7 +430,7 @@ export default function CallsView({
                       <button
                         type="button"
                         className="calls-icon-btn"
-                        title={isGroup ? "Start group voice call" : "Call back"}
+                        title={isGroup ? t("Start group voice call") : t("Call back")}
                         onClick={() => handleCallBack(call, "voice")}
                       >
                         <Phone size={15} />
@@ -436,7 +438,7 @@ export default function CallsView({
                       <button
                         type="button"
                         className="calls-icon-btn is-video"
-                        title={isGroup ? "Start group video call" : "Video call"}
+                        title={isGroup ? t("Start group video call") : t("Video call")}
                         onClick={() => handleCallBack(call, "video")}
                       >
                         <Video size={15} />

@@ -3,6 +3,8 @@
  * Designed to stay useful without nagging.
  */
 
+import { t } from "../i18n/runtime";
+
 const STORAGE_KEY = "descall:feedbackNudge:v1";
 
 const DEFAULTS = {
@@ -25,26 +27,29 @@ export const FEEDBACK_COOLDOWN = {
   autoHideMs: 10_000,
 };
 
-const COPY = {
-  soft: {
-    title: "Fikir veya hata mı var?",
-    body: "Descall’ı geliştirmemize yardımcı olmak için kısa bir feedback gönderebilirsin.",
-    cta: "Feedback gönder",
-    type: "suggestion",
-  },
-  after_call: {
-    title: "Görüşme nasıldı?",
-    body: "Ses/görüntü kalitesi veya bir sorun olduysa bize yaz — 30 saniye yeter.",
-    cta: "Geri bildirim ver",
-    type: "bug",
-  },
-  after_call_good: {
-    title: "Arama bitti — bir şey söylemek ister misin?",
-    body: "Öneri, istek veya hata… hepsi işimize yarar.",
-    cta: "Feedback aç",
-    type: "suggestion",
-  },
-};
+function getCopy(key) {
+  const copies = {
+    soft: {
+      title: t("Got an idea or bug?"),
+      body: t("Send a short note to help us improve Descall."),
+      cta: t("Send feedback"),
+      type: "suggestion",
+    },
+    after_call: {
+      title: t("How was the call?"),
+      body: t("If audio/video quality or anything else was off — tell us. 30 seconds is enough."),
+      cta: t("Give feedback"),
+      type: "bug",
+    },
+    after_call_good: {
+      title: t("Call ended — anything to say?"),
+      body: t("Suggestion, request, or bug… all help."),
+      cta: t("Open feedback"),
+      type: "suggestion",
+    },
+  };
+  return copies[key] || copies.soft;
+}
 
 function readState() {
   try {
@@ -112,7 +117,7 @@ export function evaluateSoftNudge() {
   const state = readState();
   if (!canShowNow(state)) return { show: false, payload: null };
   // First soft nudge only after user has been around a bit — caller should also gate on session age
-  return { show: true, payload: { trigger: "soft", ...COPY.soft } };
+  return { show: true, payload: { trigger: "soft", ...getCopy("soft") } };
 }
 
 /**
@@ -134,12 +139,12 @@ export function evaluateAfterCallNudge(callDurationMs = 0) {
     return { show: false, payload: null };
   }
   // Alternate copy slightly
-  const copy = (state.softNudgeCount || 0) % 2 === 0 ? COPY.after_call : COPY.after_call_good;
-  return { show: true, payload: { trigger: "after_call", ...copy } };
+  const copyKey = (state.softNudgeCount || 0) % 2 === 0 ? "after_call" : "after_call_good";
+  return { show: true, payload: { trigger: "after_call", ...getCopy(copyKey) } };
 }
 
 export function getFeedbackNudgeCopy(trigger) {
-  return COPY[trigger] || COPY.soft;
+  return getCopy(trigger);
 }
 
 export function openFeedbackModal(detail = {}) {

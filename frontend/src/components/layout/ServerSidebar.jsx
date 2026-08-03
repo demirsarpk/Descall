@@ -17,6 +17,7 @@ import { isVisiblyOnline } from "../../lib/presence";
 import CallsView from "../calls/CallsView";
 import GroupInviteModal from "../groups/GroupInviteModal";
 import { markFeedbackSubmitted } from "../../lib/feedbackNudge";
+import { useT } from "../../context/LocaleContext";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -68,6 +69,7 @@ export default function ServerSidebar({
   onStartGroupCall,
   onOpenGroupFromCalls,
 }) {
+  const t = useT();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
     dms: true,
@@ -244,21 +246,21 @@ export default function ServerSidebar({
         {/* Header */}
         <div className="sidebar-header">
           <h2 className="sidebar-title">
-            {activeView === "chat" && "Chats"}
-            {activeView === "dms" && "Direct Messages"}
-            {activeView === "groups" && "Groups"}
-            {activeView === "friends" && "Friends"}
-            {activeView === "calls" && "Calls"}
+            {activeView === "chat" && t("Chats")}
+            {activeView === "dms" && t("Direct Messages")}
+            {activeView === "groups" && t("Groups")}
+            {activeView === "friends" && t("Friends")}
+            {activeView === "calls" && t("Calls")}
           </h2>
           <div className="sidebar-actions">
             {onMobileClose && (
-              <button type="button" className="icon-btn mobile-sidebar-close" onClick={onMobileClose} title="Close">
+              <button type="button" className="icon-btn mobile-sidebar-close" onClick={onMobileClose} title={t("Close")}>
                 <X size={18} />
               </button>
             )}
             <button
               className="icon-btn"
-              title="Refresh"
+              title={t("Refresh")}
               onClick={async () => {
                 setIsRefreshing(true);
                 await onRefresh?.();
@@ -270,7 +272,7 @@ export default function ServerSidebar({
             </button>
             <button
               className="icon-btn"
-              title="Search"
+              title={t("Search")}
               onClick={() => {
                 const searchInput = document.querySelector('.search-input');
                 searchInput?.focus();
@@ -280,21 +282,21 @@ export default function ServerSidebar({
             </button>
             <button
               className="icon-btn"
-              title="Announcements"
+              title={t("Announcements")}
               onClick={() => setShowAnnouncements(!showAnnouncements)}
             >
               <Megaphone size={18} />
             </button>
             <button
               className="icon-btn"
-              title="Send Feedback"
+              title={t("Send Feedback")}
               onClick={() => { setShowFeedback(true); setFeedbackSent(false); setFeedbackText(''); setFeedbackRating(0); setFeedbackType('suggestion'); }}
             >
               <MessageSquarePlus size={18} />
             </button>
             <button
               className="icon-btn"
-              title="Add"
+              title={t("Add")}
               onClick={() => {
                 setShowAddModal(true);
                 setAddTab(activeView === "groups" ? "group" : "friend");
@@ -517,29 +519,29 @@ export default function ServerSidebar({
 
                 <div className="add-modal-tabs">
                   <button className={`add-modal-tab ${addTab === "friend" ? "active" : ""}`} onClick={() => { setAddTab("friend"); setAddError(""); setAddSuccess(""); }}>
-                    <User size={16} /> Add Friend
+                    <User size={16} /> {t("Add Friend")}
                   </button>
                   <button className={`add-modal-tab ${addTab === "group" ? "active" : ""}`} onClick={() => { setAddTab("group"); setAddError(""); setAddSuccess(""); }}>
-                    <Users size={16} /> Create Group
+                    <Users size={16} /> {t("Create Group")}
                   </button>
                 </div>
 
                 <div className="add-modal-body">
                   {addTab === "friend" && (
                     <>
-                      <label className="add-modal-label">Enter a username to add</label>
-                      <input className="add-modal-input" value={friendUsername} onChange={(e) => setFriendUsername(e.target.value)} placeholder="e.g. johndoe" onKeyDown={(e) => e.key === "Enter" && handleAddFriend()} />
+                      <label className="add-modal-label">{t("Enter a username to add")}</label>
+                      <input className="add-modal-input" value={friendUsername} onChange={(e) => setFriendUsername(e.target.value)} placeholder={t("e.g. johndoe")} onKeyDown={(e) => e.key === "Enter" && handleAddFriend()} />
                       <motion.button type="button" className="add-modal-btn" onClick={handleAddFriend} disabled={addLoading || !friendUsername.trim()} whileTap={{ scale: 0.97 }}>
-                        {addLoading ? "Sending..." : "Send Friend Request"}
+                        {addLoading ? t("Sending...") : t("Send Friend Request")}
                       </motion.button>
                     </>
                   )}
                   {addTab === "group" && (
                     <>
-                      <label className="add-modal-label">Group name</label>
-                      <input className="add-modal-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="e.g. Gaming Squad" onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()} />
+                      <label className="add-modal-label">{t("Group name")}</label>
+                      <input className="add-modal-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder={t("e.g. Gaming Squad")} onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()} />
                       
-                      <label className="add-modal-label" style={{ marginTop: 12 }}>Add members (optional)</label>
+                      <label className="add-modal-label" style={{ marginTop: 12 }}>{t("Add members (optional)")}</label>
                       <div className="group-members-select" style={{ maxHeight: 150, overflowY: "auto", marginBottom: 12 }}>
                         {Array.isArray(friends) && friends.length > 0 ? (
                           friends.map(friend => {
@@ -568,13 +570,13 @@ export default function ServerSidebar({
                           })
                         ) : (
                           <div style={{ padding: 8, color: "var(--text-muted)", fontSize: 12 }}>
-                            No friends to add. Add friends first.
+                            {t("No friends to add. Add friends first.")}
                           </div>
                         )}
                       </div>
                       
                       <motion.button type="button" className="add-modal-btn" onClick={handleCreateGroup} disabled={addLoading || !groupName.trim()} whileTap={{ scale: 0.97 }}>
-                        {addLoading ? "Creating..." : "Create Group"}
+                        {addLoading ? t("Creating...") : t("Create Group")}
                       </motion.button>
                     </>
                   )}
@@ -735,6 +737,7 @@ const LIST_LAYOUT_TRANSITION = {
 };
 
 function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect, isMobile, unreadById = {} }) {
+  const t = useT();
   const safeDms = Array.isArray(dms) ? dms : [];
 
   return (
@@ -743,14 +746,14 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
         className="section-header"
         onClick={onToggle}
       >
-        <span className="section-title">Chats</span>
+        <span className="section-title">{t("CHATS")}</span>
         <SectionChevron expanded={expanded} />
       </button>
 
       <SidebarSectionContent expanded={expanded}>
         {safeDms.length === 0 ? (
           <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
-            No conversations yet
+            {t("No conversations yet")}
           </div>
         ) : (
           <div className="conv-list">
@@ -786,7 +789,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
                     </div>
                     <div className="conv-row-bottom">
                       <span className={`dm-preview ${unread > 0 ? "unread" : ""}`}>
-                        {dm.lastMessage || "No messages yet"}
+                        {dm.lastMessage || t("No messages yet")}
                       </span>
                       <UnreadBadge count={unread} />
                     </div>
@@ -802,6 +805,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
 }
 
 function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -920,7 +924,7 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
         <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
           {filtered.length === 0 ? (
             <div style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-              {(friends || []).length === 0 ? "No friends to add" : "No results"}
+              {(friends || []).length === 0 ? t("No friends to add") : t("No results")}
             </div>
           ) : (
             filtered.map((friend) => (
@@ -1250,6 +1254,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
 }
 
 function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed, isMobile, unreadById = {} }) {
+  const t = useT();
   const safeGroups = Array.isArray(groups) ? groups : [];
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(null);   // group object
@@ -1332,14 +1337,14 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
           className="section-header"
           onClick={onToggle}
         >
-          <span className="section-title">Groups</span>
+          <span className="section-title">{t("GROUPS")}</span>
           <SectionChevron expanded={expanded} />
         </button>
 
         <SidebarSectionContent expanded={expanded}>
               {safeGroups.length === 0 ? (
                 <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
-                  No groups yet
+                  {t("No groups yet")}
                 </div>
               ) : (
                 safeGroups.map((group) => {
@@ -1678,6 +1683,7 @@ function GroupRowFront({
 }
 
 function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend, isMobile }) {
+  const t = useT();
   const safeFriends = Array.isArray(friends) ? friends : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
   const pendingRequests = Array.isArray(friendRequests) ? friendRequests : [];
@@ -1692,7 +1698,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
         onClick={onToggle}
         style={{ position: "relative" }}
       >
-        <span className="section-title" style={{ flex: 1, textAlign: "left" }}>Friends</span>
+        <span className="section-title" style={{ flex: 1, textAlign: "left" }}>{t("FRIENDS")}</span>
         {pendingRequests.length > 0 && (
           <span style={{
             background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 700,
@@ -1828,8 +1834,8 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                   <div className="empty-illu-blob" />
                   <div className="empty-illu-blob secondary" />
                 </div>
-                <strong>No friends yet</strong>
-                <span>Add someone to start chatting and calling.</span>
+                <strong>{t("No friends yet")}</strong>
+                <span>{t("Add someone to start chatting and calling.")}</span>
               </div>
             )}
       </SidebarSectionContent>

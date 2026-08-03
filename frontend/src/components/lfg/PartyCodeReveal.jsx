@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Eye, EyeOff, Copy, Check } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * Valorant party code — click to reveal + copy (members only).
@@ -11,6 +12,7 @@ export default function PartyCodeReveal({
   onSave,
   disabled = false,
 }) {
+  const t = useT();
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -47,20 +49,20 @@ export default function PartyCodeReveal({
   if (editing && canEdit) {
     return (
       <div className="lfg-party-code is-editing">
-        <label>Valorant party code</label>
+        <label>{t("Valorant party code")}</label>
         <div className="lfg-party-code-row">
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Paste party code"
+            placeholder={t("Paste party code")}
             maxLength={32}
             autoFocus
           />
           <button type="button" className="lfg-btn primary" onClick={save} disabled={saving}>
-            {saving ? "…" : "Save"}
+            {saving ? "…" : t("Save")}
           </button>
           <button type="button" className="lfg-btn ghost" onClick={() => setEditing(false)}>
-            Cancel
+            {t("Cancel")}
           </button>
         </div>
       </div>
@@ -70,11 +72,11 @@ export default function PartyCodeReveal({
   if (!hasCode && !value) {
     return (
       <div className="lfg-party-code is-empty">
-        <label>Valorant party code</label>
-        <p>Host hasn’t added a party code yet.</p>
+        <label>{t("Valorant party code")}</label>
+        <p>{t("Host hasn’t added a party code yet.")}</p>
         {canEdit && (
           <button type="button" className="lfg-btn primary" onClick={() => setEditing(true)} disabled={disabled}>
-            Set party code
+            {t("Set party code")}
           </button>
         )}
       </div>
@@ -83,17 +85,17 @@ export default function PartyCodeReveal({
 
   return (
     <div className="lfg-party-code">
-      <label>Valorant party code</label>
+      <label>{t("Valorant party code")}</label>
       <div className="lfg-party-code-row">
         <button
           type="button"
           className={`lfg-party-code-mask ${revealed ? "is-revealed" : ""}`}
           onClick={() => setRevealed((v) => !v)}
-          title={revealed ? "Hide" : "Click to reveal"}
+          title={revealed ? t("Hide") : t("Click to reveal")}
         >
           <span className="lfg-party-code-value">{showValue}</span>
           {revealed ? <EyeOff size={15} /> : <Eye size={15} />}
-          <em>{revealed ? "Hide" : "Click to reveal"}</em>
+          <em>{revealed ? t("Hide") : t("Click to reveal")}</em>
         </button>
         <button
           type="button"
@@ -102,15 +104,15 @@ export default function PartyCodeReveal({
           disabled={!value}
         >
           {copied ? <Check size={15} /> : <Copy size={15} />}
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("Copied") : t("Copy")}
         </button>
         {canEdit && (
           <button type="button" className="lfg-btn ghost" onClick={() => { setDraft(value); setEditing(true); }}>
-            Edit
+            {t("Edit")}
           </button>
         )}
       </div>
-      <p className="lfg-party-code-hint">Paste in Valorant → Social → Party invite code</p>
+      <p className="lfg-party-code-hint">{t("Paste in Valorant → Social → Party invite code")}</p>
     </div>
   );
 }

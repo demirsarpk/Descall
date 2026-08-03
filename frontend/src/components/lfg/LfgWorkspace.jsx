@@ -16,6 +16,7 @@ import {
 import { getRiotStatus } from "../../api/riot";
 import { Avatar } from "../ui/Avatar";
 import PartyCodeReveal from "./PartyCodeReveal";
+import { useT } from "../../context/LocaleContext";
 
 const FALLBACK_RANKS = [
   "Iron 1", "Iron 2", "Iron 3",
@@ -37,6 +38,10 @@ function regionLabel(regions, id) {
   return regions?.find((r) => r.id === id)?.label || id;
 }
 
+function trLabel(t, label) {
+  return label ? t(label) : label;
+}
+
 export default function LfgWorkspace({
   me,
   socket,
@@ -45,6 +50,7 @@ export default function LfgWorkspace({
   onGroupCreated,
   onClose,
 }) {
+  const t = useT();
   const [meta, setMeta] = useState({
     ranks: FALLBACK_RANKS,
     modes: [
@@ -94,7 +100,7 @@ export default function LfgWorkspace({
       });
       setLobbies(data.lobbies || []);
     } catch (err) {
-      setError(err.message || "Failed to load lobbies");
+      setError(err.message || t("Failed to load lobbies"));
     } finally {
       setLoading(false);
     }
@@ -175,7 +181,7 @@ export default function LfgWorkspace({
       setDetail(res);
       if (res.lobby?.hostRank && !joinRank) setJoinRank(filters.myRank || res.lobby.hostRank);
     } catch (err) {
-      setError(err.message || "Failed to open lobby");
+      setError(err.message || t("Failed to open lobby"));
       setDetail(null);
     } finally {
       setDetailLoading(false);
@@ -195,7 +201,7 @@ export default function LfgWorkspace({
         setSelectedId(res.lobby.id);
       }
     } catch (err) {
-      setError(err.message || "Failed to create lobby");
+      setError(err.message || t("Failed to create lobby"));
     } finally {
       setBusy(false);
     }
@@ -213,7 +219,7 @@ export default function LfgWorkspace({
       }
       await refreshList();
     } catch (err) {
-      setError(err.message || "Failed to join");
+      setError(err.message || t("Failed to join"));
     } finally {
       setBusy(false);
     }
@@ -223,7 +229,7 @@ export default function LfgWorkspace({
     if (!selectedId) return;
     const closingAsHost = detail?.isHost;
     if (closingAsHost) {
-      const ok = window.confirm("Close this lobby for everyone? Only you (the host) can do this.");
+      const ok = window.confirm(t("Close this lobby for everyone? Only you (the host) can do this."));
       if (!ok) return;
     }
     setBusy(true);
@@ -233,7 +239,7 @@ export default function LfgWorkspace({
       setSelectedId(null);
       await refreshList();
     } catch (err) {
-      setError(err.message || "Failed to leave");
+      setError(err.message || t("Failed to leave"));
     } finally {
       setBusy(false);
     }
@@ -260,24 +266,24 @@ export default function LfgWorkspace({
                 type="button"
                 className="lfg-back-btn"
                 onClick={onClose}
-                title="Back to Descall"
-                aria-label="Back to Descall"
+                title={t("Back to Descall")}
+                aria-label={t("Back to Descall")}
               >
                 <ArrowLeft size={18} />
-                <span className="lfg-back-label">Descall</span>
+                <span className="lfg-back-label">{t("Descall")}</span>
               </button>
             )}
             <div>
-              <div className="lfg-kicker">Valorant</div>
-              <h2>Find a stack</h2>
+              <div className="lfg-kicker">{t("Valorant")}</div>
+              <h2>{t("Find a stack")}</h2>
             </div>
           </div>
           <div className="lfg-sidebar-actions">
-            <button type="button" className="icon-btn" title="Refresh" onClick={refreshList}>
+            <button type="button" className="icon-btn" title={t("Refresh")} onClick={refreshList}>
               <RefreshCw size={16} className={loading ? "spin" : undefined} />
             </button>
             <button type="button" className="lfg-btn primary" onClick={() => setShowCreate(true)}>
-              <Plus size={15} /> Create
+              <Plus size={15} /> {t("Create")}
             </button>
           </div>
         </header>
@@ -290,32 +296,32 @@ export default function LfgWorkspace({
             aria-expanded={filtersOpen}
           >
             <Filter size={14} />
-            <span>Filters{filterCount ? ` · ${filterCount}` : ""}</span>
+            <span>{t("Filters")}{filterCount ? ` · ${filterCount}` : ""}</span>
           </button>
           <div className={`lfg-filters${filtersOpen ? " is-open" : ""}`}>
             <select
               value={filters.mode}
               onChange={(e) => setFilters((f) => ({ ...f, mode: e.target.value }))}
             >
-              <option value="">All modes</option>
+              <option value="">{t("All modes")}</option>
               {(meta.modes || []).map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
+                <option key={m.id} value={m.id}>{trLabel(t, m.label)}</option>
               ))}
             </select>
             <select
               value={filters.region}
               onChange={(e) => setFilters((f) => ({ ...f, region: e.target.value }))}
             >
-              <option value="">All regions</option>
+              <option value="">{t("All regions")}</option>
               {(meta.regions || []).map((r) => (
-                <option key={r.id} value={r.id}>{r.label}</option>
+                <option key={r.id} value={r.id}>{trLabel(t, r.label)}</option>
               ))}
             </select>
             <select
               value={filters.myRank}
               onChange={(e) => setFilters((f) => ({ ...f, myRank: e.target.value }))}
             >
-              <option value="">My rank (filter)</option>
+              <option value="">{t("My rank (filter)")}</option>
               {ranks.map((r) => (
                 <option key={r} value={r}>{r}</option>
               ))}
@@ -326,21 +332,21 @@ export default function LfgWorkspace({
                 checked={filters.mic === "1"}
                 onChange={(e) => setFilters((f) => ({ ...f, mic: e.target.checked ? "1" : "" }))}
               />
-              Mic required
+              {t("Mic required")}
             </label>
           </div>
         </div>
 
         <div className="lfg-lobby-list">
           {loading && !lobbies.length ? (
-            <div className="lfg-empty">Loading lobbies…</div>
+            <div className="lfg-empty">{t("Loading lobbies…")}</div>
           ) : lobbies.length === 0 ? (
             <div className="lfg-empty">
               <Crosshair size={28} />
-              <strong>No open lobbies</strong>
-              <span>Create one and share Descall — voice + party code in one place.</span>
+              <strong>{t("No open lobbies")}</strong>
+              <span>{t("Create one and share Descall — voice + party code in one place.")}</span>
               <button type="button" className="lfg-btn primary" onClick={() => setShowCreate(true)}>
-                Create lobby
+                {t("Create lobby")}
               </button>
             </div>
           ) : (
@@ -352,7 +358,7 @@ export default function LfgWorkspace({
                 onClick={() => openLobby(lobby.id)}
               >
                 <div className="lfg-lobby-card-top">
-                  <span className="lfg-mode">{modeLabel(meta.modes, lobby.mode)}</span>
+                  <span className="lfg-mode">{trLabel(t, modeLabel(meta.modes, lobby.mode))}</span>
                   <span className="lfg-slots">
                     <Users size={12} />
                     {lobby.partySizeCurrent}/{lobby.partySizeMax}
@@ -363,9 +369,9 @@ export default function LfgWorkspace({
                 </div>
                 <div className="lfg-lobby-card-meta">
                   <span>{lobby.hostUsername}</span>
-                  <span>{regionLabel(meta.regions, lobby.region)}</span>
-                  {lobby.micRequired && <span className="lfg-mic-tag"><Mic size={11} /> Mic</span>}
-                  {lobby.hasPartyCode && <span className="lfg-code-tag">Code set</span>}
+                  <span>{trLabel(t, regionLabel(meta.regions, lobby.region))}</span>
+                  {lobby.micRequired && <span className="lfg-mic-tag"><Mic size={11} /> {t("Mic")}</span>}
+                  {lobby.hasPartyCode && <span className="lfg-code-tag">{t("Code set")}</span>}
                 </div>
                 {lobby.note ? <p className="lfg-lobby-note">{lobby.note}</p> : null}
               </button>
@@ -383,21 +389,20 @@ export default function LfgWorkspace({
             className="lfg-mobile-detail-back"
             onClick={clearLobbySelection}
           >
-            <ChevronLeft size={18} /> Back to list
+            <ChevronLeft size={18} /> {t("Back to list")}
           </button>
         )}
 
         {!selectedId ? (
           <div className="lfg-main-empty">
             <Gamepad2 size={40} />
-            <h3>Valorant LFG</h3>
+            <h3>{t("Valorant LFG")}</h3>
             <p>
-              Browse stacks, join the Descall voice lobby, then reveal the Valorant party code.
-              Everything stays inside Descall — not a separate site.
+              {t("Browse stacks, join the Descall voice lobby, then reveal the Valorant party code. Everything stays inside Descall — not a separate site.")}
             </p>
           </div>
         ) : detailLoading || !detail?.lobby ? (
-          <div className="lfg-main-empty">Loading lobby…</div>
+          <div className="lfg-main-empty">{t("Loading lobby…")}</div>
         ) : (
           <LobbyDetail
             detail={detail}
@@ -463,6 +468,7 @@ function LobbyDetail({
   onOpenChat,
   onJoinVoice,
 }) {
+  const t = useT();
   const lobby = detail.lobby;
   const isMember = detail.isMember;
   const isHost = detail.isHost;
@@ -472,11 +478,11 @@ function LobbyDetail({
     <div className="lfg-detail">
       <header className="lfg-detail-header">
         <div>
-          <div className="lfg-kicker">Lobby · {lobby.status}</div>
-          <h2>{modeLabel(meta.modes, lobby.mode)}</h2>
+          <div className="lfg-kicker">{t("Lobby")} · {t(lobby.status)}</div>
+          <h2>{trLabel(t, modeLabel(meta.modes, lobby.mode))}</h2>
           <p>
-            {lobby.rankMin} – {lobby.rankMax} · {regionLabel(meta.regions, lobby.region)}
-            {lobby.micRequired ? " · Mic required" : ""}
+            {lobby.rankMin} – {lobby.rankMax} · {trLabel(t, regionLabel(meta.regions, lobby.region))}
+            {lobby.micRequired ? ` · ${t("Mic required")}` : ""}
           </p>
         </div>
         <div className="lfg-detail-slots">
@@ -488,13 +494,13 @@ function LobbyDetail({
       {lobby.note ? <div className="lfg-detail-note">{lobby.note}</div> : null}
 
       <section className="lfg-members">
-        <h3>Players</h3>
+        <h3>{t("Players")}</h3>
         <div className="lfg-member-grid">
           {(lobby.members || []).map((m) => (
             <div key={m.userId} className="lfg-member">
               <Avatar name={m.username} size={36} user={{ avatarUrl: m.avatarUrl, username: m.username }} />
               <div>
-                <strong>{m.username}{m.userId === me?.id ? " (you)" : ""}</strong>
+                <strong>{m.username}{m.userId === me?.id ? t(" (you)") : ""}</strong>
                 <span>{m.rank || "—"}{m.role ? ` · ${m.role}` : ""}</span>
               </div>
             </div>
@@ -512,7 +518,7 @@ function LobbyDetail({
       ) : (
         <div className="lfg-party-code is-locked">
           <Shield size={16} />
-          <span>Join the lobby to reveal the Valorant party code</span>
+          <span>{t("Join the lobby to reveal the Valorant party code")}</span>
         </div>
       )}
 
@@ -520,26 +526,26 @@ function LobbyDetail({
         {!isMember && !closed && (
           <>
             <select value={joinRank} onChange={(e) => setJoinRank(e.target.value)}>
-              <option value="">Your rank</option>
+              <option value="">{t("Your rank")}</option>
               {ranks.map((r) => (
                 <option key={r} value={r}>{r}</option>
               ))}
             </select>
             <button type="button" className="lfg-btn primary" disabled={busy || !joinRank} onClick={onJoin}>
-              Join lobby
+              {t("Join lobby")}
             </button>
           </>
         )}
         {isMember && (
           <>
             <button type="button" className="lfg-btn primary" onClick={onJoinVoice}>
-              <Phone size={15} /> Join voice
+              <Phone size={15} /> {t("Join voice")}
             </button>
             <button type="button" className="lfg-btn ghost" onClick={onOpenChat}>
-              <MessageSquare size={15} /> Open chat
+              <MessageSquare size={15} /> {t("Open chat")}
             </button>
             <button type="button" className="lfg-btn danger" disabled={busy} onClick={onLeave}>
-              <LogOut size={15} /> {isHost ? "Close lobby" : "Leave"}
+              <LogOut size={15} /> {isHost ? t("Close lobby") : t("Leave")}
             </button>
           </>
         )}
@@ -549,6 +555,7 @@ function LobbyDetail({
 }
 
 function CreateLobbyModal({ meta, ranks, busy, defaultHostRank, defaultRegion, onClose, onSubmit }) {
+  const t = useT();
   const hostRank = defaultHostRank && ranks.includes(defaultHostRank) ? defaultHostRank : "Gold 2";
   const hostIdx = ranks.indexOf(hostRank);
   const rankMin = ranks[Math.max(0, hostIdx - 2)] || "Gold 1";
@@ -593,47 +600,47 @@ function CreateLobbyModal({ meta, ranks, busy, defaultHostRank, defaultRegion, o
         exit={{ y: 12, opacity: 0 }}
       >
         <header>
-          <h3>Create Valorant lobby</h3>
+          <h3>{t("Create Valorant lobby")}</h3>
           <button type="button" className="icon-btn" onClick={onClose}><X size={18} /></button>
         </header>
 
         <div className="lfg-form-grid">
           <label>
-            Mode
+            {t("Mode")}
             <select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
               {(meta.modes || []).map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
+                <option key={m.id} value={m.id}>{trLabel(t, m.label)}</option>
               ))}
             </select>
           </label>
           <label>
-            Region
+            {t("Region")}
             <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
               {(meta.regions || []).map((r) => (
-                <option key={r.id} value={r.id}>{r.label}</option>
+                <option key={r.id} value={r.id}>{trLabel(t, r.label)}</option>
               ))}
             </select>
           </label>
           <label>
-            Your rank
+            {t("Your rank")}
             <select value={form.hostRank} onChange={(e) => setForm({ ...form, hostRank: e.target.value })}>
               {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>
           <label>
-            Looking for (min)
+            {t("Looking for (min)")}
             <select value={form.rankMin} onChange={(e) => setForm({ ...form, rankMin: e.target.value })}>
               {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>
           <label>
-            Looking for (max)
+            {t("Looking for (max)")}
             <select value={form.rankMax} onChange={(e) => setForm({ ...form, rankMax: e.target.value })}>
               {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </label>
           <label>
-            We are (players already)
+            {t("We are (players already)")}
             <input
               type="number"
               min={1}
@@ -643,7 +650,7 @@ function CreateLobbyModal({ meta, ranks, busy, defaultHostRank, defaultRegion, o
             />
           </label>
           <label>
-            Party max
+            {t("Party max")}
             <input
               type="number"
               min={2}
@@ -658,32 +665,32 @@ function CreateLobbyModal({ meta, ranks, busy, defaultHostRank, defaultRegion, o
               checked={form.micRequired}
               onChange={(e) => setForm({ ...form, micRequired: e.target.checked })}
             />
-            Mic required
+            {t("Mic required")}
           </label>
         </div>
 
         <label className="lfg-full">
-          Valorant party code (optional — can add later)
+          {t("Valorant party code (optional — can add later)")}
           <input
             value={form.partyCode}
             onChange={(e) => setForm({ ...form, partyCode: e.target.value })}
-            placeholder="Players reveal this after joining"
+            placeholder={t("Players reveal this after joining")}
             maxLength={32}
           />
         </label>
 
         <label className="lfg-full">
-          Note
+          {t("Note")}
           <input
             value={form.note}
             onChange={(e) => setForm({ ...form, note: e.target.value })}
-            placeholder="chill / rank push / TR only…"
+            placeholder={t("chill / rank push / TR only…")}
             maxLength={160}
           />
         </label>
 
         <div className="lfg-roles">
-          <span>Need roles</span>
+          <span>{t("Need roles")}</span>
           <div>
             {(meta.roles || []).map((role) => (
               <button
@@ -699,14 +706,14 @@ function CreateLobbyModal({ meta, ranks, busy, defaultHostRank, defaultRegion, o
         </div>
 
         <footer>
-          <button type="button" className="lfg-btn ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="lfg-btn ghost" onClick={onClose}>{t("Cancel")}</button>
           <button
             type="button"
             className="lfg-btn primary"
             disabled={busy}
             onClick={() => onSubmit(form)}
           >
-            {busy ? "Creating…" : "Create lobby"}
+            {busy ? t("Creating…") : t("Create lobby")}
           </button>
         </footer>
       </motion.div>

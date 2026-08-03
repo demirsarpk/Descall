@@ -5,6 +5,7 @@ import {
   Plus, Minus, RotateCcw, Coins,
   Trophy, AlertCircle
 } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 const CARD_SUITS = {
   '♠': { icon: Spade, color: '#1a1a1a' },
@@ -87,11 +88,11 @@ function HandDisplay({ hand, label, score, hidden = false, isDealer = false }) {
   );
 }
 
-function ActionButton({ action, onClick, disabled, variant = 'primary' }) {
+function ActionButton({ action, onClick, disabled, variant = 'primary', t }) {
   const labels = {
-    hit: { text: 'HIT', icon: Plus, color: '#22c55e' },
-    stand: { text: 'STAND', icon: Minus, color: '#f59e0b' },
-    double: { text: 'DOUBLE', icon: Coins, color: '#8b5cf6' }
+    hit: { text: t("HIT"), icon: Plus, color: '#22c55e' },
+    stand: { text: t("STAND"), icon: Minus, color: '#f59e0b' },
+    double: { text: t("DOUBLE"), icon: Coins, color: '#8b5cf6' }
   };
 
   const config = labels[action] || labels.hit;
@@ -119,6 +120,7 @@ export default function BlackjackGame({
   currentUserId,
   credits = 0
 }) {
+  const t = useT();
   const [bet, setBet] = useState(100);
   const [showRules, setShowRules] = useState(false);
 
@@ -134,7 +136,7 @@ export default function BlackjackGame({
     }
   }, [onAction, bet]);
 
-  // Oyun durumu yoksa veya bitmişse başlangıç ekranı
+  // Lobby when no active game or finished
   if (!gameData || gameData.status === 'finished') {
     return (
       <div className="blackjack-lobby">
@@ -143,12 +145,12 @@ export default function BlackjackGame({
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
         >
-          <h3>🎰 Blackjack</h3>
-          <p className="bj-subtitle">21'e ulaşmaya çalış ama geçme!</p>
+          <h3>🎰 {t("Blackjack")}</h3>
+          <p className="bj-subtitle">{t("Try to reach 21 — but don’t go over!")}</p>
         </motion.div>
 
         <div className="bet-selector">
-          <label>Bahis Miktarı</label>
+          <label>{t("Bet Amount")}</label>
           <div className="bet-controls">
             <motion.button
               whileTap={{ scale: 0.9 }}
@@ -181,7 +183,7 @@ export default function BlackjackGame({
 
         <div className="credits-display">
           <Coins size={16} />
-          <span>Bakiye: {credits.toLocaleString()}</span>
+          <span>{t("Balance:")} {credits.toLocaleString()}</span>
         </div>
 
         <motion.button
@@ -191,14 +193,14 @@ export default function BlackjackGame({
           disabled={credits < bet}
           className="start-game-btn"
         >
-          {credits < bet ? 'Yetersiz Bakiye' : 'Oyna'}
+          {credits < bet ? t("Insufficient Balance") : t("Play")}
         </motion.button>
 
         <button 
           className="rules-toggle"
           onClick={() => setShowRules(!showRules)}
         >
-          {showRules ? 'Kuralları Gizle' : 'Kuralları Göster'}
+          {showRules ? t("Hide Rules") : t("Show Rules")}
         </button>
 
         <AnimatePresence>
@@ -210,11 +212,11 @@ export default function BlackjackGame({
               className="rules-panel"
             >
               <ul>
-                <li>Amaç 21 puan toplamak</li>
-                <li>21'i geçersen (Bust) kaybedersin</li>
-                <li>Krupiye 17'ye kadar çeker</li>
-                <li>Blackjack (A+10) 3:2 öder</li>
-                <li>Double: Bahisi 2x yap, 1 kart çek</li>
+                <li>{t("Goal: get as close to 21 as possible")}</li>
+                <li>{t("Going over 21 (Bust) loses")}</li>
+                <li>{t("Dealer draws until 17")}</li>
+                <li>{t("Blackjack (A+10) pays 3:2")}</li>
+                <li>{t("Double: 2x bet, take one card")}</li>
               </ul>
             </motion.div>
           )}
@@ -229,28 +231,25 @@ export default function BlackjackGame({
 
   return (
     <div className="blackjack-game">
-      {/* Bahis ve Bakiye */}
       <div className="game-stats-bar">
         <div className="stat-item">
           <Coins size={14} />
-          <span>Bahis: {gameBet?.toLocaleString()}</span>
+          <span>{t("Bet:")} {gameBet?.toLocaleString()}</span>
         </div>
         <div className="stat-item">
           <Trophy size={14} />
-          <span>Bakiye: {credits.toLocaleString()}</span>
+          <span>{t("Balance:")} {credits.toLocaleString()}</span>
         </div>
       </div>
 
-      {/* Krupiye Eli */}
       <HandDisplay 
         hand={dealerHand}
-        label="Krupiye"
+        label={t("Dealer")}
         score={dealerHand?.value}
         hidden={isPlaying}
         isDealer={true}
       />
 
-      {/* Sonuç Bildirimi */}
       <AnimatePresence mode="wait">
         {isFinished && result && (
           <motion.div
@@ -260,10 +259,10 @@ export default function BlackjackGame({
             exit={{ scale: 0.5, opacity: 0, y: -20 }}
             className={`result-banner ${result}`}
           >
-            {result === 'win' && <><Trophy size={24} /> Kazandın!</>}
-            {result === 'blackjack' && <><Trophy size={24} /> BLACKJACK!</>}
-            {result === 'loss' && <><AlertCircle size={24} /> Kaybettin</>}
-            {result === 'push' && <>Berabere (Push)</>}
+            {result === 'win' && <><Trophy size={24} /> {t("You win!")}</>}
+            {result === 'blackjack' && <><Trophy size={24} /> {t("BLACKJACK!")}</>}
+            {result === 'loss' && <><AlertCircle size={24} /> {t("You lose")}</>}
+            {result === 'push' && <>{t("Push (tie)")}</>}
           </motion.div>
         )}
       </AnimatePresence>
@@ -274,38 +273,38 @@ export default function BlackjackGame({
           animate={{ opacity: 1 }}
           className="win-amount"
         >
-          +{winAmount.toLocaleString()} credits
+          +{winAmount.toLocaleString()} {t("credits")}
         </motion.div>
       )}
 
-      {/* Oyuncu Eli */}
       <HandDisplay 
         hand={playerHand}
-        label="Senin El"
+        label={t("Your Hand")}
         score={playerHand?.value}
       />
 
-      {/* Aksiyon Butonları */}
       {isPlaying && (
         <div className="actions-bar">
           <ActionButton 
             action="hit" 
             onClick={() => handleAction('hit')}
+            t={t}
           />
           <ActionButton 
             action="stand" 
             onClick={() => handleAction('stand')}
+            t={t}
           />
           {actions.includes('double') && (
             <ActionButton 
               action="double" 
               onClick={() => handleAction('double')}
+              t={t}
             />
           )}
         </div>
       )}
 
-      {/* Yeniden Oyna */}
       {isFinished && (
         <motion.button
           initial={{ opacity: 0, y: 20 }}
@@ -316,7 +315,7 @@ export default function BlackjackGame({
           className="play-again-btn"
         >
           <RotateCcw size={18} />
-          Tekrar Oyna
+          {t("Play Again")}
         </motion.button>
       )}
     </div>

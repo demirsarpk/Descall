@@ -1189,3 +1189,14 @@
 .uhc-text .val-badge--compact {
   margin-top: 8px;
 }
+
+
+/* Language picker cards */
+.us-lang-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.us-lang-grid .us-theme-card {
+  min-height: 72px;
+  justify-content: flex-start;
+  padding: 14px 16px;
+}

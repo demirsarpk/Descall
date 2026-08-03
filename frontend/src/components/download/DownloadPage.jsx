@@ -25,16 +25,23 @@ import GoogleSignInButton from '../auth/GoogleSignInButton';
 import { fetchLatestDesktopRelease } from '../../lib/githubRelease';
 import { formatReleaseLabel } from '../../lib/releaseVersion';
 import { DESKTOP_RELEASE_FALLBACK } from '../../lib/desktopRelease';
+import { useT } from '../../context/LocaleContext';
 import './DownloadPage.css';
 
 const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
 const FALLBACK_WINDOWS_URL = DESKTOP_RELEASE_FALLBACK.windowsDownloadUrl;
 
-const features = [
+const FEATURE_DEFS = [
   { icon: MessageCircle, title: "Real-time Chat", desc: "Instant messaging with typing indicators" },
   { icon: Mic, title: "Voice Messages", desc: "Crystal clear voice recordings" },
   { icon: Video, title: "Video Calls", desc: "HD video calling with screen share" },
   { icon: Users, title: "Group Chats", desc: "Create groups with unlimited members" },
+];
+
+const STAT_DEFS = [
+  { value: "10K+", label: "Downloads" },
+  { value: "4.9", label: "Rating" },
+  { value: "50+", label: "Countries" },
 ];
 
 const platforms = [
@@ -64,13 +71,10 @@ const platforms = [
   },
 ];
 
-const stats = [
-  { value: "10K+", label: "Downloads" },
-  { value: "4.9", label: "Rating" },
-  { value: "50+", label: "Countries" },
-];
-
 export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authLoading, authError }) {
+  const t = useT();
+  const features = FEATURE_DEFS.map((f) => ({ ...f, title: t(f.title), desc: t(f.desc) }));
+  const stats = STAT_DEFS.map((s) => ({ ...s, label: t(s.label) }));
   const [selectedPlatform, setSelectedPlatform] = useState('windows');
   const [isInstalled, setIsInstalled] = useState(false);
   const [latestRelease, setLatestRelease] = useState(null);
@@ -220,7 +224,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             transition={{ delay: 0.3, type: "spring" }}
           >
             <Sparkles size={14} />
-            <span>{loading ? 'Checking for updates…' : (releaseLabel ? `${releaseLabel} available` : 'Latest release')}</span>
+            <span>{loading ? t("Checking for updates…") : (releaseLabel ? t("{label} available", { label: releaseLabel }) : t("Latest release"))}</span>
           </motion.div>
 
           <motion.h1 
@@ -229,8 +233,8 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            Descall Desktop
-            <span className="gradient-text"> Experience</span>
+            {t("Descall")} Desktop
+            <span className="gradient-text"> {t("Experience")}</span>
           </motion.h1>
 
           <motion.p 
@@ -239,8 +243,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            The ultimate chat application for your desktop. 
-            Fast, secure, and beautifully designed.
+            {t("The ultimate chat application for your desktop. Fast, secure, and beautifully designed.")}
           </motion.p>
 
           {/* Login Button */}
@@ -259,7 +262,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             whileTap={{ scale: 0.95 }}
           >
             <LogIn size={18} />
-            <span>Sign In</span>
+            <span>{t("Sign In")}</span>
           </motion.button>
 
           {/* Stats */}
@@ -367,20 +370,20 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                 {loading ? (
                   <>
                     <Loader2 size={20} className="spin" />
-                    <span>Checking for updates…</span>
+                    <span>{t("Checking for updates…")}</span>
                   </>
                 ) : isInstalled && selectedPlatform === 'windows' ? (
                   <>
                     <CheckCircle2 size={20} />
-                    <span>Download started</span>
+                    <span>{t("Download started")}</span>
                   </>
                 ) : (
                   <>
                     <Download size={20} />
                     <span>
                       {selectedPlatform === 'windows'
-                        ? `Download for ${currentPlatform.name}`
-                        : 'Sign in to use web app'}
+                        ? t("Download for {name}", { name: currentPlatform.name })
+                        : t("Sign in to use web app")}
                     </span>
                     <ChevronRight size={18} className="arrow" />
                   </>

@@ -8,6 +8,7 @@ import GiphyPicker from "./GiphyPicker";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { encodeVoiceContent, pickRecorderMime, extensionForMime } from "../../lib/voiceMessage";
+import { useT } from "../../context/LocaleContext";
 
 const EMOJI_CATEGORIES = [
   { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖","😺","😸","😹","😻","😼","😽","🙀","😿","😾"] },
@@ -76,6 +77,7 @@ export default function MessageComposer({
   replyTo = null,
   onClearReply,
 }) {
+  const t = useT();
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -533,7 +535,7 @@ export default function MessageComposer({
                   : "Message"}
               </span>
             </div>
-            <button type="button" className="composer-reply-clear" onClick={() => onClearReply?.()} aria-label="Cancel reply">
+            <button type="button" className="composer-reply-clear" onClick={() => onClearReply?.()} aria-label={t("Cancel reply")}>
               <X size={14} />
             </button>
           </motion.div>
@@ -707,7 +709,7 @@ export default function MessageComposer({
             value={message}
             onChange={(e) => { setMessage(e.target.value); if (e.target.value) emitTypingStart(); else emitTypingStop(); }}
             onKeyDown={handleKeyDown}
-            placeholder={dragOver ? "Drop file to attach…" : "Message…"}
+            placeholder={dragOver ? t("Drop file to attach…") : t("Message…")}
             className="composer-input"
             rows={1}
             style={{ minHeight: "44px", maxHeight: "120px", resize: "none" }}
@@ -716,21 +718,21 @@ export default function MessageComposer({
       </div>
 
       <div className="composer-right">
-        <motion.button className="composer-action-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} title="Emoji">
+        <motion.button className="composer-action-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} title={t("Emoji")}>
           <Smile size={24} />
         </motion.button>
 
         {isRecording ? (
-          <motion.button className="composer-action-btn recording" onClick={stopRecording} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} title="Stop Recording">
+          <motion.button className="composer-action-btn recording" onClick={stopRecording} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} title={t("Stop Recording")}>
             <StopCircle size={24} color="#f23f43" />
           </motion.button>
         ) : (
-          <motion.button className="composer-action-btn" onClick={startRecording} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} title="Voice Message">
+          <motion.button className="composer-action-btn" onClick={startRecording} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} title={t("Voice Message")}>
             <Mic size={24} />
           </motion.button>
         )}
 
-        <motion.button className={`composer-send-btn ${canSend ? "active" : ""}`} onClick={handleSend} disabled={!canSend || disabled} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} title="Send Message">
+        <motion.button className={`composer-send-btn ${canSend ? "active" : ""}`} onClick={handleSend} disabled={!canSend || disabled} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} title={t("Send Message")}>
           <Send size={20} />
         </motion.button>
       </div>
