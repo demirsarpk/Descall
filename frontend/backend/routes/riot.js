@@ -3,6 +3,7 @@ const supabase = require("../db/supabase");
 const { requireAuth } = require("../middleware/auth");
 const {
   rsoEnabled,
+  henrikConfigured,
   parseRiotId,
   publicRiotCard,
   resolveValorantLink,
@@ -15,7 +16,7 @@ const {
 
 const router = express.Router();
 
-const VALID_REGIONS = new Set(["eu", "na", "ap", "kr", "latam", "br"]);
+const VALID_REGIONS = new Set(["eu", "na", "ap", "kr", "latam", "br", "auto"]);
 
 async function getLink(userId) {
   const { data } = await supabase
@@ -78,6 +79,7 @@ router.get("/status", requireAuth, async (req, res) => {
     const link = await getLink(req.user.id);
     return res.json({
       rsoEnabled: rsoEnabled(),
+      henrikConfigured: henrikConfigured(),
       linked: Boolean(link),
       valorant: publicRiotCard(link),
     });
@@ -103,16 +105,17 @@ router.get("/users/:userId", requireAuth, async (req, res) => {
   }
 });
 
-// POST /riot/link — link by Name#TAG (works without RSO approval)
+// POST /riot/link — link by Name#TAG and fetch real competitive rank
 router.post("/link", requireAuth, async (req, res) => {
   try {
-    const { riotId, region = "eu" } = req.body || {};
+    const { riotId, region = "auto" } = req.body || {};
     const parsed = parseRiotId(riotId);
     if (!parsed) {
       return res.status(400).json({ error: "Use Riot ID format: Name#TAG" });
     }
-    const reg = String(region || "eu").toLowerCase();
-    if (!VALID_REGIONS.has(reg)) {
+    const regRaw = String(region || "auto").toLowerCase();
+    const reg = regRaw === "auto" ? "eu" : regRaw;
+    if (!VALID_REGIONS.has(regRaw) && !VALID_REGIONS.has(reg)) {
       return res.status(400).json({ error: "Invalid region" });
     }
 
@@ -132,6 +135,12 @@ router.post("/link", requireAuth, async (req, res) => {
       tagLine: parsed.tagLine,
       region: reg,
     });
+
+    if (!resolved.verified && !resolved.puuid) {
+      return res.status(404).json({
+        error: `Could not verify ${parsed.gameName}#${parsed.tagLine}. Check Name#TAG.`,
+      });
+    }
 
     const saved = await upsertLink(req.user.id, {
       ...resolved,

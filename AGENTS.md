@@ -27,8 +27,7 @@
 - Secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` (required); `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` (optional until OAuth is enabled).
 
 ### Valorant / Riot account link
-- Users link Valorant from **Settings → My Account** (`RiotLinkCard`): Name#TAG works without Riot prod approval; optional RSO when `RIOT_CLIENT_ID` + `RIOT_CLIENT_SECRET` + redirect are set.
-- SQL: `supabase/migrations/20260803_riot_account_link.sql` (or `frontend/backend/db/riotAccountMigration.sql`) → table `user_riot_accounts`.
-- Rank/account lookup: Henrik MMR (`HENRIK_API_KEY` optional) and/or `RIOT_API_KEY`. Routes: `/riot` + `/api/riot`. Public card also attached on `GET /auth/me` and `GET /auth/users/:id` as `user.valorant`.
-- After RSO callback the app lands on `/?riot_link=success|error` (toast + history cleaned).
-- LFG pre-fills host/filter rank from the linked card when present.
+- Users link Valorant from **Settings → My Account** with **Name#TAG only**. Rank + Riot ID appear on profile/hover/LFG **only after a successful link**.
+- **Real rank requires `HENRIK_API_KEY`** on Render (HenrikDev dashboard / Discord). Without it, link returns 503 Unauthorized — staging logs show `[Riot] MMR lookup: Unauthorized`.
+- Lookup uses Henrik MMR v3 (`/valorant/v3/mmr/{region}/pc/{name}/{tag}`) with v2 fallback; region auto-detect from account when possible.
+- SQL: `supabase/migrations/20260803_riot_account_link.sql` → `user_riot_accounts`. Routes: `/riot` + `/api/riot`. Public card on `GET /auth/me` / `GET /auth/users/:id` as `user.valorant`.

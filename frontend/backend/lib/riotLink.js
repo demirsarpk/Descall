@@ -1,7 +1,7 @@
 /**
  * Riot / Valorant account helpers.
- * - RSO OAuth when RIOT_CLIENT_ID + RIOT_CLIENT_SECRET are set (Riot production approval required)
- * - Riot ID link (Name#TAG) via Henrik MMR API and/or Riot Account API
+ * Real competitive rank is fetched via HenrikDev (requires HENRIK_API_KEY).
+ * Users link with Name#TAG only — rank/nick shown only after a successful link.
  */
 
 const crypto = require("crypto");
@@ -10,17 +10,49 @@ const { VALORANT_RANKS, isValidRank } = require("./lfgConstants");
 const RIOT_CLIENT_ID = process.env.RIOT_CLIENT_ID || "";
 const RIOT_CLIENT_SECRET = process.env.RIOT_CLIENT_SECRET || "";
 const RIOT_API_KEY = process.env.RIOT_API_KEY || "";
-const HENRIK_API_KEY = process.env.HENRIK_API_KEY || "";
+const HENRIK_API_KEY = String(process.env.HENRIK_API_KEY || "").trim();
 const RIOT_REDIRECT_URI =
   process.env.RIOT_REDIRECT_URI ||
   (process.env.PUBLIC_APP_URL
     ? `${String(process.env.PUBLIC_APP_URL).replace(/\/$/, "")}/api/riot/oauth/callback`
     : "");
 
+const HENRIK_BASE = "https://api.henrikdev.xyz";
+const HENRIK_REGIONS = ["eu", "na", "ap", "kr", "latam", "br"];
+
+/** Map Descall / LFG region ids → Henrik affinity */
+function toHenrikRegion(region) {
+  const r = String(region || "eu").toLowerCase();
+  if (r === "tr" || r === "europe" || r === "euw" || r === "eune") return "eu";
+  if (HENRIK_REGIONS.includes(r)) return r;
+  return "eu";
+}
+
+function henrikConfigured() {
+  return Boolean(HENRIK_API_KEY);
+}
+
+function henrikHeaders() {
+  // Henrik accepts the raw key in Authorization (also works as Bearer)
+  return {
+    Authorization: HENRIK_API_KEY,
+    Accept: "application/json",
+  };
+}
+
+function withApiKey(url) {
+  // Twitch-bot style fallback also supported by Henrik
+  if (!HENRIK_API_KEY) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}api_key=${encodeURIComponent(HENRIK_API_KEY)}`;
+}
+
 /** Normalize Henrik / Riot rank strings to Descall LFG rank labels */
 function normalizeRankTier(raw) {
-  if (!raw) return null;
+  if (raw == null || raw === "") return null;
+  if (typeof raw === "object" && raw.name) return normalizeRankTier(raw.name);
   let s = String(raw).trim().replace(/[-_]+/g, " ").replace(/\s+/g, " ");
+  if (/^(unranked|unrated|none|n\/a)$/i.test(s)) return null;
   if (/^radiant$/i.test(s)) return "Radiant";
   const m = s.match(/^([A-Za-z]+)\s*(III|II|I|[1-3])$/i);
   if (m) {
@@ -48,20 +80,29 @@ function parseRiotId(input) {
 
 function publicRiotCard(row) {
   if (!row) return null;
+  // Only expose card when a Name#TAG (or RSO) link exists
+  if (!row.game_name || !row.tag_line) return null;
+  const rankTier = row.rank_tier || null;
   return {
     linked: true,
     gameName: row.game_name,
     tagLine: row.tag_line,
     riotId: `${row.game_name}#${row.tag_line}`,
     region: row.region,
-    rankTier: row.rank_tier || null,
-    rank: row.rank_tier || null,
+    rankTier,
+    rank: rankTier,
     rankRr: row.rank_rr ?? null,
     verified: Boolean(row.rank_verified),
     linkMethod: row.link_method,
     linkedAt: row.linked_at,
     rankUpdatedAt: row.rank_updated_at,
   };
+}
+
+function apiError(message, status = 400) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
 }
 
 async function fetchJson(url, headers = {}) {
@@ -88,24 +129,55 @@ async function lookupRiotAccount(gameName, tagLine) {
   return null;
 }
 
-/** Rank + account via Henrik (best practical Valorant rank source without VAL prod key) */
-async function fetchHenrikMmr(region, gameName, tagLine) {
-  const headers = {};
-  if (HENRIK_API_KEY) headers.Authorization = HENRIK_API_KEY;
-  const url = `https://api.henrikdev.xyz/valorant/v2/mmr/${encodeURIComponent(region)}/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
-  const { ok, status, body } = await fetchJson(url, headers);
-  if (!ok) {
-    const msg = body?.errors?.[0]?.message || body?.message || `Rank lookup failed (${status})`;
-    const err = new Error(msg);
-    err.status = status;
-    throw err;
+async function fetchHenrikAccount(gameName, tagLine) {
+  if (!HENRIK_API_KEY) return null;
+  const url = withApiKey(
+    `${HENRIK_BASE}/valorant/v1/account/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`
+  );
+  const { ok, status, body } = await fetchJson(url, henrikHeaders());
+  if (status === 401 || status === 403) {
+    throw apiError(
+      "Valorant rank API key missing/invalid. Set HENRIK_API_KEY on the server.",
+      503
+    );
   }
+  if (status === 404 || !ok) return null;
+  const data = body?.data || body;
+  if (!data?.name && !data?.puuid) return null;
+  return {
+    puuid: data?.puuid || null,
+    gameName: data?.name || gameName,
+    tagLine: data?.tag || tagLine,
+    region: data?.region ? toHenrikRegion(data.region) : null,
+  };
+}
+
+function parseHenrikV3Mmr(body, fallbackRegion) {
+  const data = body?.data || body;
+  const current = data?.current || {};
+  const account = data?.account || {};
+  const rank =
+    normalizeRankTier(current?.tier?.name) ||
+    normalizeRankTier(current?.tier) ||
+    null;
+  const rr = typeof current?.rr === "number" ? current.rr : null;
+  return {
+    gameName: account?.name || null,
+    tagLine: account?.tag || null,
+    puuid: account?.puuid || null,
+    rankTier: rank,
+    rankRr: rr,
+    region: fallbackRegion,
+  };
+}
+
+function parseHenrikV2Mmr(body, fallbackRegion) {
   const data = body?.data || body;
   const current = data?.current_data || {};
   const rank =
-    current.currenttierpatched ||
-    current.currenttier_patched ||
-    data?.currenttierpatched ||
+    normalizeRankTier(current.currenttierpatched) ||
+    normalizeRankTier(current.currenttier_patched) ||
+    normalizeRankTier(data?.currenttierpatched) ||
     null;
   const rr =
     typeof current.ranking_in_tier === "number"
@@ -114,57 +186,124 @@ async function fetchHenrikMmr(region, gameName, tagLine) {
         ? data.ranking_in_tier
         : null;
   return {
-    gameName: data?.name || gameName,
-    tagLine: data?.tag || tagLine,
+    gameName: data?.name || null,
+    tagLine: data?.tag || null,
     puuid: data?.puuid || null,
-    rankTier: normalizeRankTier(rank),
+    rankTier: rank,
     rankRr: rr,
-    region,
+    region: fallbackRegion,
   };
 }
 
-async function fetchHenrikAccount(gameName, tagLine) {
-  const headers = {};
-  if (HENRIK_API_KEY) headers.Authorization = HENRIK_API_KEY;
-  const url = `https://api.henrikdev.xyz/valorant/v1/account/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
-  const { ok, body } = await fetchJson(url, headers);
-  if (!ok) return null;
-  const data = body?.data || body;
-  return {
-    puuid: data?.puuid || null,
-    gameName: data?.name || gameName,
-    tagLine: data?.tag || tagLine,
-    region: data?.region || null,
-  };
+async function fetchHenrikMmr(region, gameName, tagLine) {
+  if (!HENRIK_API_KEY) {
+    throw apiError(
+      "Valorant rank API key missing. Set HENRIK_API_KEY on the server (HenrikDev dashboard).",
+      503
+    );
+  }
+  const affinity = toHenrikRegion(region);
+  const name = encodeURIComponent(gameName);
+  const tag = encodeURIComponent(tagLine);
+
+  // Prefer v3 (current competitive tier + RR)
+  const v3Url = withApiKey(`${HENRIK_BASE}/valorant/v3/mmr/${affinity}/pc/${name}/${tag}`);
+  const v3 = await fetchJson(v3Url, henrikHeaders());
+  if (v3.status === 401 || v3.status === 403) {
+    throw apiError(
+      "Valorant rank API unauthorized. Check HENRIK_API_KEY on Render.",
+      503
+    );
+  }
+  if (v3.ok) {
+    return parseHenrikV3Mmr(v3.body, affinity);
+  }
+
+  // Fallback v2
+  const v2Url = withApiKey(`${HENRIK_BASE}/valorant/v2/mmr/${affinity}/${name}/${tag}`);
+  const v2 = await fetchJson(v2Url, henrikHeaders());
+  if (v2.status === 401 || v2.status === 403) {
+    throw apiError(
+      "Valorant rank API unauthorized. Check HENRIK_API_KEY on Render.",
+      503
+    );
+  }
+  if (v2.ok) {
+    return parseHenrikV2Mmr(v2.body, affinity);
+  }
+
+  if (v3.status === 404 || v2.status === 404) {
+    // Account may exist but have no MMR yet — treat as unranked, not failure
+    return {
+      gameName,
+      tagLine,
+      puuid: null,
+      rankTier: null,
+      rankRr: null,
+      region: affinity,
+    };
+  }
+
+  const msg =
+    v3.body?.errors?.[0]?.message ||
+    v2.body?.errors?.[0]?.message ||
+    `Rank lookup failed (${v3.status || v2.status})`;
+  throw apiError(msg, v3.status || v2.status || 502);
 }
 
 /**
- * Resolve + refresh Valorant card for Name#TAG
+ * Resolve real Valorant card for Name#TAG.
+ * Requires HENRIK_API_KEY. Fails if the Riot ID does not exist.
  */
 async function resolveValorantLink({ gameName, tagLine, region = "eu" }) {
-  let account = await lookupRiotAccount(gameName, tagLine);
-  if (!account) {
-    account = await fetchHenrikAccount(gameName, tagLine);
-  }
-  if (!account) {
-    // Still try MMR — Henrik often works with just name/tag
-    account = { gameName, tagLine, puuid: null };
+  if (!HENRIK_API_KEY && !RIOT_API_KEY) {
+    throw apiError(
+      "Rank lookup is not configured. Add HENRIK_API_KEY (free at https://api.henrikdev.xyz/dashboard/) to Render env.",
+      503
+    );
   }
 
-  const mmrRegion = region || account.region || "eu";
-  let mmr = null;
+  let account = null;
   try {
-    mmr = await fetchHenrikMmr(mmrRegion, account.gameName || gameName, account.tagLine || tagLine);
+    account = await fetchHenrikAccount(gameName, tagLine);
   } catch (err) {
-    // Account may exist but unranked / API limited
-    console.warn("[Riot] MMR lookup:", err.message);
+    if (err.status === 503) throw err;
+    console.warn("[Riot] Henrik account:", err.message);
   }
+  if (!account) {
+    account = await lookupRiotAccount(gameName, tagLine);
+  }
+  if (!account) {
+    throw apiError(
+      `Riot ID not found: ${gameName}#${tagLine}. Check spelling (Name#TAG) and try again.`,
+      404
+    );
+  }
+
+  const preferred = toHenrikRegion(account.region || region);
+  const tryRegions = [preferred, ...HENRIK_REGIONS.filter((r) => r !== preferred)];
+
+  let mmr = null;
+  let lastErr = null;
+  for (const reg of tryRegions) {
+    try {
+      mmr = await fetchHenrikMmr(reg, account.gameName || gameName, account.tagLine || tagLine);
+      // Stop when we got a real rank, or same region returned unranked after account match
+      if (mmr?.rankTier || reg === preferred) break;
+    } catch (err) {
+      lastErr = err;
+      if (err.status === 503) throw err;
+      console.warn("[Riot] MMR lookup:", reg, err.message);
+    }
+  }
+
+  if (!mmr && lastErr) throw lastErr;
 
   return {
     puuid: mmr?.puuid || account.puuid || null,
     gameName: mmr?.gameName || account.gameName || gameName,
     tagLine: mmr?.tagLine || account.tagLine || tagLine,
-    region: mmrRegion,
+    region: mmr?.region || preferred,
     rankTier: mmr?.rankTier || null,
     rankRr: mmr?.rankRr ?? null,
     verified: Boolean(account.puuid || mmr?.puuid),
@@ -251,6 +390,7 @@ async function fetchRsoAccount(accessToken) {
 
 module.exports = {
   rsoEnabled,
+  henrikConfigured,
   parseRiotId,
   publicRiotCard,
   resolveValorantLink,
@@ -260,5 +400,6 @@ module.exports = {
   exchangeRsoCode,
   fetchRsoAccount,
   normalizeRankTier,
+  toHenrikRegion,
   RIOT_REDIRECT_URI,
 };

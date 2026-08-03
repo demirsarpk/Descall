@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link2, RefreshCw, Unlink, LogIn } from "lucide-react";
+import { Link2, RefreshCw, Unlink } from "lucide-react";
 import {
   getRiotStatus,
   linkRiotId,
   refreshRiotRank,
   unlinkRiot,
-  startRiotOAuth,
 } from "../../api/riot";
 import ValorantBadge from "../social/ValorantBadge";
 
 const REGIONS = [
-  { id: "eu", label: "Europe" },
+  { id: "auto", label: "Auto (detect)" },
+  { id: "eu", label: "Europe / TR" },
   { id: "na", label: "NA" },
   { id: "ap", label: "APAC" },
   { id: "kr", label: "Korea" },
@@ -22,17 +22,17 @@ export default function RiotLinkCard() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [rsoEnabled, setRsoEnabled] = useState(false);
+  const [henrikConfigured, setHenrikConfigured] = useState(true);
   const [valorant, setValorant] = useState(null);
   const [riotId, setRiotId] = useState("");
-  const [region, setRegion] = useState("eu");
+  const [region, setRegion] = useState("auto");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const res = await getRiotStatus();
-      setRsoEnabled(Boolean(res.rsoEnabled));
+      setHenrikConfigured(Boolean(res.henrikConfigured));
       setValorant(res.valorant || null);
       if (res.valorant?.region) setRegion(res.valorant.region);
     } catch (err) {
@@ -91,24 +91,6 @@ export default function RiotLinkCard() {
     }
   };
 
-  const handleRso = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      const res = await startRiotOAuth();
-      if (res.url) {
-        window.location.href = res.url;
-        return;
-      }
-      setError(res.error || "Riot Sign-On unavailable");
-    } catch (err) {
-      setError(err.message || "Riot Sign-On unavailable");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <section className="us-section">
       <h4 className="us-section-label">Valorant</h4>
@@ -127,18 +109,19 @@ export default function RiotLinkCard() {
               </button>
             </div>
             <p className="riot-link-hint us-muted">
-              Rank &amp; Riot ID show on your profile when linked.
+              Real competitive rank is shown on your profile only after linking Name#TAG.
             </p>
           </div>
         ) : (
           <div className="riot-link-pad">
             <p className="riot-link-lead">
-              Link your Valorant account so friends see your rank and Riot ID on your profile.
+              Enter your Riot ID (<strong>Name#TAG</strong>) to fetch your real Valorant rank.
+              Rank and nick appear on your profile only after linking.
             </p>
-            {rsoEnabled && (
-              <button type="button" className="us-btn primary riot-rso-btn" onClick={handleRso} disabled={busy}>
-                <LogIn size={14} /> Sign in with Riot
-              </button>
+            {!henrikConfigured && (
+              <div className="riot-link-error" style={{ borderTop: "none", borderRadius: 8 }}>
+                Server needs <code>HENRIK_API_KEY</code> to look up live ranks.
+              </div>
             )}
             <form className="riot-link-form" onSubmit={handleLink}>
               <label className="us-field">
@@ -164,14 +147,9 @@ export default function RiotLinkCard() {
                 </select>
               </label>
               <button type="submit" className="us-btn primary" disabled={busy || !riotId.includes("#")}>
-                Link account
+                {busy ? "Looking up rank…" : "Link & fetch rank"}
               </button>
             </form>
-            {!rsoEnabled && (
-              <p className="riot-link-hint us-muted">
-                Full Riot login (RSO) needs Riot production approval. Name#TAG works now and pulls your competitive rank when available.
-              </p>
-            )}
           </div>
         )}
         {error && <div className="riot-link-error">{error}</div>}
