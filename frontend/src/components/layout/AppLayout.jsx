@@ -33,6 +33,7 @@ export default function AppLayout({
   onGroupVoiceCall,
   onGroupVideoCall,
   onStartCall,
+  onStartGroupCallFromCalls,
   onAdminClick,
   isAdmin,
   onRefreshGroups,
@@ -148,10 +149,21 @@ export default function AppLayout({
     handleDmSelect(user);
   }, [handleDmSelect]);
 
+  const handleOpenGroupFromCalls = useCallback((group) => {
+    if (!group?.id) return;
+    setActiveView("groups");
+    handleGroupSelect(group);
+  }, [handleGroupSelect]);
+
   const handleStartCall = useCallback((user, type = "voice") => {
     if (!user?.id) return;
     onStartCall?.(user, type);
   }, [onStartCall]);
+
+  const handleStartGroupCallFromCalls = useCallback((group, type = "voice") => {
+    if (!group?.id) return;
+    onStartGroupCallFromCalls?.(group, type);
+  }, [onStartGroupCallFromCalls]);
 
   const handleViewChange = useCallback((view) => {
     setActiveView(view);
@@ -292,7 +304,9 @@ export default function AppLayout({
             dmUnread={dmUnread}
             groupUnread={groupUnread}
             onStartCall={handleStartCall}
+            onStartGroupCall={handleStartGroupCallFromCalls}
             onOpenChatFromCalls={handleOpenChatFromCalls}
+            onOpenGroupFromCalls={handleOpenGroupFromCalls}
           />
         )}
       </div>
@@ -334,7 +348,10 @@ export default function AppLayout({
         onAddClick={handleAddClick}
         onViewChange={handleViewChange}
         onStartCall={handleStartCall}
+        onStartGroupCall={handleStartGroupCallFromCalls}
         onOpenChatFromCalls={handleOpenChatFromCalls}
+        onOpenGroupFromCalls={handleOpenGroupFromCalls}
+        groups={groups}
       >
         {children}
       </ChatPanel>

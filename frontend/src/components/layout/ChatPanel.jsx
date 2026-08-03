@@ -59,6 +59,9 @@ export default function ChatPanel({
   onViewChange,
   onStartCall,
   onOpenChatFromCalls,
+  onStartGroupCall,
+  onOpenGroupFromCalls,
+  groups = [],
   children
 }) {
   const messagesRef = useRef(null);
@@ -292,10 +295,13 @@ export default function ChatPanel({
         <CallsView
           me={me}
           friends={friends}
+          groups={groups}
           onlineUsers={onlineUsers}
           socket={socket}
           onStartCall={onStartCall}
+          onStartGroupCall={onStartGroupCall}
           onOpenChat={onOpenChatFromCalls}
+          onOpenGroup={onOpenGroupFromCalls}
         />
       ) : activeGuildChannel ? (
         <GuildChatView

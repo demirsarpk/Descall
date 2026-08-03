@@ -13,6 +13,22 @@ function readUserSettings() {
   }
 }
 
+function readMyStatus() {
+  try {
+    const saved = localStorage.getItem('descall:myStatus');
+    if (['online', 'idle', 'dnd', 'invisible'].includes(saved)) return saved;
+  } catch {
+    /* ignore */
+  }
+  return 'online';
+}
+
+/** DND mutes desktop notifications; live incoming calls still ring. */
+function isDndMuted({ allowDuringDnd = false } = {}) {
+  if (allowDuringDnd) return false;
+  return readMyStatus() === 'dnd';
+}
+
 class NotificationService {
   constructor() {
     this.isElectron = typeof window !== 'undefined' && !!window.electronAPI?.isElectron;
@@ -155,6 +171,7 @@ class NotificationService {
   // ─── Typed notification helpers ───────────────────────────────────────────
 
   async dm({ from, text, conversationId }) {
+    if (isDndMuted()) return;
     if (readUserSettings().msgNotifications === false) return;
     await this.show({
       title: from,
@@ -170,6 +187,7 @@ class NotificationService {
   }
 
   async groupMessage({ groupName, from, text, groupId }) {
+    if (isDndMuted()) return;
     if (readUserSettings().msgNotifications === false) return;
     await this.show({
       title: groupName,
@@ -180,6 +198,7 @@ class NotificationService {
   }
 
   async mention({ groupName, from, text, groupId, dmConversationId }) {
+    if (isDndMuted()) return;
     if (readUserSettings().msgNotifications === false) return;
     await this.show({
       title: `💬 ${from} senden bahsetti`,
@@ -196,6 +215,7 @@ class NotificationService {
   }
 
   async incomingCall({ from, type = 'voice' }) {
+    // Live calls still notify during DND so you don't miss them
     if (readUserSettings().callNotifications === false) return;
     await this.show({
       title: `📞 ${from} arıyor`,
@@ -218,6 +238,7 @@ class NotificationService {
   }
 
   async missedCall({ from, type = 'voice' }) {
+    if (isDndMuted()) return;
     await this.show({
       title: 'Cevapsız Arama',
       body: `${from} ${type === 'video' ? 'görüntülü' : 'sesli'} aradı`,
@@ -227,6 +248,7 @@ class NotificationService {
   }
 
   async friendRequest({ from, fromId }) {
+    if (isDndMuted()) return;
     await this.show({
       title: 'Arkadaşlık İsteği',
       body: `${from} seni arkadaş olarak eklemek istiyor`,
@@ -236,6 +258,7 @@ class NotificationService {
   }
 
   async friendOnline({ username }) {
+    if (isDndMuted()) return;
     await this.show({
       title: 'Descall',
       body: `${username} çevrimiçi oldu`,
@@ -246,6 +269,7 @@ class NotificationService {
   }
 
   async newAnnouncement({ title, preview, announcementId }) {
+    if (isDndMuted()) return;
     await this.show({
       title: `📢 ${title}`,
       body: preview,

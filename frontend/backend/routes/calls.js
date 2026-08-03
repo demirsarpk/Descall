@@ -6,7 +6,7 @@ const { listCallsForUser } = require("../lib/dmCallLog");
 
 const router = express.Router();
 
-// GET /api/calls — recent DM call history for the authenticated user
+// GET /api/calls — unified DM + group call history
 router.get("/", requireAuth, async (req, res) => {
   try {
     const limit = Number(req.query.limit) || 50;
