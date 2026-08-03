@@ -624,6 +624,10 @@ export function useGroupCall(socket, currentUserId = null) {
       });
 
       // Ensure we're in the group socket room to receive left/ended events
+      if (!socketRef.current?.connected) {
+        cleanup();
+        return;
+      }
       socketRef.current.emit("group:join", groupId);
 
       // Emit start event
@@ -702,6 +706,10 @@ export function useGroupCall(socket, currentUserId = null) {
       }]);
 
       // Join the group socket room so group:call:left/ended events are received
+      if (!socketRef.current?.connected) {
+        cleanup();
+        return;
+      }
       socketRef.current.emit("group:join", groupId);
 
       // Send accept signal - initiator will then send offer

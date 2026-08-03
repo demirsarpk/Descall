@@ -639,19 +639,23 @@ export function useCall(socket) {
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      socket.emit("call:offer", { toUserId: String(peerId), offer: pc.localDescription, callType: type });
+      if (!socketRef.current?.connected) {
+        cleanup();
+        return;
+      }
+      socketRef.current.emit("call:offer", { toUserId: String(peerId), offer: pc.localDescription, callType: type });
     } catch (err) {
       console.error("[Call] startCall failed:", err?.name || err?.message || err);
       cleanup();
     }
-  }, [socket, cleanup, setupPeerConnection]);
+  }, [cleanup, setupPeerConnection]);
 
   const acceptIncoming = useCallback(async () => {
     const offer = incomingOfferRef.current;
     const type = incomingCallTypeRef.current || "voice";
     // Use peerRef — Electron Accept IPC can fire with a stale React `peer` closure
     const currentPeer = peerRef.current || peer;
-    if (!currentPeer?.id || !offer || !socket) return;
+    if (!currentPeer?.id || !offer || !socketRef.current?.connected) return;
     if (modeRef.current !== "incoming" && modeRef.current !== "idle") {
       // Only accept while ringing (or allow if somehow idle with offer still set)
       if (modeRef.current !== "incoming") return;
@@ -680,32 +684,39 @@ export function useCall(socket) {
       await flushIce(pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      socket.emit("call:answer", { toUserId: currentPeer.id, answer: pc.localDescription });
+      if (!socketRef.current?.connected) {
+        cleanup();
+        return;
+      }
+      socketRef.current.emit("call:answer", { toUserId: currentPeer.id, answer: pc.localDescription });
       setMode("active");
       modeRef.current = "active";
     } catch {
       cleanup();
     }
-  }, [peer, socket, cleanup, setupPeerConnection]);
+  }, [peer, cleanup, setupPeerConnection]);
 
   const endCall = useCallback((toUserId) => {
     const targetId = toUserId ?? peerRef.current?.id;
-    if (targetId && socket?.connected) {
+    const sock = socketRef.current;
+    if (targetId && sock?.connected) {
       const currentMode = modeRef.current;
       if (currentMode === 'outgoing') {
-        socket.emit('call:cancel', { toUserId: targetId });
+        sock.emit('call:cancel', { toUserId: targetId });
       } else {
-        socket.emit('call:end', { toUserId: targetId });
+        sock.emit('call:end', { toUserId: targetId });
       }
     }
     gracefulEnd();
-  }, [socket, gracefulEnd]);
+  }, [gracefulEnd]);
 
   const declineIncoming = useCallback(() => {
     const targetId = peerRef.current?.id ?? peer?.id;
-    if (targetId && socket?.connected) socket.emit('call:decline', { toUserId: targetId });
+    if (targetId && socketRef.current?.connected) {
+      socketRef.current.emit('call:decline', { toUserId: targetId });
+    }
     cleanup();
-  }, [peer, socket, cleanup]);
+  }, [peer, cleanup]);
 
   // Electron notification Accept / Decline — refs avoid stale closures from mount-once effect
   const acceptIncomingRef = useRef(acceptIncoming);

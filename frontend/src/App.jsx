@@ -620,7 +620,8 @@ export default function App() {
         }
       } else if (context === "group" && groupId) {
         setTypingGroupUsers((prev) => {
-          const groupMap = new Map(prev[groupId] ?? []);
+          const cur = prev[groupId];
+          const groupMap = cur instanceof Map ? new Map(cur) : new Map();
           if (typing) {
             groupMap.set(fromUser.id, fromUser);
           } else {
@@ -636,7 +637,8 @@ export default function App() {
         if (typing) {
           const t = setTimeout(() => {
             setTypingGroupUsers((prev) => {
-              const groupMap = new Map(prev[groupId] ?? []);
+              const cur = prev[groupId];
+              const groupMap = cur instanceof Map ? new Map(cur) : new Map();
               groupMap.delete(fromUser.id);
               return { ...prev, [groupId]: groupMap };
             });
@@ -960,8 +962,8 @@ export default function App() {
         });
         if (idx >= 0) {
           const prevMsg = cur[idx];
-          // Never interrupt a live hand with lobby/help (fixes board vanishing on click)
-          const prevLive = ["playing", "dealer", "dealing"].includes(
+          // Never interrupt a live or finished hand with lobby/help (Again must survive)
+          const prevLive = ["playing", "dealer", "dealing", "finished"].includes(
             prevMsg?.gameData?.status
           );
           if (prevLive && !isCasinoBoardIncoming(message)) {
