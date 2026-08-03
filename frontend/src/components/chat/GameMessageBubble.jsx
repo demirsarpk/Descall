@@ -5,6 +5,7 @@ import {
   Wallet, Crown, Target, Sparkles, BookOpen, Terminal, BarChart3, Zap,
   Shield, Dice5, Info, HandMetal, X,
 } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 /* ── Playing card ─────────────────────────────────────────────── */
 
@@ -46,6 +47,7 @@ function PlayingCard({ card, hidden = false, index = 0 }) {
 }
 
 function HandRow({ label, hand, hideHole, highlight }) {
+  const t = useT();
   const cards = hand?.cards || [];
   const showValue = !hideHole && hand?.value != null;
 
@@ -61,7 +63,7 @@ function HandRow({ label, hand, hideHole, highlight }) {
             animate={{ scale: 1 }}
           >
             {hand.isBlackjack ? "BJ" : hand.value}
-            {hand.isSoft && !hand.isBlackjack ? " soft" : ""}
+            {hand.isSoft && !hand.isBlackjack ? ` ${t("soft")}` : ""}
           </motion.span>
         ) : (
           <span className="bj-hand-total is-hidden">?</span>
@@ -96,10 +98,11 @@ function Chip({ amount, active, disabled, onClick }) {
 }
 
 function ActionBar({ actions, onAction, busy }) {
+  const t = useT();
   const map = {
-    hit: { label: "HIT", icon: TrendingUp, variant: "hit" },
-    stand: { label: "STAND", icon: HandMetal, variant: "stand" },
-    double: { label: "DOUBLE", icon: Coins, variant: "double" },
+    hit: { label: t("HIT"), icon: TrendingUp, variant: "hit" },
+    stand: { label: t("STAND"), icon: HandMetal, variant: "stand" },
+    double: { label: t("DOUBLE"), icon: Coins, variant: "double" },
   };
   return (
     <div className="bj-actions">
@@ -126,40 +129,41 @@ function ActionBar({ actions, onAction, busy }) {
   );
 }
 
-function outcomeCopy(result, profit, bet) {
+function outcomeCopy(result, profit, bet, t) {
   return (
     {
       blackjack: {
         title: "BLACKJACK!",
-        headline: "You win",
-        sub: `+${(profit || 0).toLocaleString()} credits`,
+        headline: t("You win"),
+        sub: `+${(profit || 0).toLocaleString()} ${t("credits")}`,
         cls: "bj",
       },
       win: {
-        title: "YOU WIN",
-        headline: "You win",
-        sub: `+${(profit || 0).toLocaleString()} credits`,
+        title: t("YOU WIN"),
+        headline: t("You win"),
+        sub: `+${(profit || 0).toLocaleString()} ${t("credits")}`,
         cls: "win",
       },
       push: {
-        title: "PUSH",
-        headline: "Tie",
-        sub: "Stake returned",
+        title: t("PUSH"),
+        headline: t("Tie"),
+        sub: t("Stake returned"),
         cls: "push",
       },
       loss: {
-        title: "YOU LOSE",
-        headline: "Dealer wins",
-        sub: `−${(bet || 0).toLocaleString()} credits`,
+        title: t("YOU LOSE"),
+        headline: t("Dealer wins"),
+        sub: `−${(bet || 0).toLocaleString()} ${t("credits")}`,
         cls: "loss",
       },
-    }[result] || { title: String(result || ""), headline: "Hand complete", sub: "", cls: "" }
+    }[result] || { title: String(result || ""), headline: t("Hand complete"), sub: "", cls: "" }
   );
 }
 
 function ResultBanner({ result, profit, bet }) {
+  const t = useT();
   if (!result) return null;
-  const copy = outcomeCopy(result, profit, bet);
+  const copy = outcomeCopy(result, profit, bet, t);
 
   return (
     <motion.div
@@ -178,8 +182,9 @@ function ResultBanner({ result, profit, bet }) {
 }
 
 function ResultStamp({ result, profit, bet }) {
+  const t = useT();
   if (!result) return null;
-  const copy = outcomeCopy(result, profit, bet);
+  const copy = outcomeCopy(result, profit, bet, t);
   return (
     <motion.div
       className={`bj-stamp bj-stamp--${copy.cls}`}
@@ -194,6 +199,7 @@ function ResultStamp({ result, profit, bet }) {
 }
 
 function LobbyTable({ credits, onBet, onHelp }) {
+  const t = useT();
   const [bet, setBet] = useState(100);
   const [showHelp, setShowHelp] = useState(false);
   const chips = [50, 100, 250, 500, 1000, 2500, 5000];
@@ -206,38 +212,38 @@ function LobbyTable({ credits, onBet, onHelp }) {
           <div className="bj-brand">
             <BookOpen size={18} />
             <div>
-              <h3>Casino Help</h3>
-              <p>Commands & house rules</p>
+              <h3>{t("Casino Help")}</h3>
+              <p>{t("Commands & house rules")}</p>
             </div>
           </div>
-          <button type="button" className="bj-icon-btn" onClick={() => setShowHelp(false)} aria-label="Close help">
+          <button type="button" className="bj-icon-btn" onClick={() => setShowHelp(false)} aria-label={t("Close help")}>
             <X size={16} />
           </button>
         </header>
         <div className="bj-info-grid">
           <div>
-            <h4><Terminal size={14} /> Play</h4>
+            <h4><Terminal size={14} /> {t("Play")}</h4>
             <ul>
-              <li><code>/bj 100</code> deal</li>
+              <li><code>/bj 100</code> {t("deal")}</li>
               <li><code>/hit</code> · <code>/stand</code> · <code>/double</code></li>
             </ul>
           </div>
           <div>
-            <h4><Info size={14} /> Info</h4>
+            <h4><Info size={14} /> {t("Info")}</h4>
             <ul>
-              <li><code>/credits</code> balance</li>
-              <li><code>/top</code> leaderboard</li>
-              <li><code>/help</code> this panel</li>
+              <li><code>/credits</code> {t("balance")}</li>
+              <li><code>/top</code> {t("leaderboard")}</li>
+              <li><code>/help</code> {t("this panel")}</li>
             </ul>
           </div>
         </div>
         <ul className="bj-rules">
-          <li><Shield size={14} /> Beat the dealer without going over 21</li>
-          <li><Dice5 size={14} /> Blackjack pays <strong>3:2</strong></li>
-          <li><Zap size={14} /> Dealer hits soft 17 · 6-deck shoe</li>
+          <li><Shield size={14} /> {t("Beat the dealer without going over 21")}</li>
+          <li><Dice5 size={14} /> {t("Blackjack pays")} <strong>3:2</strong></li>
+          <li><Zap size={14} /> {t("Dealer hits soft 17 · 6-deck shoe")}</li>
         </ul>
         <button type="button" className="bj-deal-btn" onClick={() => setShowHelp(false)}>
-          Back to bet
+          {t("Back to bet")}
         </button>
       </div>
     );
@@ -250,7 +256,7 @@ function LobbyTable({ credits, onBet, onHelp }) {
           <Sparkles size={18} />
           <div>
             <h3>Blackjack</h3>
-            <p>Multi-deck · 3:2 · Soft 17</p>
+            <p>{t("Multi-deck · 3:2 · Soft 17")}</p>
           </div>
         </div>
         <div className="bj-bankroll">
@@ -261,7 +267,7 @@ function LobbyTable({ credits, onBet, onHelp }) {
 
       <div className="bj-bet-panel">
         <div className="bj-bet-readout">
-          <span>Bet</span>
+          <span>{t("Bet")}</span>
           <strong>{bet.toLocaleString()}</strong>
         </div>
         <div className="bj-chip-row">
@@ -296,7 +302,7 @@ function LobbyTable({ credits, onBet, onHelp }) {
           onClick={() => canPlay && onBet(bet)}
         >
           <Gamepad2 size={18} />
-          Deal hand
+          {t("Deal hand")}
         </motion.button>
       </div>
 
@@ -308,7 +314,7 @@ function LobbyTable({ credits, onBet, onHelp }) {
           onHelp?.();
         }}
       >
-        <HelpCircle size={14} /> Rules & commands
+        <HelpCircle size={14} /> {t("Rules & commands")}
       </button>
     </div>
   );
@@ -317,45 +323,47 @@ function LobbyTable({ credits, onBet, onHelp }) {
 /* ── Info panels ──────────────────────────────────────────────── */
 
 function HelpPanel({ credits }) {
+  const t = useT();
   return (
     <div className="bj-shell bj-shell--info">
       <header className="bj-header">
         <div className="bj-brand">
           <BookOpen size={18} />
           <div>
-            <h3>Casino Help</h3>
-            <p>Commands & house rules</p>
+            <h3>{t("Casino Help")}</h3>
+            <p>{t("Commands & house rules")}</p>
           </div>
         </div>
         <div className="bj-bankroll"><Coins size={14} /><strong>{(credits || 0).toLocaleString()}</strong></div>
       </header>
       <div className="bj-info-grid">
         <div>
-          <h4><Terminal size={14} /> Play</h4>
+          <h4><Terminal size={14} /> {t("Play")}</h4>
           <ul>
-            <li><code>/bj 100</code> deal</li>
+            <li><code>/bj 100</code> {t("deal")}</li>
             <li><code>/hit</code> · <code>/stand</code> · <code>/double</code></li>
           </ul>
         </div>
         <div>
-          <h4><Info size={14} /> Info</h4>
+          <h4><Info size={14} /> {t("Info")}</h4>
           <ul>
-            <li><code>/credits</code> balance</li>
-            <li><code>/top</code> leaderboard</li>
-            <li><code>/help</code> this panel</li>
+            <li><code>/credits</code> {t("balance")}</li>
+            <li><code>/top</code> {t("leaderboard")}</li>
+            <li><code>/help</code> {t("this panel")}</li>
           </ul>
         </div>
       </div>
       <ul className="bj-rules">
-        <li><Shield size={14} /> Beat the dealer without going over 21</li>
-        <li><Dice5 size={14} /> Blackjack pays <strong>3:2</strong></li>
-        <li><Zap size={14} /> Dealer hits soft 17 · 6-deck shoe</li>
+        <li><Shield size={14} /> {t("Beat the dealer without going over 21")}</li>
+        <li><Dice5 size={14} /> {t("Blackjack pays")} <strong>3:2</strong></li>
+        <li><Zap size={14} /> {t("Dealer hits soft 17 · 6-deck shoe")}</li>
       </ul>
     </div>
   );
 }
 
 function CreditsPanel({ content, gameData }) {
+  const t = useT();
   const credits = gameData?.credits ?? gameData?.stats?.credits;
   const stats = gameData?.stats;
   return (
@@ -364,17 +372,17 @@ function CreditsPanel({ content, gameData }) {
         <div className="bj-brand">
           <Wallet size={18} />
           <div>
-            <h3>Balance</h3>
-            <p>Your casino bankroll</p>
+            <h3>{t("Balance")}</h3>
+            <p>{t("Your casino bankroll")}</p>
           </div>
         </div>
       </header>
       <div className="bj-balance-hero">{Number(credits || 0).toLocaleString()}</div>
       {stats && (
         <div className="bj-stat-row">
-          <div><span>Won</span><strong>{(stats.total_won || 0).toLocaleString()}</strong></div>
-          <div><span>Lost</span><strong>{(stats.total_lost || 0).toLocaleString()}</strong></div>
-          <div><span>Hands</span><strong>{(stats.games_played || 0).toLocaleString()}</strong></div>
+          <div><span>{t("Won")}</span><strong>{(stats.total_won || 0).toLocaleString()}</strong></div>
+          <div><span>{t("Lost")}</span><strong>{(stats.total_lost || 0).toLocaleString()}</strong></div>
+          <div><span>{t("Hands")}</span><strong>{(stats.games_played || 0).toLocaleString()}</strong></div>
         </div>
       )}
       {!stats && content && <pre className="bj-plain">{content}</pre>}
@@ -383,14 +391,15 @@ function CreditsPanel({ content, gameData }) {
 }
 
 function LeaderboardPanel({ content }) {
+  const t = useT();
   return (
     <div className="bj-shell bj-shell--info">
       <header className="bj-header">
         <div className="bj-brand">
           <BarChart3 size={18} />
           <div>
-            <h3>Leaderboard</h3>
-            <p>Top bankrolls</p>
+            <h3>{t("Leaderboard")}</h3>
+            <p>{t("Top bankrolls")}</p>
           </div>
         </div>
       </header>
@@ -406,6 +415,7 @@ export default function GameMessageBubble({
   socket,
   currentUserId,
 }) {
+  const t = useT();
   const { content, gameData, type, groupId } = message;
   const [credits, setCredits] = useState(gameData?.credits ?? 1000);
   const [busy, setBusy] = useState(false);
@@ -471,7 +481,7 @@ export default function GameMessageBubble({
   const isFinished = gameData.status === "finished";
   const isMine = !gameData.userId || gameData.userId === currentUserId;
   const hideHole = Boolean(gameData.dealerHand?.holeHidden || isPlaying);
-  const outcome = isFinished ? outcomeCopy(gameData.result, gameData.profit, gameData.bet) : null;
+  const outcome = isFinished ? outcomeCopy(gameData.result, gameData.profit, gameData.bet, t) : null;
 
   let statusIcon = <Coins size={16} />;
   if (isPlaying) statusIcon = <Target size={16} />;
@@ -507,12 +517,12 @@ export default function GameMessageBubble({
           <div>
             <h3>
               {isPlaying
-                ? "Live hand"
-                : outcome?.title || "Hand complete"}
+                ? t("Live hand")
+                : outcome?.title || t("Hand complete")}
             </h3>
             <p>
-              @{gameData.username || "Player"} · Bet {gameData.bet?.toLocaleString()}
-              {gameData.doubled ? " · Doubled" : ""}
+              @{gameData.username || t("Player")} · {t("Bet")} {gameData.bet?.toLocaleString()}
+              {gameData.doubled ? ` · ${t("Doubled")}` : ""}
               {isFinished && outcome?.sub ? ` · ${outcome.sub}` : ""}
             </p>
           </div>
@@ -531,14 +541,14 @@ export default function GameMessageBubble({
 
       <div className={`bj-felt ${isFinished ? `bj-felt--${gameData.result}` : ""}`}>
         <HandRow
-          label="Dealer"
+          label={t("Dealer")}
           hand={gameData.dealerHand}
           hideHole={hideHole}
           highlight={dealerHighlight}
         />
         <div className="bj-felt-divider" />
         <HandRow
-          label="You"
+          label={t("You")}
           hand={gameData.playerHand}
           hideHole={false}
           highlight={playerHighlight}
@@ -559,7 +569,7 @@ export default function GameMessageBubble({
       )}
 
       {isPlaying && !isMine && (
-        <div className="bj-spectator">Watching this hand…</div>
+        <div className="bj-spectator">{t("Watching this hand…")}</div>
       )}
 
       {isFinished && isMine && (
@@ -572,7 +582,7 @@ export default function GameMessageBubble({
             onClick={() => emitCommand("bj", String(gameData.originalBet || gameData.bet))}
           >
             <RotateCcw size={16} />
-            Again ({(gameData.originalBet || gameData.bet)?.toLocaleString()})
+            {t("Again")} ({(gameData.originalBet || gameData.bet)?.toLocaleString()})
           </motion.button>
           <motion.button
             type="button"
@@ -584,7 +594,7 @@ export default function GameMessageBubble({
             }
           >
             <Coins size={16} />
-            Double stake
+            {t("Double stake")}
           </motion.button>
         </div>
       )}

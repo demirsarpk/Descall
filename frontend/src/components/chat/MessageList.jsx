@@ -518,7 +518,7 @@ function MessageBubble({
             ) : message.mediaType === "image" ? (
               <img
                 src={message.mediaUrl}
-                alt={message.originalName || "Image"}
+                alt={message.originalName || t("Image")}
                 className="message-image"
                 style={{ maxWidth: 400, maxHeight: 300, borderRadius: 8, display: "block", cursor: "pointer" }}
                 onClick={() => window.open(message.mediaUrl, "_blank")}
@@ -608,7 +608,7 @@ function MessageBubble({
                       ev.stopPropagation();
                       emitReact(e);
                     }}
-                    title={`React ${e}`}
+                    title={`${t("React")} ${e}`}
                   >
                     {e}
                   </button>
@@ -647,7 +647,7 @@ function MessageBubble({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="message-inline-picker-head">
-                      <span>React</span>
+                      <span>{t("React")}</span>
                       <button type="button" onClick={() => setPickerOpen(false)} aria-label={t("Close")}>
                         <X size={12} />
                       </button>

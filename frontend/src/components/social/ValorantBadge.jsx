@@ -1,8 +1,11 @@
+import { useT } from "../../context/LocaleContext";
+
 /**
  * Compact Valorant rank / Riot ID badge for profiles & hover cards.
  * Only renders when the user has linked Name#TAG (valorant.linked).
  */
 export default function ValorantBadge({ valorant, compact = false }) {
+  const t = useT();
   if (!valorant?.linked) return null;
 
   const riotId =
@@ -14,7 +17,7 @@ export default function ValorantBadge({ valorant, compact = false }) {
 
   const rank = valorant.rankTier || valorant.rank || null;
   const rr = typeof valorant.rankRr === "number" ? valorant.rankRr : null;
-  const rankLabel = rank || "Unranked";
+  const rankLabel = rank || t("Unranked");
 
   if (compact) {
     return (
@@ -37,7 +40,7 @@ export default function ValorantBadge({ valorant, compact = false }) {
           V
         </span>
         <span className="val-badge-label">Valorant</span>
-        {valorant.verified && <span className="val-badge-verified">Linked</span>}
+        {valorant.verified && <span className="val-badge-verified">{t("Linked")}</span>}
       </div>
       <div className="val-badge-id">{riotId}</div>
       <div className="val-badge-rank">

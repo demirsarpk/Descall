@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Smile, X } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👏", "🤔", "👎"];
 
@@ -13,6 +14,7 @@ export default function MessageReactions({
   socket,
   onReact
 }) {
+  const t = useT();
   const [showPicker, setShowPicker] = useState(false);
   const [localReactions, setLocalReactions] = useState(reactions);
 
@@ -93,7 +95,7 @@ export default function MessageReactions({
             onClick={() => handleReactionClick(emoji)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            title={`${data.count} reaction${data.count > 1 ? "s" : ""}`}
+            title={t(data.count === 1 ? "{count} reaction" : "{count} reactions", { count: data.count })}
           >
             <span className="reaction-emoji">{emoji}</span>
             <span className="reaction-count">{data.count}</span>
@@ -108,7 +110,7 @@ export default function MessageReactions({
           onClick={() => setShowPicker(!showPicker)}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          title="Add reaction"
+          title={t("Add reaction")}
         >
           <Smile size={16} />
         </motion.button>
@@ -130,7 +132,7 @@ export default function MessageReactions({
                 exit={{ opacity: 0, scale: 0.8, y: 10 }}
               >
                 <div className="reaction-picker-header">
-                  <span>Add Reaction</span>
+                  <span>{t("Add Reaction")}</span>
                   <button className="reaction-picker-close" onClick={() => setShowPicker(false)}>
                     <X size={14} />
                   </button>

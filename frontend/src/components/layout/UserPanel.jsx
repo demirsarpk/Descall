@@ -670,11 +670,11 @@ const UserPanel = forwardRef(function UserPanel({
                       </button>
                       {avatarUrl && (
                         <button type="button" className="us-btn ghost-danger" onClick={() => setAvatarUrl("")}>
-                          <X size={14} /> Remove
+                          <X size={14} /> {t("Remove")}
                         </button>
                       )}
                     </div>
-                    <span className="us-hint">JPG, PNG, WebP or GIF · Max 8 MB · GIFs animate on hover / while speaking</span>
+                    <span className="us-hint">{t("JPG, PNG, WebP or GIF · Max 8 MB · GIFs animate on hover / while speaking")}</span>
                   </div>
                 </div>
                 <input
@@ -686,7 +686,7 @@ const UserPanel = forwardRef(function UserPanel({
                 />
 
                 <label className="us-field">
-                  <span><ImageIcon size={13} /> Banner URL</span>
+                  <span><ImageIcon size={13} /> {t("Banner URL")}</span>
                   <input
                     value={bannerUrl}
                     onChange={(e) => setBannerUrl(e.target.value)}

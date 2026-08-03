@@ -117,11 +117,11 @@ export default function ServerSidebar({
   useEffect(() => {
     if (!socket) return;
     const onFriendError = ({ message }) => {
-      setAddError(message || "Friend action failed.");
+      setAddError(message || t("Friend action failed."));
       setTimeout(() => setAddError(""), 4000);
     };
     const onFriendSent = ({ to } = {}) => {
-      setAddSuccess(to ? `Request sent to ${to}` : "Request sent.");
+      setAddSuccess(to ? t("Request sent to {to}", { to }) : t("Request sent."));
       setTimeout(() => setAddSuccess(""), 3000);
     };
     socket.on("friend:error", onFriendError);
@@ -130,7 +130,7 @@ export default function ServerSidebar({
       socket.off("friend:error", onFriendError);
       socket.off("friend:request:sent", onFriendSent);
     };
-  }, [socket]);
+  }, [socket, t]);
 
   useEffect(() => {
     if (showAnnouncements && announcements.length === 0) {
@@ -162,7 +162,7 @@ export default function ServerSidebar({
       socket?.emit("friend:request", { toUsername: friendUsername.trim() });
       setFriendUsername("");
     } catch (err) {
-      setAddError("Failed to send friend request");
+      setAddError(t("Failed to send friend request"));
     } finally {
       setAddLoading(false);
     }
@@ -185,8 +185,8 @@ export default function ServerSidebar({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.details || `Failed to create group (status ${res.status})`);
-      setAddSuccess(`Group "${groupName.trim()}" created`);
+      if (!res.ok) throw new Error(data.error || data.details || t("Failed to create group (status {status})", { status: res.status }));
+      setAddSuccess(t('Group "{name}" created', { name: groupName.trim() }));
       setGroupName("");
       setSelectedGroupMembers([]);
       setTimeout(() => setAddSuccess(""), 3000);
@@ -195,7 +195,7 @@ export default function ServerSidebar({
       if (data.group) onGroupCreated?.(data.group);
       onRefreshGroups?.();
     } catch (err) {
-      setAddError(err.message || "Network error. Is backend deployed?");
+      setAddError(err.message || t("Network error. Is backend deployed?"));
     } finally {
       setAddLoading(false);
     }

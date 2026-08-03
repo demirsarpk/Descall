@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { PhoneOff, Mic, MicOff, Video, VideoOff, Monitor } from "lucide-react";
 import RippleButton from "./ui/RippleButton";
+import { useT } from "../context/LocaleContext";
 
 /**
  * Mobile-optimized video conference UI
@@ -28,6 +29,7 @@ export default function VideoConferenceMobile({
   setScreenQuality,
   onProcessedStream,
 }) {
+  const t = useT();
   if (!isOpen || minimized) return null;
 
   const safeParticipants = Array.isArray(participants) ? participants : [];
@@ -42,7 +44,7 @@ export default function VideoConferenceMobile({
     >
       <div className="vc-mobile-header">
         <span className="vc-mobile-title">
-          {callType === "video" ? "Video Call" : "Voice Call"}
+          {callType === "video" ? t("Video Call") : t("Voice Call")}
         </span>
         <button className="vc-mobile-close" onClick={onClose}>
           ✕
@@ -52,7 +54,7 @@ export default function VideoConferenceMobile({
       <div className="vc-mobile-content">
         {safeParticipants.map((p) => (
           <div key={p.id} className="vc-mobile-participant">
-            <span>{p.username || "User"}</span>
+            <span>{p.username || t("User")}</span>
           </div>
         ))}
       </div>

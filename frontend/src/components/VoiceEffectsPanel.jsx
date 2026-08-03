@@ -23,6 +23,7 @@ import {
   Headphones,
   VolumeX
 } from 'lucide-react';
+import { useT } from '../context/LocaleContext';
 import './VoiceEffectsPanel.css';
 
 const PRESET_ICONS = {
@@ -50,6 +51,7 @@ const PRESET_ICONS = {
 };
 
 export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProcessedStream }) {
+  const t = useT();
   const [presets, setPresets] = useState([]);
   const [currentPreset, setCurrentPreset] = useState('none');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -169,11 +171,11 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
           setIsProcessing(true);
           setRnnoiseEnabled(voiceEffects.isRNNoiseEnabled());
         } else {
-          setError('Voice effects failed to start');
+          setError(t('Voice effects failed to start'));
         }
       } catch (err) {
         if (!isCancelled) {
-          setError('Initialization error: ' + err.message);
+          setError(t('Initialization error: {message}', { message: err.message }));
         }
       } finally {
         if (!isCancelled) {
@@ -188,7 +190,7 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
       isCancelled = true;
       stopVoiceEffects();
     };
-  }, [isOpen, stopVoiceEffects]);
+  }, [isOpen, stopVoiceEffects, t]);
 
   // Process stream when localStream changes
   useEffect(() => {
@@ -226,7 +228,7 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
       } catch (err) {
         if (isActive) {
           console.error('Stream processing error:', err);
-          setError('Audio processing failed: ' + err.message);
+          setError(t('Audio processing failed: {message}', { message: err.message }));
         }
       }
     };
@@ -236,7 +238,7 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
     return () => {
       isActive = false;
     };
-  }, [isOpen, localStream, isProcessing, onProcessedStream]);
+  }, [isOpen, localStream, isProcessing, onProcessedStream, t]);
 
   // Auto-connect sidetone when stream changes
   useEffect(() => {
@@ -338,7 +340,7 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
         <div className="panel-header">
           <div className="header-title">
             <Sparkles className="icon" />
-            <h2>Voice Effects</h2>
+            <h2>{t("Voice Effects")}</h2>
           </div>
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
@@ -352,7 +354,7 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
         {isInitializing && (
           <div className="loading-state">
             <div className="spinner" />
-            <span>Voice engine starting...</span>
+            <span>{t("Voice engine starting...")}</span>
           </div>
         )}
 
@@ -367,17 +369,17 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
             />
             <div className="visualization-label">
               <Activity size={14} />
-              <span>Real-time Spectrum</span>
+              <span>{t("Real-time Spectrum")}</span>
             </div>
           </div>
 
-          {/* Sidetone / Audio Monitoring - Kendini Duyma */}
+          {/* Sidetone / Audio Monitoring */}
           <div className="rnnoise-section sidetone-section">
             <div className="rnnoise-info">
               <Headphones size={18} className={sidetoneEnabled ? 'active-icon' : ''} />
               <div>
-                <span className="rnnoise-title">Sidetone</span>
-                <span className="rnnoise-desc">Hear your own voice to test effects</span>
+                <span className="rnnoise-title">{t("Sidetone")}</span>
+                <span className="rnnoise-desc">{t("Hear your own voice to test effects")}</span>
               </div>
             </div>
             <button 
@@ -385,7 +387,7 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
               onClick={toggleSidetone}
             >
               {sidetoneEnabled ? <Headphones size={16} /> : <VolumeX size={16} />}
-              {sidetoneEnabled ? 'On' : 'Off'}
+              {sidetoneEnabled ? t("On") : t("Off")}
             </button>
           </div>
 
@@ -406,7 +408,7 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
                 <span className="volume-percent">{sidetoneVolume}%</span>
               </div>
               <p className="sidetone-hint">
-                ⚠ Yüksek ses kulaklığa zarar verebilir. Düşük ses seviyesinden başlayın.
+                {t("⚠ High volume may damage headphones. Start at a low level.")}
               </p>
             </div>
           )}
@@ -416,8 +418,8 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
             <div className="rnnoise-info">
               <Settings2 size={18} />
               <div>
-                <span className="rnnoise-title">RNNoise AI</span>
-                <span className="rnnoise-desc">AI noise suppression</span>
+                <span className="rnnoise-title">{t("RNNoise AI")}</span>
+                <span className="rnnoise-desc">{t("AI noise suppression")}</span>
               </div>
             </div>
             <button 
@@ -425,13 +427,13 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
               onClick={handleRNNoiseToggle}
             >
               {rnnoiseEnabled ? <Check size={16} /> : <span className="dot" />}
-              {rnnoiseEnabled ? 'Active' : 'Inactive'}
+              {rnnoiseEnabled ? t("Active") : t("Inactive")}
             </button>
           </div>
 
           {/* Presets Grid */}
           <div className="presets-section">
-            <h3>Effect Presets</h3>
+            <h3>{t("Effect Presets")}</h3>
             <div className="presets-grid">
               {presets.map(preset => {
                 const Icon = PRESET_ICONS[preset.id] || Mic;
@@ -464,14 +466,14 @@ export default function VoiceEffectsPanel({ isOpen, onClose, localStream, onProc
                 <Sparkles size={14} />
                 <span>{presets.find(p => p.id === currentPreset)?.name}</span>
               </div>
-              <span className="effect-status">Effect active</span>
+              <span className="effect-status">{t("Effect active")}</span>
             </div>
           )}
         </div>
 
         <div className="panel-footer">
           <p className="footer-note">
-            Powered by Web Audio API + WebAssembly
+            {t("Powered by Web Audio API + WebAssembly")}
           </p>
         </div>
       </div>

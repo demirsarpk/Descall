@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Hash, Volume2, ChevronDown, ChevronRight, LogOut, Trash2, Copy, Check, Settings, Users } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 function ChannelItem({ channel, isActive, onClick }) {
   const Icon = channel.type === "voice" ? Volume2 : Hash;
@@ -51,6 +52,7 @@ export default function ServerSidebar({
   onLeaveGuild,
   onDeleteGuild,
 }) {
+  const t = useT();
   const [showGuildMenu, setShowGuildMenu] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
@@ -126,11 +128,11 @@ export default function ServerSidebar({
                       <>
                         <button className="guild-dropdown-item" onClick={() => { handleCopyInvite(); setShowGuildMenu(false); }}>
                           {inviteCopied ? <Check size={14} /> : <Copy size={14} />}
-                          <span>{inviteCopied ? "Copied!" : "Copy Invite"}</span>
+                          <span>{inviteCopied ? t("Copied!") : t("Copy Invite")}</span>
                         </button>
                         <button className="guild-dropdown-item" onClick={() => setShowGuildMenu(false)}>
                           <Settings size={14} />
-                          <span>Server Settings</span>
+                          <span>{t("Server Settings")}</span>
                         </button>
                         <div className="guild-dropdown-divider" />
                         <button
@@ -138,7 +140,7 @@ export default function ServerSidebar({
                           onClick={() => { onDeleteGuild(activeGuild.id); setShowGuildMenu(false); }}
                         >
                           <Trash2 size={14} />
-                          <span>Delete Server</span>
+                          <span>{t("Delete Server")}</span>
                         </button>
                       </>
                     ) : (
@@ -147,7 +149,7 @@ export default function ServerSidebar({
                         onClick={() => { onLeaveGuild(activeGuild.id); setShowGuildMenu(false); }}
                       >
                         <LogOut size={14} />
-                        <span>Leave Server</span>
+                        <span>{t("Leave Server")}</span>
                       </button>
                     )}
                   </motion.div>
@@ -193,7 +195,7 @@ export default function ServerSidebar({
           /* No guild selected — show placeholder */
           <div className="guild-empty-state">
             <Users size={48} style={{ opacity: 0.3, marginBottom: 16 }} />
-            <p>Select a server or create one</p>
+            <p>{t("Select a server or create one")}</p>
           </div>
         )}
       </div>

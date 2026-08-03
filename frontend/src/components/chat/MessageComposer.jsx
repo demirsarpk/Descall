@@ -383,7 +383,7 @@ export default function MessageComposer({
         }
         const blob = new Blob(audioChunksRef.current, { type: actualMime });
         if (!blob.size) {
-          setUploadError("Empty recording — try again.");
+          setUploadError(t("Empty recording — try again."));
           setTimeout(() => setUploadError(""), 4000);
           return;
         }
@@ -423,7 +423,7 @@ export default function MessageComposer({
         stream.getTracks().forEach((t) => t.stop());
         if (timerRef.current) clearInterval(timerRef.current);
         setIsRecording(false);
-        setUploadError("Recording failed.");
+        setUploadError(t("Recording failed."));
         setTimeout(() => setUploadError(""), 4000);
       };
       // timeslice helps finalize duration metadata on some browsers
@@ -451,7 +451,7 @@ export default function MessageComposer({
       }, 1000);
     } catch (err) {
       console.error("Recording failed:", err);
-      setUploadError("Microphone access denied.");
+      setUploadError(t("Microphone access denied."));
       setTimeout(() => setUploadError(""), 4000);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

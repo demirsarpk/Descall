@@ -4,6 +4,7 @@ import { Users, Loader2, LogIn, CheckCircle2, AlertTriangle } from "lucide-react
 import { previewGroupInvite, joinGroupByInvite } from "../../api/groups";
 import { getToken } from "../../lib/storage";
 import { Avatar } from "../ui/Avatar";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * Discord-style invite landing — shown for /invite/:code
@@ -15,6 +16,7 @@ export default function GroupInviteLanding({
   onNeedLogin,
   onDismiss,
 }) {
+  const t = useT();
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState("");
@@ -30,7 +32,7 @@ export default function GroupInviteLanding({
         const data = await previewGroupInvite(code);
         if (!cancelled) setPreview(data);
       } catch (err) {
-        if (!cancelled) setError(err.message || "Invite not found");
+        if (!cancelled) setError(err.message || t("Invite not found"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -38,7 +40,7 @@ export default function GroupInviteLanding({
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, t]);
 
   const handleJoin = async () => {
     if (!getToken()) {
@@ -54,7 +56,7 @@ export default function GroupInviteLanding({
       const res = await joinGroupByInvite(code);
       onJoined?.(res.group);
     } catch (err) {
-      setError(err.message || "Could not join group");
+      setError(err.message || t("Could not join group"));
     } finally {
       setJoining(false);
     }
@@ -69,26 +71,26 @@ export default function GroupInviteLanding({
         transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="invite-landing-brand">Descall</div>
-        <h1>You've been invited to join a group</h1>
+        <h1>{t("You've been invited to join a group")}</h1>
 
         {loading ? (
           <div className="invite-landing-state">
             <Loader2 size={28} className="spin" />
-            <span>Loading invite…</span>
+            <span>{t("Loading invite…")}</span>
           </div>
         ) : error && !preview ? (
           <div className="invite-landing-state is-error">
             <AlertTriangle size={28} />
             <p>{error}</p>
             <button type="button" className="invite-landing-secondary" onClick={onDismiss}>
-              Back to Descall
+              {t("Back to Descall")}
             </button>
           </div>
         ) : (
           <>
             <div className="invite-landing-group">
               <Avatar
-                name={preview?.group?.name || "Group"}
+                name={preview?.group?.name || t("Group")}
                 size={72}
                 user={{ avatarUrl: preview?.group?.avatarUrl, username: preview?.group?.name }}
               />
@@ -96,7 +98,7 @@ export default function GroupInviteLanding({
                 <strong>{preview?.group?.name}</strong>
                 <span>
                   <Users size={14} />
-                  {preview?.group?.memberCount ?? 0} members
+                  {t("{count} members", { count: preview?.group?.memberCount ?? 0 })}
                 </span>
               </div>
             </div>
@@ -104,7 +106,7 @@ export default function GroupInviteLanding({
             {preview?.alreadyMember ? (
               <div className="invite-landing-banner is-ok">
                 <CheckCircle2 size={16} />
-                You're already a member of this group
+                {t("You're already a member of this group")}
               </div>
             ) : null}
 
@@ -119,17 +121,17 @@ export default function GroupInviteLanding({
               {joining ? (
                 <Loader2 size={18} className="spin" />
               ) : me ? (
-                preview?.alreadyMember ? "Open group" : "Accept invite"
+                preview?.alreadyMember ? t("Open group") : t("Accept invite")
               ) : (
                 <>
                   <LogIn size={18} />
-                  Log in to join
+                  {t("Log in to join")}
                 </>
               )}
             </button>
 
             <button type="button" className="invite-landing-secondary" onClick={onDismiss}>
-              {me ? "Maybe later" : "Back"}
+              {me ? t("Maybe later") : t("Back")}
             </button>
           </>
         )}

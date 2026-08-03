@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import IncomingCallCard from "./voice/IncomingCallCard";
+import { useT } from "../context/LocaleContext";
 
 /**
  * Floating incoming group call modal — FaceTime-style avatar rings.
  */
 export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecline }) {
+  const t = useT();
   const onDeclineRef = useRef(onDecline);
   useEffect(() => {
     onDeclineRef.current = onDecline;
@@ -31,7 +33,7 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
           user={incomingCall.fromUser}
           callType={incomingCall.callType}
           isGroup
-          subtitle="Group call"
+          subtitle={t("Group call")}
           onDecline={() =>
             onDecline?.(
               incomingCall.groupId,

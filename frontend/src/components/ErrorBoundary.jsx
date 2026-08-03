@@ -1,4 +1,5 @@
 import React from "react";
+import { t } from "../i18n/runtime";
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -9,7 +10,7 @@ export default class ErrorBoundary extends React.Component {
   static getDerivedStateFromError(error) {
     return {
       hasError: true,
-      message: error?.message || "Unexpected runtime error",
+      message: error?.message || t("Unexpected runtime error"),
       stack: error?.stack || "",
     };
   }
@@ -25,7 +26,7 @@ export default class ErrorBoundary extends React.Component {
       hasError: true,
       error: error,
       errorInfo: errorInfo,
-      message: error?.message || "An unexpected error occurred.",
+      message: error?.message || t("An unexpected error occurred."),
       stack: error?.stack,
       componentStack: errorInfo?.componentStack,
       userData,
@@ -236,10 +237,10 @@ export default class ErrorBoundary extends React.Component {
         <section className="auth-card" style={{ maxWidth: "700px", maxHeight: "85vh", overflow: "auto" }}>
           <div style={{ textAlign: "center", marginBottom: "20px" }}>
             <h1 style={{ color: "#ff6b6b", fontSize: "24px", marginBottom: "10px" }}>
-              ⚠️ Descall Error
+              ⚠️ {t("Descall Error")}
             </h1>
             <p style={{ color: "#ccc", fontSize: "14px" }}>
-              UI crashed and recovered safely.
+              {t("UI crashed and recovered safely.")}
             </p>
           </div>
 
@@ -251,18 +252,18 @@ export default class ErrorBoundary extends React.Component {
             marginBottom: "15px"
           }}>
             <h3 style={{ color: "#fff", marginBottom: "10px", fontSize: "16px" }}>
-              Error Details
+              {t("Error Details")}
             </h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "13px" }}>
               <div>
-                <span style={{ color: "#888" }}>Type:</span>
+                <span style={{ color: "#888" }}>{t("Type:")}</span>
                 <span style={{ color: "#ff6b6b", marginLeft: "8px", fontWeight: "bold" }}>
-                  {error?.name || "Unknown Error"}
+                  {error?.name || t("Unknown Error")}
                 </span>
               </div>
               {category?.type && (
                 <div>
-                  <span style={{ color: "#888" }}>Category:</span>
+                  <span style={{ color: "#888" }}>{t("Category:")}</span>
                   <span style={{ color: "#4ecdc4", marginLeft: "8px" }}>
                     {category.type}
                   </span>
@@ -270,7 +271,7 @@ export default class ErrorBoundary extends React.Component {
               )}
               {category?.severity && (
                 <div>
-                  <span style={{ color: "#888" }}>Severity:</span>
+                  <span style={{ color: "#888" }}>{t("Severity:")}</span>
                   <span style={{ 
                     color: category.severity === 'critical' ? '#ff0000' : 
                            category.severity === 'high' ? '#ff6b6b' : 
@@ -283,7 +284,7 @@ export default class ErrorBoundary extends React.Component {
                 </div>
               )}
               <div>
-                <span style={{ color: "#888" }}>Timestamp:</span>
+                <span style={{ color: "#888" }}>{t("Timestamp:")}</span>
                 <span style={{ color: "#fff", marginLeft: "8px" }}>
                   {new Date().toLocaleString()}
                 </span>
@@ -300,7 +301,7 @@ export default class ErrorBoundary extends React.Component {
             marginBottom: "15px"
           }}>
             <h4 style={{ color: "#ff6b6b", marginBottom: "8px", fontSize: "14px" }}>
-              Error Message
+              {t("Error Message")}
             </h4>
             <p style={{ color: "#fff", fontSize: "14px", wordBreak: "break-word" }}>
               {this.state.message}
@@ -316,24 +317,24 @@ export default class ErrorBoundary extends React.Component {
               marginBottom: "15px"
             }}>
               <h3 style={{ color: "#fff", marginBottom: "10px", fontSize: "16px" }}>
-                👤 User Information
+                👤 {t("User Information")}
               </h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "13px" }}>
                 <div>
-                  <span style={{ color: "#888" }}>Username:</span>
+                  <span style={{ color: "#888" }}>{t("Username:")}</span>
                   <span style={{ color: "#fff", marginLeft: "8px" }}>
-                    {userData.username || "Anonymous"}
+                    {userData.username || t("Anonymous")}
                   </span>
                 </div>
                 <div>
-                  <span style={{ color: "#888" }}>User ID:</span>
+                  <span style={{ color: "#888" }}>{t("User ID:")}</span>
                   <span style={{ color: "#fff", marginLeft: "8px" }}>
                     {userData.id || "anonymous"}
                   </span>
                 </div>
                 {userData.email && (
                   <div>
-                    <span style={{ color: "#888" }}>Email:</span>
+                    <span style={{ color: "#888" }}>{t("Email:")}</span>
                     <span style={{ color: "#fff", marginLeft: "8px" }}>
                       {userData.email}
                     </span>
@@ -341,7 +342,7 @@ export default class ErrorBoundary extends React.Component {
                 )}
                 {userData.role && (
                   <div>
-                    <span style={{ color: "#888" }}>Role:</span>
+                    <span style={{ color: "#888" }}>{t("Role:")}</span>
                     <span style={{ color: "#4ecdc4", marginLeft: "8px" }}>
                       {userData.role}
                     </span>
@@ -360,36 +361,36 @@ export default class ErrorBoundary extends React.Component {
               marginBottom: "15px"
             }}>
               <h3 style={{ color: "#fff", marginBottom: "10px", fontSize: "16px" }}>
-                💻 System Information
+                💻 {t("System Information")}
               </h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "13px" }}>
                 <div>
-                  <span style={{ color: "#888" }}>Platform:</span>
+                  <span style={{ color: "#888" }}>{t("Platform:")}</span>
                   <span style={{ color: "#fff", marginLeft: "8px" }}>
                     {systemInfo.platform}
                   </span>
                 </div>
                 <div>
-                  <span style={{ color: "#888" }}>Language:</span>
+                  <span style={{ color: "#888" }}>{t("Language:")}</span>
                   <span style={{ color: "#fff", marginLeft: "8px" }}>
                     {systemInfo.language}
                   </span>
                 </div>
                 <div>
-                  <span style={{ color: "#888" }}>Screen:</span>
+                  <span style={{ color: "#888" }}>{t("Screen:")}</span>
                   <span style={{ color: "#fff", marginLeft: "8px" }}>
                     {systemInfo.screenResolution}
                   </span>
                 </div>
                 <div>
-                  <span style={{ color: "#888" }}>Timezone:</span>
+                  <span style={{ color: "#888" }}>{t("Timezone:")}</span>
                   <span style={{ color: "#fff", marginLeft: "8px" }}>
                     {systemInfo.timezone}
                   </span>
                 </div>
               </div>
               <div style={{ marginTop: "8px", fontSize: "12px" }}>
-                <span style={{ color: "#888" }}>User Agent:</span>
+                <span style={{ color: "#888" }}>{t("User Agent:")}</span>
                 <span style={{ color: "#aaa", marginLeft: "8px", wordBreak: "break-all" }}>
                   {systemInfo.userAgent}
                 </span>
@@ -401,7 +402,7 @@ export default class ErrorBoundary extends React.Component {
           {this.state.stack && (
             <div style={{ marginBottom: "15px" }}>
               <h3 style={{ color: "#fff", marginBottom: "8px", fontSize: "14px" }}>
-                📋 Error Stack:
+                📋 {t("Error Stack:")}
               </h3>
               <pre style={{ 
                 background: "#1a1a1a", 
@@ -423,7 +424,7 @@ export default class ErrorBoundary extends React.Component {
           {this.state.componentStack && (
             <div style={{ marginBottom: "15px" }}>
               <h3 style={{ color: "#fff", marginBottom: "8px", fontSize: "14px" }}>
-                🧩 Component Stack:
+                🧩 {t("Component Stack:")}
               </h3>
               <pre style={{ 
                 background: "#1a1a1a", 
@@ -458,7 +459,7 @@ export default class ErrorBoundary extends React.Component {
                 fontWeight: "bold"
               }}
             >
-              🔄 Reset & Reload
+              🔄 {t("Reset & Reload")}
             </button>
             <button 
               type="button"
@@ -474,7 +475,7 @@ export default class ErrorBoundary extends React.Component {
                 fontSize: "14px"
               }}
             >
-              🏠 Go Home
+              🏠 {t("Go Home")}
             </button>
           </div>
           
@@ -484,7 +485,7 @@ export default class ErrorBoundary extends React.Component {
             color: "#666", 
             textAlign: "center" 
           }}>
-            This error has been logged. Please contact support if it persists.
+            {t("This error has been logged. Please contact support if it persists.")}
           </p>
         </section>
       </main>

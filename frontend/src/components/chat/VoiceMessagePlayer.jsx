@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Play, Pause } from "lucide-react";
 import { waveformFromSeed } from "../../lib/voiceMessage";
+import { useT } from "../../context/LocaleContext";
 
 /** Only one voice note plays at a time across the app */
 const stopBus = typeof window !== "undefined" ? new EventTarget() : null;
@@ -83,6 +84,7 @@ function resolveAudioDuration(audio) {
 }
 
 export default function VoiceMessagePlayer({ audioUrl, duration: durationProp = 0, isOwn = false }) {
+  const t = useT();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [resolvedDuration, setResolvedDuration] = useState(
@@ -113,13 +115,13 @@ export default function VoiceMessagePlayer({ audioUrl, duration: durationProp = 
     });
 
     const onTimeUpdate = () => {
-      const t = audio.currentTime || 0;
+      const cur = audio.currentTime || 0;
       const cap = Number.isFinite(audio.duration) && audio.duration > 0 && audio.duration !== Infinity
         ? audio.duration
         : duration > 0
           ? duration
           : null;
-      if (cap != null && t >= cap - 0.05) {
+      if (cap != null && cur >= cap - 0.05) {
         audio.pause();
         try {
           audio.currentTime = 0;
@@ -130,7 +132,7 @@ export default function VoiceMessagePlayer({ audioUrl, duration: durationProp = 
         setCurrentTime(0);
         return;
       }
-      setCurrentTime(t);
+      setCurrentTime(cur);
     };
 
     const onEnded = () => {
@@ -147,7 +149,7 @@ export default function VoiceMessagePlayer({ audioUrl, duration: durationProp = 
     const onPause = () => setIsPlaying(false);
     const onError = () => {
       setIsPlaying(false);
-      setError("Can't play this voice note");
+      setError(t("Can't play this voice note"));
     };
 
     audio.addEventListener("timeupdate", onTimeUpdate);
@@ -165,7 +167,7 @@ export default function VoiceMessagePlayer({ audioUrl, duration: durationProp = 
       audio.removeEventListener("error", onError);
       audio.pause();
     };
-  }, [audioUrl, duration]);
+  }, [audioUrl, duration, t]);
 
   // Stop when another voice note starts
   useEffect(() => {
@@ -204,9 +206,9 @@ export default function VoiceMessagePlayer({ audioUrl, duration: durationProp = 
     } catch (err) {
       console.error("[VoiceMessage] play failed:", err);
       setIsPlaying(false);
-      setError("Tap again to play");
+      setError(t("Tap again to play"));
     }
-  }, [audioUrl]);
+  }, [audioUrl, t]);
 
   const seekFromClick = useCallback(
     (e) => {
@@ -232,7 +234,7 @@ export default function VoiceMessagePlayer({ audioUrl, duration: durationProp = 
     : formatTime(duration);
 
   if (!audioUrl) {
-    return <div className="voice-message-bubble is-broken">Voice unavailable</div>;
+    return <div className="voice-message-bubble is-broken">{t("Voice unavailable")}</div>;
   }
 
   return (
@@ -243,8 +245,8 @@ export default function VoiceMessagePlayer({ audioUrl, duration: durationProp = 
         type="button"
         className="voice-play-btn"
         onClick={togglePlay}
-        title={isPlaying ? "Pause" : "Play"}
-        aria-label={isPlaying ? "Pause voice message" : "Play voice message"}
+        title={isPlaying ? t("Pause") : t("Play")}
+        aria-label={isPlaying ? t("Pause voice message") : t("Play voice message")}
       >
         {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
       </button>
@@ -253,7 +255,7 @@ export default function VoiceMessagePlayer({ audioUrl, duration: durationProp = 
         type="button"
         className="voice-waveform-container"
         onClick={seekFromClick}
-        aria-label="Seek voice message"
+        aria-label={t("Seek voice message")}
       >
         <div className="voice-waveform-bars" aria-hidden>
           {bars.map((height, index) => (

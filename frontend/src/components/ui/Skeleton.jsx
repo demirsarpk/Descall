@@ -1,3 +1,5 @@
+import { useT } from "../../context/LocaleContext";
+
 export function SkeletonLine({ width = "100%", height = 12, circle = false }) {
   return (
     <div
@@ -13,8 +15,9 @@ export function SkeletonLine({ width = "100%", height = 12, circle = false }) {
 
 /** Replaces blank/spinner message loading states */
 export function MessageSkeleton({ count = 6 }) {
+  const t = useT();
   return (
-    <div className="skeleton-messages" aria-busy="true" aria-label="Loading messages">
+    <div className="skeleton-messages" aria-busy="true" aria-label={t("Loading messages")}>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="skeleton-row">
           <SkeletonLine width={40} circle />
