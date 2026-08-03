@@ -25,3 +25,10 @@
 ### Services
 - Backend: `frontend/backend` (Express + Socket.IO). Frontend Vite app is served from backend `dist` in production; local UI via Vite. See `README.md` / `frontend/package.json` scripts.
 - Secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` (required); `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` (optional until OAuth is enabled).
+
+### Valorant / Riot account link
+- Users link Valorant from **Settings → My Account** (`RiotLinkCard`): Name#TAG works without Riot prod approval; optional RSO when `RIOT_CLIENT_ID` + `RIOT_CLIENT_SECRET` + redirect are set.
+- SQL: `supabase/migrations/20260803_riot_account_link.sql` (or `frontend/backend/db/riotAccountMigration.sql`) → table `user_riot_accounts`.
+- Rank/account lookup: Henrik MMR (`HENRIK_API_KEY` optional) and/or `RIOT_API_KEY`. Routes: `/riot` + `/api/riot`. Public card also attached on `GET /auth/me` and `GET /auth/users/:id` as `user.valorant`.
+- After RSO callback the app lands on `/?riot_link=success|error` (toast + history cleaned).
+- LFG pre-fills host/filter rank from the linked card when present.
