@@ -26,6 +26,7 @@ const webrtcRoutes = require("./routes/webrtc");
 const appReleaseRoutes = require("./routes/appRelease");
 const errorRoutes = require("./routes/errors");
 const callsRoutes = require("./routes/calls");
+const lfgRoutes = require("./routes/lfg");
 const state = require("./runtime/sharedState");
 
 // Inline feedback - no external file needed
@@ -140,6 +141,7 @@ app.use("/reactions", reactionRoutes);
 app.use("/friends", friendsRoutes);
 app.use("/guilds", guildRoutes);
 app.use("/calls", callsRoutes);
+app.use("/lfg", lfgRoutes);
 
 // /api/* aliases — frontend calls mix /api/... and /... so support both
 app.use("/api/auth", authRoutes);
@@ -154,6 +156,7 @@ app.use("/api/webrtc", webrtcRoutes);
 app.use("/api/errors", errorRoutes);
 app.use("/api/app", appReleaseRoutes);
 app.use("/api/calls", callsRoutes);
+app.use("/api/lfg", lfgRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)
@@ -775,7 +778,7 @@ const hasFrontend = fs.existsSync(indexPath);
 
 const API_PREFIXES = [
   "/api", "/auth", "/admin", "/media", "/groups",
-  "/friends", "/guilds", "/reactions", "/health", "/debug",
+  "/friends", "/guilds", "/reactions", "/health", "/debug", "/lfg", "/calls",
 ];
 
 if (hasFrontend) {

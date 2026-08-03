@@ -115,6 +115,16 @@
   grid-template-columns: 72px 72px 280px 1fr;
 }
 
+/* Play / LFG: rail + full workspace (list + detail) */
+.app-root[data-view="play"] {
+  grid-template-columns: 72px 1fr;
+}
+.app-root[data-view="play"] .lfg-workspace {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
 /* ─── Server Icon Bar (72px vertical bar with guild icons) ─── */
 .server-icon-bar {
   width: 72px;

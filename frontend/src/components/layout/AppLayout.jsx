@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, X, MessageSquare, Users, Phone, Activity, Settings } from "lucide-react";
+import { Bell, X, MessageSquare, Users, Phone, Activity, Settings, Crosshair } from "lucide-react";
 import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
 import ActivitySidebar from "../activity/ActivitySidebar";
 import FeedbackNudgeBanner from "../feedback/FeedbackNudgeBanner";
+import LfgWorkspace from "../lfg/LfgWorkspace";
 import { useActivity } from "../../hooks/useActivity";
 import { useMobile } from "../../hooks/useMobile";
 import { useMobileKeyboard } from "../../hooks/useMobileKeyboard";
@@ -168,12 +169,15 @@ export default function AppLayout({
 
   const handleViewChange = useCallback((view) => {
     setActiveView(view);
-    if (view === "calls" || view === "activity" || view === "friends") {
+    if (view === "calls" || view === "activity" || view === "friends" || view === "play") {
       // Leave conversation so the dedicated view can fill the main panel
       if (activeDmUser) onDmSelect?.(null);
       if (activeGroup) onGroupSelect?.(null);
     }
-    if (isMobile) setMobileDrawerOpen(true);
+    if (isMobile) {
+      // Play has its own split UI in the main panel — don't cover it with the drawer
+      setMobileDrawerOpen(view !== "play");
+    }
   }, [isMobile, activeDmUser, activeGroup, onDmSelect, onGroupSelect]);
 
   const handleMobileBack = useCallback(() => {
@@ -269,7 +273,7 @@ export default function AppLayout({
           onStatusChange={onStatusChange}
         />
 
-        {activeView === "activity" ? (
+        {activeView === "play" ? null : activeView === "activity" ? (
           <ActivitySidebar
             friends={friends}
             friendPresence={activity.friendPresence}
@@ -315,6 +319,23 @@ export default function AppLayout({
         )}
       </div>
 
+      {activeView === "play" ? (
+        <LfgWorkspace
+          me={me}
+          socket={socket}
+          onGroupCreated={onGroupCreated}
+          onOpenGroup={(group) => {
+            handleGroupSelect(group);
+            setActiveView("groups");
+          }}
+          onJoinVoice={(group) => {
+            handleGroupSelect(group);
+            setActiveView("groups");
+            // Defer so activeGroup is set before voice starts
+            window.setTimeout(() => onGroupVoiceCall?.(), 80);
+          }}
+        />
+      ) : (
       <ChatPanel
         activeView={activeView}
         activeDmUser={activeDmUser}
@@ -359,6 +380,7 @@ export default function AppLayout({
       >
         {children}
       </ChatPanel>
+      )}
 
       <AnimatePresence>
         {userPanelOpen && (
@@ -391,6 +413,14 @@ export default function AppLayout({
           >
             <Users size={20} />
             <span>Friends</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "play" ? "active" : ""}`}
+            onClick={() => handleViewChange("play")}
+          >
+            <Crosshair size={20} />
+            <span>Play</span>
           </button>
           <button
             type="button"
