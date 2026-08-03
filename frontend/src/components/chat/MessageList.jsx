@@ -13,6 +13,7 @@ import MessageContent from "./MessageContent";
 import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
 import UserHoverCard from "../social/UserHoverCard";
+import AdminBadge from "../social/AdminBadge";
 import { mergeUserProfiles, pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
 
@@ -302,6 +303,7 @@ export default function MessageList({
                     onMouseLeave={(e) => { e.currentTarget.style.textDecoration = ""; }}
                   >
                     {resolveDisplayName(avatarUser)}
+                    <AdminBadge user={avatarUser} variant="inline" />
                   </span>
                   <span className="message-timestamp">
                     {formatTimestamp(group.messages[0]?.timestamp)}

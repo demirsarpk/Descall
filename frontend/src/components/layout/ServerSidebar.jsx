@@ -18,6 +18,7 @@ import CallsView from "../calls/CallsView";
 import GroupInviteModal from "../groups/GroupInviteModal";
 import { markFeedbackSubmitted } from "../../lib/feedbackNudge";
 import { useLocale, useT } from "../../context/LocaleContext";
+import AdminBadge from "../social/AdminBadge";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -1792,7 +1793,10 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                       />
                     </div>
                     <div className="friend-meta">
-                      <span className="friend-name">{resolveDisplayName(friend)}</span>
+                      <span className="friend-name">
+                        {resolveDisplayName(friend)}
+                        <AdminBadge user={friend} variant="inline" />
+                      </span>
                       {(friend.customStatus || friend.custom_status) && (
                         <span className="friend-custom-status">
                           {friend.customStatus || friend.custom_status}
@@ -1824,7 +1828,10 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                       <StatusBadge status="offline" />
                     </div>
                     <div className="friend-meta">
-                      <span className="friend-name">{resolveDisplayName(friend)}</span>
+                      <span className="friend-name">
+                        {resolveDisplayName(friend)}
+                        <AdminBadge user={friend} variant="inline" />
+                      </span>
                       {(friend.customStatus || friend.custom_status) && (
                         <span className="friend-custom-status">
                           {friend.customStatus || friend.custom_status}

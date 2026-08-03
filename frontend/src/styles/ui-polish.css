@@ -1644,6 +1644,9 @@
   padding-bottom: 2px;
 }
 .uhc-name {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
   font-size: 16px;
   font-weight: 700;
   color: var(--text-0);

@@ -20,6 +20,7 @@ import { API_BASE_URL } from "../../config/api";
 import { getPresenceStatus, STATUS_META, isVisiblyOnline } from "../../lib/presence";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
+import AdminBadge from "../social/AdminBadge";
 
 export default function ChatPanel({
   activeView,
@@ -210,7 +211,10 @@ export default function ChatPanel({
             </div>
           )}
           <div className="header-title-block">
-            <h1 className="header-title">{getTitle()}</h1>
+            <h1 className="header-title" style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap" }}>
+              {getTitle()}
+              {activeDmUser && <AdminBadge user={activeDmUser} variant="inline" />}
+            </h1>
             {getSubtitle() && (
               <span className="header-subtitle">{getSubtitle()}</span>
             )}
@@ -445,6 +449,7 @@ export default function ChatPanel({
                     <div className="member-meta">
                       <div className="member-name-row">
                         <span className="member-name">{name}</span>
+                        <AdminBadge user={m} variant="inline" />
                         {m._isOwner && (
                           <span className="member-owner-badge" title={t("Owner")}>
                             <Crown size={11} strokeWidth={2.25} aria-hidden="true" />

@@ -1694,7 +1694,8 @@ export const phrases = {
   "Failed to submit feedback: {message}": "Failed to submit feedback: {message}",
   "Copied!": "Copied!",
   "No members": "No members",
-  "📞 Call": "📞 Call"
+  "📞 Call": "📞 Call",
+  "Descall staff": "Descall staff"
 };
 
 const locale = { nested, phrases };

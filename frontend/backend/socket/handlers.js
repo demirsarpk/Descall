@@ -167,9 +167,11 @@ function broadcastUsers(io) {
     // remapping status to "offline" still leaked them via membership checks.
     if (p.status === "invisible") continue;
     const cached = getCachedPublicUser(id);
+    const username = cached?.username || p.username;
+    const isAdmin = Boolean(cached?.is_admin || cached?.isAdmin) || username === "admin";
     list.push({
       id,
-      username: cached?.username || p.username,
+      username,
       displayName: cached?.displayName || null,
       display_name: cached?.displayName || null,
       status: publicPresenceStatus(p.status),
@@ -177,6 +179,8 @@ function broadcastUsers(io) {
       avatar_url: cached?.avatarUrl || p.avatar_url || null,
       avatarVersion: cached?.avatarVersion || cached?.updated_at || null,
       updated_at: cached?.updated_at || null,
+      is_admin: isAdmin,
+      isAdmin,
     });
   }
   io.emit("users:update", list);
@@ -185,6 +189,7 @@ function broadcastUsers(io) {
 function messageSender(userId, fallbackUsername, fallbackAvatar) {
   const cached = getCachedPublicUser(userId);
   if (cached) {
+    const isAdmin = Boolean(cached.is_admin || cached.isAdmin) || cached.username === "admin";
     return {
       id: userId,
       username: cached.username,
@@ -194,8 +199,11 @@ function messageSender(userId, fallbackUsername, fallbackAvatar) {
       avatar_url: cached.avatarUrl,
       avatarVersion: cached.avatarVersion,
       updated_at: cached.updated_at,
+      is_admin: isAdmin,
+      isAdmin,
     };
   }
+  const isAdmin = fallbackUsername === "admin";
   return {
     id: userId,
     username: fallbackUsername,
@@ -203,6 +211,8 @@ function messageSender(userId, fallbackUsername, fallbackAvatar) {
     display_name: null,
     avatarUrl: fallbackAvatar || null,
     avatar_url: fallbackAvatar || null,
+    is_admin: isAdmin,
+    isAdmin,
   };
 }
 

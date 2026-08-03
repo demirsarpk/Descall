@@ -17,6 +17,7 @@ import { useLocale } from "../../context/LocaleContext";
 import { detectDefaultLocale } from "../../i18n/detect";
 import RiotLinkCard from "../settings/RiotLinkCard";
 import ValorantBadge from "../social/ValorantBadge";
+import AdminBadge from "../social/AdminBadge";
 
 /* ─── Helpers ─── */
 const SETTINGS_KEY = "descall_user_settings";
@@ -523,8 +524,11 @@ const UserPanel = forwardRef(function UserPanel({
                   </span>
                 </div>
                 <div className="us-hero-meta">
-                  <h3>{displayName || me?.username || "User"}</h3>
+                  <h3 style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap" }}>
+                    {displayName || me?.username || "User"}
+                  </h3>
                   <span className="us-muted">@{me?.username?.toLowerCase() || "user"}</span>
+                  <AdminBadge user={me} variant="chip" />
                   {customStatus && <span className="us-status-pill">{customStatus}</span>}
                   {me?.valorant?.linked && (
                     <ValorantBadge valorant={me.valorant} compact />
@@ -1151,7 +1155,10 @@ const UserPanel = forwardRef(function UserPanel({
               user={{ ...me, avatarUrl: avatarUrl || me?.avatarUrl }}
             />
             <div className="us-mini-meta">
-              <strong>{displayName || me?.username || t("User")}</strong>
+              <strong style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap" }}>
+                {displayName || me?.username || t("User")}
+                <AdminBadge user={me} variant="inline" />
+              </strong>
               <span>@{me?.username?.toLowerCase() || "user"}</span>
             </div>
             {isMobile && <ChevronRight size={16} className="us-chevron" />}
