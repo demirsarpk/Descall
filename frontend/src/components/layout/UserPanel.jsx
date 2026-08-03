@@ -973,13 +973,76 @@ export default function UserPanel({
     if (panelRef.current && !panelRef.current.contains(e.target)) onClose?.();
   };
 
+  const shellVariants = isMobile
+    ? {
+        // Mobile sheet: dim backdrop in parallel with the slide-up panel
+        hidden: { opacity: 0 },
+        visible: {
+          opacity: 1,
+          transition: { duration: 0.2, ease: [0.22, 1, 0.36, 1] },
+        },
+        exit: {
+          opacity: 0,
+          transition: { duration: 0.18, ease: [0.4, 0, 1, 1], delay: 0.04 },
+        },
+      }
+    : {
+        hidden: { opacity: 0 },
+        visible: {
+          opacity: 1,
+          transition: {
+            duration: 0.2,
+            ease: [0.22, 1, 0.36, 1],
+            when: "beforeChildren",
+          },
+        },
+        exit: {
+          opacity: 0,
+          transition: {
+            duration: 0.18,
+            ease: [0.4, 0, 1, 1],
+            when: "afterChildren",
+          },
+        },
+      };
+
+  // Mobile: full-screen sheet from the bottom (clearly visible).
+  // Desktop: centered card scale + rise.
+  const panelVariants = isMobile
+    ? {
+        hidden: { y: "100%" },
+        visible: {
+          y: 0,
+          transition: { type: "spring", stiffness: 420, damping: 36, mass: 0.9 },
+        },
+        exit: {
+          y: "100%",
+          transition: { duration: 0.22, ease: [0.4, 0, 1, 1] },
+        },
+      }
+    : {
+        hidden: { opacity: 0, scale: 0.92, y: 24 },
+        visible: {
+          opacity: 1,
+          scale: 1,
+          y: 0,
+          transition: { type: "spring", stiffness: 380, damping: 30, mass: 0.85 },
+        },
+        exit: {
+          opacity: 0,
+          scale: 0.96,
+          y: 14,
+          transition: { duration: 0.16, ease: [0.4, 0, 1, 1] },
+        },
+      };
+
   return (
     <motion.div
       className={`user-settings-shell ${isMobile ? "is-mobile" : "is-desktop"}`}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
+      variants={shellVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
       onClick={handleShellClick}
     >
     <motion.div
@@ -988,15 +1051,7 @@ export default function UserPanel({
       role="dialog"
       aria-modal="true"
       aria-label="User Settings"
-      /* Desktop: fade+scale in the center (never slide from a side). Mobile: light vertical enter. */
-      initial={isMobile ? { y: 20, opacity: 0 } : { opacity: 0, scale: 0.96 }}
-      animate={isMobile ? { y: 0, opacity: 1 } : { opacity: 1, scale: 1 }}
-      exit={isMobile ? { y: 12, opacity: 0 } : { opacity: 0, scale: 0.98 }}
-      transition={
-        isMobile
-          ? { type: "spring", stiffness: 380, damping: 32 }
-          : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
-      }
+      variants={panelVariants}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Sidebar / mobile menu */}

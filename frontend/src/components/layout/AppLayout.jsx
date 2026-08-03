@@ -341,26 +341,15 @@ export default function AppLayout({
 
       <AnimatePresence>
         {userPanelOpen && (
-          <>
-            <motion.div
-              key="user-settings-backdrop"
-              className="user-panel-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              aria-hidden="true"
-            />
-            <UserPanel
-              key="user-settings-panel"
-              me={me}
-              onClose={closeUserPanel}
-              onLogout={onLogout}
-              onProfileUpdated={onProfileUpdated}
-              myStatus={myStatus}
-              onStatusChange={onStatusChange}
-            />
-          </>
+          <UserPanel
+            key="user-settings-panel"
+            me={me}
+            onClose={closeUserPanel}
+            onLogout={onLogout}
+            onProfileUpdated={onProfileUpdated}
+            myStatus={myStatus}
+            onStatusChange={onStatusChange}
+          />
         )}
       </AnimatePresence>
 
