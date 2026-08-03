@@ -808,6 +808,63 @@
   will-change: transform;
 }
 
+.conv-group-wrap.is-swipeable {
+  overflow: hidden;
+  border-radius: 8px;
+  touch-action: pan-y;
+}
+
+.group-swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 248px;
+  display: flex;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.conv-group-wrap.swipe-open .group-swipe-actions,
+.conv-group-wrap.is-swipeable:active .group-swipe-actions {
+  pointer-events: auto;
+}
+
+.group-swipe-actions {
+  pointer-events: auto;
+}
+
+.group-swipe-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: none;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  padding: 0;
+  min-width: 0;
+}
+
+.group-swipe-btn.invite { background: #5865f2; }
+.group-swipe-btn.add { background: #3ba55d; }
+.group-swipe-btn.rename { background: #f0b232; color: #1e1f22; }
+.group-swipe-btn.leave { background: #ed4245; }
+
+.group-row-front {
+  background: var(--surface-1, #313338) !important;
+  transition: background 0.15s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+.group-row-front.active {
+  background: var(--surface-active, #404249) !important;
+}
+
 .dm-item.has-unread,
 .group-item.has-unread {
   background: transparent;

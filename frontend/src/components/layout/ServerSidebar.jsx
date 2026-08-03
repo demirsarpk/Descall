@@ -16,6 +16,7 @@ import { resolveDisplayName } from "../../lib/userProfile";
 import { isVisiblyOnline } from "../../lib/presence";
 import CallsView from "../calls/CallsView";
 import GroupInviteModal from "../groups/GroupInviteModal";
+import { markFeedbackSubmitted } from "../../lib/feedbackNudge";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -95,6 +96,21 @@ export default function ServerSidebar({
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackSending, setFeedbackSending] = useState(false);
+
+  useEffect(() => {
+    const onOpen = (e) => {
+      const type = e?.detail?.type;
+      setShowFeedback(true);
+      setFeedbackSent(false);
+      setFeedbackText("");
+      setFeedbackRating(0);
+      setFeedbackType(
+        type === "bug" || type === "praise" || type === "suggestion" ? type : "suggestion"
+      );
+    };
+    window.addEventListener("descall:open-feedback", onOpen);
+    return () => window.removeEventListener("descall:open-feedback", onOpen);
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
@@ -386,6 +402,7 @@ export default function ServerSidebar({
                         } catch (_) {}
                         setFeedbackSending(false);
                         setFeedbackSent(true);
+                        markFeedbackSubmitted();
                       }}
                     >
                       {feedbackSending ? 'Sending…' : 'Submit Feedback'}
@@ -1240,6 +1257,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
   const [addMemberGroup, setAddMemberGroup] = useState(null); // group object
   const [inviteGroup, setInviteGroup] = useState(null); // group object
   const [actionError, setActionError] = useState("");
+  const [swipeOpenId, setSwipeOpenId] = useState(null);
   const menuRef = useRef(null);
   const dotBtnRefs = useRef({});
 
@@ -1289,6 +1307,15 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
     }
   };
 
+  const openAction = (group, action) => {
+    setSwipeOpenId(null);
+    setOpenMenuId(null);
+    if (action === "invite") setInviteGroup(group);
+    else if (action === "add") setAddMemberGroup(group);
+    else if (action === "rename") setConfirmRename(group);
+    else if (action === "leave") setConfirmLeave(group);
+  };
+
   return (
     <>
       {actionError && (
@@ -1320,47 +1347,58 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                   const unread = group.unreadCount || unreadById[group.id] || 0;
                   const timeLabel = formatConversationTime(group.lastActivity);
                   const preview = group.lastMessage || `${group.memberCount || 0} members`;
+                  const swipeOpen = isMobile && swipeOpenId === group.id;
 
                   return (
                     <motion.div
                       key={group.id}
                       layout
                       ref={openMenuId === group.id ? menuRef : null}
-                      className="conv-group-wrap"
+                      className={`conv-group-wrap${isMobile ? " is-swipeable" : ""}${swipeOpen ? " swipe-open" : ""}`}
                       transition={LIST_LAYOUT_TRANSITION}
                       style={{ position: "relative" }}
                     >
-                      <motion.button
-                        layout
-                        className={`group-item conv-row ${isActive ? "active" : ""} ${unread > 0 ? "has-unread" : ""}`}
-                        onClick={() => onGroupSelect?.(group)}
-                        whileHover={{ scale: 1.01 }}
-                        transition={LIST_LAYOUT_TRANSITION}
-                        style={{ width: "100%", paddingRight: isActive ? 40 : undefined }}
-                      >
-                        <div className="group-icon" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-                          {group.icon ? (
-                            <img src={group.icon} alt={group.name} style={{ width: "100%", height: "100%", borderRadius: 10, objectFit: "cover" }} />
-                          ) : (
-                            <span>{group.name?.charAt(0)?.toUpperCase()}</span>
-                          )}
+                      {isMobile && (
+                        <div className="group-swipe-actions" aria-hidden={!swipeOpen}>
+                          <button type="button" className="group-swipe-btn invite" onClick={() => openAction(group, "invite")}>
+                            <Link2 size={15} />
+                            <span>Invite</span>
+                          </button>
+                          <button type="button" className="group-swipe-btn add" onClick={() => openAction(group, "add")}>
+                            <UserRoundPlus size={15} />
+                            <span>Add</span>
+                          </button>
+                          <button type="button" className="group-swipe-btn rename" onClick={() => openAction(group, "rename")}>
+                            <Edit3 size={15} />
+                            <span>Rename</span>
+                          </button>
+                          <button type="button" className="group-swipe-btn leave" onClick={() => openAction(group, "leave")}>
+                            <LogOut size={15} />
+                            <span>Leave</span>
+                          </button>
                         </div>
-                        <div className="group-info conv-row-body">
-                          <div className="conv-row-top">
-                            <span className={`group-name ${unread > 0 ? "unread" : ""}`}>{group.name}</span>
-                            {timeLabel && (
-                              <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
-                            )}
-                          </div>
-                          <div className="conv-row-bottom">
-                            <span className={`group-members dm-preview ${unread > 0 ? "unread" : ""}`}>{preview}</span>
-                            {!isActive && <UnreadBadge count={unread} />}
-                          </div>
-                        </div>
-                      </motion.button>
+                      )}
 
-                      {/* Three-dot menu button — visible only on active group */}
-                      {isActive && (
+                      <GroupRowFront
+                        group={group}
+                        isActive={isActive}
+                        unread={unread}
+                        timeLabel={timeLabel}
+                        preview={preview}
+                        isMobile={isMobile}
+                        swipeOpen={swipeOpen}
+                        onOpen={() => onGroupSelect?.(group)}
+                        onSwipeOpenChange={(open) => {
+                          setSwipeOpenId(open ? group.id : null);
+                          if (open) setOpenMenuId(null);
+                        }}
+                        onCloseOthers={() => {
+                          if (swipeOpenId && swipeOpenId !== group.id) setSwipeOpenId(null);
+                        }}
+                      />
+
+                      {/* Desktop: three-dot on active group only */}
+                      {!isMobile && isActive && (
                         <button
                           ref={(el) => { dotBtnRefs.current[group.id] = el; }}
                           onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === group.id ? null : group.id); }}
@@ -1381,7 +1419,7 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                       )}
 
                       <AnimatePresence>
-                        {openMenuId === group.id && (
+                        {!isMobile && openMenuId === group.id && (
                           <GroupContextMenu
                             group={group}
                             onClose={() => setOpenMenuId(null)}
@@ -1440,6 +1478,141 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
         onClose={() => setInviteGroup(null)}
       />
     </>
+  );
+}
+
+const GROUP_SWIPE_WIDTH = 248;
+
+function GroupRowFront({
+  group,
+  isActive,
+  unread,
+  timeLabel,
+  preview,
+  isMobile,
+  swipeOpen,
+  onOpen,
+  onSwipeOpenChange,
+  onCloseOthers,
+}) {
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const startOffset = useRef(0);
+  const axisLock = useRef(null); // 'x' | 'y' | null
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragOffsetRef = useRef(0);
+
+  const setOffset = (value) => {
+    dragOffsetRef.current = value;
+    setDragOffset(value);
+  };
+
+  const visualOffset = isMobile
+    ? isDragging
+      ? dragOffset
+      : swipeOpen
+        ? -GROUP_SWIPE_WIDTH
+        : 0
+    : 0;
+
+  const onTouchStart = (e) => {
+    if (!isMobile) return;
+    const t = e.touches[0];
+    startX.current = t.clientX;
+    startY.current = t.clientY;
+    startOffset.current = swipeOpen ? -GROUP_SWIPE_WIDTH : 0;
+    axisLock.current = null;
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    setOffset(startOffset.current);
+    onCloseOthers?.();
+  };
+
+  const onTouchMove = (e) => {
+    if (!isMobile || !isDraggingRef.current) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startX.current;
+    const dy = t.clientY - startY.current;
+    if (!axisLock.current) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      axisLock.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (axisLock.current === "y") {
+        isDraggingRef.current = false;
+        setIsDragging(false);
+        setOffset(swipeOpen ? -GROUP_SWIPE_WIDTH : 0);
+        return;
+      }
+    }
+    if (axisLock.current !== "x") return;
+    if (e.cancelable) e.preventDefault();
+    const next = Math.min(0, Math.max(-GROUP_SWIPE_WIDTH, startOffset.current + dx));
+    setOffset(next);
+  };
+
+  const onTouchEnd = () => {
+    if (!isMobile || !isDraggingRef.current) {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      return;
+    }
+    const shouldOpen = dragOffsetRef.current < -GROUP_SWIPE_WIDTH * 0.35;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    onSwipeOpenChange?.(shouldOpen);
+    setOffset(shouldOpen ? -GROUP_SWIPE_WIDTH : 0);
+  };
+
+  return (
+    <motion.button
+      layout={!isMobile}
+      type="button"
+      className={`group-item conv-row group-row-front ${isActive ? "active" : ""} ${unread > 0 ? "has-unread" : ""}`}
+      onClick={() => {
+        if (isMobile && swipeOpen) {
+          onSwipeOpenChange?.(false);
+          return;
+        }
+        onOpen?.();
+      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+      whileHover={isMobile ? undefined : { scale: 1.01 }}
+      transition={LIST_LAYOUT_TRANSITION}
+      style={{
+        width: "100%",
+        paddingRight: !isMobile && isActive ? 40 : undefined,
+        transform: isMobile ? `translate3d(${visualOffset}px,0,0)` : undefined,
+        transition: isDragging ? "none" : "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
+        position: "relative",
+        zIndex: 2,
+        touchAction: isMobile ? "pan-y" : undefined,
+        background: "var(--surface-1, #1e1f22)",
+      }}
+    >
+      <div className="group-icon" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+        {group.icon ? (
+          <img src={group.icon} alt={group.name} style={{ width: "100%", height: "100%", borderRadius: 10, objectFit: "cover" }} />
+        ) : (
+          <span>{group.name?.charAt(0)?.toUpperCase()}</span>
+        )}
+      </div>
+      <div className="group-info conv-row-body">
+        <div className="conv-row-top">
+          <span className={`group-name ${unread > 0 ? "unread" : ""}`}>{group.name}</span>
+          {timeLabel && (
+            <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
+          )}
+        </div>
+        <div className="conv-row-bottom">
+          <span className={`group-members dm-preview ${unread > 0 ? "unread" : ""}`}>{preview}</span>
+          {!isActive && <UnreadBadge count={unread} />}
+        </div>
+      </div>
+    </motion.button>
   );
 }
 

@@ -41,6 +41,7 @@ import MessageList from "./components/chat/MessageList";
 import MessageComposer from "./components/chat/MessageComposer";
 import CallOverlay from "./components/CallOverlay";
 import GroupCallIncomingModal from "./components/GroupCallIncomingModal";
+import { requestFeedbackNudge } from "./components/feedback/FeedbackNudgeBanner";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
@@ -250,10 +251,43 @@ export default function App() {
   const typingGroupTimeoutsRef = useRef(new Map());
   const call = useCall(socketApi);
   const groupCall = useGroupCall(socketApi, me?.id);
+  const wasDmInCallRef = useRef(false);
+  const wasGroupInCallRef = useRef(false);
+  const lastDmCallDurationRef = useRef(0);
+  const lastGroupCallDurationRef = useRef(0);
 
   useEffect(() => {
     preloadIceServers().catch(() => {});
   }, []);
+
+  // Soft feedback nudge after voice/video calls end (≥45s)
+  useEffect(() => {
+    if (call?.isInCall) {
+      wasDmInCallRef.current = true;
+      lastDmCallDurationRef.current = Number(call.duration) || 0;
+      return;
+    }
+    if (wasDmInCallRef.current) {
+      wasDmInCallRef.current = false;
+      const secs = lastDmCallDurationRef.current || 0;
+      lastDmCallDurationRef.current = 0;
+      requestFeedbackNudge({ trigger: "after_call", callDurationMs: secs * 1000 });
+    }
+  }, [call?.isInCall, call?.duration]);
+
+  useEffect(() => {
+    if (groupCall?.isInCall) {
+      wasGroupInCallRef.current = true;
+      lastGroupCallDurationRef.current = Number(groupCall.duration) || 0;
+      return;
+    }
+    if (wasGroupInCallRef.current) {
+      wasGroupInCallRef.current = false;
+      const secs = lastGroupCallDurationRef.current || 0;
+      lastGroupCallDurationRef.current = 0;
+      requestFeedbackNudge({ trigger: "after_call", callDurationMs: secs * 1000 });
+    }
+  }, [groupCall?.isInCall, groupCall?.duration]);
 
   useEffect(() => {
     myIdRef.current = me?.id ?? null;
