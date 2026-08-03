@@ -814,28 +814,49 @@
   touch-action: pan-y;
 }
 
-.group-swipe-actions {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 248px;
+.group-swipe-viewport {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 8px;
+  touch-action: pan-y;
+}
+
+.group-swipe-track {
   display: flex;
-  z-index: 1;
-  pointer-events: none;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  will-change: transform;
 }
 
-.conv-group-wrap.swipe-open .group-swipe-actions,
-.conv-group-wrap.is-swipeable:active .group-swipe-actions {
-  pointer-events: auto;
+/* Front takes full viewport width; actions sit to the right and are revealed by translateX */
+.group-swipe-track .group-row-front {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-1, #313338) !important;
+  border-radius: 8px;
+  min-height: 56px;
+}
+
+.group-swipe-track .group-row-front.active {
+  background: var(--surface-active, #404249) !important;
 }
 
 .group-swipe-actions {
-  pointer-events: auto;
+  flex: 0 0 248px;
+  width: 248px;
+  min-width: 248px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 56px;
 }
 
 .group-swipe-btn {
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -847,22 +868,18 @@
   font-weight: 700;
   letter-spacing: 0.01em;
   cursor: pointer;
-  padding: 0;
+  padding: 0 2px;
   min-width: 0;
+  align-self: stretch;
 }
 
 .group-swipe-btn.invite { background: #5865f2; }
 .group-swipe-btn.add { background: #3ba55d; }
 .group-swipe-btn.rename { background: #f0b232; color: #1e1f22; }
-.group-swipe-btn.leave { background: #ed4245; }
+.group-swipe-btn.leave { background: #ed4245; border-radius: 0 8px 8px 0; }
 
 .group-row-front {
-  background: var(--surface-1, #313338) !important;
-  transition: background 0.15s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
-}
-
-.group-row-front.active {
-  background: var(--surface-active, #404249) !important;
+  background: transparent;
 }
 
 .dm-item.has-unread,

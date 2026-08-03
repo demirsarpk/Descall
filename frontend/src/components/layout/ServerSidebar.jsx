@@ -1352,85 +1352,78 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
                   return (
                     <motion.div
                       key={group.id}
-                      layout
+                      layout={!isMobile}
                       ref={openMenuId === group.id ? menuRef : null}
                       className={`conv-group-wrap${isMobile ? " is-swipeable" : ""}${swipeOpen ? " swipe-open" : ""}`}
                       transition={LIST_LAYOUT_TRANSITION}
                       style={{ position: "relative" }}
                     >
-                      {isMobile && (
-                        <div className="group-swipe-actions" aria-hidden={!swipeOpen}>
-                          <button type="button" className="group-swipe-btn invite" onClick={() => openAction(group, "invite")}>
-                            <Link2 size={15} />
-                            <span>Invite</span>
-                          </button>
-                          <button type="button" className="group-swipe-btn add" onClick={() => openAction(group, "add")}>
-                            <UserRoundPlus size={15} />
-                            <span>Add</span>
-                          </button>
-                          <button type="button" className="group-swipe-btn rename" onClick={() => openAction(group, "rename")}>
-                            <Edit3 size={15} />
-                            <span>Rename</span>
-                          </button>
-                          <button type="button" className="group-swipe-btn leave" onClick={() => openAction(group, "leave")}>
-                            <LogOut size={15} />
-                            <span>Leave</span>
-                          </button>
-                        </div>
-                      )}
-
-                      <GroupRowFront
-                        group={group}
-                        isActive={isActive}
-                        unread={unread}
-                        timeLabel={timeLabel}
-                        preview={preview}
-                        isMobile={isMobile}
-                        swipeOpen={swipeOpen}
-                        onOpen={() => onGroupSelect?.(group)}
-                        onSwipeOpenChange={(open) => {
-                          setSwipeOpenId(open ? group.id : null);
-                          if (open) setOpenMenuId(null);
-                        }}
-                        onCloseOthers={() => {
-                          if (swipeOpenId && swipeOpenId !== group.id) setSwipeOpenId(null);
-                        }}
-                      />
-
-                      {/* Desktop: three-dot on active group only */}
-                      {!isMobile && isActive && (
-                        <button
-                          ref={(el) => { dotBtnRefs.current[group.id] = el; }}
-                          onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === group.id ? null : group.id); }}
-                          style={{
-                            position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
-                            width: 26, height: 26, borderRadius: 6, border: "none",
-                            background: openMenuId === group.id ? "var(--surface-active)" : "var(--surface-3)",
-                            color: "var(--text-2)", cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            transition: "background 0.15s",
-                            zIndex: 10,
+                      {isMobile ? (
+                        <SwipeableGroupRow
+                          group={group}
+                          isActive={isActive}
+                          unread={unread}
+                          timeLabel={timeLabel}
+                          preview={preview}
+                          swipeOpen={swipeOpen}
+                          onOpen={() => onGroupSelect?.(group)}
+                          onAction={(action) => openAction(group, action)}
+                          onSwipeOpenChange={(open) => {
+                            setSwipeOpenId(open ? group.id : null);
+                            if (open) setOpenMenuId(null);
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-active)"}
-                          onMouseLeave={(e) => e.currentTarget.style.background = openMenuId === group.id ? "var(--surface-active)" : "var(--surface-3)"}
-                        >
-                          <MoreHorizontal size={14} />
-                        </button>
-                      )}
-
-                      <AnimatePresence>
-                        {!isMobile && openMenuId === group.id && (
-                          <GroupContextMenu
+                          onCloseOthers={() => {
+                            if (swipeOpenId && swipeOpenId !== group.id) setSwipeOpenId(null);
+                          }}
+                        />
+                      ) : (
+                        <>
+                          <GroupRowFront
                             group={group}
-                            onClose={() => setOpenMenuId(null)}
-                            onLeave={() => setConfirmLeave(group)}
-                            onRename={() => setConfirmRename(group)}
-                            onAddMember={() => setAddMemberGroup(group)}
-                            onInvite={() => setInviteGroup(group)}
-                            anchorRef={{ current: dotBtnRefs.current[group.id] }}
+                            isActive={isActive}
+                            unread={unread}
+                            timeLabel={timeLabel}
+                            preview={preview}
+                            isMobile={false}
+                            swipeOpen={false}
+                            onOpen={() => onGroupSelect?.(group)}
+                            onSwipeOpenChange={() => {}}
+                            onCloseOthers={() => {}}
                           />
-                        )}
-                      </AnimatePresence>
+                          {isActive && (
+                            <button
+                              ref={(el) => { dotBtnRefs.current[group.id] = el; }}
+                              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === group.id ? null : group.id); }}
+                              style={{
+                                position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                                width: 26, height: 26, borderRadius: 6, border: "none",
+                                background: openMenuId === group.id ? "var(--surface-active)" : "var(--surface-3)",
+                                color: "var(--text-2)", cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                transition: "background 0.15s",
+                                zIndex: 10,
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-active)"}
+                              onMouseLeave={(e) => e.currentTarget.style.background = openMenuId === group.id ? "var(--surface-active)" : "var(--surface-3)"}
+                            >
+                              <MoreHorizontal size={14} />
+                            </button>
+                          )}
+                          <AnimatePresence>
+                            {openMenuId === group.id && (
+                              <GroupContextMenu
+                                group={group}
+                                onClose={() => setOpenMenuId(null)}
+                                onLeave={() => setConfirmLeave(group)}
+                                onRename={() => setConfirmRename(group)}
+                                onAddMember={() => setAddMemberGroup(group)}
+                                onInvite={() => setInviteGroup(group)}
+                                anchorRef={{ current: dotBtnRefs.current[group.id] }}
+                              />
+                            )}
+                          </AnimatePresence>
+                        </>
+                      )}
                     </motion.div>
                   );
                 })
@@ -1483,22 +1476,49 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
 
 const GROUP_SWIPE_WIDTH = 248;
 
-function GroupRowFront({
+function GroupRowContent({ group, unread, timeLabel, preview }) {
+  return (
+    <>
+      <div className="group-icon" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+        {group.icon ? (
+          <img src={group.icon} alt={group.name} style={{ width: "100%", height: "100%", borderRadius: 10, objectFit: "cover" }} />
+        ) : (
+          <span>{group.name?.charAt(0)?.toUpperCase()}</span>
+        )}
+      </div>
+      <div className="group-info conv-row-body">
+        <div className="conv-row-top">
+          <span className={`group-name ${unread > 0 ? "unread" : ""}`}>{group.name}</span>
+          {timeLabel && (
+            <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
+          )}
+        </div>
+        <div className="conv-row-bottom">
+          <span className={`group-members dm-preview ${unread > 0 ? "unread" : ""}`}>{preview}</span>
+          <UnreadBadge count={unread} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** Mobile swipe-to-reveal: front + actions as flex siblings (same row height). */
+function SwipeableGroupRow({
   group,
   isActive,
   unread,
   timeLabel,
   preview,
-  isMobile,
   swipeOpen,
   onOpen,
+  onAction,
   onSwipeOpenChange,
   onCloseOthers,
 }) {
   const startX = useRef(0);
   const startY = useRef(0);
   const startOffset = useRef(0);
-  const axisLock = useRef(null); // 'x' | 'y' | null
+  const axisLock = useRef(null);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const isDraggingRef = useRef(false);
@@ -1509,16 +1529,13 @@ function GroupRowFront({
     setDragOffset(value);
   };
 
-  const visualOffset = isMobile
-    ? isDragging
-      ? dragOffset
-      : swipeOpen
-        ? -GROUP_SWIPE_WIDTH
-        : 0
-    : 0;
+  const visualOffset = isDragging
+    ? dragOffset
+    : swipeOpen
+      ? -GROUP_SWIPE_WIDTH
+      : 0;
 
   const onTouchStart = (e) => {
-    if (!isMobile) return;
     const t = e.touches[0];
     startX.current = t.clientX;
     startY.current = t.clientY;
@@ -1531,7 +1548,7 @@ function GroupRowFront({
   };
 
   const onTouchMove = (e) => {
-    if (!isMobile || !isDraggingRef.current) return;
+    if (!isDraggingRef.current) return;
     const t = e.touches[0];
     const dx = t.clientX - startX.current;
     const dy = t.clientY - startY.current;
@@ -1552,7 +1569,7 @@ function GroupRowFront({
   };
 
   const onTouchEnd = () => {
-    if (!isMobile || !isDraggingRef.current) {
+    if (!isDraggingRef.current) {
       isDraggingRef.current = false;
       setIsDragging(false);
       return;
@@ -1565,10 +1582,72 @@ function GroupRowFront({
   };
 
   useEffect(() => {
-    if (!isMobile || isDraggingRef.current) return;
+    if (isDraggingRef.current) return;
     setOffset(swipeOpen ? -GROUP_SWIPE_WIDTH : 0);
-  }, [swipeOpen, isMobile]);
+  }, [swipeOpen]);
 
+  return (
+    <div
+      className="group-swipe-viewport"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+    >
+      <div
+        className="group-swipe-track"
+        style={{
+          transform: `translate3d(${visualOffset}px,0,0)`,
+          transition: isDragging ? "none" : "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
+        }}
+      >
+        <button
+          type="button"
+          className={`group-item conv-row group-row-front ${isActive ? "active" : ""} ${unread > 0 ? "has-unread" : ""}`}
+          onClick={() => {
+            if (swipeOpen) {
+              onSwipeOpenChange?.(false);
+              return;
+            }
+            onOpen?.();
+          }}
+        >
+          <GroupRowContent group={group} unread={isActive ? 0 : unread} timeLabel={timeLabel} preview={preview} />
+        </button>
+        <div className="group-swipe-actions" aria-hidden={!swipeOpen}>
+          <button type="button" className="group-swipe-btn invite" onClick={() => onAction?.("invite")}>
+            <Link2 size={15} />
+            <span>Invite</span>
+          </button>
+          <button type="button" className="group-swipe-btn add" onClick={() => onAction?.("add")}>
+            <UserRoundPlus size={15} />
+            <span>Add</span>
+          </button>
+          <button type="button" className="group-swipe-btn rename" onClick={() => onAction?.("rename")}>
+            <Edit3 size={15} />
+            <span>Rename</span>
+          </button>
+          <button type="button" className="group-swipe-btn leave" onClick={() => onAction?.("leave")}>
+            <LogOut size={15} />
+            <span>Leave</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GroupRowFront({
+  group,
+  isActive,
+  unread,
+  timeLabel,
+  preview,
+  isMobile,
+  swipeOpen,
+  onOpen,
+  onSwipeOpenChange,
+}) {
   return (
     <motion.button
       layout={!isMobile}
@@ -1581,42 +1660,19 @@ function GroupRowFront({
         }
         onOpen?.();
       }}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      onTouchCancel={onTouchEnd}
       whileHover={isMobile ? undefined : { scale: 1.01 }}
       transition={LIST_LAYOUT_TRANSITION}
       style={{
         width: "100%",
         paddingRight: !isMobile && isActive ? 40 : undefined,
-        transform: isMobile ? `translate3d(${visualOffset}px,0,0)` : undefined,
-        transition: isDragging ? "none" : "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
-        position: "relative",
-        zIndex: 2,
-        touchAction: isMobile ? "pan-y" : undefined,
-        background: "var(--surface-1, #1e1f22)",
       }}
     >
-      <div className="group-icon" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-        {group.icon ? (
-          <img src={group.icon} alt={group.name} style={{ width: "100%", height: "100%", borderRadius: 10, objectFit: "cover" }} />
-        ) : (
-          <span>{group.name?.charAt(0)?.toUpperCase()}</span>
-        )}
-      </div>
-      <div className="group-info conv-row-body">
-        <div className="conv-row-top">
-          <span className={`group-name ${unread > 0 ? "unread" : ""}`}>{group.name}</span>
-          {timeLabel && (
-            <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
-          )}
-        </div>
-        <div className="conv-row-bottom">
-          <span className={`group-members dm-preview ${unread > 0 ? "unread" : ""}`}>{preview}</span>
-          {!isActive && <UnreadBadge count={unread} />}
-        </div>
-      </div>
+      <GroupRowContent
+        group={group}
+        unread={isActive ? 0 : unread}
+        timeLabel={timeLabel}
+        preview={preview}
+      />
     </motion.button>
   );
 }
