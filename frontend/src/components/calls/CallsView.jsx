@@ -118,16 +118,44 @@ export default function CallsView({
     try {
       const res = await fetchCallHistory({ limit: 60 });
       const list = Array.isArray(res?.calls) ? res.calls : [];
-      setCalls(list);
-      saveCachedCalls(meId, list);
+      const enriched = list.map((raw) => {
+        const normalized = normalizeServerCall(raw, meId) || raw;
+        if (normalized.kind !== "group") {
+          if (!normalized.peer?.username || normalized.peer.username === "Unknown") {
+            const friend = friends.find((f) => f.id === normalized.peer?.id);
+            if (friend) {
+              normalized.peer = {
+                id: friend.id,
+                username: friend.username,
+                displayName: friend.displayName || friend.display_name || null,
+                avatarUrl: friend.avatarUrl || friend.avatar_url || null,
+                updated_at: friend.updated_at || friend.avatarVersion || null,
+              };
+            }
+          }
+        } else if ((!normalized.group?.name || normalized.group.name === "Group") && normalized.group?.id) {
+          const g = groups.find((x) => x.id === normalized.group.id);
+          if (g) {
+            normalized.group = {
+              id: g.id,
+              name: g.name,
+              avatarUrl: g.avatarUrl || g.avatar_url || null,
+            };
+          }
+        }
+        return normalized;
+      });
+      setCalls(enriched);
+      saveCachedCalls(meId, enriched);
     } catch (err) {
       setError(err?.message || "Could not load call history");
-      setCalls(loadCachedCalls(meId));
+      // Keep in-memory list on fetch failure; only fall back to disk cache if empty
+      setCalls((prev) => (Array.isArray(prev) && prev.length > 0 ? prev : loadCachedCalls(meId)));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [meId]);
+  }, [meId, friends, groups]);
 
   useEffect(() => {
     refresh();

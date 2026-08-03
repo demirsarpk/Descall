@@ -494,10 +494,12 @@ export function useCall(socket) {
 
     const onAnswer = async ({ fromUserId, answer } = {}) => {
       if (!fromUserId || !answer || !pcRef.current) return;
+      if (peerRef.current?.id && fromUserId !== peerRef.current.id) return;
       try {
         await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
         await flushIce(pcRef.current);
         setMode("active");
+        modeRef.current = "active";
       } catch { /* ignore */ }
     };
 
@@ -559,18 +561,6 @@ export function useCall(socket) {
     };
   }, [socket, gracefulEnd, cleanup]);
 
-  // Electron notification button → accept / decline
-  useEffect(() => {
-    if (!window.electronAPI?.onCallAccept) return;
-    const unsubAccept  = window.electronAPI.onCallAccept(()  => acceptIncoming());
-    const unsubDecline = window.electronAPI.onCallDecline(() => declineIncoming());
-    return () => {
-      unsubAccept?.();
-      unsubDecline?.();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const startCall = useCallback(async (friend, type = "voice") => {
     const peerId = friend?.id || friend?.userId;
     if (!peerId || !socket) return;
@@ -619,7 +609,13 @@ export function useCall(socket) {
   const acceptIncoming = useCallback(async () => {
     const offer = incomingOfferRef.current;
     const type = incomingCallTypeRef.current || "voice";
-    if (!peer?.id || !offer || !socket) return;
+    // Use peerRef — Electron Accept IPC can fire with a stale React `peer` closure
+    const currentPeer = peerRef.current || peer;
+    if (!currentPeer?.id || !offer || !socket) return;
+    if (modeRef.current !== "incoming" && modeRef.current !== "idle") {
+      // Only accept while ringing (or allow if somehow idle with offer still set)
+      if (modeRef.current !== "incoming") return;
+    }
     try {
       const constraints = type === "video"
         ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
@@ -644,8 +640,9 @@ export function useCall(socket) {
       await flushIce(pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      socket.emit("call:answer", { toUserId: peer.id, answer: pc.localDescription });
+      socket.emit("call:answer", { toUserId: currentPeer.id, answer: pc.localDescription });
       setMode("active");
+      modeRef.current = "active";
     } catch {
       cleanup();
     }
@@ -669,6 +666,29 @@ export function useCall(socket) {
     if (targetId && socket?.connected) socket.emit('call:decline', { toUserId: targetId });
     cleanup();
   }, [peer, socket, cleanup]);
+
+  // Electron notification Accept / Decline — refs avoid stale closures from mount-once effect
+  const acceptIncomingRef = useRef(acceptIncoming);
+  const declineIncomingRef = useRef(declineIncoming);
+  useEffect(() => { acceptIncomingRef.current = acceptIncoming; }, [acceptIncoming]);
+  useEffect(() => { declineIncomingRef.current = declineIncoming; }, [declineIncoming]);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onCallAccept) return;
+    const unsubAccept = window.electronAPI.onCallAccept(() => {
+      // Only handle DM incoming ring — group hook owns group-call accepts
+      if (modeRef.current !== "incoming") return;
+      acceptIncomingRef.current?.();
+    });
+    const unsubDecline = window.electronAPI.onCallDecline(() => {
+      if (modeRef.current !== "incoming") return;
+      declineIncomingRef.current?.();
+    });
+    return () => {
+      unsubAccept?.();
+      unsubDecline?.();
+    };
+  }, []);
 
   const toggleMute = useCallback(() => {
     const track = localStreamRef.current?.getAudioTracks()[0];

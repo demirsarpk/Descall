@@ -126,6 +126,9 @@ function pushNotification(io, userId, n) {
 function broadcastUsers(io) {
   const list = [];
   for (const [id, p] of presence) {
+    // Invisible users must not appear in the online roster at all —
+    // remapping status to "offline" still leaked them via membership checks.
+    if (p.status === "invisible") continue;
     const cached = getCachedPublicUser(id);
     list.push({
       id,

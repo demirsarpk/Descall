@@ -12,6 +12,7 @@ import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { addMemberToGroup } from "../../api/groups";
 import { resolveDisplayName } from "../../lib/userProfile";
+import { isVisiblyOnline } from "../../lib/presence";
 import CallsView from "../calls/CallsView";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
@@ -735,7 +736,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
         ) : (
           <div className="conv-list">
             {safeDms.map((dm) => {
-              const isOnline = onlineUsers?.some((u) => u.id === dm.id);
+              const isOnline = isVisiblyOnline(onlineUsers, dm.id);
               const isActive = activeDmUser?.id === dm.id;
               const unread = dm.unreadCount || unreadById[dm.id] || 0;
               const timeLabel = formatConversationTime(dm.lastActivity);
@@ -1422,12 +1423,8 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
   const pendingRequests = Array.isArray(friendRequests) ? friendRequests : [];
 
-  const isVisiblyOnline = (friendId) => {
-    const hit = safeOnlineUsers.find((u) => u.id === friendId);
-    return Boolean(hit && hit.status !== "invisible");
-  };
-  const onlineFriends = safeFriends.filter((f) => isVisiblyOnline(f.id));
-  const offlineFriends = safeFriends.filter((f) => !isVisiblyOnline(f.id));
+  const onlineFriends = safeFriends.filter((f) => isVisiblyOnline(safeOnlineUsers, f.id));
+  const offlineFriends = safeFriends.filter((f) => !isVisiblyOnline(safeOnlineUsers, f.id));
 
   return (
     <div className="sidebar-section">

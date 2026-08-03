@@ -158,6 +158,8 @@ export function useGroupCall(socket, currentUserId = null) {
   const [participants, setParticipants] = useState([]);
   const [incomingCall, setIncomingCall] = useState(null);
   const incomingCallRef = useRef(null);
+  const activeGroupIdRef = useRef(null);
+  const pendingIceByUserRef = useRef(new Map()); // userId -> candidate[] before PC exists
   const [activeCallBanner, setActiveCallBanner] = useState(null); // { groupId, initiatorId, initiatorUsername, callType, participantCount }
   const [callSummaries, setCallSummaries] = useState({}); // groupId -> summary[]
   // Audio device selection states
@@ -200,6 +202,10 @@ export function useGroupCall(socket, currentUserId = null) {
   useEffect(() => {
     isInCallRef.current = isInCall;
   }, [isInCall]);
+
+  useEffect(() => {
+    activeGroupIdRef.current = activeGroupId;
+  }, [activeGroupId]);
 
   useEffect(() => {
     callTypeRef.current = callType;
@@ -655,7 +661,7 @@ export function useGroupCall(socket, currentUserId = null) {
 
   const acceptGroupCall = useCallback(async (groupId, type, fromUser) => {
     if (!groupId || !fromUser?.id || !socketRef.current) return;
-    if (isInCall) return;
+    if (isInCallRef.current) return;
     
     try {
       audioManager.stop("incomingCall");
@@ -1058,12 +1064,27 @@ export function useGroupCall(socket, currentUserId = null) {
       });
 
       try {
-        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
-        // Store fromUser so ontrack's new-entry fallback can use the real username
-        const peerData = { pc, pendingIce: [], fromUser };
-        pcMapRef.current.set(fromUserId, peerData);
-        
-        setupPeerConnection(pc, stream, fromUserId, groupId);
+        // Reuse existing PC if we already created one for this peer (startGroupCall pre-creates)
+        let peerData = pcMapRef.current.get(fromUserId);
+        let pc = peerData?.pc;
+        if (!pc || pc.connectionState === "closed" || pc.connectionState === "failed") {
+          if (pc) {
+            try { pc.close(); } catch (_) {}
+          }
+          pc = new RTCPeerConnection({ iceServers: getIceServers() });
+          peerData = { pc, pendingIce: peerData?.pendingIce || [], fromUser };
+          pcMapRef.current.set(fromUserId, peerData);
+          setupPeerConnection(pc, stream, fromUserId, groupId);
+        } else {
+          peerData.fromUser = fromUser || peerData.fromUser;
+        }
+
+        // Flush any ICE that arrived before the PC existed
+        const early = pendingIceByUserRef.current.get(fromUserId);
+        if (early?.length) {
+          peerData.pendingIce = [...(peerData.pendingIce || []), ...early];
+          pendingIceByUserRef.current.delete(fromUserId);
+        }
 
         // Create and send offer to the callee
         const offer = await pc.createOffer();
@@ -1178,7 +1199,9 @@ export function useGroupCall(socket, currentUserId = null) {
         }
         
         const pc = new RTCPeerConnection({ iceServers: getIceServers() });
-        const newPeerData = { pc, pendingIce: [], makingOffer: false };
+        const early = pendingIceByUserRef.current.get(fromUserId) || [];
+        pendingIceByUserRef.current.delete(fromUserId);
+        const newPeerData = { pc, pendingIce: [...early], makingOffer: false };
         pcMapRef.current.set(fromUserId, newPeerData);
         
         setupPeerConnection(pc, stream, fromUserId, groupId);
@@ -1196,6 +1219,7 @@ export function useGroupCall(socket, currentUserId = null) {
 
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(offer));
+          await flushIce(pc, fromUserId);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           
@@ -1281,9 +1305,12 @@ export function useGroupCall(socket, currentUserId = null) {
         if (peerData && peerData.pc) {
           if (!peerData.pendingIce) peerData.pendingIce = [];
           peerData.pendingIce.push(candidate);
+        } else {
+          // Peer connection not created yet — buffer by user until onAccept/offer
+          const buf = pendingIceByUserRef.current.get(fromUserId) || [];
+          buf.push(candidate);
+          pendingIceByUserRef.current.set(fromUserId, buf);
         }
-        // If peerData doesn't exist yet, the candidate arrives before the offer;
-        // flushIce is called from the offer handler once the PC is set up.
         return;
       }
 
@@ -1300,6 +1327,7 @@ export function useGroupCall(socket, currentUserId = null) {
         try { peerData.pc.close(); } catch (_) {}
       }
       pcMapRef.current.delete(userId);
+      pendingIceByUserRef.current.delete(userId);
 
       const remoteStream = remoteStreamsRef.current.get(userId);
       if (remoteStream) {
@@ -1320,7 +1348,7 @@ export function useGroupCall(socket, currentUserId = null) {
 
     const onEnded = ({ groupId, summary }) => {
       setActiveCallBanner((prev) => (prev?.groupId === groupId ? null : prev));
-      if (groupId === activeGroupId) {
+      if (groupId && groupId === activeGroupIdRef.current) {
         cleanup();
       }
     };
@@ -1625,22 +1653,29 @@ export function useGroupCall(socket, currentUserId = null) {
   // Keep ref current so Electron IPC callbacks can read latest incomingCall without stale closure
   useEffect(() => { incomingCallRef.current = incomingCall; }, [incomingCall]);
 
+  const acceptGroupCallRef = useRef(acceptGroupCall);
+  const declineCallRef = useRef(declineCall);
+  useEffect(() => { acceptGroupCallRef.current = acceptGroupCall; }, [acceptGroupCall]);
+  useEffect(() => { declineCallRef.current = declineCall; }, [declineCall]);
+
   // Electron notification Accept / Decline buttons for group calls
   useEffect(() => {
     if (!window.electronAPI?.onCallAccept) return;
     const unsubAccept = window.electronAPI.onCallAccept(() => {
+      // Only handle when a group incoming ring is active — DM path owns mode===incoming
       const ic = incomingCallRef.current;
-      if (ic) acceptGroupCall(ic.groupId, ic.callType, ic.fromUser);
+      if (!ic || isInCallRef.current) return;
+      acceptGroupCallRef.current?.(ic.groupId, ic.callType, ic.fromUser);
     });
     const unsubDecline = window.electronAPI.onCallDecline(() => {
       const ic = incomingCallRef.current;
-      if (ic) declineCall(ic.groupId, ic.fromUser?.id, ic.fromUser, ic.callType);
+      if (!ic) return;
+      declineCallRef.current?.(ic.groupId, ic.fromUser?.id, ic.fromUser, ic.callType);
     });
     return () => {
       unsubAccept?.();
       unsubDecline?.();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setLocalVideo = useCallback((ref) => {
@@ -1730,7 +1765,7 @@ export function useGroupCall(socket, currentUserId = null) {
   const dismissActiveBanner = useCallback(() => setActiveCallBanner(null), []);
 
   const joinActiveCall = useCallback(async (banner) => {
-    if (!banner?.groupId || !socketRef.current || isInCall) return;
+    if (!banner?.groupId || !socketRef.current || isInCallRef.current) return;
     const { groupId, callType: type, participants: existingParticipants = [] } = banner;
     try {
       const constraints = type === "video"

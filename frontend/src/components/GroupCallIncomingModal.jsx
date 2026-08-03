@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import IncomingCallCard from "./voice/IncomingCallCard";
 
@@ -6,20 +6,21 @@ import IncomingCallCard from "./voice/IncomingCallCard";
  * Floating incoming group call modal — FaceTime-style avatar rings.
  */
 export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecline }) {
+  const onDeclineRef = useRef(onDecline);
   useEffect(() => {
-    if (!incomingCall) return;
-    const timer = setTimeout(
-      () =>
-        onDecline?.(
-          incomingCall.groupId,
-          incomingCall.fromUser?.id,
-          incomingCall.fromUser,
-          incomingCall.callType
-        ),
-      30_000
-    );
+    onDeclineRef.current = onDecline;
+  }, [onDecline]);
+
+  useEffect(() => {
+    if (!incomingCall?.groupId) return;
+    const groupId = incomingCall.groupId;
+    const fromUser = incomingCall.fromUser;
+    const callType = incomingCall.callType;
+    const timer = setTimeout(() => {
+      onDeclineRef.current?.(groupId, fromUser?.id, fromUser, callType);
+    }, 30_000);
     return () => clearTimeout(timer);
-  }, [incomingCall, onDecline]);
+  }, [incomingCall?.groupId, incomingCall?.fromUser?.id, incomingCall?.callType]);
 
   return (
     <AnimatePresence>
@@ -40,7 +41,11 @@ export default function GroupCallIncomingModal({ incomingCall, onAccept, onDecli
             )
           }
           onAccept={() =>
-            onAccept?.(incomingCall.groupId, incomingCall.callType, incomingCall.fromUser)
+            onAccept?.(
+              incomingCall.groupId,
+              incomingCall.callType,
+              incomingCall.fromUser
+            )
           }
         />
       )}

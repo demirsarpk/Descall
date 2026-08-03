@@ -256,7 +256,7 @@ export default function MessageList({
 
         return (
           <div
-            key={`group-${groupIndex}`}
+            key={group.messages?.[0]?.id || group.id || `msg-group-${groupIndex}`}
             className={`message-group ${isOwn ? "own" : ""}`}
           >
             {!group.isCompact && (
@@ -272,7 +272,7 @@ export default function MessageList({
                     const online = (onlineUsers || []).find((u) => u.id === avatarUser.id);
                     setHoverUser(
                       mergeUserProfiles(avatarUser, friend, online, {
-                        status: online?.status || friend?.status || "offline",
+                        status: getPresenceStatus(onlineUsers, avatarUser.id),
                       })
                     );
                     setHoverPos(hoverAnchorFromRect(rect));
