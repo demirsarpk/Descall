@@ -1,0 +1,468 @@
+/* ── Valorant LFG (integrated Play view) ── */
+.lfg-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  height: 100%;
+  min-height: 0;
+  background: var(--surface-0, #1e1f22);
+  color: var(--text-0, #f2f3f5);
+  overflow: hidden;
+}
+
+.lfg-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border-2, rgba(255, 255, 255, 0.08));
+  background: var(--surface-1, #2b2d31);
+}
+
+.lfg-sidebar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 14px 10px;
+}
+.lfg-sidebar-header h2 {
+  margin: 2px 0 0;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+.lfg-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ff4655;
+}
+.lfg-sidebar-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.lfg-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 0 12px 12px;
+}
+.lfg-filters select,
+.lfg-form-grid select,
+.lfg-form-grid input,
+.lfg-full input,
+.lfg-detail-actions select,
+.lfg-party-code-row input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: inherit;
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+.lfg-mic-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.lfg-lobby-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lfg-lobby-card {
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 11px 12px;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.lfg-lobby-card:hover,
+.lfg-lobby-card.active {
+  border-color: rgba(255, 70, 85, 0.55);
+  background: rgba(255, 70, 85, 0.08);
+}
+.lfg-lobby-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.lfg-mode {
+  font-weight: 700;
+  font-size: 13px;
+}
+.lfg-slots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.lfg-lobby-card-rank {
+  font-size: 12px;
+  color: #ff9098;
+  margin-bottom: 6px;
+}
+.lfg-lobby-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.lfg-mic-tag,
+.lfg-code-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.lfg-lobby-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfg-empty,
+.lfg-main-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 28px 18px;
+  color: var(--text-muted);
+}
+.lfg-empty strong,
+.lfg-main-empty h3 {
+  color: var(--text-0);
+  font-size: 16px;
+}
+.lfg-main-empty {
+  height: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.lfg-main-empty p {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.lfg-main {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  background:
+    radial-gradient(700px 280px at 80% -10%, rgba(255, 70, 85, 0.16), transparent 60%),
+    var(--surface-0, #1e1f22);
+}
+
+.lfg-error-banner {
+  margin: 12px 16px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(237, 66, 69, 0.14);
+  color: #ed4245;
+  font-size: 13px;
+}
+
+.lfg-detail {
+  padding: 22px 24px 28px;
+  max-width: 720px;
+}
+.lfg-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.lfg-detail-header h2 {
+  margin: 2px 0 4px;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.lfg-detail-header p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.lfg-detail-slots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: fit-content;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 700;
+}
+.lfg-detail-note {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.lfg-members h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.lfg-member-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.lfg-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.lfg-member strong {
+  display: block;
+  font-size: 13px;
+}
+.lfg-member span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.lfg-party-code {
+  margin: 8px 0 16px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lfg-party-code label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.lfg-party-code-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: stretch;
+}
+.lfg-party-code-mask {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  cursor: pointer;
+}
+.lfg-party-code-mask.is-revealed {
+  border-style: solid;
+  border-color: rgba(255, 70, 85, 0.45);
+}
+.lfg-party-code-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  flex: 1;
+  text-align: left;
+}
+.lfg-party-code-mask em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.lfg-party-code-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.lfg-party-code.is-empty p,
+.lfg-party-code.is-locked {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.lfg-party-code.is-locked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  margin-bottom: 16px;
+}
+
+.lfg-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.lfg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.lfg-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.lfg-btn.primary { background: #ff4655; }
+.lfg-btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
+.lfg-btn.success { background: #23a55a; }
+.lfg-btn.danger { background: rgba(237, 66, 69, 0.2); color: #ed4245; }
+.lfg-btn.ghost { background: transparent; border: 1px solid rgba(255, 255, 255, 0.12); color: var(--text-1); }
+
+.lfg-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12050;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.lfg-modal {
+  width: min(520px, 100%);
+  max-height: min(90vh, 760px);
+  overflow-y: auto;
+  background: #1e1f22;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+.lfg-modal header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.lfg-modal h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.lfg-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.lfg-form-grid label,
+.lfg-full {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.lfg-check {
+  flex-direction: row !important;
+  align-items: center;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: var(--text-1);
+  gap: 8px !important;
+}
+.lfg-roles {
+  margin-bottom: 14px;
+}
+.lfg-roles > span {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.lfg-roles > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lfg-roles button {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-1);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.lfg-roles button.active {
+  background: rgba(255, 70, 85, 0.18);
+  border-color: #ff4655;
+  color: #fff;
+}
+.lfg-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 860px) {
+  .lfg-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(38vh, 42vh) 1fr;
+  }
+  .lfg-sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .lfg-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
