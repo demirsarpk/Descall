@@ -323,6 +323,7 @@ export default function AppLayout({
         <LfgWorkspace
           me={me}
           socket={socket}
+          onClose={() => handleViewChange("chat")}
           onGroupCreated={onGroupCreated}
           onOpenGroup={(group) => {
             handleGroupSelect(group);

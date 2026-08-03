@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Crosshair, Plus, RefreshCw, Users, Mic, Filter, X, Gamepad2,
-  LogOut, Phone, MessageSquare, Shield,
+  LogOut, Phone, MessageSquare, Shield, ChevronLeft, ArrowLeft,
 } from "lucide-react";
 import {
   getLfgMeta,
@@ -43,6 +43,7 @@ export default function LfgWorkspace({
   onOpenGroup,
   onJoinVoice,
   onGroupCreated,
+  onClose,
 }) {
   const [meta, setMeta] = useState({
     ranks: FALLBACK_RANKS,
@@ -69,10 +70,17 @@ export default function LfgWorkspace({
   const [detailLoading, setDetailLoading] = useState(false);
   const [joinRank, setJoinRank] = useState("");
   const [busy, setBusy] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [linkedRank, setLinkedRank] = useState("");
   const [linkedRegion, setLinkedRegion] = useState("");
 
   const ranks = meta.ranks?.length ? meta.ranks : FALLBACK_RANKS;
+  const filterCount = [filters.mode, filters.region, filters.myRank, filters.mic].filter(Boolean).length;
+
+  const clearLobbySelection = () => {
+    setSelectedId(null);
+    setDetail(null);
+  };
 
   const refreshList = useCallback(async () => {
     setLoading(true);
@@ -213,6 +221,11 @@ export default function LfgWorkspace({
 
   const handleLeave = async () => {
     if (!selectedId) return;
+    const closingAsHost = detail?.isHost;
+    if (closingAsHost) {
+      const ok = window.confirm("Close this lobby for everyone? Only you (the host) can do this.");
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       await leaveLfgLobby(selectedId);
@@ -238,12 +251,26 @@ export default function LfgWorkspace({
   };
 
   return (
-    <div className="lfg-workspace">
+    <div className={`lfg-workspace${selectedId ? " has-selection" : ""}`}>
       <aside className="lfg-sidebar">
         <header className="lfg-sidebar-header">
-          <div>
-            <div className="lfg-kicker">Valorant</div>
-            <h2>Find a stack</h2>
+          <div className="lfg-sidebar-title">
+            {onClose && (
+              <button
+                type="button"
+                className="lfg-back-btn"
+                onClick={onClose}
+                title="Back to Descall"
+                aria-label="Back to Descall"
+              >
+                <ArrowLeft size={18} />
+                <span className="lfg-back-label">Descall</span>
+              </button>
+            )}
+            <div>
+              <div className="lfg-kicker">Valorant</div>
+              <h2>Find a stack</h2>
+            </div>
           </div>
           <div className="lfg-sidebar-actions">
             <button type="button" className="icon-btn" title="Refresh" onClick={refreshList}>
@@ -255,43 +282,53 @@ export default function LfgWorkspace({
           </div>
         </header>
 
-        <div className="lfg-filters">
-          <Filter size={14} />
-          <select
-            value={filters.mode}
-            onChange={(e) => setFilters((f) => ({ ...f, mode: e.target.value }))}
+        <div className="lfg-filters-bar">
+          <button
+            type="button"
+            className={`lfg-filters-toggle${filtersOpen ? " open" : ""}`}
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
           >
-            <option value="">All modes</option>
-            {(meta.modes || []).map((m) => (
-              <option key={m.id} value={m.id}>{m.label}</option>
-            ))}
-          </select>
-          <select
-            value={filters.region}
-            onChange={(e) => setFilters((f) => ({ ...f, region: e.target.value }))}
-          >
-            <option value="">All regions</option>
-            {(meta.regions || []).map((r) => (
-              <option key={r.id} value={r.id}>{r.label}</option>
-            ))}
-          </select>
-          <select
-            value={filters.myRank}
-            onChange={(e) => setFilters((f) => ({ ...f, myRank: e.target.value }))}
-          >
-            <option value="">My rank (filter)</option>
-            {ranks.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-          <label className="lfg-mic-filter">
-            <input
-              type="checkbox"
-              checked={filters.mic === "1"}
-              onChange={(e) => setFilters((f) => ({ ...f, mic: e.target.checked ? "1" : "" }))}
-            />
-            Mic required
-          </label>
+            <Filter size={14} />
+            <span>Filters{filterCount ? ` · ${filterCount}` : ""}</span>
+          </button>
+          <div className={`lfg-filters${filtersOpen ? " is-open" : ""}`}>
+            <select
+              value={filters.mode}
+              onChange={(e) => setFilters((f) => ({ ...f, mode: e.target.value }))}
+            >
+              <option value="">All modes</option>
+              {(meta.modes || []).map((m) => (
+                <option key={m.id} value={m.id}>{m.label}</option>
+              ))}
+            </select>
+            <select
+              value={filters.region}
+              onChange={(e) => setFilters((f) => ({ ...f, region: e.target.value }))}
+            >
+              <option value="">All regions</option>
+              {(meta.regions || []).map((r) => (
+                <option key={r.id} value={r.id}>{r.label}</option>
+              ))}
+            </select>
+            <select
+              value={filters.myRank}
+              onChange={(e) => setFilters((f) => ({ ...f, myRank: e.target.value }))}
+            >
+              <option value="">My rank (filter)</option>
+              {ranks.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+            <label className="lfg-mic-filter">
+              <input
+                type="checkbox"
+                checked={filters.mic === "1"}
+                onChange={(e) => setFilters((f) => ({ ...f, mic: e.target.checked ? "1" : "" }))}
+              />
+              Mic required
+            </label>
+          </div>
         </div>
 
         <div className="lfg-lobby-list">
@@ -337,8 +374,18 @@ export default function LfgWorkspace({
         </div>
       </aside>
 
-      <main className="lfg-main">
+      <main className={`lfg-main${selectedId ? " is-open" : ""}`}>
         {error && <div className="lfg-error-banner">{error}</div>}
+
+        {selectedId && (
+          <button
+            type="button"
+            className="lfg-mobile-detail-back"
+            onClick={clearLobbySelection}
+          >
+            <ChevronLeft size={18} /> Back to list
+          </button>
+        )}
 
         {!selectedId ? (
           <div className="lfg-main-empty">
