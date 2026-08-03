@@ -1,8 +1,10 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { Avatar } from "../ui/Avatar";
 import { pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
+import ValorantBadge from "./ValorantBadge";
+import { getUserValorant } from "../../api/riot";
 
 const STATUS = {
   online: { label: "Online", className: "st-online" },
@@ -47,13 +49,28 @@ function clampPos(anchor, cardH = 180) {
 export default function UserHoverCard({ user, anchor }) {
   const ref = useRef(null);
   const [pos, setPos] = useState(() => clampPos(anchor));
+  const [valorant, setValorant] = useState(user?.valorant || null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setValorant(user?.valorant || null);
+    if (!user?.id || user?.valorant?.linked) return undefined;
+    getUserValorant(user.id)
+      .then((res) => {
+        if (!cancelled) setValorant(res.valorant || null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, user?.valorant]);
 
   useLayoutEffect(() => {
     if (!anchor) return;
     const el = ref.current;
     const h = el?.offsetHeight || 180;
     setPos(clampPos(anchor, h));
-  }, [anchor, user?.id, user?.bio, user?.customStatus]);
+  }, [anchor, user?.id, user?.bio, user?.customStatus, valorant]);
 
   if (!user || !anchor) return null;
 
@@ -106,6 +123,7 @@ export default function UserHoverCard({ user, anchor }) {
             <span className="uhc-dot" /> {st.label}
           </div>
           {customStatus && <p className="uhc-custom-status">{customStatus}</p>}
+          {valorant?.linked && <ValorantBadge valorant={valorant} compact />}
           {bio && <p className="uhc-bio">{bio}</p>}
           {!bio && lastSeenLabel && st.className === "st-offline" && (
             <p className="uhc-bio">Last seen {lastSeenLabel}</p>

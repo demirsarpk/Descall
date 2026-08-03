@@ -268,6 +268,28 @@ export default function App() {
     preloadIceServers().catch(() => {});
   }, []);
 
+  // Riot OAuth / link callback (?riot_link=success|error)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      const riotLink = params.get("riot_link");
+      if (!riotLink) return;
+      const reason = params.get("reason") || "";
+      params.delete("riot_link");
+      params.delete("reason");
+      const qs = params.toString();
+      window.history.replaceState({}, "", qs ? `/?${qs}` : "/");
+      if (riotLink === "success") {
+        toast("Valorant account linked", "success");
+      } else {
+        const msg = reason ? `Valorant link failed: ${reason}` : "Valorant link failed";
+        toast(msg, "error");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [toast]);
+
   // Soft feedback nudge after voice/video calls end (≥45s)
   useEffect(() => {
     if (call?.isInCall) {
