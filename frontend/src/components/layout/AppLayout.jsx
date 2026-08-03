@@ -6,6 +6,7 @@ import ServerSidebar from "./ServerSidebar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
 import ActivitySidebar from "../activity/ActivitySidebar";
+import FeedbackNudgeBanner from "../feedback/FeedbackNudgeBanner";
 import { useActivity } from "../../hooks/useActivity";
 import { useMobile } from "../../hooks/useMobile";
 import { useMobileKeyboard } from "../../hooks/useMobileKeyboard";
@@ -234,6 +235,9 @@ export default function AppLayout({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Soft feedback reminder — top banner, auto-hides in 10s */}
+      {me && !showNotifBanner && <FeedbackNudgeBanner enabled />}
 
       {/* Mobile drawer backdrop */}
       <AnimatePresence>

@@ -106,3 +106,33 @@ export async function renameGroup(groupId, newName) {
   if (!res.ok) throw new Error("Failed to rename");
   return res.json();
 }
+
+export async function createGroupInviteLink(groupId, { maxUses = null, expiresInHours = 24 * 7 } = {}) {
+  const res = await fetch(`${BASE}/${groupId}/invite-links`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ maxUses, expiresInHours }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || "Failed to create invite link");
+  return body;
+}
+
+export async function previewGroupInvite(code) {
+  const res = await fetch(`${BASE}/invite-links/${encodeURIComponent(code)}`, {
+    headers: getHeaders(),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || "Invalid invite");
+  return body;
+}
+
+export async function joinGroupByInvite(code) {
+  const res = await fetch(`${BASE}/invite-links/${encodeURIComponent(code)}/join`, {
+    method: "POST",
+    headers: getHeaders(),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || "Failed to join group");
+  return body;
+}

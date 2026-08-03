@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AuthView from "./components/AuthView";
 import AppLayout from "./components/layout/AppLayout";
 import DownloadPage from "./components/download/DownloadPage";
+import GroupInviteLanding from "./components/groups/GroupInviteLanding";
 import { getMe, login, loginWithGoogle, register } from "./api/auth";
 import { getMyGroups, getGroupMessages } from "./api/groups";
 import {
@@ -41,6 +41,7 @@ import MessageList from "./components/chat/MessageList";
 import MessageComposer from "./components/chat/MessageComposer";
 import CallOverlay from "./components/CallOverlay";
 import GroupCallIncomingModal from "./components/GroupCallIncomingModal";
+import { requestFeedbackNudge } from "./components/feedback/FeedbackNudgeBanner";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
@@ -52,6 +53,46 @@ function normalizeGroups(payload) {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.groups)) return payload.groups;
   return [];
+}
+
+function parseInviteCodeFromLocation() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    const fromQuery = (params.get("invite") || params.get("i") || "").trim();
+    if (fromQuery) return fromQuery;
+    const path = window.location.pathname || "";
+    const match = path.match(/^\/(?:invite|i)\/([A-Za-z0-9_-]+)\/?$/i);
+    return match?.[1] || null;
+  } catch {
+    return null;
+  }
+}
+
+function clearInvitePath() {
+  try {
+    const path = window.location.pathname || "";
+    const params = new URLSearchParams(window.location.search || "");
+    const hasQueryInvite = params.has("invite") || params.has("i");
+    const hasPathInvite = /^\/(?:invite|i)\//i.test(path);
+    if (!hasQueryInvite && !hasPathInvite) return;
+    window.history.replaceState({}, "", "/");
+  } catch {
+    /* ignore */
+  }
+}
+
+function writeInvitePath(code) {
+  try {
+    if (!code) return;
+    // Root query form — required because Vite builds with base "./" and
+    // deep paths like /invite/:code break relative JS/CSS asset loading.
+    const next = `/?invite=${encodeURIComponent(code)}`;
+    if (`${window.location.pathname}${window.location.search}` !== next) {
+      window.history.replaceState({}, "", next);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 function normalizeGroupMessage(m) {
@@ -155,6 +196,8 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [me, setMe] = useState(() => normalizeUser(getUser()));
+  const [inviteCode, setInviteCode] = useState(() => parseInviteCodeFromLocation());
+  const [inviteAuthOpen, setInviteAuthOpen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [myStatus, setMyStatus] = useState(() => {
     try {
@@ -216,10 +259,43 @@ export default function App() {
   const typingGroupTimeoutsRef = useRef(new Map());
   const call = useCall(socketApi);
   const groupCall = useGroupCall(socketApi, me?.id);
+  const wasDmInCallRef = useRef(false);
+  const wasGroupInCallRef = useRef(false);
+  const lastDmCallDurationRef = useRef(0);
+  const lastGroupCallDurationRef = useRef(0);
 
   useEffect(() => {
     preloadIceServers().catch(() => {});
   }, []);
+
+  // Soft feedback nudge after voice/video calls end (≥45s)
+  useEffect(() => {
+    if (call?.isInCall) {
+      wasDmInCallRef.current = true;
+      lastDmCallDurationRef.current = Number(call.duration) || 0;
+      return;
+    }
+    if (wasDmInCallRef.current) {
+      wasDmInCallRef.current = false;
+      const secs = lastDmCallDurationRef.current || 0;
+      lastDmCallDurationRef.current = 0;
+      requestFeedbackNudge({ trigger: "after_call", callDurationMs: secs * 1000 });
+    }
+  }, [call?.isInCall, call?.duration]);
+
+  useEffect(() => {
+    if (groupCall?.isInCall) {
+      wasGroupInCallRef.current = true;
+      lastGroupCallDurationRef.current = Number(groupCall.duration) || 0;
+      return;
+    }
+    if (wasGroupInCallRef.current) {
+      wasGroupInCallRef.current = false;
+      const secs = lastGroupCallDurationRef.current || 0;
+      lastGroupCallDurationRef.current = 0;
+      requestFeedbackNudge({ trigger: "after_call", callDurationMs: secs * 1000 });
+    }
+  }, [groupCall?.isInCall, groupCall?.duration]);
 
   useEffect(() => {
     myIdRef.current = me?.id ?? null;
@@ -804,7 +880,7 @@ export default function App() {
       const isGameCommand =
         Boolean(message.isGameCommand) ||
         (trimmedContent.startsWith("/") &&
-          ["/bj", "/blackjack", "/hit", "/stand", "/stay", "/double", "/credits", "/bakiye", "/balance", "/top", "/lider", "/help", "/yardım", "/commands", "/jb"].some(
+          ["/bj", "/blackjack", "/hit", "/stand", "/stay", "/double", "/credits", "/bakiye", "/balance", "/top", "/lider", "/help", "/yardım", "/commands", "/jb", "/daily"].some(
             (cmd) => trimmedContent.toLowerCase().startsWith(cmd)
           ));
 
@@ -1660,8 +1736,76 @@ export default function App() {
     }
   }, [sessionChecked]);
 
+  // After login, resume a pending Discord-style group invite
+  useEffect(() => {
+    if (!me?.id) return;
+    try {
+      const pending = sessionStorage.getItem("descall:pendingInvite");
+      if (!pending) return;
+      sessionStorage.removeItem("descall:pendingInvite");
+      setInviteCode(pending);
+      setInviteAuthOpen(false);
+      writeInvitePath(pending);
+    } catch {
+      /* ignore */
+    }
+  }, [me?.id]);
+
+  const handleInviteJoined = useCallback((group) => {
+    if (group?.id) {
+      setMyGroups((prev) => {
+        const list = Array.isArray(prev) ? prev : [];
+        if (list.some((g) => g.id === group.id)) return list;
+        return [group, ...list];
+      });
+      setReplyTo(null);
+      setActiveDmUser(null);
+      setActiveGroup(group);
+      setUnreadMarker(null);
+      if (socketRef.current?.connected) {
+        socketRef.current.emit("groups:rejoin", [group.id]);
+        socketRef.current.emit("dm:set_active", { withUserId: null });
+      }
+    }
+    try {
+      sessionStorage.removeItem("descall:pendingInvite");
+    } catch {
+      /* ignore */
+    }
+    clearInvitePath();
+    setInviteCode(null);
+    setInviteAuthOpen(false);
+  }, []);
+
+  const dismissInvite = useCallback(() => {
+    try {
+      sessionStorage.removeItem("descall:pendingInvite");
+    } catch {
+      /* ignore */
+    }
+    clearInvitePath();
+    setInviteCode(null);
+    setInviteAuthOpen(false);
+  }, []);
+
   if (!sessionChecked) {
     return <TitleBar />;
+  }
+
+  // Discord-style invite landing (works logged out + logged in)
+  if (inviteCode && !(inviteAuthOpen && !me)) {
+    return (
+      <>
+        <TitleBar />
+        <GroupInviteLanding
+          code={inviteCode}
+          me={me}
+          onJoined={handleInviteJoined}
+          onNeedLogin={() => setInviteAuthOpen(true)}
+          onDismiss={dismissInvite}
+        />
+      </>
+    );
   }
 
   // Show download page for all non-logged-in users
@@ -1842,7 +1986,7 @@ export default function App() {
               const textStr = isMediaObject ? "" : String(textPayload || "");
               const isCasinoCmd =
                 textStr.trim().startsWith("/") &&
-                ["/bj", "/blackjack", "/hit", "/stand", "/stay", "/double", "/credits", "/bakiye", "/balance", "/top", "/lider", "/help", "/yardım", "/commands", "/jb"].some(
+                ["/bj", "/blackjack", "/hit", "/stand", "/stay", "/double", "/credits", "/bakiye", "/balance", "/top", "/lider", "/help", "/yardım", "/commands", "/jb", "/daily"].some(
                   (cmd) => textStr.trim().toLowerCase().startsWith(cmd)
                 );
               const optimistic = {

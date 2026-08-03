@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Mic, Smile,
-  Plus, Gift, Image, FileText, X, StopCircle, Loader2, Reply, Dice5, HelpCircle, Wallet, Trophy
+  Plus, Gift, Image, FileText, X, StopCircle, Loader2, Reply, Dice5, HelpCircle, Wallet, Trophy, CalendarDays
 } from "lucide-react";
 import GiphyPicker from "./GiphyPicker";
 import { getToken } from "../../lib/storage";
@@ -23,6 +23,15 @@ const SLASH_COMMANDS = [
     label: "Blackjack",
     hint: "Start a hand — /bj 100",
     Icon: Dice5,
+    groupOnly: true,
+  },
+  {
+    id: "daily",
+    command: "/daily",
+    insert: "/daily",
+    label: "Daily bonus",
+    hint: "Claim free credits once per day",
+    Icon: CalendarDays,
     groupOnly: true,
   },
   {
@@ -87,6 +96,7 @@ export default function MessageComposer({
   const timerRef = useRef(null);
   const typingTimerRef = useRef(null);
   const isTypingRef = useRef(false);
+  const attachBtnRef = useRef(null);
   const analyserRef = useRef(null);
   const rafRef = useRef(null);
   const audioCtxRef = useRef(null);
@@ -439,7 +449,12 @@ export default function MessageComposer({
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
     >
-      <GiphyPicker isOpen={showGiphy} onClose={() => setShowGiphy(false)} onSelectGif={handleGifSelect} />
+      <GiphyPicker
+        isOpen={showGiphy}
+        onClose={() => setShowGiphy(false)}
+        onSelectGif={handleGifSelect}
+        anchorRef={attachBtnRef}
+      />
 
       <AnimatePresence>
         {replyTo && (
@@ -595,7 +610,14 @@ export default function MessageComposer({
       <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json" style={{ display: "none" }} onChange={uploadFile} />
 
       <div className="composer-left">
-        <motion.button className="composer-action-btn" onClick={() => setShowAttachmentMenu(!showAttachmentMenu)} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} title="Add Attachment">
+        <motion.button
+          ref={attachBtnRef}
+          className="composer-action-btn"
+          onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          title="Add Attachment"
+        >
           <Plus size={24} />
         </motion.button>
       </div>

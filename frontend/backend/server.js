@@ -758,6 +758,15 @@ console.log("  - /health");
 // Static files
 app.use("/media/files", express.static(path.join(__dirname, "uploads")));
 
+// Discord-style invite deep links → root query.
+// Vite builds with base "./", so serving the SPA under /invite/:code breaks
+// relative asset URLs (./assets/...) and leaves the boot splash stuck.
+app.get(["/invite/:code", "/i/:code"], (req, res) => {
+  const code = String(req.params.code || "").trim();
+  if (!code) return res.redirect(302, "/");
+  return res.redirect(302, `/?invite=${encodeURIComponent(code)}`);
+});
+
 // Serve React frontend (Vite build output: frontend/dist)
 const fs = require("fs");
 const distPath = path.join(__dirname, "..", "dist");

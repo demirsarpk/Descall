@@ -7,6 +7,17 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#0b0c10" />
     <title>Descall</title>
+    <script>
+      /* Deep-link bootstrap: Vite base "./" breaks JS under /invite/:code */
+      (function () {
+        try {
+          var m = location.pathname.match(/^\/(?:invite|i)\/([A-Za-z0-9_-]+)\/?$/i);
+          if (m) {
+            location.replace("/?invite=" + encodeURIComponent(m[1]));
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
