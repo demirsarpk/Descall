@@ -310,6 +310,17 @@
   flex-shrink: 0;
 }
 
+.calls-group-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(88, 101, 242, 0.18);
+  color: #a5b4ff;
+}
+
 .calls-row-meta {
   min-width: 0;
   flex: 1;

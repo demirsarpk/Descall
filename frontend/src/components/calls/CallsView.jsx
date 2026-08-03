@@ -29,11 +29,12 @@ const FILTERS = [
   { id: "missed", label: "Missed" },
   { id: "incoming", label: "Incoming" },
   { id: "outgoing", label: "Outgoing" },
+  { id: "group", label: "Group" },
 ];
 
 function statusMeta(call) {
   if (call.status === "missed") {
-    return { label: "Missed", Icon: PhoneMissed, tone: "danger" };
+    return { label: call.kind === "group" ? "Missed group" : "Missed", Icon: PhoneMissed, tone: "danger" };
   }
   if (call.status === "declined") {
     return { label: "Declined", Icon: PhoneOff, tone: "danger" };
@@ -41,19 +42,38 @@ function statusMeta(call) {
   if (call.status === "cancelled") {
     return { label: "Cancelled", Icon: PhoneOff, tone: "muted" };
   }
+  if (call.kind === "group") {
+    return {
+      label: call.direction === "outgoing" ? "Group · Started" : "Group · Joined",
+      Icon: Users,
+      tone: "ok",
+    };
+  }
   if (call.direction === "incoming") {
     return { label: "Incoming", Icon: PhoneIncoming, tone: "ok" };
   }
   return { label: "Outgoing", Icon: PhoneOutgoing, tone: "ok" };
 }
 
+function callTitle(call) {
+  if (call.kind === "group") return call.group?.name || "Group";
+  return resolveDisplayName(call.peer);
+}
+
 function normalizeServerCall(raw, meId) {
   if (!raw) return null;
-  if (raw.peer) return raw;
-  // Socket payload from finalizeCall may lack peer/direction
+  if (raw.kind === "group" || raw.group) {
+    return {
+      ...raw,
+      kind: "group",
+      id: raw.id?.startsWith?.("group-") ? raw.id : `group-${raw.id}`,
+    };
+  }
+  if (raw.peer) return { ...raw, kind: raw.kind || "dm" };
   const iAmCaller = raw.callerId === meId;
   return {
     id: raw.id,
+    kind: "dm",
     direction: iAmCaller ? "outgoing" : "incoming",
     callType: raw.callType || "voice",
     status: raw.status,
@@ -73,10 +93,13 @@ function normalizeServerCall(raw, meId) {
 export default function CallsView({
   me,
   friends = [],
+  groups = [],
   onlineUsers = [],
   socket,
   onStartCall,
+  onStartGroupCall,
   onOpenChat,
+  onOpenGroup,
   compact = false,
 }) {
   const meId = me?.id;
@@ -118,16 +141,26 @@ export default function CallsView({
         refresh({ soft: true });
         return;
       }
-      // Enrich peer from friends if username unknown
-      if (!normalized.peer?.username || normalized.peer.username === "Unknown") {
-        const friend = friends.find((f) => f.id === normalized.peer?.id);
-        if (friend) {
-          normalized.peer = {
-            id: friend.id,
-            username: friend.username,
-            displayName: friend.displayName || friend.display_name || null,
-            avatarUrl: friend.avatarUrl || friend.avatar_url || null,
-            updated_at: friend.updated_at || friend.avatarVersion || null,
+      if (normalized.kind !== "group") {
+        if (!normalized.peer?.username || normalized.peer.username === "Unknown") {
+          const friend = friends.find((f) => f.id === normalized.peer?.id);
+          if (friend) {
+            normalized.peer = {
+              id: friend.id,
+              username: friend.username,
+              displayName: friend.displayName || friend.display_name || null,
+              avatarUrl: friend.avatarUrl || friend.avatar_url || null,
+              updated_at: friend.updated_at || friend.avatarVersion || null,
+            };
+          }
+        }
+      } else if ((!normalized.group?.name || normalized.group.name === "Group") && normalized.group?.id) {
+        const g = groups.find((x) => x.id === normalized.group.id);
+        if (g) {
+          normalized.group = {
+            id: g.id,
+            name: g.name,
+            avatarUrl: g.avatarUrl || g.avatar_url || null,
           };
         }
       }
@@ -139,7 +172,7 @@ export default function CallsView({
     };
     socket.on("calls:updated", onUpdated);
     return () => socket.off("calls:updated", onUpdated);
-  }, [socket, meId, friends, refresh]);
+  }, [socket, meId, friends, groups, refresh]);
 
   const onlineFriends = useMemo(() => {
     const list = Array.isArray(friends) ? friends : [];
@@ -157,7 +190,11 @@ export default function CallsView({
       if (filter === "missed" && c.status !== "missed" && c.status !== "declined") return false;
       if (filter === "incoming" && c.direction !== "incoming") return false;
       if (filter === "outgoing" && c.direction !== "outgoing") return false;
+      if (filter === "group" && c.kind !== "group") return false;
       if (!q) return true;
+      if (c.kind === "group") {
+        return (c.group?.name || "").toLowerCase().includes(q);
+      }
       const name = resolveDisplayName(c.peer).toLowerCase();
       return name.includes(q) || (c.peer?.username || "").toLowerCase().includes(q);
     });
@@ -168,13 +205,32 @@ export default function CallsView({
     [calls]
   );
 
+  const handleOpen = (call) => {
+    if (call.kind === "group") {
+      const g = groups.find((x) => x.id === call.group?.id) || call.group;
+      if (g?.id) onOpenGroup?.(g);
+      return;
+    }
+    onOpenChat?.(call.peer);
+  };
+
+  const handleCallBack = (call, type) => {
+    const callType = type || (call.callType === "video" ? "video" : "voice");
+    if (call.kind === "group") {
+      const g = groups.find((x) => x.id === call.group?.id) || call.group;
+      if (g?.id) onStartGroupCall?.(g, callType);
+      return;
+    }
+    onStartCall?.(call.peer, callType);
+  };
+
   return (
     <div className={`calls-view ${compact ? "is-compact" : ""}`}>
       {!compact && (
         <div className="calls-hero">
           <div className="calls-hero-copy">
             <h2>Calls</h2>
-            <p>Quick-dial friends or jump back into recent voice & video calls.</p>
+            <p>Quick-dial friends or jump back into recent DM & group calls.</p>
           </div>
           <button
             type="button"
@@ -280,7 +336,7 @@ export default function CallsView({
           <div className="calls-empty">
             <Phone size={28} />
             <strong>{filter === "missed" ? "No missed calls" : "No calls yet"}</strong>
-            <span>Start a voice or video call from Quick dial or any chat.</span>
+            <span>Start a voice or video call from Quick dial, a chat, or a group.</span>
           </div>
         ) : (
           <div className="calls-list">
@@ -291,7 +347,11 @@ export default function CallsView({
                 const TypeIcon = call.callType === "video" ? Video : Phone;
                 const duration = formatCallDuration(call.durationSeconds);
                 const when = formatCallWhen(call.endedAt || call.createdAt);
-                const peerStatus = getPresenceStatus(onlineUsers, call.peer?.id);
+                const isGroup = call.kind === "group";
+                const peerStatus = !isGroup
+                  ? getPresenceStatus(onlineUsers, call.peer?.id)
+                  : null;
+                const title = callTitle(call);
                 return (
                   <motion.div
                     key={call.id}
@@ -304,21 +364,23 @@ export default function CallsView({
                     <button
                       type="button"
                       className="calls-row-main"
-                      onClick={() => onOpenChat?.(call.peer)}
+                      onClick={() => handleOpen(call)}
                     >
                       <div className="calls-row-avatar">
-                        <Avatar
-                          name={resolveDisplayName(call.peer)}
-                          size={40}
-                          user={call.peer}
-                        />
+                        {isGroup ? (
+                          <div className="calls-group-avatar" aria-hidden="true">
+                            <Users size={18} />
+                          </div>
+                        ) : (
+                          <Avatar name={title} size={40} user={call.peer} />
+                        )}
                         {peerStatus && peerStatus !== "offline" && (
                           <StatusBadge status={peerStatus} />
                         )}
                       </div>
                       <div className="calls-row-meta">
                         <div className="calls-row-top">
-                          <strong>{resolveDisplayName(call.peer)}</strong>
+                          <strong>{title}</strong>
                           <span>{when}</span>
                         </div>
                         <div className="calls-row-sub">
@@ -326,6 +388,9 @@ export default function CallsView({
                           <TypeIcon size={13} />
                           <span>
                             {meta.label}
+                            {call.participantCount
+                              ? ` · ${call.participantCount} people`
+                              : ""}
                             {duration ? ` · ${duration}` : ""}
                           </span>
                         </div>
@@ -335,16 +400,16 @@ export default function CallsView({
                       <button
                         type="button"
                         className="calls-icon-btn"
-                        title="Call back"
-                        onClick={() => onStartCall?.(call.peer, call.callType === "video" ? "video" : "voice")}
+                        title={isGroup ? "Start group voice call" : "Call back"}
+                        onClick={() => handleCallBack(call, "voice")}
                       >
                         <Phone size={15} />
                       </button>
                       <button
                         type="button"
                         className="calls-icon-btn is-video"
-                        title="Video call"
-                        onClick={() => onStartCall?.(call.peer, "video")}
+                        title={isGroup ? "Start group video call" : "Video call"}
+                        onClick={() => handleCallBack(call, "video")}
                       >
                         <Video size={15} />
                       </button>

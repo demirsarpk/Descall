@@ -1758,6 +1758,18 @@ export default function App() {
             if (groupCall?.isInCall) return;
             if (user && call?.startCall) call.startCall(user, type);
           }}
+          onStartGroupCallFromCalls={(group, type = "voice") => {
+            if (!group?.id || !groupCall) return;
+            if (groupCall.isInCall) return;
+            const banner = groupCall.activeCallBanner;
+            if (banner?.groupId === group.id) {
+              groupCall.joinActiveCall(banner);
+              return;
+            }
+            const full = sortedGroups.find((g) => g.id === group.id) || group;
+            const memberIds = full.memberIds || full.members?.map((m) => m.id) || [];
+            groupCall.startGroupCall(full.id, type, memberIds);
+          }}
           onGroupVoiceCall={() => {
             if (!activeGroup || !groupCall) return;
             if (groupCall.isInCall && groupCall.activeGroupId === activeGroup.id) return;
