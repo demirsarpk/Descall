@@ -9,12 +9,12 @@ const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
 
 /** Keep in sync with frontend/src/lib/desktopRelease.js when cutting releases. */
 const FALLBACK_RELEASE = {
-  tagName: "v2.4.0",
-  version: "2.4.0",
-  name: "2.4.0",
+  tagName: "v2.5.0",
+  version: "2.5.0",
+  name: "2.5.0",
   publishedAt: new Date().toISOString(),
-  htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v2.4.0`,
-  windowsDownloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.4.0/Descall-Setup-2.4.0.exe`,
+  htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v2.5.0`,
+  windowsDownloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.5.0/Descall-Setup-2.5.0.exe`,
   repo: GITHUB_REPO,
   fallback: true,
 };
