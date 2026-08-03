@@ -1564,6 +1564,11 @@ function GroupRowFront({
     setOffset(shouldOpen ? -GROUP_SWIPE_WIDTH : 0);
   };
 
+  useEffect(() => {
+    if (!isMobile || isDraggingRef.current) return;
+    setOffset(swipeOpen ? -GROUP_SWIPE_WIDTH : 0);
+  }, [swipeOpen, isMobile]);
+
   return (
     <motion.button
       layout={!isMobile}
