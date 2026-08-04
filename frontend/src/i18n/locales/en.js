@@ -1695,7 +1695,9 @@ export const phrases = {
   "Copied!": "Copied!",
   "No members": "No members",
   "📞 Call": "📞 Call",
-  "Descall staff": "Descall staff"
+  "Descall staff": "Descall staff",
+  "Pending — {count}": "Pending — {count}",
+  "Friend request accepted": "Friend request accepted"
 };
 
 const locale = { nested, phrases };

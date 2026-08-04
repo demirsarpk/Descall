@@ -382,21 +382,84 @@ async function loadPendingRequestsFromDB(userId) {
   }
 }
 
-// Accept the pending friend request in the 'friends' table (one row, requester → acceptor)
+// Accept the pending friend request in the 'friendships' table (one row, requester → acceptor)
 async function saveFriendshipToDB(requesterId, acceptorId) {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("friendships")
       .update({ status: "accepted" })
       .eq("user_id", requesterId)
       .eq("friend_id", acceptorId)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select("id");
 
-    if (error) console.error("[FRIENDS] Error accepting friendship in DB:", error);
-    return !error;
+    if (error) {
+      console.error("[FRIENDS] Error accepting friendship in DB:", error);
+      return false;
+    }
+    if (Array.isArray(data) && data.length > 0) return true;
+
+    // No pending row (e.g. socket-only legacy request) — upsert accepted friendship.
+    const { error: upsertError } = await supabase.from("friendships").upsert(
+      {
+        user_id: requesterId,
+        friend_id: acceptorId,
+        status: "accepted",
+      },
+      { onConflict: "user_id,friend_id" }
+    );
+    if (upsertError) {
+      console.error("[FRIENDS] Error upserting accepted friendship:", upsertError);
+      return false;
+    }
+    return true;
   } catch (e) {
     console.error("[FRIENDS] Error in saveFriendshipToDB:", e);
     return false;
+  }
+}
+
+/** Persist a pending friend request (requester → target). */
+async function createPendingFriendshipInDB(requesterId, targetId) {
+  try {
+    // Clear any stale non-accepted rows either direction, then insert pending.
+    await supabase
+      .from("friendships")
+      .delete()
+      .or(
+        `and(user_id.eq.${requesterId},friend_id.eq.${targetId}),and(user_id.eq.${targetId},friend_id.eq.${requesterId})`
+      )
+      .neq("status", "accepted");
+
+    const { data: existingAccepted } = await supabase
+      .from("friendships")
+      .select("id")
+      .or(
+        `and(user_id.eq.${requesterId},friend_id.eq.${targetId}),and(user_id.eq.${targetId},friend_id.eq.${requesterId})`
+      )
+      .eq("status", "accepted")
+      .limit(1);
+
+    if (existingAccepted?.length) return { ok: false, reason: "already_friends" };
+
+    const { error } = await supabase.from("friendships").insert({
+      user_id: requesterId,
+      friend_id: targetId,
+      status: "pending",
+    });
+
+    if (error) {
+      // Unique conflict — treat as already pending
+      if (String(error.code) === "23505" || /duplicate|unique/i.test(error.message || "")) {
+        return { ok: false, reason: "already_pending" };
+      }
+      console.error("[FRIENDS] Error creating pending friendship:", error);
+      return { ok: false, reason: "db_error", error };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error("[FRIENDS] Error in createPendingFriendshipInDB:", e);
+    return { ok: false, reason: "db_error", error: e };
   }
 }
 
@@ -528,21 +591,52 @@ function registerSocketHandlers(io) {
           return socket.emit("friend:error", { message: "You cannot add yourself." });
         }
         const myFriends = ensureSet(friends, myId);
-        if (myFriends.has(target.id)) {
+        if (myFriends.has(target.id) || ensureSet(friends, target.id).has(myId)) {
           appendErrorLog("friend:request", "Already friends", { targetId: target.id, targetUsername: target.username }, myId, me.username);
           return socket.emit("friend:error", { message: "Already friends." });
         }
+
+        // DB is source of truth — also catches REST-sent / cross-instance pending rows
+        const { data: existingRows } = await supabase
+          .from("friendships")
+          .select("id, status, user_id, friend_id")
+          .or(
+            `and(user_id.eq.${myId},friend_id.eq.${target.id}),and(user_id.eq.${target.id},friend_id.eq.${myId})`
+          );
+
+        if (existingRows?.some((r) => r.status === "accepted")) {
+          ensureSet(friends, myId).add(target.id);
+          ensureSet(friends, target.id).add(myId);
+          return socket.emit("friend:error", { message: "Already friends." });
+        }
+        if (existingRows?.some((r) => r.status === "pending")) {
+          return socket.emit("friend:error", { message: "Request already pending." });
+        }
+
         const theirPending = ensurePending(target.id);
         if (theirPending.has(myId)) {
           appendErrorLog("friend:request", "Request already pending", { targetId: target.id }, myId, me.username);
           return socket.emit("friend:error", { message: "Request already pending." });
         }
 
-        theirPending.set(myId, { id: myId, username: me.username });
+        const created = await createPendingFriendshipInDB(myId, target.id);
+        if (!created.ok) {
+          if (created.reason === "already_friends") {
+            return socket.emit("friend:error", { message: "Already friends." });
+          }
+          if (created.reason === "already_pending") {
+            return socket.emit("friend:error", { message: "Request already pending." });
+          }
+          return socket.emit("friend:error", { message: "Could not send request." });
+        }
+
+        theirPending.set(myId, { id: myId, username: me.username, avatarUrl: me.avatar_url || null });
         usernameById.set(myId, me.username);
         emitToUser(io, target.id, "friend:request:incoming", {
           from: enrichFriendEntry(myId),
         });
+        // Keep recipient's pending list in sync even if they missed the incoming event
+        emitToUser(io, target.id, "friend:requests", getPendingList(target.id));
         pushNotification(io, target.id, {
           type: "friend_request",
           title: "Friend request",
@@ -551,12 +645,14 @@ function registerSocketHandlers(io) {
         });
         socket.emit("friend:request:sent", { to: target.username });
       } catch (e) {
+        console.error("[Friends] request error:", e);
         socket.emit("friend:error", { message: "Could not send request." });
       }
     });
 
-    socket.on("friend:accept", async ({ fromUserId } = {}) => {
-      if (typeof fromUserId !== "string") {
+    socket.on("friend:accept", async (payload = {}) => {
+      const fromUserId = String(payload?.fromUserId || payload?.userId || "").trim();
+      if (!fromUserId) {
         socket.emit("friend:error", { message: "Invalid user ID" });
         return;
       }
@@ -576,14 +672,17 @@ function registerSocketHandlers(io) {
         return;
       }
 
-      if (!pendingRow) {
+      const theirPending = pendingRequests.get(myId);
+      const inMemory = Boolean(theirPending?.has(fromUserId));
+
+      if (!pendingRow && !inMemory) {
         console.log("[Friends] No pending request found:", { fromUserId, myId });
         socket.emit("friend:error", { message: "Friend request not found or already processed" });
+        socket.emit("friend:requests", getPendingList(myId));
         return;
       }
 
       // Update memory
-      const theirPending = pendingRequests.get(myId);
       const fromProf = theirPending?.get(fromUserId);
       if (theirPending?.has(fromUserId)) {
         theirPending.delete(fromUserId);
@@ -594,12 +693,15 @@ function registerSocketHandlers(io) {
       ensureSet(friends, fromUserId).add(myId);
       if (fromProf?.username) usernameById.set(fromUserId, fromProf.username);
 
-      // Accept in DB — only one pending row (requester → acceptor)
-      try {
-        await saveFriendshipToDB(fromUserId, myId);
-      } catch (err) {
-        console.error("[Friends] Accept save error:", err);
+      // Accept in DB — update pending, or upsert accepted for legacy memory-only requests
+      const saved = await saveFriendshipToDB(fromUserId, myId);
+      if (!saved) {
+        // Roll back memory so UI can restore the pending request
+        ensureSet(friends, myId).delete(fromUserId);
+        ensureSet(friends, fromUserId).delete(myId);
+        ensurePending(myId).set(fromUserId, fromProf || { id: fromUserId, username: usernameById.get(fromUserId) || "?" });
         socket.emit("friend:error", { message: "Failed to save friendship" });
+        socket.emit("friend:requests", getPendingList(myId));
         return;
       }
 
@@ -611,17 +713,20 @@ function registerSocketHandlers(io) {
         meta: { userId: myId },
       });
 
+      socket.emit("friend:accepted", { by: { id: fromUserId } });
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
       socket.emit("sync:state", buildSyncState(myId));
       emitToUser(io, fromUserId, "friend:list", getFriendList(fromUserId));
+      emitToUser(io, fromUserId, "friend:requests", getPendingList(fromUserId));
       emitToUser(io, fromUserId, "sync:state", buildSyncState(fromUserId));
       
       console.log("[Friends] Request accepted:", { fromUserId, by: myId });
     });
 
-    socket.on("friend:decline", async ({ fromUserId } = {}) => {
-      if (typeof fromUserId !== "string") {
+    socket.on("friend:decline", async (payload = {}) => {
+      const fromUserId = String(payload?.fromUserId || payload?.userId || "").trim();
+      if (!fromUserId) {
         socket.emit("friend:error", { message: "Invalid user ID" });
         return;
       }

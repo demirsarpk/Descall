@@ -1723,7 +1723,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
             {pendingRequests.length > 0 && (
               <div className="friend-category">
                 <span className="category-label" style={{ color: "var(--warning)" }}>
-                  Pending — {pendingRequests.length}
+                  {t("Pending — {count}", { count: pendingRequests.length })}
                 </span>
                 {pendingRequests.map((req) => (
                   <div
@@ -1739,32 +1739,46 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                     </div>
                     <span className="friend-name" style={{ flex: 1, fontSize: 13 }}>{req.username}</span>
                     <button
+                      type="button"
                       title={t("Accept")}
-                      onClick={() => onAcceptFriend?.(req.id)}
+                      aria-label={t("Accept Friend")}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onAcceptFriend?.(req.id);
+                      }}
                       style={{
-                        width: 26, height: 26, borderRadius: 6, border: "none",
+                        width: 32, height: 32, borderRadius: 8, border: "none",
                         background: "var(--success-soft)", color: "var(--success)",
                         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                         flexShrink: 0, transition: "background 0.15s",
+                        touchAction: "manipulation",
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--success)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "var(--success-soft)"}
                     >
-                      <UserPlus size={13} />
+                      <UserPlus size={14} />
                     </button>
                     <button
+                      type="button"
                       title={t("Decline")}
-                      onClick={() => onDeclineFriend?.(req.id)}
+                      aria-label={t("Decline")}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onDeclineFriend?.(req.id);
+                      }}
                       style={{
-                        width: 26, height: 26, borderRadius: 6, border: "none",
+                        width: 32, height: 32, borderRadius: 8, border: "none",
                         background: "var(--danger-soft)", color: "var(--danger)",
                         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                         flexShrink: 0, transition: "background 0.15s",
+                        touchAction: "manipulation",
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--danger)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "var(--danger-soft)"}
                     >
-                      <X size={13} />
+                      <X size={14} />
                     </button>
                   </div>
                 ))}

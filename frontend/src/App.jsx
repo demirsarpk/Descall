@@ -889,16 +889,20 @@ export default function App() {
       // Notification for incoming friend request
       notificationService.friendRequest({ from: from.username, fromId: from.id });
     });
-    socket.on("friend:accepted", () => { socket.emit("friend:list"); });
+    socket.on("friend:accepted", () => {
+      socket.emit("friend:list");
+    });
     socket.on("user:profile:updated", ({ user }) => {
       if (user) applyProfileUpdate(user);
     });
     socket.on("friend:error", ({ message } = {}) => {
-      setFriendNotice(message || "Friend action failed.");
+      setFriendNotice(message || t("Friend action failed."));
       setTimeout(() => setFriendNotice(""), 4000);
+      // Restore pending list / friends after a failed accept/decline
+      socket.emit("friend:list");
     });
     socket.on("friend:request:sent", ({ to } = {}) => {
-      setFriendNotice(to ? `Request sent to ${to}` : "Request sent.");
+      setFriendNotice(to ? t("Request sent to {to}", { to }) : t("Request sent."));
       setTimeout(() => setFriendNotice(""), 3000);
     });
 
@@ -1758,13 +1762,67 @@ export default function App() {
   };
 
   const handleAcceptFriend = (fromUserId) => {
-    socketRef.current?.emit("friend:accept", { fromUserId });
-    setFriendRequests((prev) => prev.filter((r) => r.id !== fromUserId));
+    const id = String(fromUserId || "").trim();
+    if (!id) return;
+    const socket = socketRef.current;
+    // Optimistic remove — restored via friend:error → friend:list if it fails
+    setFriendRequests((prev) => prev.filter((r) => r.id !== id));
+    if (socket?.connected) {
+      socket.emit("friend:accept", { fromUserId: id });
+      return;
+    }
+    // HTTP fallback when socket is down
+    const token = getToken();
+    fetch(`${API_BASE_URL}/friends/accept`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ fromUserId: id }),
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Failed to accept");
+        setFriendNotice(t("Friend request accepted"));
+        setTimeout(() => setFriendNotice(""), 3000);
+        socketRef.current?.emit("friend:list");
+      })
+      .catch((err) => {
+        setFriendNotice(err.message || t("Friend action failed."));
+        setTimeout(() => setFriendNotice(""), 4000);
+        socketRef.current?.emit("friend:list");
+      });
   };
 
   const handleDeclineFriend = (fromUserId) => {
-    socketRef.current?.emit("friend:decline", { fromUserId });
-    setFriendRequests((prev) => prev.filter((r) => r.id !== fromUserId));
+    const id = String(fromUserId || "").trim();
+    if (!id) return;
+    const socket = socketRef.current;
+    setFriendRequests((prev) => prev.filter((r) => r.id !== id));
+    if (socket?.connected) {
+      socket.emit("friend:decline", { fromUserId: id });
+      return;
+    }
+    const token = getToken();
+    fetch(`${API_BASE_URL}/friends/decline`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ fromUserId: id }),
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Failed to decline");
+        socketRef.current?.emit("friend:list");
+      })
+      .catch((err) => {
+        setFriendNotice(err.message || t("Friend action failed."));
+        setTimeout(() => setFriendNotice(""), 4000);
+        socketRef.current?.emit("friend:list");
+      });
   };
 
   const handleRemoveFriend = (friendId) => {
