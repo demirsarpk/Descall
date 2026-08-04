@@ -28,6 +28,7 @@ const errorRoutes = require("./routes/errors");
 const callsRoutes = require("./routes/calls");
 const lfgRoutes = require("./routes/lfg");
 const riotRoutes = require("./routes/riot");
+const { sitemapRouter } = require("./routes/sitemap");
 const state = require("./runtime/sharedState");
 
 // Inline feedback - no external file needed
@@ -121,6 +122,9 @@ app.get("/health", (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// SEO: robots + advanced sitemap (index, pages, invites, announcements, HTML)
+app.use(sitemapRouter);
 
 // Test endpoint - no auth required
 app.post("/api/test", (req, res) => {
@@ -764,6 +768,8 @@ console.log("  - /api/admin/users");
 console.log("  - /api/test (no auth)");
 console.log("  - /api/status");
 console.log("  - /health");
+console.log("  - /robots.txt");
+console.log("  - /sitemap.xml (+ pages/invites/announcements/html)");
 
 // Static files
 app.use("/media/files", express.static(path.join(__dirname, "uploads")));
@@ -786,6 +792,8 @@ const hasFrontend = fs.existsSync(indexPath);
 const API_PREFIXES = [
   "/api", "/auth", "/admin", "/media", "/groups",
   "/friends", "/guilds", "/reactions", "/health", "/debug", "/lfg", "/calls", "/riot",
+  "/sitemap.xml", "/sitemap-pages.xml", "/sitemap-invites.xml",
+  "/sitemap-announcements.xml", "/sitemap.html", "/sitemap.xsl", "/robots.txt",
 ];
 
 if (hasFrontend) {

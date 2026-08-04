@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Allow: /download
+Allow: /invite/
+Allow: /sitemap.xml
+Allow: /sitemap.html
+
+Disallow: /api/
+Disallow: /auth/
+Disallow: /admin/
+Disallow: /media/
+Disallow: /groups/
+Disallow: /friends/
+Disallow: /guilds/
+Disallow: /debug/
+
+Sitemap: https://des-call.onrender.com/sitemap.xml
