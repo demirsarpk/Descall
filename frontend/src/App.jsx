@@ -2103,7 +2103,7 @@ export default function App() {
     );
   }
 
-  // Show download page for all non-logged-in users
+  // Show download / marketing page for logged-out users
   if (!me) {
     return (
       <>
