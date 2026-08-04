@@ -22,8 +22,14 @@ const CACHE_SECONDS = 300; // 5 minutes
 
 function getSupabase() {
   // Lazy require so unit tests / robots can load without env.
-  // eslint-disable-next-line global-require
-  return require("../db/supabase");
+  try {
+    // eslint-disable-next-line global-require
+    return require("../db/supabase");
+  } catch (err) {
+    const e = new Error(err?.message || "supabase unavailable");
+    e.code = "SUPABASE_UNAVAILABLE";
+    throw e;
+  }
 }
 
 function siteOrigin(req) {
