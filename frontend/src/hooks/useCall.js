@@ -5,11 +5,14 @@ import notificationService from "../lib/notificationService";
 import {
   buildDisplayMediaConstraints,
   buildElectronDesktopConstraints,
+  isLikelyDrmScreenEnd,
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
   resolveScreenCaptureSize,
   GROUP_SCREEN_DEFAULT_QUALITY,
 } from "../lib/webrtcScreenShare";
+import { useToast } from "../context/ToastContext";
+import { t as tRuntime } from "../i18n/runtime";
 import {
   applyRemoteOffer,
   isPolitePeer,
@@ -84,6 +87,13 @@ function showElectronScreenPicker(sources) {
     header.appendChild(title);
     header.appendChild(closeBtn);
 
+    const tip = document.createElement('div');
+    tip.textContent = 'Tip: Netflix / DRM apps show black if you share the whole window — share the browser tab when possible.';
+    Object.assign(tip.style, {
+      padding: '10px 24px', fontSize: '12px', color: '#949ba4',
+      borderBottom: '1px solid rgba(255,255,255,0.07)', lineHeight: '1.4',
+    });
+
     const grid = document.createElement('div');
     Object.assign(grid.style, {
       display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
@@ -131,6 +141,7 @@ function showElectronScreenPicker(sources) {
     });
 
     modal.appendChild(header);
+    modal.appendChild(tip);
     modal.appendChild(grid);
     overlay.appendChild(modal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
@@ -149,6 +160,7 @@ function showElectronScreenPicker(sources) {
  *   screen:share-start, screen:share-stop, screen:stream-replace
  */
 export function useCall(socket) {
+  const { toast } = useToast();
   const [mode, setMode] = useState(null); // null | "incoming" | "outgoing" | "active"
   const [callType, setCallType] = useState(null); // null | "voice" | "video"
   const [peer, setPeer] = useState(null);
@@ -862,7 +874,16 @@ export function useCall(socket) {
       }
 
       const screenTrack = screenStream.getVideoTracks()[0];
+      const shareStartedAt = Date.now();
       await optimizeScreenShareTrack(screenTrack, { width, height, fps });
+      if (screenTrack.readyState !== "live") {
+        screenStream.getTracks().forEach((t) => t.stop());
+        toast(
+          tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
+          "warning"
+        );
+        return;
+      }
       
       // Add screen track - this triggers onnegotiationneeded
       const screenSender = pc.addTrack(screenTrack, screenStream);
@@ -906,6 +927,12 @@ export function useCall(socket) {
       }
 
       screenTrack.onended = () => {
+        if (isLikelyDrmScreenEnd(shareStartedAt)) {
+          toast(
+            tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
+            "warning"
+          );
+        }
         if (stopScreenShareRef.current) stopScreenShareRef.current();
       };
 
@@ -915,7 +942,7 @@ export function useCall(socket) {
       }
     } catch (err) {
     }
-  }, []);
+  }, [toast]);
 
   const stopScreenShare = useCallback(() => {
     const pc = pcRef.current;

@@ -285,6 +285,9 @@ function registerGroupHandlers(io, socket, state) {
 
     console.log(`[GroupCall] ${myId} started ${callType} call in group ${groupId}`);
 
+    // Ensure initiator receives left/ended/participant events via group room
+    socket.join(`group:${groupId}`);
+
     // Resolve targets: client memberIds, else DB group_members (never rely only on room).
     let targets = Array.isArray(memberIds)
       ? [...new Set(memberIds)].filter((id) => id && id !== myId)
@@ -383,6 +386,9 @@ function registerGroupHandlers(io, socket, state) {
       }
     }
 
+    // Ensure acceptor is in the group room
+    socket.join(`group:${groupId}`);
+
     // Notify the initiator that someone accepted
     io.to(`user:${toUserId}`).emit("group:call:accepted", {
       groupId,
@@ -417,11 +423,25 @@ function registerGroupHandlers(io, socket, state) {
       return;
     }
 
+    // Ensure joiner is in the group room for left/ended/screen events
+    socket.join(`group:${groupId}`);
+
     // Add participant to tracking
     activeCall.participants.add(myId);
     activeCall.allParticipants.add(myId);
 
-    // Notify all participants that someone is joining
+    if (activeCall.dbCallId) {
+      supabase.from("group_call_participants")
+        .insert({ call_id: activeCall.dbCallId, user_id: myId })
+        .then(({ error }) => {
+          // Unique violation if they rejoin — ignore
+          if (error && !String(error.message || "").includes("duplicate")) {
+            console.error("[GroupCall] Participant insert error:", error.message);
+          }
+        });
+    }
+
+    // Notify all participants that someone is joining (including other sockets)
     io.to(`group:${groupId}`).emit("group:call:participant-joined", {
       groupId,
       fromUserId: myId,

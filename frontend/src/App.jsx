@@ -486,8 +486,14 @@ export default function App() {
       // do NOT merge in-memory callSummaries to avoid duplicates.
       // Only inject the live active-call banner (not yet in DB).
       const banner = groupCall?.activeCallBanner;
-      const activeBannerItem = (banner?.groupId === activeGroup.id && banner?.startTime)
-        ? [{ ...banner, id: `active-call-${banner.groupId}`, type: "active_call", timestamp: new Date(banner.startTime).toISOString() }]
+      const activeBannerItem = (banner?.groupId === activeGroup.id)
+        ? [{
+            ...banner,
+            startTime: banner.startTime || Date.now(),
+            id: `active-call-${banner.groupId}`,
+            type: "active_call",
+            timestamp: new Date(banner.startTime || Date.now()).toISOString(),
+          }]
         : [];
       const merged = activeBannerItem.length > 0 ? [...msgs, ...activeBannerItem] : [...msgs];
       return merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));

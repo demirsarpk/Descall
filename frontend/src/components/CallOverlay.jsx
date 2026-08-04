@@ -125,7 +125,9 @@ export default function CallOverlay({ call, groupCall, me }) {
       : callType === "video"
       ? t("Video call")
       : t("Voice call")
-    : t("{count} participants", { count: participantCount });
+    : participantCount <= 1
+      ? t("Waiting for others to join…")
+      : t("{count} participants", { count: participantCount });
 
   const pipSource = (
     <CallPipSource
