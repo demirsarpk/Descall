@@ -1,12 +1,22 @@
 /* FaceTime-style incoming call card */
 
 .incoming-call-card {
+  /* Center with left/right + margin — NOT transform:translateX(-50%).
+     Framer Motion owns `transform` for y/scale and would overwrite CSS translateX,
+     pushing the card off-screen (especially on mobile). */
   position: fixed;
-  top: max(16px, env(safe-area-inset-top, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  top: max(12px, env(safe-area-inset-top, 0px));
+  left: 0;
+  right: 0;
+  margin-left: auto;
+  margin-right: auto;
   z-index: 10000;
   width: min(420px, calc(100vw - 24px));
+  max-height: calc(
+    100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px
+  );
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -132,9 +142,19 @@
     justify-content: center;
     text-align: center;
     gap: 12px;
+    padding: 16px 14px;
+    width: min(420px, calc(100vw - 16px));
   }
   .incoming-call-meta { width: 100%; }
-  .incoming-call-actions { width: 100%; justify-content: center; }
+  .incoming-call-actions {
+    width: 100%;
+    justify-content: center;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .incoming-call-avatar-wrap {
+    width: 76px;
+    height: 76px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

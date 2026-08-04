@@ -23,10 +23,10 @@ export default function IncomingCallCard({
   return (
     <motion.div
       className="incoming-call-card"
-      initial={{ opacity: 0, y: -72, scale: 0.94 }}
+      initial={{ opacity: 0, y: -48, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -72, scale: 0.94 }}
-      transition={{ type: "spring", damping: 22, stiffness: 260 }}
+      exit={{ opacity: 0, y: -48, scale: 0.96 }}
+      transition={{ type: "spring", damping: 24, stiffness: 280 }}
     >
       <div className="incoming-call-avatar-wrap">
         <span className="incoming-call-ring incoming-call-ring--a" aria-hidden />

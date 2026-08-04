@@ -1347,12 +1347,19 @@ function registerSocketHandlers(io) {
     });
 
     socket.on("disconnect", async () => {
-      await removeUserFromAllGroupCalls(io, myId, socket);
+      // Only drop group-call participation when THIS user has no other live
+      // sockets (other tabs / reconnect). Removing on every socket disconnect
+      // kicked the remaining participant out of the room on brief blips and
+      // made "peer hangup" look like mutual disconnect.
+      const remaining = io.sockets?.adapter?.rooms?.get(`user:${myId}`);
+      const hasOtherSockets = Boolean(remaining && remaining.size > 0);
+      if (!hasOtherSockets) {
+        await removeUserFromAllGroupCalls(io, myId, socket);
+      }
       socketToUser.delete(socket.id);
 
       // Keep presence if another tab/socket for this user is still connected.
-      const remaining = io.sockets?.adapter?.rooms?.get(`user:${myId}`);
-      if (remaining && remaining.size > 0) {
+      if (hasOtherSockets) {
         const nextSocketId = remaining.values().next().value;
         const prev = presence.get(myId);
         if (prev) {

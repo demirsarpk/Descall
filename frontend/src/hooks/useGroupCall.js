@@ -7,6 +7,7 @@ import {
   GROUP_SCREEN_DEFAULT_QUALITY,
   buildDisplayMediaConstraints,
   buildElectronDesktopConstraints,
+  isLikelyDrmScreenEnd,
   isRemoteScreenVideoTrack,
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
@@ -19,6 +20,8 @@ import {
   isPolitePeer,
 } from "../lib/webrtcNegotiation";
 import { getIceServers, preloadIceServers } from "../lib/iceConfig";
+import { useToast } from "../context/ToastContext";
+import { t as tRuntime } from "../i18n/runtime";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -86,6 +89,13 @@ function showElectronScreenPicker(sources) {
     header.appendChild(title);
     header.appendChild(closeBtn);
 
+    const tip = document.createElement('div');
+    tip.textContent = 'Tip: Netflix / DRM apps show black if you share the whole window — share the browser tab when possible.';
+    Object.assign(tip.style, {
+      padding: '10px 24px', fontSize: '12px', color: '#949ba4',
+      borderBottom: '1px solid rgba(255,255,255,0.07)', lineHeight: '1.4',
+    });
+
     const grid = document.createElement('div');
     Object.assign(grid.style, {
       display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
@@ -133,6 +143,7 @@ function showElectronScreenPicker(sources) {
     });
 
     modal.appendChild(header);
+    modal.appendChild(tip);
     modal.appendChild(grid);
     overlay.appendChild(modal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
@@ -145,6 +156,7 @@ function showElectronScreenPicker(sources) {
  * Based on working DM call (useCall.js) with Map for multiple peers
  */
 export function useGroupCall(socket, currentUserId = null) {
+  const { toast } = useToast();
   const [isInCall, setIsInCall] = useState(false);
   const [isInitiator, setIsInitiator] = useState(false);
   const [callType, setCallType] = useState(null);
@@ -725,6 +737,7 @@ export function useGroupCall(socket, currentUserId = null) {
         callType: type,
         participantCount: 2,
         participants: [fromUser.id, myIdRef.current],
+        startTime: Date.now(),
       });
 
     } catch (err) {
@@ -755,15 +768,19 @@ export function useGroupCall(socket, currentUserId = null) {
       callType: callType || "voice",
       participantCount: 1,
       participants: fromUserId ? [fromUserId] : [],
+      startTime: Date.now(),
     });
   }, []);
 
+  // Leave only removes THIS user from the room — never force-ends for others.
+  // Use ref so a stale closed-over activeGroupId cannot skip the leave emit.
   const leaveCall = useCallback(() => {
-    if (activeGroupId && socketRef.current?.connected) {
-      socketRef.current.emit("group:call:leave", { groupId: activeGroupId });
+    const gid = activeGroupIdRef.current;
+    if (gid && socketRef.current?.connected) {
+      socketRef.current.emit("group:call:leave", { groupId: gid });
     }
     cleanup();
-  }, [activeGroupId, cleanup]);
+  }, [cleanup]);
 
   /** Create+send offer to one peer; sets makingOffer for glare detection. */
   const renegotiateWithPeer = useCallback(async (userId, peerData) => {
@@ -904,7 +921,16 @@ export function useGroupCall(socket, currentUserId = null) {
       }
       
       const screenTrack = stream.getVideoTracks()[0];
+      const shareStartedAt = Date.now();
       await optimizeScreenShareTrack(screenTrack, { width, height, fps: frameRate });
+      if (screenTrack.readyState !== "live") {
+        stream.getTracks().forEach((t) => t.stop());
+        toast(
+          tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
+          "warning"
+        );
+        return;
+      }
 
       screenStreamRef.current = stream;
       setScreenStream(stream);
@@ -940,8 +966,14 @@ export function useGroupCall(socket, currentUserId = null) {
         screenVideoRef.current.play().catch(() => {});
       }
 
-      // Handle screen share end
+      // Handle screen share end (user clicked Stop, or DRM killed the track)
       screenTrack.onended = () => {
+        if (isLikelyDrmScreenEnd(shareStartedAt)) {
+          toast(
+            tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
+            "warning"
+          );
+        }
         stopScreenShareRef.current?.();
       };
 
@@ -950,7 +982,7 @@ export function useGroupCall(socket, currentUserId = null) {
       if (err.name === 'NotAllowedError') {
       }
     }
-  }, [isScreenSharing, activeGroupId, screenQuality, renegotiateWithPeer]);
+  }, [isScreenSharing, activeGroupId, screenQuality, renegotiateWithPeer, toast]);
 
   const stopScreenShare = useCallback(async () => {
     if (!isScreenSharing) return;
@@ -1094,53 +1126,87 @@ export function useGroupCall(socket, currentUserId = null) {
           pendingIceByUserRef.current.delete(fromUserId);
         }
 
-        // Create and send offer to the callee
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
+        // Deduplicate with concurrent participant-joined (accept path emits both)
+        if (peerData.offering || pc.signalingState === "have-local-offer") return;
+        peerData.offering = true;
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          peerData.lastOfferAt = Date.now();
 
-        socket.emit("group:call:offer", {
-          groupId,
-          toUserId: fromUserId,
-          offer: pc.localDescription,
-          callType: callTypeRef.current || "voice",
-        });
+          socket.emit("group:call:offer", {
+            groupId,
+            toUserId: fromUserId,
+            offer: pc.localDescription,
+            callType: callTypeRef.current || "voice",
+          });
+        } finally {
+          peerData.offering = false;
+        }
 
       } catch (err) {
       }
     };
 
-    // Handle when a new participant joins an existing call
+    // Handle when a new participant joins an existing call.
+    // IMPORTANT: startGroupCall pre-creates PCs for all members — we must still
+    // send an offer (same as onAccept). Early-returning when PC exists left
+    // chat/banner joiners with silent dead peer connections.
     const onParticipantJoined = async ({ groupId, fromUserId, fromUser }) => {
       if (!fromUserId || fromUserId === myIdRef.current) return;
+      if (!isInCallRef.current) return;
+      if (groupId && activeGroupIdRef.current && groupId !== activeGroupIdRef.current) return;
 
       // Update username if we already have this participant with 'Member' placeholder
-      setParticipants((prev) => prev.map((p) =>
-        p.id === fromUserId
-          ? {
-              ...p,
-              username: fromUser?.username || fromUser?.displayName || p.username,
-              avatarUrl: fromUser?.avatar_url || fromUser?.avatarUrl || p.avatarUrl,
-            }
-          : p
-      ));
+      setParticipants((prev) => {
+        const exists = prev.find((p) => p.id === fromUserId);
+        if (exists) {
+          return prev.map((p) =>
+            p.id === fromUserId
+              ? {
+                  ...p,
+                  username: fromUser?.username || fromUser?.displayName || p.username,
+                  avatarUrl: fromUser?.avatar_url || fromUser?.avatarUrl || p.avatarUrl,
+                }
+              : p
+          );
+        }
+        return [...prev, {
+          id: fromUserId,
+          username: fromUser?.username || fromUser?.displayName || "Member",
+          avatarUrl: fromUser?.avatar_url || fromUser?.avatarUrl,
+          hasVideo: callTypeRef.current === "video",
+          hasAudio: true,
+        }];
+      });
       
       const stream = localStreamRef.current;
       if (!stream) return;
 
-      if (pcMapRef.current.has(fromUserId)) return;
-
       try {
-        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
-        // Store fromUser so ontrack's new-entry fallback can use the real username
-        const peerData = { pc, pendingIce: [], fromUser };
-        pcMapRef.current.set(fromUserId, peerData);
+        let peerData = pcMapRef.current.get(fromUserId);
+        let pc = peerData?.pc;
+        if (!pc || pc.connectionState === "closed" || pc.connectionState === "failed") {
+          if (pc) {
+            try { pc.close(); } catch (_) {}
+          }
+          pc = new RTCPeerConnection({ iceServers: getIceServers() });
+          peerData = { pc, pendingIce: peerData?.pendingIce || [], fromUser };
+          pcMapRef.current.set(fromUserId, peerData);
+          setupPeerConnection(pc, stream, fromUserId, groupId);
+        } else {
+          peerData.fromUser = fromUser || peerData.fromUser;
+        }
 
-        setupPeerConnection(pc, stream, fromUserId, groupId);
+        const early = pendingIceByUserRef.current.get(fromUserId);
+        if (early?.length) {
+          peerData.pendingIce = [...(peerData.pendingIce || []), ...early];
+          pendingIceByUserRef.current.delete(fromUserId);
+        }
 
         // If we're currently screen sharing, add the screen track to this new peer
-        // so they see the screen share immediately without needing a separate event.
         const screenTrack = screenStreamRef.current?.getVideoTracks()[0];
-        if (screenTrack && screenTrack.readyState === "live") {
+        if (screenTrack && screenTrack.readyState === "live" && !peerData.screenSender) {
           const sender = pc.addTrack(screenTrack, screenStreamRef.current);
           peerData.screenSender = sender;
           const q = resolveScreenCaptureSize(screenQualityRef.current);
@@ -1153,17 +1219,42 @@ export function useGroupCall(socket, currentUserId = null) {
           });
         }
 
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
+        // Wait briefly if a prior offer/answer is in flight
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          if (pc.signalingState === "stable") break;
+          await new Promise((r) => setTimeout(r, 80));
+        }
+        // Already negotiating / recently offered (accept emits accepted + participant-joined)
+        if (peerData.offering) return;
+        if (pc.signalingState === "have-local-offer" || pc.signalingState === "have-remote-offer") return;
+        if (peerData.lastOfferAt && Date.now() - peerData.lastOfferAt < 2000) return;
+        // Already connected to this peer — join re-notify shouldn't renegotiate
+        if (pc.connectionState === "connected" || pc.connectionState === "connecting") return;
+        if (pc.signalingState !== "stable") {
+          console.warn(`[GroupCall] participant-joined: skip offer, state=${pc.signalingState}`);
+          return;
+        }
 
-        socket.emit("group:call:offer", {
-          groupId,
-          toUserId: fromUserId,
-          offer: pc.localDescription,
-          callType: callTypeRef.current || "voice",
-        });
+        peerData.offering = true;
+        peerData.makingOffer = true;
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          peerData.lastOfferAt = Date.now();
+
+          socket.emit("group:call:offer", {
+            groupId,
+            toUserId: fromUserId,
+            offer: pc.localDescription,
+            callType: callTypeRef.current || "voice",
+          });
+        } finally {
+          peerData.makingOffer = false;
+          peerData.offering = false;
+        }
 
       } catch (err) {
+        console.error("[GroupCall] participant-joined offer failed:", err);
       }
     };
 
@@ -1330,6 +1421,11 @@ export function useGroupCall(socket, currentUserId = null) {
     };
 
     const onLeft = ({ groupId, userId }) => {
+      // Only tear down the peer that left — NEVER end the whole local call.
+      // Remaining user(s) stay in-call so others can rejoin.
+      if (!userId || userId === myIdRef.current) return;
+      if (groupId && activeGroupIdRef.current && groupId !== activeGroupIdRef.current) return;
+
       const peerData = pcMapRef.current.get(userId);
       if (peerData?.pc) {
         try { peerData.pc.close(); } catch (_) {}
@@ -1356,7 +1452,9 @@ export function useGroupCall(socket, currentUserId = null) {
 
     const onEnded = ({ groupId, summary }) => {
       setActiveCallBanner((prev) => (prev?.groupId === groupId ? null : prev));
-      if (groupId && groupId === activeGroupIdRef.current) {
+      // Only tear down if WE are still in this group call. A stale ended event
+      // for another group must not kill the active session.
+      if (groupId && groupId === activeGroupIdRef.current && isInCallRef.current) {
         cleanup();
       }
     };
@@ -1376,10 +1474,25 @@ export function useGroupCall(socket, currentUserId = null) {
 
     const onBannerUpdate = ({ groupId, banner }) => {
       setActiveCallBanner((prev) => {
-        if (banner) return banner;
+        if (banner) {
+          return {
+            ...banner,
+            startTime: banner.startTime ?? prev?.startTime ?? Date.now(),
+          };
+        }
         if (prev?.groupId === groupId) return null;
         return prev;
       });
+    };
+
+    const onCallError = ({ groupId, message } = {}) => {
+      if (message) toast(message === "No active call in this group"
+        ? tRuntime("No active call to join")
+        : (message || tRuntime("Could not join the call")), "error");
+      if (groupId && groupId === activeGroupIdRef.current && isInCallRef.current) {
+        cleanup();
+      }
+      setActiveCallBanner((prev) => (prev?.groupId === groupId ? null : prev));
     };
 
     const onDeclined = ({ groupId, fromUserId, fromUser }) => {
@@ -1403,6 +1516,7 @@ export function useGroupCall(socket, currentUserId = null) {
         callType: type,
         participantCount: 1,
         participants: fromUser?.id ? [fromUser.id] : [],
+        startTime: Date.now(),
       });
     };
 
@@ -1631,6 +1745,7 @@ export function useGroupCall(socket, currentUserId = null) {
     socket.on("group:call:active-banner", onActiveBanner);
     socket.on("group:call:banner-update", onBannerUpdate);
     socket.on("group:call:participants", onParticipants);
+    socket.on("group:call:error", onCallError);
     socket.on("user:profile:updated", onProfileUpdated);
 
     return () => {
@@ -1650,9 +1765,10 @@ export function useGroupCall(socket, currentUserId = null) {
       socket.off("group:call:active-banner", onActiveBanner);
       socket.off("group:call:banner-update", onBannerUpdate);
       socket.off("group:call:participants", onParticipants);
+      socket.off("group:call:error", onCallError);
       socket.off("user:profile:updated", onProfileUpdated);
     };
-  }, [socket, cleanup, setupPeerConnection, currentUserId]);
+  }, [socket, cleanup, setupPeerConnection, currentUserId, toast]);
 
   useEffect(() => {
     return () => cleanup();
@@ -1774,7 +1890,15 @@ export function useGroupCall(socket, currentUserId = null) {
 
   const joinActiveCall = useCallback(async (banner) => {
     if (!banner?.groupId || !socketRef.current || isInCallRef.current) return;
-    const { groupId, callType: type, participants: existingParticipants = [] } = banner;
+    const {
+      groupId,
+      callType: type = "voice",
+      participants: existingParticipants = [],
+      startTime,
+      initiatorId,
+      initiatorUsername,
+      participantCount,
+    } = banner;
     try {
       const constraints = type === "video"
         ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
@@ -1788,27 +1912,49 @@ export function useGroupCall(socket, currentUserId = null) {
       setCallType(type);
       setActiveGroupId(groupId);
       setIsCameraOn(type === "video");
+      setIncomingCall(null);
       if (localVideoRef.current && type === "video") {
         localVideoRef.current.srcObject = stream;
         localVideoRef.current.play().catch(() => {});
       }
       const myId = myIdRef.current;
-      existingParticipants.forEach((userId) => {
-        if (userId === myId) return;
+      // Prefer server participant list from banner; PCs are created lazily on
+      // offer OR eagerly here so ICE can buffer. Existing peers will offer via
+      // participant-joined (fixed to renegotiate even when a stub PC exists).
+      const peerIds = (existingParticipants || []).filter((id) => id && id !== myId);
+      peerIds.forEach((userId) => {
         setParticipants((prev) => {
           if (prev.find((p) => p.id === userId)) return prev;
           return [...prev, { id: userId, username: "Member", hasVideo: type === "video", hasAudio: true }];
         });
-        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
-        pcMapRef.current.set(userId, { pc, pendingIce: [] });
-        setupPeerConnection(pc, stream, userId, groupId);
+        if (!pcMapRef.current.has(userId)) {
+          const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+          pcMapRef.current.set(userId, { pc, pendingIce: [] });
+          setupPeerConnection(pc, stream, userId, groupId);
+        }
       });
+      // Keep / refresh banner so chat "Join" stays valid while we connect
+      setActiveCallBanner({
+        groupId,
+        initiatorId: initiatorId || peerIds[0],
+        initiatorUsername: initiatorUsername || "Unknown",
+        callType: type,
+        participantCount: participantCount || peerIds.length + 1,
+        participants: [...new Set([...(existingParticipants || []), myId].filter(Boolean))],
+        startTime: startTime || Date.now(),
+      });
+      if (!socketRef.current?.connected) {
+        cleanup();
+        toast(tRuntime("Could not join the call"), "error");
+        return;
+      }
       socketRef.current.emit("group:join", groupId);
       socketRef.current.emit("group:call:join", { groupId, callType: type });
     } catch (err) {
       cleanup();
+      toast(tRuntime("Could not join the call"), "error");
     }
-  }, [isInCall, cleanup, setupPeerConnection]);
+  }, [cleanup, setupPeerConnection, toast]);
 
   return {
     isInCall,

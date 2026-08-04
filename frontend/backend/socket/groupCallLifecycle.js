@@ -170,6 +170,7 @@ async function removeUserFromGroupCall(io, groupId, userId, socket) {
 
   activeCall.participants.delete(userId);
 
+  // Tell remaining peers this user left — do NOT broadcast "ended" while anyone remains.
   if (socket) {
     socket.to(`group:${groupId}`).emit("group:call:left", { groupId, userId });
   } else {
@@ -187,6 +188,7 @@ async function removeUserFromGroupCall(io, groupId, userId, socket) {
       });
   }
 
+  // Room stays alive for remaining participants (solo lobby until they leave or others join).
   if (activeCall.participants.size === 0) {
     await endGroupCall(io, groupId, userId, activeCall);
   } else {

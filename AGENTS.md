@@ -16,6 +16,10 @@
 - After loading groups, always emit `groups:rejoin` so members are in group rooms for banners/fallback invites.
 - Group start looks up `group_members` in DB when client `memberIds` is empty.
 - Group screen share defaults to **720p @ ~20fps** with RTP `maxBitrate` / `maintain-framerate` (`src/lib/webrtcScreenShare.js`). Mesh encodes per peer — avoid 1080p+/60fps.
+- Prefer **browser tab** capture (`displaySurface: "browser"`, soft `ideal` constraints only). Hard `max` post-capture constraints can kill DRM tracks (Netflix black / auto-stop).
+- Group leave removes **only that user**; room stays open while ≥1 participant remains. Socket disconnect must not drop call membership if another tab for the same user is still connected.
+- Incoming call card is centered with `left/right + margin` — never CSS `translateX(-50%)` (Framer Motion owns `transform`).
+- Chat/banner join: `participant-joined` must still send an offer even if `startGroupCall` pre-created the PC (`useGroupCall.js`).
 - **Screen quality UI** lives in `CallOverlay` via `ScreenShareQualityPanel` (DM + group). Changing quality while sharing restarts capture safely.
 - **ICE/TURN**: client preloads `GET /api/webrtc/ice-config` (`src/lib/iceConfig.js`). Set `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` on the backend (or `VITE_ICE_SERVERS` JSON on the frontend). Manual call checks: `docs/CALL_TEST_MATRIX.md`.
 - **Download page** loads the desktop version from GitHub **`releases/latest`** via `GET /api/app/latest-release` (repo: `demirrsarppkurtlarr/Descall`). Bump semver with `frontend/electron/release.cjs` (`patch` / `minor` / `major`). See `docs/ELECTRON_RELEASE.md`.
