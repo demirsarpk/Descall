@@ -1922,7 +1922,9 @@ export const phrases = {
   "Saving...": "Kaydediliyor...",
   "No members": "Üye yok",
   "📞 Call": "📞 Arama",
-  "Descall staff": "Descall yetkilisi"
+  "Descall staff": "Descall yetkilisi",
+  "Pending — {count}": "Bekleyen — {count}",
+  "Friend request accepted": "Arkadaşlık isteği kabul edildi"
 };
 
 const locale = { nested, phrases };
