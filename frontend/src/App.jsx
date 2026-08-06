@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AuthView from "./components/AuthView";
 import AppLayout from "./components/layout/AppLayout";
-import DownloadPage from "./components/download/DownloadPage";
 import GroupInviteLanding from "./components/groups/GroupInviteLanding";
+import MarketingApp from "./site/MarketingApp";
+import SeoHead from "./site/SeoHead";
 import { getMe, login, loginWithGoogle, register } from "./api/auth";
 import { getMyGroups, getGroupMessages } from "./api/groups";
 import {
@@ -2091,6 +2092,7 @@ export default function App() {
   if (inviteCode && !(inviteAuthOpen && !me)) {
     return (
       <>
+        <SeoHead forceNoindex title="Group invite — Descall" description="Join a Descall group" />
         <TitleBar />
         <GroupInviteLanding
           code={inviteCode}
@@ -2103,12 +2105,12 @@ export default function App() {
     );
   }
 
-  // Show download / marketing page for logged-out users
+  // Public marketing site for logged-out users (real SEO routes)
   if (!me) {
     return (
       <>
         <TitleBar />
-        <DownloadPage
+        <MarketingApp
           onLogin={handleLogin}
           onRegister={handleRegister}
           onGoogleLogin={handleGoogleLogin}
@@ -2121,6 +2123,8 @@ export default function App() {
 
   return (
     <>
+    {/* Authenticated app shell — never index private UI */}
+    <SeoHead forceNoindex title="Descall" description="Descall app" path="/app" />
     <TitleBar />
     <div className="app-container">
         {updateState && (

@@ -1,19 +1,25 @@
 # Sitemap / SEO
 
-Descall exposes an **advanced multi-file sitemap** from the Express backend (not a static Vite file), so invite links and announcements stay fresh.
+Descall exposes sitemap + robots from the Express backend (mounted **before** the SPA catch-all).
+
+## Policy
+
+**Only real, indexable marketing URLs** are published. Group invites and `?announcement=` query URLs are **not** in the sitemap index (they are ephemeral / have no public landing).
+
+Client routes live under `frontend/src/site/` and must stay in sync with `staticPages()` in `frontend/backend/routes/sitemap.js`.
 
 ## Endpoints
 
 | URL | Purpose |
 |-----|---------|
 | `/robots.txt` | Crawl rules + `Sitemap:` pointer |
-| `/sitemap.xml` | Sitemap **index** |
-| `/sitemap-pages.xml` | Core public pages (`/`, `/download`, …) + `hreflang` |
-| `/sitemap-invites.xml` | Active group invite deep-links (+ optional image tags) |
-| `/sitemap-announcements.xml` | Active announcements |
+| `/sitemap.xml` | Sitemap **index** (pages only) |
+| `/sitemap-pages.xml` | Canonical public marketing pages |
 | `/sitemap.html` | Human-readable HTML sitemap |
-| `/sitemap.xsl` | Pretty XML stylesheet in browsers |
-| `/api/sitemap/stats` | JSON counts for ops/debug |
+| `/sitemap.xsl` | Pretty XML stylesheet |
+| `/api/sitemap/stats` | JSON diagnostics |
+
+Legacy empty stubs (not linked from the index): `/sitemap-invites.xml`, `/sitemap-announcements.xml`.
 
 ## Config
 
@@ -22,6 +28,5 @@ Descall exposes an **advanced multi-file sitemap** from the Express backend (not
 
 ## Notes
 
-- Invite entries skip expired / maxed-out codes.
-- API and auth prefixes are `Disallow` in robots.
-- Mounted in `server.js` **before** the SPA catch-all.
+- Authenticated app UI is `noindex` via client `SeoHead` (`forceNoindex`).
+- Vite web builds use `base: "/"` so deep routes load assets; Electron builds set `ELECTRON_BUILD=1` for `base: "./"`.

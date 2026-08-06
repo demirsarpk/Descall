@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter, HashRouter } from "react-router-dom";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./context/ToastContext";
@@ -8,6 +9,11 @@ import { resolveInitialLocale, translate } from "./i18n";
 /* DESCALL v2.0 — Complete UI rebuild - New modular CSS system */
 import "./styles.css";
 import "./styles/blackjack.css";
+
+// Electron loadFile() uses file:// — BrowserRouter cannot deep-link there.
+const Router = typeof window !== "undefined" && window.location.protocol === "file:"
+  ? HashRouter
+  : BrowserRouter;
 
 // Apply saved theme / accent / chat font before first paint to avoid flash
 try {
@@ -52,7 +58,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <ErrorBoundary>
       <ToastProvider>
         <LocaleProvider>
-          <App />
+          <Router>
+            <App />
+          </Router>
         </LocaleProvider>
       </ToastProvider>
     </ErrorBoundary>

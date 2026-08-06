@@ -1,16 +1,22 @@
 "use strict";
 
 /**
- * Advanced sitemap + robots for Descall (SEO / discovery).
+ * Sitemap + robots for Descall (SEO / discovery).
+ *
+ * Only lists real, indexable marketing URLs. Invite deep-links and
+ * announcement query URLs are intentionally excluded from the default index.
  *
  * Endpoints:
  *   GET /robots.txt
  *   GET /sitemap.xml              — sitemap index
- *   GET /sitemap-pages.xml       — static public pages (+ hreflang)
- *   GET /sitemap-invites.xml     — active group invite deep-links
- *   GET /sitemap-announcements.xml
+ *   GET /sitemap-pages.xml       — static public pages
  *   GET /sitemap.html            — human-readable HTML sitemap
- *   GET /api/sitemap/stats       — JSON diagnostics
+ *   GET /sitemap.xsl
+ *   GET /api/sitemap/stats
+ *
+ * Legacy (empty / diagnostic only — not linked from sitemap index):
+ *   GET /sitemap-invites.xml
+ *   GET /sitemap-announcements.xml
  */
 
 const express = require("express");
@@ -21,7 +27,6 @@ const DEFAULT_ORIGIN = "https://des-call.onrender.com";
 const CACHE_SECONDS = 300; // 5 minutes
 
 function getSupabase() {
-  // Lazy require so unit tests / robots can load without env.
   try {
     // eslint-disable-next-line global-require
     return require("../db/supabase");
@@ -80,51 +85,33 @@ function sendHtml(res, body) {
   return res.status(200).send(body);
 }
 
+/** Canonical public marketing pages — must match client routes in src/site/. */
 function staticPages(origin) {
   const now = new Date().toISOString();
-  return [
-    {
-      loc: `${origin}/`,
-      lastmod: now,
-      changefreq: "daily",
-      priority: "1.0",
-      title: "Descall — Messages, voice & screen share",
-      alternates: [
-        { hreflang: "en", href: `${origin}/` },
-        { hreflang: "tr", href: `${origin}/?lang=tr` },
-        { hreflang: "x-default", href: `${origin}/` },
-      ],
-    },
-    {
-      loc: `${origin}/download`,
-      lastmod: now,
-      changefreq: "weekly",
-      priority: "0.9",
-      title: "Download Descall Desktop",
-      alternates: [
-        { hreflang: "en", href: `${origin}/download` },
-        { hreflang: "tr", href: `${origin}/download?lang=tr` },
-        { hreflang: "x-default", href: `${origin}/download` },
-      ],
-    },
-    {
-      loc: `${origin}/sitemap.html`,
-      lastmod: now,
-      changefreq: "weekly",
-      priority: "0.3",
-      title: "Sitemap",
-    },
+  const pages = [
+    { path: "/", title: "Descall — Messages, voice & screen share", changefreq: "daily", priority: "1.0" },
+    { path: "/download", title: "Download Descall Desktop", changefreq: "weekly", priority: "0.9" },
+    { path: "/features", title: "Descall Features", changefreq: "weekly", priority: "0.8" },
+    { path: "/faq", title: "Descall FAQ", changefreq: "weekly", priority: "0.7" },
+    { path: "/security", title: "Descall Security", changefreq: "monthly", priority: "0.6" },
+    { path: "/about", title: "About Descall", changefreq: "monthly", priority: "0.6" },
+    { path: "/compare/discord", title: "Descall vs Discord", changefreq: "monthly", priority: "0.7" },
+    { path: "/privacy", title: "Descall Privacy Policy", changefreq: "monthly", priority: "0.5" },
+    { path: "/terms", title: "Descall Terms of Service", changefreq: "monthly", priority: "0.5" },
+    { path: "/contact", title: "Contact Descall", changefreq: "monthly", priority: "0.5" },
+    { path: "/sitemap.html", title: "Sitemap", changefreq: "weekly", priority: "0.3" },
   ];
+
+  return pages.map((p) => ({
+    loc: p.path === "/" ? `${origin}/` : `${origin}${p.path}`,
+    lastmod: now,
+    changefreq: p.changefreq,
+    priority: p.priority,
+    title: p.title,
+  }));
 }
 
 function urlEntry(page) {
-  const alts = (page.alternates || [])
-    .map(
-      (a) =>
-        `    <xhtml:link rel="alternate" hreflang="${xmlEscape(a.hreflang)}" href="${xmlEscape(a.href)}" />`
-    )
-    .join("\n");
-
   const imageBlock = page.image
     ? `
     <image:image>
@@ -138,12 +125,12 @@ function urlEntry(page) {
     <loc>${xmlEscape(page.loc)}</loc>
     <lastmod>${xmlEscape(page.lastmod)}</lastmod>
     <changefreq>${xmlEscape(page.changefreq || "weekly")}</changefreq>
-    <priority>${xmlEscape(page.priority || "0.5")}</priority>
-${alts}${imageBlock}
+    <priority>${xmlEscape(page.priority || "0.5")}</priority>${imageBlock}
   </url>`;
 }
 
 async function fetchActiveInvites(origin, limit = 5000) {
+  // Kept for /api/sitemap/stats diagnostics — not published in sitemap index.
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -153,7 +140,6 @@ async function fetchActiveInvites(origin, limit = 5000) {
       .limit(limit);
 
     if (error) {
-      // Fallback without join if FK embed fails
       const { data: plain, error: e2 } = await supabase
         .from("group_invite_links")
         .select("code, expires_at, created_at, uses, max_uses, group_id")
@@ -184,59 +170,31 @@ function filterInvites(rows, origin) {
     .map((row) => {
       const group = row.groups || {};
       const name = group.name || "Group invite";
-      const avatar = group.avatar_url || null;
       return {
-        loc: `${origin}/invite/${encodeURIComponent(row.code)}`,
+        loc: `${origin}/?invite=${encodeURIComponent(row.code)}`,
         lastmod: isoDate(row.created_at || row.expires_at),
         changefreq: "daily",
-        priority: "0.6",
+        priority: "0.1",
         title: `Join ${name} on Descall`,
-        image: avatar
-          ? {
-              loc: avatar.startsWith("http") ? avatar : `${origin}${avatar}`,
-              title: name,
-              caption: `Invite to ${name}`,
-            }
-          : null,
       };
     });
 }
 
-async function fetchAnnouncements(origin, limit = 200) {
+async function fetchAnnouncements(_origin, limit = 200) {
+  // Announcements have no public landing page — do not invent ?announcement= URLs.
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from("announcements")
-      .select("id, title, created_at, updated_at, is_active, is_pinned")
+      .select("id, title, created_at, updated_at, is_active")
       .eq("is_active", true)
-      .order("is_pinned", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(limit);
-
-    if (error) {
-      // Older schemas may lack is_active
-      const { data: plain } = await supabase
-        .from("announcements")
-        .select("id, title, created_at, updated_at")
-        .order("created_at", { ascending: false })
-        .limit(limit);
-      return (plain || []).map((a) => announcementEntry(a, origin));
-    }
-    return (data || []).map((a) => announcementEntry(a, origin));
-  } catch (err) {
-    console.warn("[sitemap] announcements fetch error:", err?.message || err);
+    if (error) return [];
+    return data || [];
+  } catch {
     return [];
   }
-}
-
-function announcementEntry(a, origin) {
-  return {
-    loc: `${origin}/?announcement=${encodeURIComponent(a.id)}`,
-    lastmod: isoDate(a.updated_at || a.created_at),
-    changefreq: "weekly",
-    priority: a.is_pinned ? "0.7" : "0.4",
-    title: a.title || "Announcement",
-  };
 }
 
 function buildUrlset(entries) {
@@ -244,7 +202,6 @@ function buildUrlset(entries) {
 <?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>
 <urlset
   xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-  xmlns:xhtml="http://www.w3.org/1999/xhtml"
   xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
 >
 ${entries.map(urlEntry).join("\n")}
@@ -343,15 +300,20 @@ router.get("/robots.txt", (req, res) => {
 User-agent: *
 Allow: /
 Allow: /download
-Allow: /invite/
-Allow: /i/
+Allow: /features
+Allow: /faq
+Allow: /security
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Allow: /contact
+Allow: /compare/
 Allow: /sitemap.xml
 Allow: /sitemap-pages.xml
-Allow: /sitemap-invites.xml
-Allow: /sitemap-announcements.xml
 Allow: /sitemap.html
 
-# App / API surfaces — no indexing
+# Private / ephemeral — do not index
+Disallow: /app/
 Disallow: /api/
 Disallow: /auth/
 Disallow: /admin/
@@ -365,6 +327,10 @@ Disallow: /calls/
 Disallow: /riot/
 Disallow: /debug/
 Disallow: /health
+Disallow: /invite/
+Disallow: /i/
+Disallow: /*?*invite=
+Disallow: /*?*announcement=
 
 Sitemap: ${origin}/sitemap.xml
 Host: ${origin.replace(/^https?:\/\//, "")}
@@ -381,11 +347,7 @@ router.get("/sitemap.xml", (req, res) => {
   const now = isoDate();
   return sendXml(
     res,
-    buildIndex(origin, [
-      { loc: `${origin}/sitemap-pages.xml`, lastmod: now },
-      { loc: `${origin}/sitemap-invites.xml`, lastmod: now },
-      { loc: `${origin}/sitemap-announcements.xml`, lastmod: now },
-    ])
+    buildIndex(origin, [{ loc: `${origin}/sitemap-pages.xml`, lastmod: now }])
   );
 });
 
@@ -394,25 +356,14 @@ router.get("/sitemap-pages.xml", (req, res) => {
   return sendXml(res, buildUrlset(staticPages(origin)));
 });
 
-router.get("/sitemap-invites.xml", async (req, res) => {
-  const origin = siteOrigin(req);
-  const invites = await fetchActiveInvites(origin);
-  return sendXml(res, buildUrlset(invites));
-});
+// Legacy endpoints: empty urlsets so old crawler bookmarks do not 404,
+// but they are no longer linked from the sitemap index.
+router.get("/sitemap-invites.xml", (_req, res) => sendXml(res, buildUrlset([])));
+router.get("/sitemap-announcements.xml", (_req, res) => sendXml(res, buildUrlset([])));
 
-router.get("/sitemap-announcements.xml", async (req, res) => {
-  const origin = siteOrigin(req);
-  const items = await fetchAnnouncements(origin);
-  return sendXml(res, buildUrlset(items));
-});
-
-router.get("/sitemap.html", async (req, res) => {
+router.get("/sitemap.html", (req, res) => {
   const origin = siteOrigin(req);
   const pages = staticPages(origin);
-  const [invites, announcements] = await Promise.all([
-    fetchActiveInvites(origin, 200),
-    fetchAnnouncements(origin, 50),
-  ]);
 
   const section = (title, items) => `
     <section>
@@ -435,7 +386,8 @@ router.get("/sitemap.html", async (req, res) => {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Descall Sitemap</title>
-  <meta name="description" content="Human-readable sitemap for Descall — public pages, invites, and announcements." />
+  <meta name="description" content="Human-readable sitemap for Descall public marketing pages." />
+  <meta name="robots" content="index,follow" />
   <link rel="canonical" href="${xmlEscape(origin)}/sitemap.html" />
   <style>
     :root { color-scheme: dark; --bg:#0b0c10; --card:#1e1f22; --text:#f2f3f5; --muted:#949ba4; --accent:#7b89ff; }
@@ -464,17 +416,13 @@ router.get("/sitemap.html", async (req, res) => {
 <body>
   <main>
     <h1>Descall sitemap</h1>
-    <p class="lead">Public routes indexed for search engines and humans. Machine-readable XML lives at <a href="/sitemap.xml">/sitemap.xml</a>.</p>
+    <p class="lead">Indexable marketing routes only. Machine-readable XML: <a href="/sitemap.xml">/sitemap.xml</a>. Invites and private app UI are excluded.</p>
     <div class="links">
       <a href="/sitemap.xml">Sitemap index</a>
       <a href="/sitemap-pages.xml">Pages XML</a>
-      <a href="/sitemap-invites.xml">Invites XML</a>
-      <a href="/sitemap-announcements.xml">Announcements XML</a>
       <a href="/robots.txt">robots.txt</a>
     </div>
     ${section("Core pages", pages)}
-    ${section("Active group invites", invites)}
-    ${section("Announcements", announcements)}
   </main>
 </body>
 </html>`;
@@ -491,17 +439,16 @@ router.get("/api/sitemap/stats", async (req, res) => {
   res.json({
     origin,
     generatedAt: new Date().toISOString(),
+    policy: "pages-only",
     counts: {
       pages: staticPages(origin).length,
-      invites: invites.length,
-      announcements: announcements.length,
+      invitesActiveNotIndexed: invites.length,
+      announcementsActiveNotIndexed: announcements.length,
     },
     endpoints: [
       "/robots.txt",
       "/sitemap.xml",
       "/sitemap-pages.xml",
-      "/sitemap-invites.xml",
-      "/sitemap-announcements.xml",
       "/sitemap.html",
       "/sitemap.xsl",
     ],
