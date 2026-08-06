@@ -7,7 +7,6 @@ import {
   GROUP_SCREEN_DEFAULT_QUALITY,
   buildDisplayMediaConstraints,
   buildElectronDesktopConstraints,
-  isLikelyDrmScreenEnd,
   isRemoteScreenVideoTrack,
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
@@ -90,7 +89,7 @@ function showElectronScreenPicker(sources) {
     header.appendChild(closeBtn);
 
     const tip = document.createElement('div');
-    tip.textContent = 'Tip: Netflix / DRM apps show black if you share the whole window — share the browser tab when possible.';
+    tip.textContent = 'Choose the screen, window, or browser tab you want to share.';
     Object.assign(tip.style, {
       padding: '10px 24px', fontSize: '12px', color: '#949ba4',
       borderBottom: '1px solid rgba(255,255,255,0.07)', lineHeight: '1.4',
@@ -921,14 +920,9 @@ export function useGroupCall(socket, currentUserId = null) {
       }
       
       const screenTrack = stream.getVideoTracks()[0];
-      const shareStartedAt = Date.now();
       await optimizeScreenShareTrack(screenTrack, { width, height, fps: frameRate });
       if (screenTrack.readyState !== "live") {
         stream.getTracks().forEach((t) => t.stop());
-        toast(
-          tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
-          "warning"
-        );
         return;
       }
 
@@ -966,14 +960,8 @@ export function useGroupCall(socket, currentUserId = null) {
         screenVideoRef.current.play().catch(() => {});
       }
 
-      // Handle screen share end (user clicked Stop, or DRM killed the track)
+      // Handle screen share end from the browser picker or source lifecycle.
       screenTrack.onended = () => {
-        if (isLikelyDrmScreenEnd(shareStartedAt)) {
-          toast(
-            tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
-            "warning"
-          );
-        }
         stopScreenShareRef.current?.();
       };
 

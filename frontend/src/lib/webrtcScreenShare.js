@@ -3,10 +3,8 @@
  * Group calls encode once per peer — keep resolution/bitrate/FPS conservative
  * so remote viewers stay smooth instead of stuttering at 1080p+.
  *
- * DRM / Netflix note: protected playback often yields a black capture surface
- * and may end the display-media track. Prefer sharing the *browser tab*
- * (not the whole window/screen). Avoid aggressive post-capture applyConstraints
- * — they can kill DRM tracks.
+ * Avoid aggressive post-capture constraints so browser-provided display tracks
+ * remain stable across tabs, windows, and desktop capture.
  */
 
 export const GROUP_SCREEN_DEFAULT_QUALITY = {
@@ -43,7 +41,7 @@ export function screenBitrateForPeerCount(peerCount, resolution = "720p") {
 
 /**
  * Soft post-capture tuning. Never use hard `max` constraints after
- * getDisplayMedia — browsers (and DRM surfaces) often end the track.
+ * getDisplayMedia because browsers may end the track.
  */
 export async function optimizeScreenShareTrack(track, { width, height, fps } = {}) {
   if (!track || track.kind !== "video") return;
@@ -54,17 +52,6 @@ export async function optimizeScreenShareTrack(track, { width, height, fps } = {
     /* ignore */
   }
 
-  // Skip applyConstraints when the surface looks like a protected/DRM capture
-  // (Netflix etc.) — constraining those tracks commonly black-screens or ends them.
-  const label = (track.label || "").toLowerCase();
-  const looksProtected =
-    label.includes("netflix") ||
-    label.includes("prime video") ||
-    label.includes("disney") ||
-    label.includes("widevine") ||
-    label.includes("protected");
-
-  if (looksProtected) return;
   if (track.readyState !== "live") return;
 
   try {
@@ -100,8 +87,7 @@ export async function optimizeScreenShareSender(
 }
 
 /**
- * Prefer a browser *tab* surface so DRM sites can (sometimes) share readable
- * content; whole-window/monitor capture of Netflix is almost always black.
+ * Prefer a browser tab surface for convenient window switching.
  */
 export function buildDisplayMediaConstraints({ width, height, fps }) {
   return {
@@ -134,12 +120,6 @@ export function buildElectronDesktopConstraints(sourceId, { width, height, fps }
       },
     },
   };
-}
-
-/** True when a screen track ended almost immediately — typical DRM kill. */
-export function isLikelyDrmScreenEnd(startedAtMs, endedAtMs = Date.now()) {
-  if (!startedAtMs) return false;
-  return endedAtMs - startedAtMs < 4000;
 }
 
 /**

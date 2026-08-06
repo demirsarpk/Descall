@@ -44,6 +44,10 @@ export default function useSpeaking(
 
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // A context created after the call UI mounts can remain suspended even
+      // though the user has already accepted the call. Resume it explicitly
+      // so incoming remote audio produces analyser samples.
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
       const source = ctx.createMediaStreamSource(new MediaStream([track]));
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;

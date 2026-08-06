@@ -181,14 +181,41 @@ export default function DmRemoteParticipantSlot({
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-              <Avatar
-                name={username}
-                size={64}
-                user={user}
-                imageUrl={resolveAvatarUrl(user)}
-                animate="speaking"
-                isSpeaking={isSpeaking}
-              />
+              <div style={{ position: "relative", width: 64, height: 64 }}>
+                {isSpeaking && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        inset: -5,
+                        borderRadius: "50%",
+                        border: "2px solid #3ba55d",
+                        boxShadow: "0 0 0 3px rgba(59,165,93,0.22)",
+                        animation: "callTilePulse 1.2s infinite",
+                      }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        inset: -10,
+                        borderRadius: "50%",
+                        border: "1px solid rgba(59,165,93,0.38)",
+                        animation: "callTilePulse 1.2s 0.18s infinite",
+                      }}
+                    />
+                  </>
+                )}
+                <Avatar
+                  name={username}
+                  size={64}
+                  user={user}
+                  imageUrl={resolveAvatarUrl(user)}
+                  animate="speaking"
+                  isSpeaking={isSpeaking}
+                />
+              </div>
               <span style={{ fontSize: 13, color: "#b5bac1", fontWeight: 500 }}>{username}</span>
               <ConnectionBadge status="connected" />
             </div>
