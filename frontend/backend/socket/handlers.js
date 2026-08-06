@@ -83,6 +83,70 @@ function getLastDmMessage(myId, peerId) {
   return arr[arr.length - 1];
 }
 
+function cacheDmMessages(key, messages) {
+  const cached = dmHistory.get(key) || [];
+  const byId = new Map(cached.map((message) => [message.id, message]));
+  for (const message of messages) byId.set(message.id, message);
+  const merged = Array.from(byId.values())
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .slice(-MAX_DM_PER_CONV);
+  dmHistory.set(key, merged);
+  return merged;
+}
+
+function mapDmRow(row, usersById) {
+  const profile = usersById.get(row.from_user_id);
+  if (profile) cacheUserProfile(profile);
+  return {
+    id: row.id,
+    from: messageSender(row.from_user_id, profile?.username || usernameById.get(row.from_user_id)),
+    to: { id: row.to_user_id },
+    text: row.content || "",
+    mediaUrl: row.media_url || null,
+    mediaType: row.media_type || null,
+    mimeType: row.mime_type || null,
+    size: row.file_size ?? null,
+    originalName: row.original_name || null,
+    duration: row.duration ?? null,
+    replyTo: row.reply_to || null,
+    timestamp: row.created_at,
+    deliveredAt: row.delivered_at || null,
+    readAt: row.read_at || null,
+    editedAt: row.edited_at || null,
+    editHistory: row.edit_history || [],
+  };
+}
+
+async function loadDmMessages(myId, peerId, { before, limit = 100 } = {}) {
+  const pageSize = Math.min(Math.max(Number(limit) || 100, 1), 100);
+  let query = supabase
+    .from("dm_messages")
+    .select("id, from_user_id, to_user_id, content, media_url, media_type, mime_type, file_size, original_name, duration, reply_to, delivered_at, read_at, edited_at, edit_history, created_at")
+    .or(`and(from_user_id.eq.${myId},to_user_id.eq.${peerId}),and(from_user_id.eq.${peerId},to_user_id.eq.${myId})`)
+    .order("created_at", { ascending: false })
+    .limit(pageSize + 1);
+  if (before) query = query.lt("created_at", before);
+
+  const { data: rows, error } = await query;
+  if (error) throw error;
+
+  const hasMore = (rows || []).length > pageSize;
+  const page = hasMore ? rows.slice(0, pageSize) : (rows || []);
+  const userIds = [...new Set(page.map((row) => row.from_user_id))];
+  const { data: profiles, error: profileError } = userIds.length
+    ? await supabase
+      .from("users")
+      .select("id, username, avatar_url, display_name, updated_at, is_admin")
+      .in("id", userIds)
+    : { data: [], error: null };
+  if (profileError) console.warn("[DM] Sender profile lookup failed:", profileError.message);
+
+  const usersById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  const messages = page.reverse().map((row) => mapDmRow(row, usersById));
+  cacheDmMessages(convKey(myId, peerId), messages);
+  return { messages, hasMore };
+}
+
 /** Build preview + activity maps for every DM thread involving this user. */
 function buildDmPreviewMaps(userId) {
   const dmPreviewsByPeer = {};
@@ -825,8 +889,6 @@ function registerSocketHandlers(io) {
       }
       rateLimitDm.set(myId, now);
       socket.data.activeDmPeer = toUserId;
-      const messageId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      const arr = dmHistory.get(convKey(myId, toUserId)) || [];
       const sender = messageSender(myId, me.username, me.avatar_url || socket.user?.avatar_url);
       const replyMeta = replyTo && typeof replyTo === "object"
         ? {
@@ -841,22 +903,32 @@ function registerSocketHandlers(io) {
       const storedText = isVoice
         ? (String(text || "").startsWith("__voice__:") ? text : `__voice__:${voiceDuration || 1}`)
         : (text || "");
-      arr.push({
-        id: messageId,
-        from: sender,
-        to: { id: toUserId },
-        text: isVoice ? "" : storedText,
-        mediaUrl,
-        mediaType: isVoice ? "voice" : mediaType,
-        mimeType,
-        size,
-        originalName,
-        duration: voiceDuration,
-        replyTo: replyMeta,
-        timestamp: new Date().toISOString(),
-      });
-      if (arr.length > MAX_DM_PER_CONV) arr.length = MAX_DM_PER_CONV;
-      dmHistory.set(convKey(myId, toUserId), arr);
+      const { data: row, error: persistError } = await supabase
+        .from("dm_messages")
+        .insert({
+          from_user_id: myId,
+          to_user_id: toUserId,
+          content: storedText,
+          media_url: mediaUrl || null,
+          media_type: isVoice ? "voice" : (mediaType || null),
+          mime_type: mimeType || null,
+          file_size: size ?? null,
+          original_name: originalName || null,
+          duration: voiceDuration,
+          reply_to: replyMeta,
+        })
+        .select("id, created_at")
+        .single();
+      if (persistError || !row) {
+        console.error("[DM] Database insert failed:", persistError?.message || "No row returned");
+        return socket.emit("dm:error", {
+          message: "Failed to send message. Please try again.",
+          tempId: tempId || null,
+          toUserId,
+        });
+      }
+      const messageId = row.id;
+      const timestamp = row.created_at;
 
       // Unread for recipient — skip if they currently have this DM open
       const recipientSocket = getSocketForUser(io, toUserId);
@@ -881,8 +953,9 @@ function registerSocketHandlers(io) {
         originalName,
         duration: voiceDuration,
         replyTo: replyMeta,
-        timestamp: new Date().toISOString(),
+        timestamp,
       };
+      cacheDmMessages(convKey(myId, toUserId), [{ ...messagePayload, to: { id: toUserId } }]);
       emitToUser(io, toUserId, "dm:message", { ...messagePayload, convWith: myId });
       // Echo back to sender with tempId so client can replace the optimistic message
       socket.emit("dm:message", { ...messagePayload, tempId, convWith: toUserId });
@@ -908,26 +981,40 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("dm:delivered", ({ msgId, fromUserId } = {}) => {
+    socket.on("dm:delivered", async ({ msgId, fromUserId } = {}) => {
       if (typeof msgId !== "string" || typeof fromUserId !== "string") return;
       const key = convKey(myId, fromUserId);
       const arr = dmHistory.get(key);
       const m = arr?.find((x) => x.id === msgId);
-      if (!m || m.from?.id !== fromUserId || m.to?.id !== myId) return;
       const at = new Date().toISOString();
-      m.deliveredAt = m.deliveredAt || at;
+      const { error } = await supabase
+        .from("dm_messages")
+        .update({ delivered_at: at })
+        .eq("id", msgId)
+        .eq("from_user_id", fromUserId)
+        .eq("to_user_id", myId)
+        .is("delivered_at", null);
+      if (error) return console.error("[DM] Delivery update failed:", error.message);
+      if (m) m.deliveredAt = m.deliveredAt || at;
       emitToUser(io, fromUserId, "dm:message:update", {
         msgId,
         convWith: myId,
-        deliveredAt: m.deliveredAt,
+        deliveredAt: m?.deliveredAt || at,
       });
     });
 
-    socket.on("dm:mark_read", ({ withUserId } = {}) => {
+    socket.on("dm:mark_read", async ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
       const key = convKey(myId, withUserId);
       const arr = dmHistory.get(key);
       const at = new Date().toISOString();
+      const { error } = await supabase
+        .from("dm_messages")
+        .update({ read_at: at })
+        .eq("from_user_id", withUserId)
+        .eq("to_user_id", myId)
+        .is("read_at", null);
+      if (error) return console.error("[DM] Read update failed:", error.message);
       if (arr) {
         for (const m of arr) {
           if (m.from?.id === withUserId && m.to?.id === myId) {
@@ -943,14 +1030,14 @@ function registerSocketHandlers(io) {
 
     socket.on("dm:history", async ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
-      const key = convKey(myId, withUserId);
-      const all = dmHistory.get(key) || [];
-      const slice = all.slice(-100);
-      const withReactions = await attachReactions(slice, "dm", key);
-      socket.emit("dm:history", {
-        withUserId,
-        messages: withReactions,
-      });
+      try {
+        const { messages } = await loadDmMessages(myId, withUserId);
+        const withReactions = await attachReactions(messages, "dm", convKey(myId, withUserId));
+        socket.emit("dm:history", { withUserId, messages: withReactions });
+      } catch (error) {
+        console.error("[DM] History load failed:", error.message);
+        socket.emit("dm:error", { message: "Failed to load message history.", toUserId: withUserId });
+      }
     });
 
     socket.on("dm:fetch", async ({ withUserId, before, limit = 50 } = {}) => {
@@ -958,16 +1045,17 @@ function registerSocketHandlers(io) {
       if (!friends.get(myId)?.has(withUserId)) {
         return socket.emit("dm:page", { withUserId, messages: [], hasMore: false });
       }
-      const key = convKey(myId, withUserId);
-      const arr = dmHistory.get(key) || [];
-      const pool = typeof before === "string" ? arr.filter((m) => m.timestamp < before) : arr;
-      const slice = pool.slice(-limit);
-      const withReactions = await attachReactions(slice, "dm", key);
-      socket.emit("dm:page", {
-        withUserId,
-        messages: withReactions,
-        hasMore: slice.length === limit,
-      });
+      try {
+        const { messages, hasMore } = await loadDmMessages(myId, withUserId, {
+          before: typeof before === "string" ? before : null,
+          limit,
+        });
+        const withReactions = await attachReactions(messages, "dm", convKey(myId, withUserId));
+        socket.emit("dm:page", { withUserId, messages: withReactions, hasMore });
+      } catch (error) {
+        console.error("[DM] Page load failed:", error.message);
+        socket.emit("dm:error", { message: "Failed to load older messages.", toUserId: withUserId });
+      }
     });
 
     socket.on("notification:read", ({ id } = {}) => {
@@ -1269,26 +1357,39 @@ function registerSocketHandlers(io) {
     // Message Edit - DM
     socket.on("dm:message:edit", async ({ messageId, newText, toUserId } = {}) => {
       if (!messageId || !newText || !toUserId) return;
-      
+
       // Verify friendship
       if (!friends.get(myId)?.has(toUserId)) return;
-      
-      const convKey = [myId, toUserId].sort().join("::");
-      const arr = dmHistory.get(convKey) || [];
-      const msg = arr.find(m => m.id === messageId && m.from === myId);
-      
-      if (!msg) return;
-      
-      // Save old version to edit history
-      if (!msg.editHistory) msg.editHistory = [];
-      msg.editHistory.push({
-        text: msg.text,
-        editedAt: new Date().toISOString()
-      });
-      
-      msg.text = newText;
-      msg.editedAt = new Date().toISOString();
-      
+
+      const key = convKey(myId, toUserId);
+      const arr = dmHistory.get(key) || [];
+      const msg = arr.find((message) => message.id === messageId && message.from?.id === myId);
+      const editedAt = new Date().toISOString();
+      const nextEditHistory = [
+        ...(msg?.editHistory || []),
+        ...(msg ? [{ text: msg.text, editedAt }] : []),
+      ];
+      const { data, error } = await supabase
+        .from("dm_messages")
+        .update({
+          content: newText,
+          edited_at: editedAt,
+          edit_history: nextEditHistory,
+        })
+        .eq("id", messageId)
+        .eq("from_user_id", myId)
+        .eq("to_user_id", toUserId)
+        .select("id")
+        .maybeSingle();
+      if (error || !data) {
+        console.error("[DM] Edit failed:", error?.message || "Message not found");
+        return socket.emit("dm:error", { message: "Failed to edit message.", toUserId });
+      }
+      if (msg) {
+        msg.editHistory = nextEditHistory;
+        msg.text = newText;
+        msg.editedAt = editedAt;
+      }
       // Broadcast to other user
       emitToUser(io, toUserId, "dm:message:edited", {
         messageId,
