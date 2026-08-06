@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getGoogleAuthConfig } from "../../api/auth";
+import { useT } from "../../context/LocaleContext";
 
 const GIS_SRC = "https://accounts.google.com/gsi/client";
 
@@ -32,6 +33,7 @@ function loadGoogleScript() {
  * onCredential(credentialJwt) is called after successful Google picker.
  */
 export default function GoogleSignInButton({ onCredential, disabled = false }) {
+  const t = useT();
   const buttonRef = useRef(null);
   const callbackRef = useRef(onCredential);
   const [status, setStatus] = useState("loading"); // loading | ready | unavailable
@@ -91,7 +93,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }) {
       } catch (err) {
         if (!cancelled) {
           setStatus("unavailable");
-          setError(err.message || "Google Sign-In unavailable");
+          setError(err.message || t("Google Sign-In unavailable"));
         }
       }
     }
@@ -105,7 +107,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }) {
   if (status === "unavailable") {
     return (
       <p className="google-signin-hint" role="note">
-        {error || "Google Sign-In is not configured yet."}
+        {error || t("Google Sign-In is not configured yet.")}
       </p>
     );
   }
@@ -115,7 +117,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }) {
       className={`google-signin-wrap${disabled ? " is-disabled" : ""}`}
       aria-busy={status === "loading"}
     >
-      {status === "loading" && <p className="google-signin-hint">Loading Google…</p>}
+      {status === "loading" && <p className="google-signin-hint">{t("Loading Google…")}</p>}
       <div ref={buttonRef} className="google-signin-button" />
     </div>
   );
