@@ -769,7 +769,7 @@ console.log("  - /api/test (no auth)");
 console.log("  - /api/status");
 console.log("  - /health");
 console.log("  - /robots.txt");
-console.log("  - /sitemap.xml (+ pages/invites/announcements/html)");
+console.log("  - /sitemap.xml (+ pages/html; invites/announcements excluded from index)");
 
 // Static files
 app.use("/media/files", express.static(path.join(__dirname, "uploads")));

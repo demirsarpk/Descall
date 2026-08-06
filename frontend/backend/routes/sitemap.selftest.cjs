@@ -4,7 +4,6 @@
  */
 const assert = require("assert");
 
-// Minimal inline copies of pure helpers to avoid loading express/supabase in isolation
 function xmlEscape(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -19,9 +18,15 @@ assert.strictEqual(xmlEscape(`a&b<"'>`), "a&amp;b&lt;&quot;&apos;&gt;");
 const { staticPages, siteOrigin } = require("./sitemap.js");
 
 const pages = staticPages("https://des-call.onrender.com");
-assert.ok(pages.some((p) => p.loc.endsWith("/")));
-assert.ok(pages.some((p) => p.loc.endsWith("/download")));
-assert.ok(pages[0].alternates?.some((a) => a.hreflang === "tr"));
+const locs = pages.map((p) => p.loc);
+assert.ok(locs.includes("https://des-call.onrender.com/"));
+assert.ok(locs.includes("https://des-call.onrender.com/download"));
+assert.ok(locs.includes("https://des-call.onrender.com/faq"));
+assert.ok(locs.includes("https://des-call.onrender.com/privacy"));
+assert.ok(locs.includes("https://des-call.onrender.com/compare/discord"));
+// Fictional locale alternates and invite spam must stay out of the default pages set
+assert.ok(!pages.some((p) => p.alternates?.length));
+assert.ok(!locs.some((l) => l.includes("invite=") || l.includes("announcement=")));
 
 const fakeReq = {
   protocol: "https",
