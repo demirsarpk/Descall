@@ -1974,6 +1974,8 @@ export const phrases = {
   "Support & feedback": "Destek ve geri bildirim",
   "Open an issue or discussion on GitHub:": "GitHub’da bir sorun veya tartışma aç:",
   "Report suspected vulnerabilities privately via GitHub security advisories when available, or mark issues clearly as security-related.": "Şüpheli güvenlik açıklarını mümkünse GitHub güvenlik bildirimiyle özel olarak ilet veya sorunları açıkça güvenlik ile ilgili olarak işaretle.",
+  "Email the Descall team:": "Descall ekibine e-posta gönder:",
+  "For security reports, contact us by email and include enough detail for us to investigate safely.": "Güvenlik bildirimleri için bize e-posta gönder ve güvenli şekilde inceleyebilmemiz için yeterli ayrıntıyı ekle.",
   "Already have an account? Sign in": "Zaten hesabın var mı? Giriş yap",
   "Need an account? Register": "Hesabın yok mu? Kayıt ol",
   "Google Sign-In unavailable": "Google ile giriş kullanılamıyor",
