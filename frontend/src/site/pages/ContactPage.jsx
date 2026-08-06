@@ -1,6 +1,6 @@
 import { useT } from "../../context/LocaleContext";
 
-const GITHUB = "https://github.com/demirrsarppkurtlarr/Descall";
+const CONTACT_EMAIL = "contact@descall.com";
 
 export default function ContactPage() {
   const t = useT();
@@ -12,14 +12,14 @@ export default function ContactPage() {
       </p>
       <h3>{t("Support & feedback")}</h3>
       <p>
-        {t("Open an issue or discussion on GitHub:")}{" "}
-        <a href={GITHUB} target="_blank" rel="noopener noreferrer">
-          {GITHUB.replace("https://", "")}
+        {t("Email the Descall team:")}{" "}
+        <a href={`mailto:${CONTACT_EMAIL}`}>
+          {CONTACT_EMAIL}
         </a>
       </p>
       <h3>{t("Security")}</h3>
       <p>
-        {t("Report suspected vulnerabilities privately via GitHub security advisories when available, or mark issues clearly as security-related.")}
+        {t("For security reports, contact us by email and include enough detail for us to investigate safely.")}
       </p>
     </section>
   );

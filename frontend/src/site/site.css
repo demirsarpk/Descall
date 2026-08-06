@@ -123,6 +123,38 @@
   align-items: center;
 }
 
+.mkt-language-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--mkt-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mkt-language-toggle button {
+  min-width: 30px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--mkt-muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.mkt-language-toggle button.is-active {
+  color: #fff;
+  background: rgba(123, 137, 255, 0.36);
+}
+
+.mkt-menu-toggle,
+.mkt-mobile-download,
+.mkt-mobile-language {
+  display: none;
+}
+
 .mkt-btn {
   display: inline-flex;
   align-items: center;
@@ -379,6 +411,49 @@
   font-size: 12px;
 }
 
+.login-modal form {
+  display: grid;
+  gap: 12px;
+}
+
+.login-modal form input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 11px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.22);
+  font: inherit;
+}
+
+.login-modal form input::placeholder {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.login-modal form input:focus {
+  outline: none;
+  border-color: #7b89ff;
+  box-shadow: 0 0 0 3px rgba(123, 137, 255, 0.18);
+}
+
+.login-modal form button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 11px;
+  color: #fff;
+  background: linear-gradient(135deg, #5865f2, #7b89ff);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-modal form button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .mkt-404 {
   text-align: center;
   padding: 80px 0;
@@ -397,19 +472,137 @@
 
 @media (max-width: 820px) {
   .mkt-header {
-    flex-wrap: wrap;
-    padding: 12px 16px;
+    min-height: 60px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 10px 12px;
   }
+
+  .mkt-brand {
+    gap: 7px;
+    font-size: 16px;
+  }
+
+  .mkt-brand img {
+    width: 27px;
+    height: 27px;
+  }
+
   .mkt-nav {
-    order: 3;
-    width: 100%;
-    justify-content: flex-start;
-    overflow-x: auto;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 12px;
+    left: 12px;
+    display: none;
+    width: auto;
+    padding: 8px;
+    border: 1px solid var(--mkt-border);
+    border-radius: 14px;
+    background: rgba(22, 23, 28, 0.98);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(18px);
   }
+
+  .mkt-nav.is-open {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mkt-nav-link {
+    padding: 12px;
+    text-align: left;
+  }
+
   .mkt-header-actions {
     margin-left: auto;
+    gap: 6px;
   }
+
+  .mkt-header-actions > .mkt-btn {
+    min-height: 36px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .mkt-header-actions > .mkt-btn-primary,
+  .mkt-desktop-language {
+    display: none;
+  }
+
+  .mkt-menu-toggle {
+    display: inline-grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--mkt-border);
+    border-radius: 9px;
+    color: var(--mkt-text);
+    background: rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+  }
+
+  .mkt-mobile-download {
+    display: inline-flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: center;
+    margin: 4px;
+    padding: 11px;
+    border-radius: 9px;
+    color: #fff;
+    background: linear-gradient(135deg, #5865f2, #7b89ff);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .mkt-mobile-language {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 8px 4px;
+    color: var(--mkt-muted);
+    font-size: 12px;
+  }
+
   .mkt-main {
     width: min(100%, calc(100% - 28px));
+    padding-top: 16px;
+  }
+
+  .mkt-hero {
+    padding: 28px 0 36px;
+  }
+
+  .mkt-hero p {
+    font-size: 16px;
+  }
+
+  .mkt-cta-row .mkt-btn {
+    flex: 1 1 135px;
+  }
+
+  .login-modal-overlay {
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  }
+
+  .login-modal {
+    max-width: 400px;
+    margin: auto 0;
+    padding: 28px 20px 22px;
+    border-radius: 18px;
+  }
+
+  .login-modal h2 {
+    padding-right: 28px;
+    font-size: 24px;
+  }
+
+  .google-signin-button > div {
+    max-width: 100% !important;
   }
 }
