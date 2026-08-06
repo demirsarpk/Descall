@@ -28,6 +28,7 @@ const errorRoutes = require("./routes/errors");
 const callsRoutes = require("./routes/calls");
 const lfgRoutes = require("./routes/lfg");
 const riotRoutes = require("./routes/riot");
+const notificationRoutes = require("./routes/notifications");
 const { sitemapRouter } = require("./routes/sitemap");
 const state = require("./runtime/sharedState");
 
@@ -148,6 +149,7 @@ app.use("/guilds", guildRoutes);
 app.use("/calls", callsRoutes);
 app.use("/lfg", lfgRoutes);
 app.use("/riot", riotRoutes);
+app.use("/notifications", notificationRoutes);
 
 // /api/* aliases — frontend calls mix /api/... and /... so support both
 app.use("/api/auth", authRoutes);
@@ -164,6 +166,7 @@ app.use("/api/app", appReleaseRoutes);
 app.use("/api/calls", callsRoutes);
 app.use("/api/lfg", lfgRoutes);
 app.use("/api/riot", riotRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)

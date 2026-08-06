@@ -37,6 +37,7 @@ const {
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 const { trackOffer, markAnswered, finalizeCall } = require("../lib/dmCallLog");
+const { sendPushNotification } = require("../lib/pushNotifications");
 
 async function notifyCallHistory(io, record) {
   if (!record) return;
@@ -886,6 +887,13 @@ function registerSocketHandlers(io) {
       emitToUser(io, toUserId, "dm:message", { ...messagePayload, convWith: myId });
       // Echo back to sender with tempId so client can replace the optimistic message
       socket.emit("dm:message", { ...messagePayload, tempId, convWith: toUserId });
+      sendPushNotification({
+        userId: toUserId,
+        preference: "dm",
+        title: sender.username || "New message",
+        body: isVoice ? "Sent a voice message" : (storedText || "Sent an attachment"),
+        data: { type: "dm", fromUserId: myId, messageId },
+      }).catch((err) => console.error("[push] DM delivery failed:", err.message));
 
       // Sync unread after the message so the list can reorder first, then badge updates
       if (recipientActivePeer !== myId) {
@@ -1011,6 +1019,13 @@ function registerSocketHandlers(io) {
         offer,
         callType: callType || "voice",
       });
+      sendPushNotification({
+        userId: targetId,
+        preference: "calls",
+        title: me.username || "Incoming call",
+        body: `Incoming ${callType === "video" ? "video" : "voice"} call`,
+        data: { type: "call", fromUserId: myId, callType: callType || "voice" },
+      }).catch((err) => console.error("[push] call delivery failed:", err.message));
 
       // Inform caller only when we truly have no socket for the callee.
       // Do not block the offer attempt — emitToUser is best-effort.

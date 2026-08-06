@@ -7,6 +7,7 @@ const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernam
 const supabase = require("../db/supabase");
 const { handleGameCommand, createGameMessage } = require("./gameHandlers");
 const { getCachedPublicUser, getAvatarUrl } = require("../lib/userProfile");
+const { sendPushNotification } = require("../lib/pushNotifications");
 const {
   broadcastToGroupMembers,
   emitBannerUpdate,
@@ -212,6 +213,24 @@ function registerGroupHandlers(io, socket, state) {
     socket.to(`group:${groupId}`).emit("group:message", { groupId, message });
     // Echo back to sender with tempId for optimistic message replacement
     socket.emit("group:message", { groupId, message, tempId });
+    supabase
+      .from("group_members")
+      .select("user_id")
+      .eq("group_id", groupId)
+      .neq("user_id", myId)
+      .then(({ data: groupMembers, error }) => {
+        if (error) throw error;
+        for (const member of groupMembers || []) {
+          sendPushNotification({
+            userId: member.user_id,
+            preference: "groups",
+            title: socket.user.username || "New group message",
+            body: trimmedContent || "Sent an attachment",
+            data: { type: "group", groupId, messageId: message.id },
+          }).catch((err) => console.error("[push] group delivery failed:", err.message));
+        }
+      })
+      .catch((err) => console.error("[push] group recipients failed:", err.message));
 
     // Detect @mentions and notify mentioned users
     if (trimmedContent) {
