@@ -925,7 +925,12 @@ export default function App() {
           duration: m.duration ?? voice.duration ?? 0,
         };
       });
-      setDmByUserId((prev) => ({ ...prev, [withUserId]: normalized }));
+      // History is a recent DB window; never replace already loaded pages or
+      // optimistic rows when the periodic refresh arrives.
+      setDmByUserId((prev) => {
+        const existing = prev[withUserId] ?? [];
+        return { ...prev, [withUserId]: mergeById(existing, normalized) };
+      });
       setMessagesLoading(false);
       setDmHasMore((normalized?.length ?? 0) >= 50);
       const last = Array.isArray(normalized) && normalized.length > 0 ? normalized[normalized.length - 1] : null;
