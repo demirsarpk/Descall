@@ -1128,6 +1128,23 @@ export function useGroupCall(socket, currentUserId = null) {
 
         // Deduplicate with concurrent participant-joined (accept path emits both)
         if (peerData.offering || pc.signalingState === "have-local-offer") return;
+
+        // Include an active share in the late accepter's initial SDP. The
+        // participant-joined path already does this; onAccept must match it.
+        const screenTrack = screenStreamRef.current?.getVideoTracks()[0];
+        if (screenTrack && screenTrack.readyState === "live" && !peerData.screenSender) {
+          const sender = pc.addTrack(screenTrack, screenStreamRef.current);
+          peerData.screenSender = sender;
+          const quality = resolveScreenCaptureSize(screenQualityRef.current);
+          await optimizeScreenShareSender(sender, {
+            maxBitrate: screenBitrateForPeerCount(
+              pcMapRef.current.size,
+              screenQualityRef.current?.resolution
+            ),
+            maxFramerate: quality.fps,
+          });
+        }
+
         peerData.offering = true;
         try {
           const offer = await pc.createOffer();

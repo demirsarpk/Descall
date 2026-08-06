@@ -304,7 +304,14 @@ export default function CallOverlay({ call, groupCall, me }) {
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
   const remoteScreenSharers = isDm
-    ? []
+    ? (call?.remoteScreenSharing && call?.remoteScreenStream && call?.peer
+        ? [{
+            id: call.peer.id,
+            username: call.peer.username,
+            stream: call.remoteScreenStream,
+            isScreenSharing: true,
+          }]
+        : [])
     : (groupCall?.participants ?? []).filter((p) => p.isScreenSharing && p.screenStream && p.id !== localId);
   const localUsername = me?.username || me?.displayName || t("You");
 
@@ -1102,7 +1109,9 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
   // Derive the stream to display for the active sharer
   const screenStream = activeSharer?.isLocal
     ? (isDm ? call?.screenStream : groupCall?.screenStream)
-    : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null);
+    : (isDm
+        ? (allScreenSharers.find((p) => p.id === activeSharer?.id)?.stream ?? null)
+        : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null));
 
   const attachStream = useCallback((el, stream) => {
     if (!el) return;

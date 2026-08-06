@@ -7,6 +7,7 @@ const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernam
 const supabase = require("../db/supabase");
 const { handleGameCommand, createGameMessage } = require("./gameHandlers");
 const { getCachedPublicUser, getAvatarUrl } = require("../lib/userProfile");
+const { sendWebPushToUsers } = require("../lib/webPush");
 const {
   broadcastToGroupMembers,
   emitBannerUpdate,
@@ -353,6 +354,12 @@ function registerGroupHandlers(io, socket, state) {
       io.to(`user:${targetUserId}`).emit("group:call:incoming", payload);
     });
     socket.to(`group:${groupId}`).emit("group:call:incoming", payload);
+    void sendWebPushToUsers(targets, {
+      title: `${socket.user.username} is calling`,
+      body: `Join the ${callType} call in your group.`,
+      tag: `group-call-${groupId}`,
+      deepLink: `/?group=${encodeURIComponent(groupId)}`,
+    });
 
     io.to(`group:${groupId}`).emit("group:call:started", {
       groupId,

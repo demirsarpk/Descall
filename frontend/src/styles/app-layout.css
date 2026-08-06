@@ -1053,6 +1053,13 @@
   flex-shrink: 0;
 }
 
+button.header-avatar {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
 .header-icon {
   width: 40px;
   height: 40px;

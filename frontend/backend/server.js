@@ -28,6 +28,7 @@ const errorRoutes = require("./routes/errors");
 const callsRoutes = require("./routes/calls");
 const lfgRoutes = require("./routes/lfg");
 const riotRoutes = require("./routes/riot");
+const webPushRoutes = require("./routes/webPush");
 const { sitemapRouter } = require("./routes/sitemap");
 const state = require("./runtime/sharedState");
 
@@ -164,6 +165,7 @@ app.use("/api/app", appReleaseRoutes);
 app.use("/api/calls", callsRoutes);
 app.use("/api/lfg", lfgRoutes);
 app.use("/api/riot", riotRoutes);
+app.use("/api/web-push", webPushRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)

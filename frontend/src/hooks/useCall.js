@@ -10,6 +10,7 @@ import {
   optimizeScreenShareTrack,
   resolveScreenCaptureSize,
   GROUP_SCREEN_DEFAULT_QUALITY,
+  isRemoteScreenVideoTrack,
 } from "../lib/webrtcScreenShare";
 import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
@@ -173,6 +174,8 @@ export function useCall(socket) {
   const [remoteMediaReady, setRemoteMediaReady] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [remoteScreenStream, setRemoteScreenStream] = useState(null);
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState(null);
   const [audioInputDevices, setAudioInputDevices] = useState([]);
   const [audioOutputDevices, setAudioOutputDevices] = useState([]);
@@ -194,6 +197,9 @@ export function useCall(socket) {
   useEffect(() => { modeRef.current = mode; }, [mode]);
   const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
+  const remoteScreenStreamRef = useRef(null);
+  const remoteScreenSharingRef = useRef(false);
   const remoteAudioRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -254,6 +260,11 @@ export function useCall(socket) {
     }
     setLocalStream(null);
     setRemoteStream(null);
+    remoteStreamRef.current = null;
+    setRemoteScreenStream(null);
+    remoteScreenStreamRef.current = null;
+    setRemoteScreenSharing(false);
+    remoteScreenSharingRef.current = false;
     setScreenStream(null);
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
@@ -342,21 +353,52 @@ export function useCall(socket) {
       // Mid-call camera renegotiation may omit e.streams — wrap the track.
       const raw = e.streams?.[0];
       const rs = (raw && raw.getTracks().length > 0) ? raw : new MediaStream([track]);
+      const isScreenTrack = isRemoteScreenVideoTrack(track, {
+        rawStream: raw,
+        peerExpectsScreen: remoteScreenSharingRef.current,
+        mainRemoteStream: remoteStreamRef.current,
+        participantHasCameraVideo: Boolean(remoteStreamRef.current?.getVideoTracks().length),
+      });
+
+      if (isScreenTrack) {
+        setRemoteScreenStream((prev) => {
+          const next = prev && prev !== rs
+            ? new MediaStream([...prev.getTracks().filter((item) => item !== track), track])
+            : rs;
+          remoteScreenStreamRef.current = next;
+          return next;
+        });
+
+        track.onended = () => {
+          setRemoteScreenStream((prev) => {
+            if (!prev) return null;
+            const remaining = prev.getTracks().filter((item) => item !== track && item.readyState !== "ended");
+            const next = remaining.length ? new MediaStream(remaining) : null;
+            remoteScreenStreamRef.current = next;
+            return next;
+          });
+        };
+        return;
+      }
 
       // Force a state update even when the same MediaStream gains a new track
       // (same object identity would otherwise skip React re-renders).
       setRemoteStream((prev) => {
+        let next;
         if (prev && prev !== rs) {
           // Merge newly arrived track into the existing remote stream when possible
           try {
             if (track && !prev.getTracks().includes(track)) prev.addTrack(track);
-            return new MediaStream(prev.getTracks());
+            next = new MediaStream(prev.getTracks());
+            remoteStreamRef.current = next;
+            return next;
           } catch {
             /* fall through */
           }
         }
-        if (prev === rs) return new MediaStream(rs.getTracks());
-        return rs;
+        next = prev === rs ? new MediaStream(rs.getTracks()) : rs;
+        remoteStreamRef.current = next;
+        return next;
       });
       markRemoteMediaReady(rs);
 
@@ -400,7 +442,9 @@ export function useCall(socket) {
         setRemoteStream((prev) => {
           if (!prev) return prev;
           const remaining = prev.getTracks().filter((t) => t !== track && t.readyState !== "ended");
-          return remaining.length ? new MediaStream(remaining) : null;
+          const next = remaining.length ? new MediaStream(remaining) : null;
+          remoteStreamRef.current = next;
+          return next;
         });
       };
     };
@@ -986,6 +1030,20 @@ export function useCall(socket) {
     [startScreenShare, stopScreenShare]
   );
 
+  const handleRemoteScreenShareStart = useCallback((fromUserId) => {
+    if (!fromUserId || fromUserId !== peerRef.current?.id) return;
+    remoteScreenSharingRef.current = true;
+    setRemoteScreenSharing(true);
+  }, []);
+
+  const handleRemoteScreenShareStop = useCallback((fromUserId) => {
+    if (!fromUserId || fromUserId !== peerRef.current?.id) return;
+    remoteScreenSharingRef.current = false;
+    setRemoteScreenSharing(false);
+    setRemoteScreenStream(null);
+    remoteScreenStreamRef.current = null;
+  }, []);
+
   // Change active microphone mid-call
   const setAudioInput = useCallback(async (deviceId) => {
     setSelectedAudioInput(deviceId);
@@ -1040,6 +1098,8 @@ export function useCall(socket) {
     remoteMediaReady,
     localStream,
     remoteStream,
+    remoteScreenStream,
+    remoteScreenSharing,
     screenStream,
     isInCall,
     isCalling,
@@ -1056,6 +1116,8 @@ export function useCall(socket) {
     screenQuality,
     setScreenQuality,
     restartScreenShareWithQuality,
+    handleRemoteScreenShareStart,
+    handleRemoteScreenShareStop,
     cleanup,
     audioInputDevices,
     audioOutputDevices,

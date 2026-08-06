@@ -379,6 +379,7 @@ export default function AppLayout({
         onStartGroupCall={handleStartGroupCallFromCalls}
         onOpenChatFromCalls={handleOpenChatFromCalls}
         onOpenGroupFromCalls={handleOpenGroupFromCalls}
+        onStartDm={handleOpenChatFromCalls}
         groups={groups}
       >
         {children}

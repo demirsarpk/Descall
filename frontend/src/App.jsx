@@ -35,6 +35,7 @@ import {
 } from "./lib/userProfile";
 import audioManager, { initAudioManager } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
+import { subscribeWebPush } from "./lib/webPushSubscription";
 import { useToast } from "./context/ToastContext";
 import { useLocale } from "./context/LocaleContext";
 import { t as tRuntime } from "./i18n/runtime";
@@ -50,7 +51,15 @@ import { parseVoiceMeta, encodeVoiceContent } from "./lib/voiceMessage";
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
   const out = [...(incoming || []).filter((m) => m && !ids.has(m.id)), ...existing];
-  return out.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  return sortMessagesChronologically(out);
+}
+
+function sortMessagesChronologically(messages) {
+  return [...messages].sort((a, b) => {
+    const aTime = new Date(a?.timestamp || a?.created_at || 0).getTime();
+    const bTime = new Date(b?.timestamp || b?.created_at || 0).getTime();
+    return aTime - bTime;
+  });
 }
 
 function normalizeGroups(payload) {
@@ -263,7 +272,6 @@ export default function App() {
   const [reconnectState, setReconnectState] = useState("idle");
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminChanged, setAdminChanged] = useState(false);
-  const [peerScreenSharing, setPeerScreenSharing] = useState(false);
   const [myGroups, setMyGroups] = useState([]);
   const [groupMessagesById, setGroupMessagesById] = useState({});
   // Electron silent auto-update state: null | 'downloading' | 'installing'
@@ -561,7 +569,19 @@ export default function App() {
   const handleRequestNotifPermission = async () => {
     const result = await notificationService.requestPermission();
     setNotifPermission(result);
+    if (result === "granted") {
+      subscribeWebPush().catch((error) => {
+        console.warn("[WebPush] Subscription failed:", error.message);
+      });
+    }
   };
+
+  useEffect(() => {
+    if (!me?.id || notifPermission !== "granted") return;
+    subscribeWebPush().catch((error) => {
+      console.warn("[WebPush] Subscription sync failed:", error.message);
+    });
+  }, [me?.id, notifPermission]);
 
   useEffect(() => {
     const token = getToken();
@@ -1113,10 +1133,15 @@ export default function App() {
         const cur = prev[groupId] ?? [];
         // Replace optimistic message by tempId, or dedupe by real id
         if (tempId && cur.some((m) => m.id === tempId)) {
-          return { ...prev, [groupId]: cur.map((m) => m.id === tempId ? { ...normalized, sending: false } : m) };
+          return {
+            ...prev,
+            [groupId]: sortMessagesChronologically(
+              cur.map((m) => m.id === tempId ? { ...normalized, sending: false } : m)
+            ),
+          };
         }
         if (cur.some((m) => m.id === normalized.id)) return prev;
-        return { ...prev, [groupId]: [...cur, normalized] };
+        return { ...prev, [groupId]: sortMessagesChronologically([...cur, normalized]) };
       });
 
       setGroupLastActivity((prev) => ({ ...prev, [groupId]: normalized.timestamp }));
@@ -1385,10 +1410,10 @@ export default function App() {
     });
 
     socket.on("screen:share-start", ({ fromUserId } = {}) => {
-      if (fromUserId === activeDmRef.current?.id) setPeerScreenSharing(true);
+      call.handleRemoteScreenShareStart(fromUserId);
     });
     socket.on("screen:share-stop", ({ fromUserId } = {}) => {
-      if (fromUserId === activeDmRef.current?.id) setPeerScreenSharing(false);
+      call.handleRemoteScreenShareStop(fromUserId);
     });
 
     // Guild socket events
@@ -1654,7 +1679,10 @@ export default function App() {
         let normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
         const rx = await fetchConversationReactions("group", activeGroup.id);
         normalized = mergeReactionsIntoMessages(normalized, rx);
-        setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
+        setGroupMessagesById((prev) => ({
+          ...prev,
+          [activeGroup.id]: sortMessagesChronologically(normalized),
+        }));
         const last = normalized[normalized.length - 1];
         const preview = formatGroupPreviewFromMsg(last, t);
         if (preview) {
