@@ -323,6 +323,15 @@ export default function CallOverlay({ call, groupCall, me }) {
 
   return (
     <>
+    {isDm && mode === "active" && (
+      <audio
+        ref={call?.remoteAudioRef}
+        autoPlay
+        playsInline
+        style={{ display: "none" }}
+        aria-hidden="true"
+      />
+    )}
     {pipSource}
     <motion.div
       data-call-overlay="true"
