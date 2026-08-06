@@ -1,6 +1,5 @@
 "use strict";
 
-const fs = require("fs");
 const supabase = require("../db/supabase");
 const {
   loadUserProfile,
@@ -38,17 +37,6 @@ const {
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 const { trackOffer, markAnswered, finalizeCall } = require("../lib/dmCallLog");
-
-function debugCallLog(hypothesisId, location, message, data) {
-  try {
-    fs.appendFileSync(
-      "/opt/cursor/logs/debug.log",
-      `${JSON.stringify({ hypothesisId, location, message, data, timestamp: Date.now() })}\n`,
-    );
-  } catch {
-    // Debug logging must never interrupt real-time signaling.
-  }
-}
 
 async function notifyCallHistory(io, record) {
   if (!record) return;
@@ -519,12 +507,6 @@ function registerSocketHandlers(io) {
     socket.join(`user:${myId}`);
     socketToUser.set(socket.id, myId);
     socket.data.activeDmPeer = null;
-    // #region agent log
-    debugCallLog("H2", "socket/handlers.js:520", "authenticated socket joined user room", {
-      roomMemberCount: io.sockets?.adapter?.rooms?.get(`user:${myId}`)?.size || 0,
-      socketConnected: socket.connected,
-    });
-    // #endregion
 
     setupAdminSocket(io, socket);
 
@@ -1005,13 +987,6 @@ function registerSocketHandlers(io) {
 
     socket.on("call:offer", ({ toUserId, offer, callType } = {}) => {
       if (typeof toUserId !== "string" || !offer) {
-        // #region agent log
-        debugCallLog("H3", "socket/handlers.js:1004", "call offer rejected as malformed", {
-          hasOffer: Boolean(offer),
-          toUserIdType: typeof toUserId,
-          callType: typeof callType === "string" ? callType : null,
-        });
-        // #endregion
         return;
       }
       const targetId = toUserId.trim();
@@ -1021,14 +996,6 @@ function registerSocketHandlers(io) {
       const room = io.sockets?.adapter?.rooms?.get(`user:${targetId}`);
       const presenceHit = Boolean(presence.get(targetId)?.socketId);
       const delivered = (room && room.size > 0) || presenceHit;
-      // #region agent log
-      debugCallLog("H1", "socket/handlers.js:1018", "call offer received for forwarding", {
-        callType: callType || "voice",
-        targetRoomMemberCount: room?.size || 0,
-        presenceHit,
-        delivered,
-      });
-      // #endregion
 
       trackOffer({
         callerId: myId,
@@ -1062,12 +1029,6 @@ function registerSocketHandlers(io) {
       if (typeof toUserId !== "string" || !answer) return;
       // Callee answers → caller is toUserId
       markAnswered({ callerId: toUserId, calleeId: myId });
-      // #region agent log
-      debugCallLog("H4", "socket/handlers.js:1055", "call answer received for forwarding", {
-        targetRoomMemberCount: io.sockets?.adapter?.rooms?.get(`user:${toUserId}`)?.size || 0,
-        hasAnswer: Boolean(answer),
-      });
-      // #endregion
       emitToUser(io, toUserId, "call:answer", {
         fromUserId: myId,
         answer,

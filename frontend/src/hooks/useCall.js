@@ -615,7 +615,11 @@ export function useCall(socket) {
 
   const startCall = useCallback(async (friend, type = "voice") => {
     const peerId = friend?.id || friend?.userId;
-    if (!peerId || !socket) return;
+    if (!peerId) return;
+    if (!socketRef.current?.connected) {
+      toast("Call connection unavailable. Please wait and try again.", "error");
+      return;
+    }
     if (modeRef.current === "outgoing" || modeRef.current === "active" || modeRef.current === "incoming") {
       console.warn("[Call] startCall ignored — already in a call:", modeRef.current);
       return;
@@ -660,7 +664,7 @@ export function useCall(socket) {
       console.error("[Call] startCall failed:", err?.name || err?.message || err);
       cleanup();
     }
-  }, [cleanup, setupPeerConnection]);
+  }, [cleanup, setupPeerConnection, toast]);
 
   const acceptIncoming = useCallback(async () => {
     const offer = incomingOfferRef.current;
