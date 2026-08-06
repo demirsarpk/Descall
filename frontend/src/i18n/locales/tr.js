@@ -1994,7 +1994,32 @@ export const phrases = {
   "How do group invites work?": "Grup davetleri nasıl çalışır?",
   "Group owners can create invite links. Opening an invite lets you preview the group and join after signing in.": "Grup sahipleri davet bağlantısı oluşturabilir. Daveti açtığında grubu önizleyebilir ve giriş yaptıktan sonra katılabilirsin.",
   "Where can I get support?": "Desteği nereden alabilirim?",
-  "Use the Contact page or open an issue on the Descall GitHub repository.": "İletişim sayfasını kullanabilir veya Descall GitHub deposunda bir sorun kaydı açabilirsin."
+  "Use the Contact page or open an issue on the Descall GitHub repository.": "İletişim sayfasını kullanabilir veya Descall GitHub deposunda bir sorun kaydı açabilirsin.",
+  "Web and API traffic use HTTPS/TLS. Real-time media uses WebRTC with DTLS/SRTP between peers when a call is established.": "Web ve API trafiği HTTPS/TLS kullanır. Gerçek zamanlı medya, arama kurulduğunda eşler arasında WebRTC ile DTLS/SRTP kullanır.",
+  "Passwords are hashed server-side. Google sign-in is available where configured. Keep your credentials private and sign out on shared devices.": "Parolalar sunucu tarafında hashlenir. Yapılandırıldığı yerde Google ile giriş kullanılabilir. Kimlik bilgilerini gizli tut ve ortak cihazlarda çıkış yap.",
+  "Report security issues via Contact or GitHub. Do not share invite links publicly if a group should stay private.": "Güvenlik sorunlarını İletişim sayfasından bildir. Bir grup özel kalacaksa davet bağlantılarını herkese açık paylaşma.",
+  "Account details you provide (such as username and email when using Google sign-in), messages and media you send, group membership, and basic technical logs needed to operate the service (IP, device/browser, error diagnostics).": "Sağladığın hesap bilgileri (Google ile girişte kullanıcı adı ve e-posta gibi), gönderdiğin mesajlar ve medya, grup üyelikleri ile hizmetin çalışması için gereken temel teknik kayıtlar (IP, cihaz/tarayıcı, hata tanıları) toplanır.",
+  "We use this data to provide chat and calls, keep the service secure, improve reliability, and communicate important product updates. We do not sell your personal information.": "Bu verileri sohbet ve aramaları sunmak, hizmeti güvenli tutmak, güvenilirliği iyileştirmek ve önemli ürün güncellemelerini iletmek için kullanırız. Kişisel bilgilerini satmayız.",
+  "We use infrastructure providers (hosting, database, authentication) as processors. Content you send is visible to the recipients you choose (DMs, groups).": "Altyapı sağlayıcılarını (barındırma, veritabanı, kimlik doğrulama) veri işleyen olarak kullanırız. Gönderdiğin içerik seçtiğin alıcılara (DM’ler, gruplar) görünür.",
+  "You can update profile settings, leave groups, and request account deletion via Contact. For questions about this policy, use the Contact page.": "Profil ayarlarını güncelleyebilir, gruplardan ayrılabilir ve İletişim sayfasından hesap silme talep edebilirsin. Bu politika hakkındaki soruların için İletişim sayfasını kullan.",
+  "By creating an account or using Descall (web or desktop), you agree to these Terms and our Privacy Policy.": "Bir hesap oluşturarak veya Descall’ı (web ya da masaüstü) kullanarak bu Şartları ve Gizlilik Politikamızı kabul edersin.",
+  "Do not abuse the service, harass others, distribute illegal content, attempt unauthorized access, or interfere with infrastructure. We may suspend accounts that violate these rules.": "Hizmeti kötüye kullanma, başkalarını taciz etme, yasa dışı içerik dağıtma, yetkisiz erişime kalkışma veya altyapıya müdahale etme. Bu kuralları ihlal eden hesapları askıya alabiliriz.",
+  "Descall is provided as-is. Features may change. We aim for high availability but do not guarantee uninterrupted service.": "Descall olduğu gibi sunulur. Özellikler değişebilir. Yüksek kullanılabilirlik hedefleriz ancak kesintisiz hizmeti garanti etmeyiz.",
+  "Questions about these Terms can be sent via the Contact page.": "Bu Şartlarla ilgili sorularını İletişim sayfasından iletebilirsin.",
+  "We focus on real-time messaging, group voice/video, screen share, and a polished desktop experience — without turning private chats into SEO landings.": "Özel sohbetleri SEO açılış sayfasına dönüştürmeden; gerçek zamanlı mesajlaşma, grup sesli/görüntülü arama, ekran paylaşımı ve özenli masaüstü deneyimine odaklanıyoruz.",
+  "Compare Descall and Discord for chat, voice, video, and screen share — a lighter alternative for friends and groups.": "Sohbet, ses, video ve ekran paylaşımı için Descall ile Discord’u karşılaştır — arkadaşlar ve gruplar için daha hafif bir alternatif.",
+  "Real-time chat": "Gerçek zamanlı sohbet",
+  "Group voice & video": "Grup sesli ve görüntülü",
+  "Yes": "Evet",
+  "Desktop app": "Masaüstü uygulaması",
+  "Windows + web": "Windows + web",
+  "All major platforms": "Tüm büyük platformlar",
+  "Servers / communities": "Sunucular / topluluklar",
+  "Groups-focused": "Grup odaklı",
+  "Servers & channels": "Sunucular ve kanallar",
+  "Price": "Fiyat",
+  "Free": "Ücretsiz",
+  "Free + Nitro": "Ücretsiz + Nitro"
 };
 
 const locale = { nested, phrases };
