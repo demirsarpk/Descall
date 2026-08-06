@@ -9,17 +9,27 @@
     <title>Descall — Messages, voice &amp; screen share</title>
     <meta name="description" content="Descall is a modern chat app with group voice/video calls, screen share, Valorant LFG, and a desktop client." />
     <meta name="robots" content="index,follow,max-image-preview:large" />
-    <link rel="canonical" href="https://des-call.onrender.com/" />
+    <link rel="canonical" href="https://descall.com/" />
     <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Descall" />
     <meta property="og:title" content="Descall — Messages, voice &amp; screen share" />
     <meta property="og:description" content="Chat, group calls, screen share, and more — on web and desktop." />
-    <meta property="og:url" content="https://des-call.onrender.com/" />
-    <meta property="og:image" content="https://des-call.onrender.com/icon.png" />
+    <meta property="og:url" content="https://descall.com/" />
+    <meta property="og:image" content="https://descall.com/icon.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Descall" />
     <meta name="twitter:description" content="Messages · voice · screen share" />
+    <!-- Available before JavaScript executes so Google can resolve the site name. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "url": "https://descall.com/",
+        "name": "Descall",
+        "alternateName": ["Descall App", "Descall Chat"]
+      }
+    </script>
     <script>
       /* Deep-link bootstrap: Vite base "./" breaks JS under /invite/:code */
       (function () {
@@ -198,6 +208,17 @@
     </style>
   </head>
   <body>
+    <noscript>
+      <nav aria-label="Descall">
+        <a href="/">Descall</a>
+        <a href="/features">Features</a>
+        <a href="/download">Download</a>
+        <a href="/faq">FAQ</a>
+        <a href="/security">Security</a>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+      </nav>
+    </noscript>
     <div id="boot-splash" data-shown-at="" role="progressbar" aria-busy="true" aria-label="Loading Descall">
       <div class="boot-orb boot-orb--a" aria-hidden="true"></div>
       <div class="boot-orb boot-orb--b" aria-hidden="true"></div>

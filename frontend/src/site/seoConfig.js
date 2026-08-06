@@ -1,7 +1,8 @@
 /** Canonical public marketing routes + head metadata. */
 
 export const SITE_NAME = "Descall";
-export const DEFAULT_ORIGIN = "https://des-call.onrender.com";
+// descall.com is the canonical public host; the Render hostname is infrastructure.
+export const DEFAULT_ORIGIN = "https://descall.com";
 export const DEFAULT_OG_IMAGE = "/icon.png";
 
 export function siteOrigin() {
