@@ -5,7 +5,6 @@ import notificationService from "../lib/notificationService";
 import {
   buildDisplayMediaConstraints,
   buildElectronDesktopConstraints,
-  isLikelyDrmScreenEnd,
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
   resolveScreenCaptureSize,
@@ -89,7 +88,7 @@ function showElectronScreenPicker(sources) {
     header.appendChild(closeBtn);
 
     const tip = document.createElement('div');
-    tip.textContent = 'Tip: Netflix / DRM apps show black if you share the whole window — share the browser tab when possible.';
+    tip.textContent = 'Choose the screen, window, or browser tab you want to share.';
     Object.assign(tip.style, {
       padding: '10px 24px', fontSize: '12px', color: '#949ba4',
       borderBottom: '1px solid rgba(255,255,255,0.07)', lineHeight: '1.4',
@@ -344,6 +343,28 @@ export function useCall(socket) {
     if (hasUsable) setRemoteMediaReady(true);
   }, []);
 
+  const attachRemoteScreenTrack = useCallback((track, stream = null) => {
+    if (!track || track.kind !== "video") return;
+    const screenStream = stream || new MediaStream([track]);
+    setRemoteScreenStream((prev) => {
+      const next = prev && prev !== screenStream
+        ? new MediaStream([...prev.getTracks().filter((item) => item !== track), track])
+        : screenStream;
+      remoteScreenStreamRef.current = next;
+      return next;
+    });
+
+    track.onended = () => {
+      setRemoteScreenStream((prev) => {
+        if (!prev) return null;
+        const remaining = prev.getTracks().filter((item) => item !== track && item.readyState !== "ended");
+        const next = remaining.length ? new MediaStream(remaining) : null;
+        remoteScreenStreamRef.current = next;
+        return next;
+      });
+    };
+  }, []);
+
   const setupPeerConnection = useCallback((pc, stream, isInitiator) => {
     setPeerConnectionState("connecting");
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
@@ -361,23 +382,7 @@ export function useCall(socket) {
       });
 
       if (isScreenTrack) {
-        setRemoteScreenStream((prev) => {
-          const next = prev && prev !== rs
-            ? new MediaStream([...prev.getTracks().filter((item) => item !== track), track])
-            : rs;
-          remoteScreenStreamRef.current = next;
-          return next;
-        });
-
-        track.onended = () => {
-          setRemoteScreenStream((prev) => {
-            if (!prev) return null;
-            const remaining = prev.getTracks().filter((item) => item !== track && item.readyState !== "ended");
-            const next = remaining.length ? new MediaStream(remaining) : null;
-            remoteScreenStreamRef.current = next;
-            return next;
-          });
-        };
+        attachRemoteScreenTrack(track, rs);
         return;
       }
 
@@ -528,7 +533,7 @@ export function useCall(socket) {
         makingOfferRef.current = false;
       }
     };
-  }, [markRemoteMediaReady]);
+  }, [attachRemoteScreenTrack, markRemoteMediaReady]);
 
   useEffect(() => {
     if (!socket) return;
@@ -924,17 +929,18 @@ export function useCall(socket) {
       }
 
       const screenTrack = screenStream.getVideoTracks()[0];
-      const shareStartedAt = Date.now();
       await optimizeScreenShareTrack(screenTrack, { width, height, fps });
       if (screenTrack.readyState !== "live") {
         screenStream.getTracks().forEach((t) => t.stop());
-        toast(
-          tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
-          "warning"
-        );
         return;
       }
-      
+
+      // Tell the peer to reserve the next video track for the screen layout
+      // before WebRTC can deliver that track.
+      if (peerRef.current?.id && socketRef.current?.connected) {
+        socketRef.current.emit("screen:share-start", { toUserId: peerRef.current.id });
+      }
+
       // Add screen track - this triggers onnegotiationneeded
       const screenSender = pc.addTrack(screenTrack, screenStream);
       await optimizeScreenShareSender(screenSender, {
@@ -977,19 +983,10 @@ export function useCall(socket) {
       }
 
       screenTrack.onended = () => {
-        if (isLikelyDrmScreenEnd(shareStartedAt)) {
-          toast(
-            tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
-            "warning"
-          );
-        }
         if (stopScreenShareRef.current) stopScreenShareRef.current();
       };
 
       setScreenSharing(true);
-      if (peerRef.current?.id && socketRef.current?.connected) {
-        socketRef.current.emit("screen:share-start", { toUserId: peerRef.current.id });
-      }
     } catch (err) {
     }
   }, [toast]);
@@ -1034,7 +1031,24 @@ export function useCall(socket) {
     if (!fromUserId || fromUserId !== peerRef.current?.id) return;
     remoteScreenSharingRef.current = true;
     setRemoteScreenSharing(true);
-  }, []);
+
+    // Screen signaling can arrive after a fast ontrack callback. Recover the
+    // newest received video track from the camera stream in that case.
+    const videoTracks = (pcRef.current?.getReceivers?.() || [])
+      .map((receiver) => receiver.track)
+      .filter((track) => track?.kind === "video" && track.readyState !== "ended");
+    const screenTrack = videoTracks[videoTracks.length - 1];
+    if (!screenTrack || remoteScreenStreamRef.current?.getVideoTracks().includes(screenTrack)) return;
+
+    setRemoteStream((prev) => {
+      if (!prev?.getVideoTracks().includes(screenTrack)) return prev;
+      const remaining = prev.getTracks().filter((track) => track !== screenTrack);
+      const next = remaining.length ? new MediaStream(remaining) : null;
+      remoteStreamRef.current = next;
+      return next;
+    });
+    attachRemoteScreenTrack(screenTrack);
+  }, [attachRemoteScreenTrack]);
 
   const handleRemoteScreenShareStop = useCallback((fromUserId) => {
     if (!fromUserId || fromUserId !== peerRef.current?.id) return;

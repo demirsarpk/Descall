@@ -16,10 +16,6 @@ export const FAQ_ITEMS = [
     a: "Yes. Create a free account (or sign in with Google) to chat, join groups, and start calls.",
   },
   {
-    q: "Does screen share work with Netflix or DRM video?",
-    a: "Protected / DRM video often appears black or can stop capture in browsers. Prefer sharing a browser tab when possible, and avoid DRM-protected windows for a stable share.",
-  },
-  {
     q: "How do group invites work?",
     a: "Group owners can create invite links. Opening an invite lets you preview the group and join after signing in.",
   },
