@@ -29,6 +29,7 @@ const callsRoutes = require("./routes/calls");
 const lfgRoutes = require("./routes/lfg");
 const riotRoutes = require("./routes/riot");
 const { sitemapRouter } = require("./routes/sitemap");
+const webPushRoutes = require("./routes/webPush");
 const state = require("./runtime/sharedState");
 
 // Inline feedback - no external file needed
@@ -61,6 +62,7 @@ app.set("io", io);
 // Middleware
 app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
+app.use("/api/web-push", webPushRoutes);
 
 // Debug - log all requests (skip noise in production)
 if (process.env.NODE_ENV !== "production") {

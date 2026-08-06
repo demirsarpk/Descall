@@ -46,6 +46,7 @@ import CallOverlay from "./components/CallOverlay";
 import GroupCallIncomingModal from "./components/GroupCallIncomingModal";
 import { requestFeedbackNudge } from "./components/feedback/FeedbackNudgeBanner";
 import { parseVoiceMeta, encodeVoiceContent } from "./lib/voiceMessage";
+import { subscribeWebPush } from "./lib/webPushSubscription";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
@@ -560,6 +561,7 @@ export default function App() {
 
   const handleRequestNotifPermission = async () => {
     const result = await notificationService.requestPermission();
+    if (result === "granted") subscribeWebPush().catch(() => {});
     setNotifPermission(result);
   };
 
