@@ -24,7 +24,7 @@ Legacy empty stubs (not linked from the index): `/sitemap-invites.xml`, `/sitema
 ## Config
 
 - Prefer `PUBLIC_APP_URL` (or `SITE_URL`) for absolute URLs in production.
-- Falls back to `X-Forwarded-*` / request host, then `https://des-call.onrender.com`.
+- Falls back to `X-Forwarded-*` / request host, then canonical host `https://descall.com`.
 
 ## Notes
 

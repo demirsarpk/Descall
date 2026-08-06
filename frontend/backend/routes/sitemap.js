@@ -23,7 +23,8 @@ const express = require("express");
 
 const router = express.Router();
 
-const DEFAULT_ORIGIN = "https://des-call.onrender.com";
+// Canonical public host. PUBLIC_APP_URL / SITE_URL still override this in deployments.
+const DEFAULT_ORIGIN = "https://descall.com";
 const CACHE_SECONDS = 300; // 5 minutes
 
 function getSupabase() {
