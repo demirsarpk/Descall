@@ -12,4 +12,24 @@ assert.ok(
   "startCall must reject a disconnected socket before acquiring media",
 );
 
-console.log("useCall socket connection self-test passed");
+const startScreenShare = source.slice(
+  source.indexOf("const startScreenShare = useCallback"),
+  source.indexOf("const restartScreenShareWithQuality"),
+);
+const dmRemoteVideo = readFileSync(
+  fileURLToPath(new URL("../components/CallOverlay.jsx", import.meta.url)),
+  "utf8",
+);
+
+assert.match(startScreenShare, /navigator\.mediaDevices\?\.getDisplayMedia/);
+assert.doesNotMatch(
+  startScreenShare,
+  /setTimeout\(async \(\) =>[\s\S]*?call:offer/,
+  "screen sharing must rely on serialized negotiationneeded instead of a duplicate delayed offer",
+);
+assert.match(source, /receivedVideoTracksRef/);
+assert.match(source, /hasAudio/);
+assert.match(dmRemoteVideo, /const dmRemoteHasVideo = streamHasLiveVideo\(call\?\.remoteStream\);/);
+assert.doesNotMatch(dmRemoteVideo, /dmRemoteHasVideo = .*callType === "video"/);
+
+console.log("useCall media negotiation self-test passed");

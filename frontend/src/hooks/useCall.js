@@ -215,7 +215,11 @@ export function useCall(socket) {
   const socketRef = useRef(socket);
   const callTypeRef = useRef(callType);
   const makingOfferRef = useRef(false);
+  const negotiationQueuedRef = useRef(false);
   const iceRestartAttemptedRef = useRef(false);
+  // Keep the original stream association so a late screen-share signal can
+  // recover only a likely display track, never an arbitrary camera receiver.
+  const receivedVideoTracksRef = useRef(new Map());
 
   useEffect(() => { peerRef.current = peer; }, [peer]);
   useEffect(() => { socketRef.current = socket; }, [socket]);
@@ -273,7 +277,9 @@ export function useCall(socket) {
     screenSenderRef.current = null;
     screenSharingRef.current = false;
     makingOfferRef.current = false;
+    negotiationQueuedRef.current = false;
     iceRestartAttemptedRef.current = false;
+    receivedVideoTracksRef.current.clear();
     setMode(null);
     setCallType(null);
     setPeer(null);
@@ -355,6 +361,7 @@ export function useCall(socket) {
     });
 
     track.onended = () => {
+      receivedVideoTracksRef.current.delete(track.id);
       setRemoteScreenStream((prev) => {
         if (!prev) return null;
         const remaining = prev.getTracks().filter((item) => item !== track && item.readyState !== "ended");
@@ -374,6 +381,14 @@ export function useCall(socket) {
       // Mid-call camera renegotiation may omit e.streams — wrap the track.
       const raw = e.streams?.[0];
       const rs = (raw && raw.getTracks().length > 0) ? raw : new MediaStream([track]);
+      if (track?.kind === "video") {
+        receivedVideoTracksRef.current.set(track.id, {
+          track,
+          stream: rs,
+          receivedAt: Date.now(),
+          hasAudio: Boolean(raw?.getAudioTracks?.().length),
+        });
+      }
       const isScreenTrack = isRemoteScreenVideoTrack(track, {
         rawStream: raw,
         peerExpectsScreen: remoteScreenSharingRef.current,
@@ -444,6 +459,7 @@ export function useCall(socket) {
       }
 
       track.onended = () => {
+        receivedVideoTracksRef.current.delete(track.id);
         setRemoteStream((prev) => {
           if (!prev) return prev;
           const remaining = prev.getTracks().filter((t) => t !== track && t.readyState !== "ended");
@@ -511,15 +527,17 @@ export function useCall(socket) {
       }
     };
 
-    // Handle renegotiation for screen/camera changes after call is active.
-    // Skip while dialing — startCall already sends the initial offer; a second
-    // offer from negotiationneeded can race and confuse the callee popup.
-    pc.onnegotiationneeded = async () => {
+    // A single serialized offer path for camera/screen changes. This mirrors
+    // group-call peer behavior and avoids a second, delayed screen offer
+    // racing the browser's negotiationneeded event.
+    const negotiate = async () => {
       const sock = socketRef.current;
       try {
         if (modeRef.current !== "active") return;
         if (!peerRef.current?.id || !sock?.connected) return;
         if (makingOfferRef.current) return;
+        if (pc.signalingState !== "stable") return;
+        negotiationQueuedRef.current = false;
         makingOfferRef.current = true;
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -531,6 +549,20 @@ export function useCall(socket) {
       } catch { /* ignore */ }
       finally {
         makingOfferRef.current = false;
+        if (negotiationQueuedRef.current && pc.signalingState === "stable") {
+          void negotiate();
+        }
+      }
+    };
+    // Skip while dialing — startCall already sends the initial offer; a
+    // renegotiation request remains queued until the connection is stable.
+    pc.onnegotiationneeded = () => {
+      negotiationQueuedRef.current = true;
+      void negotiate();
+    };
+    pc.onsignalingstatechange = () => {
+      if (pc.signalingState === "stable" && negotiationQueuedRef.current) {
+        void negotiate();
       }
     };
   }, [attachRemoteScreenTrack, markRemoteMediaReady]);
@@ -922,6 +954,10 @@ export function useCall(socket) {
           buildElectronDesktopConstraints(sourceId, { width, height, fps })
         );
       } else {
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+          toast("Screen sharing is not available in this browser.", "error");
+          return;
+        }
         console.log('[ScreenShare] web path — getDisplayMedia');
         screenStream = await navigator.mediaDevices.getDisplayMedia(
           buildDisplayMediaConstraints({ width, height, fps })
@@ -952,30 +988,9 @@ export function useCall(socket) {
       setScreenStream(screenStream);
       screenSharingRef.current = true;
 
-      // Manual renegotiation fallback only if onnegotiationneeded did not fire
-      setTimeout(async () => {
-        const sock = socketRef.current;
-        if (
-          pc.signalingState === "stable" &&
-          !makingOfferRef.current &&
-          peerRef.current?.id &&
-          sock?.connected
-        ) {
-          makingOfferRef.current = true;
-          try {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            sock.emit("call:offer", {
-              toUserId: peerRef.current.id,
-              offer: pc.localDescription,
-              callType: callTypeRef.current || "voice",
-            });
-          } catch (err) {
-          } finally {
-            makingOfferRef.current = false;
-          }
-        }
-      }, 500);
+      // `addTrack` schedules the sole renegotiation through
+      // `onnegotiationneeded`. A second delayed offer causes glare and was the
+      // main source of tracks arriving before their screen-share signal.
 
       if (screenVideoRef.current) {
         screenVideoRef.current.srcObject = screenStream;
@@ -1032,12 +1047,13 @@ export function useCall(socket) {
     remoteScreenSharingRef.current = true;
     setRemoteScreenSharing(true);
 
-    // Screen signaling can arrive after a fast ontrack callback. Recover the
-    // newest received video track from the camera stream in that case.
-    const videoTracks = (pcRef.current?.getReceivers?.() || [])
-      .map((receiver) => receiver.track)
-      .filter((track) => track?.kind === "video" && track.readyState !== "ended");
-    const screenTrack = videoTracks[videoTracks.length - 1];
+    // Screen signaling can arrive after a fast ontrack callback. Display
+    // streams carry no audio; select the most recently received such track
+    // instead of blindly moving the latest receiver (which can be a camera).
+    const candidate = [...receivedVideoTracksRef.current.values()]
+      .filter(({ track, hasAudio }) => track.readyState !== "ended" && !hasAudio)
+      .sort((a, b) => b.receivedAt - a.receivedAt)[0];
+    const screenTrack = candidate?.track;
     if (!screenTrack || remoteScreenStreamRef.current?.getVideoTracks().includes(screenTrack)) return;
 
     setRemoteStream((prev) => {
@@ -1047,7 +1063,7 @@ export function useCall(socket) {
       remoteStreamRef.current = next;
       return next;
     });
-    attachRemoteScreenTrack(screenTrack);
+    attachRemoteScreenTrack(screenTrack, candidate.stream);
   }, [attachRemoteScreenTrack]);
 
   const handleRemoteScreenShareStop = useCallback((fromUserId) => {

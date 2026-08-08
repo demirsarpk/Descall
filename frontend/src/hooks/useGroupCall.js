@@ -914,6 +914,10 @@ export function useGroupCall(socket, currentUserId = null) {
           buildElectronDesktopConstraints(sourceId, { width, height, fps: frameRate })
         );
       } else {
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+          toast(tRuntime("Screen sharing is not available in this browser."), "error");
+          return;
+        }
         stream = await navigator.mediaDevices.getDisplayMedia(
           buildDisplayMediaConstraints({ width, height, fps: frameRate })
         );

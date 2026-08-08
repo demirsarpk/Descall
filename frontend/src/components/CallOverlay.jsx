@@ -1020,7 +1020,9 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
     };
   });
 
-  const dmRemoteHasVideo = streamHasLiveVideo(call?.remoteStream) || callType === "video";
+  // A call's requested type is not evidence that the peer has a camera track.
+  // Screen media is rendered only by ScreenShareLayout, never as a camera tile.
+  const dmRemoteHasVideo = streamHasLiveVideo(call?.remoteStream);
 
   const dmTwoUp = isDm && dmRemote.showSlot;
   const count = dmTwoUp ? 2 : 1 + remoteTiles.length;
