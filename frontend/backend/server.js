@@ -30,7 +30,6 @@ const lfgRoutes = require("./routes/lfg");
 const riotRoutes = require("./routes/riot");
 const webPushRoutes = require("./routes/webPush");
 const { sitemapRouter } = require("./routes/sitemap");
-const webPushRoutes = require("./routes/webPush");
 const state = require("./runtime/sharedState");
 const { sendFeedbackEmail } = require("./lib/feedbackEmail");
 
