@@ -88,6 +88,8 @@ async function pushGroupCallHistory(io, groupId, activeCall, endedBy, endedAt, d
 
 async function endGroupCall(io, groupId, endedBy, activeCall) {
   if (!activeCall) return;
+  for (const timer of activeCall.disconnectGraceByUser?.values?.() || []) clearTimeout(timer);
+  activeCall.disconnectGraceByUser?.clear?.();
 
   const durationSeconds = Math.floor((Date.now() - activeCall.startTime) / 1000);
   const endedAt = new Date().toISOString();
@@ -167,6 +169,9 @@ async function endGroupCall(io, groupId, endedBy, activeCall) {
 async function removeUserFromGroupCall(io, groupId, userId, socket) {
   const activeCall = activeGroupCalls.get(groupId);
   if (!activeCall || !activeCall.participants.has(userId)) return false;
+  const graceTimer = activeCall.disconnectGraceByUser?.get(userId);
+  if (graceTimer) clearTimeout(graceTimer);
+  activeCall.disconnectGraceByUser?.delete(userId);
 
   activeCall.participants.delete(userId);
 
@@ -197,6 +202,31 @@ async function removeUserFromGroupCall(io, groupId, userId, socket) {
   return true;
 }
 
+function scheduleParticipantDisconnectGrace(io, groupId, userId) {
+  const activeCall = activeGroupCalls.get(groupId);
+  if (!activeCall?.participants?.has(userId)) return;
+  if (!activeCall.disconnectGraceByUser) activeCall.disconnectGraceByUser = new Map();
+  const previous = activeCall.disconnectGraceByUser.get(userId);
+  if (previous) clearTimeout(previous);
+  const timer = setTimeout(() => {
+    removeUserFromGroupCall(io, groupId, userId).catch((error) => {
+      console.warn("[GroupCall] delayed disconnect cleanup failed:", error?.message || error);
+    });
+  }, 45_000);
+  activeCall.disconnectGraceByUser.set(userId, timer);
+}
+
+function resumeParticipantInGroupCall(io, groupId, userId, socket) {
+  const activeCall = activeGroupCalls.get(groupId);
+  if (!activeCall?.participants?.has(userId)) return false;
+  const timer = activeCall.disconnectGraceByUser?.get(userId);
+  if (timer) clearTimeout(timer);
+  activeCall.disconnectGraceByUser?.delete(userId);
+  socket.join(`group:${groupId}`);
+  socket.to(`group:${groupId}`).emit("group:call:participant-resumed", { groupId, userId });
+  return true;
+}
+
 async function removeUserFromAllGroupCalls(io, userId, socket) {
   const groupIds = [...activeGroupCalls.keys()];
   for (const groupId of groupIds) {
@@ -211,4 +241,6 @@ module.exports = {
   endGroupCall,
   removeUserFromGroupCall,
   removeUserFromAllGroupCalls,
+  scheduleParticipantDisconnectGrace,
+  resumeParticipantInGroupCall,
 };

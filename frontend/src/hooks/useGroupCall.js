@@ -1062,6 +1062,11 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
   useEffect(() => {
     if (!socket) return;
 
+    const onConnect = () => {
+      if (isInCallRef.current && activeGroupIdRef.current) {
+        socket.emit("group:call:resume", { groupId: activeGroupIdRef.current });
+      }
+    };
     const onIncoming = ({ groupId, fromUser, callType: type, groupName } = {}) => {
       const myId = myIdRef.current;
       if (!groupId || !fromUser?.id) return;
@@ -1083,8 +1088,10 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       notificationService.groupCall({ groupName: groupName || "Grup", from: fromUser.username });
     };
 
+    socket.on("connect", onConnect);
     socket.on("group:call:incoming", onIncoming);
     return () => {
+      socket.off("connect", onConnect);
       socket.off("group:call:incoming", onIncoming);
     };
   }, [socket]);

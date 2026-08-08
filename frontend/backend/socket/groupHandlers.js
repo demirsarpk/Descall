@@ -14,6 +14,7 @@ const {
   endGroupCall,
   removeUserFromGroupCall,
   removeUserFromAllGroupCalls,
+  resumeParticipantInGroupCall,
 } = require("./groupCallLifecycle");
 const { sendGroupCallPush } = require("../lib/webPush");
 
@@ -338,6 +339,7 @@ function registerGroupHandlers(io, socket, state) {
       allParticipants: new Set([myId]),
       startTime: Date.now(),
       dbCallId: null,
+      disconnectGraceByUser: new Map(),
     });
 
     const payload = {
@@ -382,6 +384,11 @@ function registerGroupHandlers(io, socket, state) {
       callType,
     });
     void emitBannerUpdate(io, groupId);
+  });
+
+  socket.on("group:call:resume", ({ groupId } = {}) => {
+    if (!groupId) return;
+    resumeParticipantInGroupCall(io, groupId, myId, socket);
   });
 
   // Accept call and send offer
