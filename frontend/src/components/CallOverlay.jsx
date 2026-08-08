@@ -957,7 +957,15 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
           autoPlay
           playsInline
           muted={isLocal}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            // Local preview behaves like a mirror; remote video and shared
+            // screens preserve their actual orientation.
+            transform: isLocal ? "scaleX(-1)" : undefined,
+          }}
         />
       ) : (
         <div className="participant-tile-avatar-stack">
