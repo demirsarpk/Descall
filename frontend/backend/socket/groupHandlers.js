@@ -7,6 +7,7 @@ const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernam
 const supabase = require("../db/supabase");
 const { handleGameCommand, createGameMessage } = require("./gameHandlers");
 const { getCachedPublicUser, getAvatarUrl } = require("../lib/userProfile");
+const { sendWebPushToUsers } = require("../lib/webPush");
 const {
   broadcastToGroupMembers,
   emitBannerUpdate,
@@ -363,6 +364,12 @@ function registerGroupHandlers(io, socket, state) {
       deepLink: `/?group=${encodeURIComponent(groupId)}`,
     });
     socket.to(`group:${groupId}`).emit("group:call:incoming", payload);
+    void sendWebPushToUsers(targets, {
+      title: `${socket.user.username} is calling`,
+      body: `Join the ${callType} call in your group.`,
+      tag: `group-call-${groupId}`,
+      deepLink: `/?group=${encodeURIComponent(groupId)}`,
+    });
 
     io.to(`group:${groupId}`).emit("group:call:started", {
       groupId,
@@ -558,6 +565,20 @@ function registerGroupHandlers(io, socket, state) {
     if (activeCall.initiatorId !== myId) return;
 
     await endGroupCall(io, groupId, myId, activeCall);
+  });
+
+  // Broadcast per-participant UI state. Media tracks can remain live after
+  // their sender is disabled, so receivers cannot reliably infer these flags.
+  socket.on("group:call:media-state", ({ groupId, muted, cameraOn } = {}) => {
+    if (!groupId) return;
+    const activeCall = activeGroupCalls.get(groupId);
+    if (!activeCall?.participants?.has(myId)) return;
+    socket.to(`group:${groupId}`).emit("group:call:media-state", {
+      groupId,
+      fromUserId: myId,
+      muted: Boolean(muted),
+      cameraOn: Boolean(cameraOn),
+    });
   });
 
   // Screen share started — persist session

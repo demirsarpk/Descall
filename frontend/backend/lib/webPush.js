@@ -1,20 +1,58 @@
 "use strict";
+
 const webpush = require("web-push");
 const supabase = require("../db/supabase");
+
 let configured = false;
-function setup() {
+
+function configureWebPush() {
   if (configured) return true;
-  const { VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = process.env;
-  if (!VAPID_SUBJECT || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false;
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-  configured = true; return true;
+
+  const subject = process.env.WEB_PUSH_SUBJECT;
+  const publicKey = process.env.WEB_PUSH_PUBLIC_KEY;
+  const privateKey = process.env.WEB_PUSH_PRIVATE_KEY;
+  if (!subject || !publicKey || !privateKey) return false;
+
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  configured = true;
+  return true;
 }
-async function sendGroupCallPush(userIds, payload) {
-  if (!setup() || !userIds?.length) return;
-  const { data } = await supabase.from("web_push_subscriptions").select("*").in("user_id", userIds);
-  await Promise.all((data || []).map(async (s) => {
-    try { await webpush.sendNotification({ endpoint:s.endpoint, keys:{ p256dh:s.p256dh, auth:s.auth } }, JSON.stringify(payload)); }
-    catch (e) { if ([404,410].includes(e.statusCode)) await supabase.from("web_push_subscriptions").delete().eq("endpoint",s.endpoint); else console.warn("[web-push]",e.message); }
+
+async function sendWebPushToUsers(userIds, payload) {
+  const recipients = [...new Set((userIds || []).filter(Boolean))];
+  if (!recipients.length || !configureWebPush()) return;
+
+  const { data: subscriptions, error } = await supabase
+    .from("web_push_subscriptions")
+    .select("endpoint, p256dh, auth")
+    .in("user_id", recipients);
+  if (error) {
+    console.warn("[WebPush] Could not load subscriptions:", error.message);
+    return;
+  }
+
+  const body = JSON.stringify(payload);
+  await Promise.allSettled((subscriptions || []).map(async (subscription) => {
+    try {
+      await webpush.sendNotification(
+        {
+          endpoint: subscription.endpoint,
+          keys: { p256dh: subscription.p256dh, auth: subscription.auth },
+        },
+        body,
+        { TTL: 60, urgency: "high" }
+      );
+    } catch (error) {
+      if (error.statusCode === 404 || error.statusCode === 410) {
+        await supabase
+          .from("web_push_subscriptions")
+          .delete()
+          .eq("endpoint", subscription.endpoint);
+        return;
+      }
+      console.warn("[WebPush] Delivery failed:", error.message);
+    }
   }));
 }
-module.exports = { sendGroupCallPush };
+
+module.exports = { sendWebPushToUsers };

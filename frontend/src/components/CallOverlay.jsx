@@ -85,6 +85,7 @@ export default function CallOverlay({ call, groupCall, me }) {
   const isDmActive = call?.mode !== null && call?.mode !== undefined;
   const isGroupActive = groupCall?.isInCall;
   const active = isDmActive || isGroupActive;
+  const isDm = isDmActive;
 
   useEffect(() => {
     if (!active) {
@@ -96,9 +97,23 @@ export default function CallOverlay({ call, groupCall, me }) {
     }
   }, [active]);
 
+  // `ontrack` can run while an incoming caller is still negotiating, before
+  // the active-call UI mounts its <audio>. Retry attachment after each render
+  // so the first remote audio track is never lost until a later renegotiation.
+  useEffect(() => {
+    const audio = call?.remoteAudioRef?.current;
+    const stream = call?.remoteStream;
+    const hasLiveAudio = stream?.getAudioTracks?.().some(
+      (track) => track?.readyState === "live" || track?.readyState === "new"
+    );
+    if (!isDm || !audio || !stream || !hasLiveAudio) return;
+    if (audio.srcObject !== stream) audio.srcObject = stream;
+    audio.muted = false;
+    audio.play().catch(() => {});
+  }, [isDm, call?.mode, call?.remoteAudioRef, call?.remoteStream]);
+
   if (!active) return null;
 
-  const isDm = isDmActive;
   const mode = isDm ? call.mode : "active";
   const peer = isDm ? call.peer : null;
   const callType = isDm ? call.callType : groupCall.callType;
@@ -139,19 +154,32 @@ export default function CallOverlay({ call, groupCall, me }) {
     />
   );
 
+  const remoteAudio = isDm ? (
+    <audio
+      ref={call?.remoteAudioRef}
+      autoPlay
+      playsInline
+      style={{ display: "none" }}
+      aria-hidden="true"
+    />
+  ) : null;
+
   /* ---------- Incoming DM: FaceTime-style avatar rings ---------- */
   if (isDm && mode === "incoming") {
     return (
-      <AnimatePresence>
-        <IncomingCallCard
-          key="dm-incoming-call"
-          username={peer?.username}
-          user={peer}
-          callType={callType}
-          onDecline={() => call.declineIncoming?.()}
-          onAccept={() => call.acceptIncoming?.()}
-        />
-      </AnimatePresence>
+      <>
+        {remoteAudio}
+        <AnimatePresence>
+          <IncomingCallCard
+            key="dm-incoming-call"
+            username={peer?.username}
+            user={peer}
+            callType={callType}
+            onDecline={() => call.declineIncoming?.()}
+            onAccept={() => call.acceptIncoming?.()}
+          />
+        </AnimatePresence>
+      </>
     );
   }
 
@@ -296,15 +324,23 @@ export default function CallOverlay({ call, groupCall, me }) {
             username: call.peer.username,
             avatarUrl: resolveAvatarUrl(call.peer),
             stream: call.remoteStream,
-            // Prefer live video tracks over callType metadata (voice→camera upgrades)
-            hasVideo: streamHasLiveVideo(call.remoteStream) || callType === "video",
+            hasVideo: call.remoteCameraOn !== false && streamHasLiveVideo(call.remoteStream),
+            isMuted: Boolean(call.remoteMuted),
+            isCameraOn: call.remoteCameraOn,
           }]
         : [])
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
   const remoteScreenSharers = isDm
-    ? []
+    ? (call?.remoteScreenSharing && call?.remoteScreenStream && call?.peer
+        ? [{
+            id: call.peer.id,
+            username: call.peer.username,
+            stream: call.remoteScreenStream,
+            isScreenSharing: true,
+          }]
+        : [])
     : (groupCall?.participants ?? []).filter((p) => p.isScreenSharing && p.screenStream && p.id !== localId);
   const localUsername = me?.username || me?.displayName || t("You");
 
@@ -316,6 +352,7 @@ export default function CallOverlay({ call, groupCall, me }) {
 
   return (
     <>
+    {remoteAudio}
     {pipSource}
     <motion.div
       data-call-overlay="true"
@@ -870,7 +907,8 @@ function CallQualityHud({ quality = "unknown" }) {
   );
 }
 
-function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false }) {
+function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false, cameraOn = true }) {
+  const t = useT();
   const elRef = useRef(null);
   const detected = useSpeaking(stream, {
     muted: muted || (isLocal === false && !stream),
@@ -901,7 +939,7 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
 
   return (
     <div className={`participant-tile${small ? " small" : ""}${isSpeaking ? " is-speaking" : ""}`}>
-      {hasVideo && (videoRef || stream) ? (
+      {hasVideo && cameraOn !== false && (videoRef || stream) ? (
         <video
           ref={setVideoEl}
           autoPlay
@@ -933,6 +971,8 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
       <div className="participant-tile-label">
         {isSpeaking && <span className="speaking-dot" />}
         <span className="participant-tile-name">{username}</span>
+        {muted && <MicOff size={14} aria-label={t("Muted")} title={t("Muted")} />}
+        {cameraOn === false && <VideoOff size={14} aria-label={t("Camera off")} title={t("Camera off")} />}
       </div>
     </div>
   );
@@ -979,6 +1019,7 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }
       isLocal
       stream={localStream}
       muted={Boolean(isDm ? call?.muted : groupCall?.isMuted)}
+      cameraOn={Boolean(isDm ? call?.cameraOn : groupCall?.isCameraOn)}
     />
   );
 }
@@ -1000,11 +1041,15 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
       username: p.username || t("Member"),
       avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
       stream: p.stream || null,
-      hasVideo: live,
+      hasVideo: p.isCameraOn !== false && live,
+      muted: Boolean(p.isMuted),
+      cameraOn: p.isCameraOn,
     };
   });
 
-  const dmRemoteHasVideo = streamHasLiveVideo(call?.remoteStream) || callType === "video";
+  // A call's requested type is not evidence that the peer has a camera track.
+  // Screen media is rendered only by ScreenShareLayout, never as a camera tile.
+  const dmRemoteHasVideo = streamHasLiveVideo(call?.remoteStream);
 
   const dmTwoUp = isDm && dmRemote.showSlot;
   const count = dmTwoUp ? 2 : 1 + remoteTiles.length;
@@ -1050,6 +1095,8 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
             hasVideo={dmRemoteHasVideo}
             videoRef={call?.remoteVideoRef}
             remoteStream={call?.remoteStream}
+            isMuted={Boolean(call?.remoteMuted)}
+            cameraOn={call?.remoteCameraOn}
           />
         </motion.div>
       )}
@@ -1063,6 +1110,8 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
             stream={tile.stream}
             hasVideo={tile.hasVideo}
             isLocal={false}
+            muted={tile.muted}
+            cameraOn={tile.cameraOn}
           />
         </motion.div>
       ))}
@@ -1102,7 +1151,9 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
   // Derive the stream to display for the active sharer
   const screenStream = activeSharer?.isLocal
     ? (isDm ? call?.screenStream : groupCall?.screenStream)
-    : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null);
+    : (isDm
+        ? (allScreenSharers.find((p) => p.id === activeSharer?.id)?.stream ?? null)
+        : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null));
 
   const attachStream = useCallback((el, stream) => {
     if (!el) return;
@@ -1161,6 +1212,8 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
       hasVideo: hasLocalVideo,
       avatarUrl: localAvatarUrl,
       stream: isDm ? call?.localStream : groupCall?.localStream,
+      muted: Boolean(isDm ? call?.muted : groupCall?.isMuted),
+      cameraOn: Boolean(isDm ? call?.cameraOn : groupCall?.isCameraOn),
     },
     ...remoteParticipants.map((p) => ({
       id: p.id,
@@ -1169,6 +1222,8 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
       isLocal: false,
       hasVideo: streamHasLiveVideo(p.stream) || Boolean(p.hasVideo) || Boolean(p.isCameraOn),
       stream: p.stream || null,
+      muted: Boolean(p.isMuted),
+      cameraOn: p.isCameraOn,
     })),
   ];
 
@@ -1379,6 +1434,8 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
                 stream={tile.stream}
                 hasVideo={tile.hasVideo}
                 isLocal={tile.isLocal}
+                muted={tile.muted}
+                cameraOn={tile.cameraOn}
                 small
               />
             </div>

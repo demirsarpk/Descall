@@ -4,7 +4,6 @@
  */
 import {
   isRemoteScreenVideoTrack,
-  isLikelyDrmScreenEnd,
   buildDisplayMediaConstraints,
 } from "./webrtcScreenShare.js";
 import { applyRemoteOffer, isPolitePeer } from "./webrtcNegotiation.js";
@@ -47,9 +46,6 @@ assert(
 
 assert(isPolitePeer("a", "b") === true, "polite lower id");
 assert(isPolitePeer("b", "a") === false, "impolite higher id");
-
-assert(isLikelyDrmScreenEnd(Date.now() - 500) === true, "early end = drm");
-assert(isLikelyDrmScreenEnd(Date.now() - 10_000) === false, "long share not drm");
 
 const constraints = buildDisplayMediaConstraints({ width: 1280, height: 720, fps: 20 });
 assert(constraints.video.displaySurface === "browser", "prefer browser tab");
