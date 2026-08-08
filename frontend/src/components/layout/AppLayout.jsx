@@ -205,8 +205,15 @@ export default function AppLayout({
   }, [activeDmUser, activeGroup, onDmSelect, onGroupSelect, openMobileDrawer]);
 
   const isElectron = typeof window !== "undefined" && !!window.electronAPI?.isElectron;
-  const showNotifBanner = !isElectron && !notifBannerDismissed && notifPermission === "default";
   const inConversation = !!(activeDmUser || activeGroup);
+  // On a narrow conversation surface the fixed banner sits directly over the
+  // DM header, stealing profile/voice-call taps. Offer it once the user leaves
+  // the conversation instead.
+  const showNotifBanner =
+    !isElectron &&
+    !notifBannerDismissed &&
+    notifPermission === "default" &&
+    !(isMobile && inConversation);
 
   const handleAddClick = (tab) => {
     if (tab === "friend" || tab === "group") setAddTab(tab);

@@ -402,6 +402,15 @@ async function loadFriendsFromDB(userId) {
   }
 }
 
+async function isAcceptedFriend(userId, otherUserId) {
+  let friendSet = friends.get(userId);
+  // A socket can receive dm:history before its asynchronous boot-time friend
+  // load completes. Hydrate from the durable source instead of treating the
+  // temporary cache miss as a denial.
+  if (!friendSet) friendSet = await loadFriendsFromDB(userId);
+  return Boolean(friendSet?.has(otherUserId));
+}
+
 // Load pending friend requests from DB into memory
 async function loadPendingRequestsFromDB(userId) {
   try {
@@ -1030,7 +1039,7 @@ function registerSocketHandlers(io) {
 
     socket.on("dm:history", async ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
-      if (!friends.get(myId)?.has(withUserId)) {
+      if (!(await isAcceptedFriend(myId, withUserId))) {
         return socket.emit("dm:history", { withUserId, messages: [] });
       }
       try {
@@ -1045,7 +1054,7 @@ function registerSocketHandlers(io) {
 
     socket.on("dm:fetch", async ({ withUserId, before, limit = 50 } = {}) => {
       if (typeof withUserId !== "string") return;
-      if (!friends.get(myId)?.has(withUserId)) {
+      if (!(await isAcceptedFriend(myId, withUserId))) {
         return socket.emit("dm:page", { withUserId, messages: [], hasMore: false });
       }
       try {
