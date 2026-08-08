@@ -166,6 +166,8 @@ export function useCall(socket) {
   const [peer, setPeer] = useState(null);
   const [muted, setMuted] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
+  const [remoteMuted, setRemoteMuted] = useState(false);
+  const [remoteCameraOn, setRemoteCameraOn] = useState(null);
   const [screenSharing, setScreenSharing] = useState(false);
   const [duration, setDuration] = useState(0);
   const [connectionQuality, setConnectionQuality] = useState("unknown");
@@ -285,6 +287,8 @@ export function useCall(socket) {
     setPeer(null);
     setMuted(false);
     setCameraOn(false);
+    setRemoteMuted(false);
+    setRemoteCameraOn(null);
     setScreenSharing(false);
     setConnectionQuality("unknown");
     setPeerConnectionState("idle");
@@ -425,6 +429,7 @@ export function useCall(socket) {
       // Voice → camera upgrade: flip call type so UI mounts the remote <video>
       if (track?.kind === "video") {
         setCallType("video");
+        setRemoteCameraOn((current) => current ?? true);
       }
 
       const attachMedia = () => {
@@ -591,7 +596,10 @@ export function useCall(socket) {
           socketRef.current?.emit("call:answer", { toUserId: fromUser.id, answer: pc.localDescription });
           await flushIce(pc);
           // Peer upgraded voice → video (camera on): update UI mode
-          if (incomingType === "video") setCallType("video");
+          if (incomingType === "video") {
+            setCallType("video");
+            setRemoteCameraOn(true);
+          }
         } catch (err) { console.error("[WebRTC] Renegotiation failed:", err); }
         return;
       }
@@ -615,6 +623,7 @@ export function useCall(socket) {
       // New incoming call
       incomingOfferRef.current = offer;
       incomingCallTypeRef.current = incomingType || "voice";
+      setRemoteCameraOn(incomingType === "video");
       setPeer({
         ...fromUser,
         avatarUrl: fromUser?.avatarUrl || fromUser?.avatar_url || null,
@@ -650,6 +659,12 @@ export function useCall(socket) {
       if (!fromUserId || peerRef.current?.id === fromUserId) gracefulEnd();
     };
 
+    const onMediaState = ({ fromUserId, muted: peerMuted, cameraOn: peerCameraOn } = {}) => {
+      if (!fromUserId || fromUserId !== peerRef.current?.id) return;
+      setRemoteMuted(Boolean(peerMuted));
+      setRemoteCameraOn(Boolean(peerCameraOn));
+    };
+
     const onCancelled = ({ fromUserId } = {}) => {
       if (!fromUserId || peerRef.current?.id === fromUserId) {
         audioManager.stop('incomingCall');
@@ -679,6 +694,7 @@ export function useCall(socket) {
     socket.on('call:declined', onEnded);
     socket.on('call:cancelled', onCancelled);
     socket.on('call:unreachable', onUnreachable);
+    socket.on('call:media-state', onMediaState);
 
     socket.on('user:profile:updated', onProfileUpdated);
 
@@ -690,6 +706,7 @@ export function useCall(socket) {
       socket.off('call:declined', onEnded);
       socket.off('call:cancelled', onCancelled);
       socket.off('call:unreachable', onUnreachable);
+      socket.off('call:media-state', onMediaState);
       socket.off('user:profile:updated', onProfileUpdated);
     };
   }, [socket, gracefulEnd, cleanup]);
@@ -845,6 +862,13 @@ export function useCall(socket) {
     if (track) {
       track.enabled = !track.enabled;
       setMuted(!track.enabled);
+      if (peerRef.current?.id && socketRef.current?.connected) {
+        socketRef.current.emit("call:media-state", {
+          toUserId: peerRef.current.id,
+          muted: !track.enabled,
+          cameraOn: Boolean(cameraOn),
+        });
+      }
     }
   }, []);
 
@@ -860,6 +884,13 @@ export function useCall(socket) {
       }
       if (localVideoRef.current) localVideoRef.current.style.display = "none";
       setCameraOn(false);
+      if (peerRef.current?.id && socketRef.current?.connected) {
+        socketRef.current.emit("call:media-state", {
+          toUserId: peerRef.current.id,
+          muted: Boolean(muted),
+          cameraOn: false,
+        });
+      }
     } else {
       try {
         let videoTrack = localStreamRef.current?.getVideoTracks()[0];
@@ -887,6 +918,13 @@ export function useCall(socket) {
         }
         setCameraOn(true);
         setCallType("video");
+        if (peerRef.current?.id && socketRef.current?.connected) {
+          socketRef.current.emit("call:media-state", {
+            toUserId: peerRef.current.id,
+            muted: Boolean(muted),
+            cameraOn: true,
+          });
+        }
 
         // Renegotiate so the remote peer gets the new video m-line
         if (addedNewTrack) {
@@ -919,7 +957,7 @@ export function useCall(socket) {
         console.error("[WebRTC] toggleCamera failed:", err);
       }
     }
-  }, [cameraOn]);
+  }, [cameraOn, muted]);
 
   // Keep stopScreenShareRef always pointing to latest stopScreenShare
   useEffect(() => {
@@ -1121,6 +1159,8 @@ export function useCall(socket) {
     peer,
     muted,
     cameraOn,
+    remoteMuted,
+    remoteCameraOn,
     screenSharing,
     duration,
     connectionQuality,

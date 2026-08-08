@@ -296,8 +296,9 @@ export default function CallOverlay({ call, groupCall, me }) {
             username: call.peer.username,
             avatarUrl: resolveAvatarUrl(call.peer),
             stream: call.remoteStream,
-            // Prefer live video tracks over callType metadata (voice→camera upgrades)
-            hasVideo: streamHasLiveVideo(call.remoteStream) || callType === "video",
+            hasVideo: call.remoteCameraOn !== false && streamHasLiveVideo(call.remoteStream),
+            isMuted: Boolean(call.remoteMuted),
+            isCameraOn: call.remoteCameraOn,
           }]
         : [])
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
@@ -886,7 +887,8 @@ function CallQualityHud({ quality = "unknown" }) {
   );
 }
 
-function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false }) {
+function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false, cameraOn = true }) {
+  const t = useT();
   const elRef = useRef(null);
   const detected = useSpeaking(stream, {
     muted: muted || (isLocal === false && !stream),
@@ -917,7 +919,7 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
 
   return (
     <div className={`participant-tile${small ? " small" : ""}${isSpeaking ? " is-speaking" : ""}`}>
-      {hasVideo && (videoRef || stream) ? (
+      {hasVideo && cameraOn !== false && (videoRef || stream) ? (
         <video
           ref={setVideoEl}
           autoPlay
@@ -949,6 +951,8 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
       <div className="participant-tile-label">
         {isSpeaking && <span className="speaking-dot" />}
         <span className="participant-tile-name">{username}</span>
+        {muted && <MicOff size={14} aria-label={t("Muted")} title={t("Muted")} />}
+        {cameraOn === false && <VideoOff size={14} aria-label={t("Camera off")} title={t("Camera off")} />}
       </div>
     </div>
   );
@@ -995,6 +999,7 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }
       isLocal
       stream={localStream}
       muted={Boolean(isDm ? call?.muted : groupCall?.isMuted)}
+      cameraOn={Boolean(isDm ? call?.cameraOn : groupCall?.isCameraOn)}
     />
   );
 }
@@ -1016,7 +1021,9 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
       username: p.username || t("Member"),
       avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
       stream: p.stream || null,
-      hasVideo: live,
+      hasVideo: p.isCameraOn !== false && live,
+      muted: Boolean(p.isMuted),
+      cameraOn: p.isCameraOn,
     };
   });
 
@@ -1068,6 +1075,8 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
             hasVideo={dmRemoteHasVideo}
             videoRef={call?.remoteVideoRef}
             remoteStream={call?.remoteStream}
+            isMuted={Boolean(call?.remoteMuted)}
+            cameraOn={call?.remoteCameraOn}
           />
         </motion.div>
       )}
@@ -1081,6 +1090,8 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
             stream={tile.stream}
             hasVideo={tile.hasVideo}
             isLocal={false}
+            muted={tile.muted}
+            cameraOn={tile.cameraOn}
           />
         </motion.div>
       ))}
@@ -1181,6 +1192,8 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
       hasVideo: hasLocalVideo,
       avatarUrl: localAvatarUrl,
       stream: isDm ? call?.localStream : groupCall?.localStream,
+      muted: Boolean(isDm ? call?.muted : groupCall?.isMuted),
+      cameraOn: Boolean(isDm ? call?.cameraOn : groupCall?.isCameraOn),
     },
     ...remoteParticipants.map((p) => ({
       id: p.id,
@@ -1189,6 +1202,8 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
       isLocal: false,
       hasVideo: streamHasLiveVideo(p.stream) || Boolean(p.hasVideo) || Boolean(p.isCameraOn),
       stream: p.stream || null,
+      muted: Boolean(p.isMuted),
+      cameraOn: p.isCameraOn,
     })),
   ];
 
@@ -1399,6 +1414,8 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
                 stream={tile.stream}
                 hasVideo={tile.hasVideo}
                 isLocal={tile.isLocal}
+                muted={tile.muted}
+                cameraOn={tile.cameraOn}
                 small
               />
             </div>

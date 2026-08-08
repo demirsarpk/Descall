@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Wifi, WifiOff } from "lucide-react";
+import { Mic, MicOff, VideoOff, Wifi, WifiOff } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { resolveAvatarUrl } from "../../lib/avatar";
 import {
@@ -122,6 +122,7 @@ export default function DmRemoteParticipantSlot({
   remoteStream,
   isSpeaking = false,
   isMuted = false,
+  cameraOn = true,
 }) {
   const t = useT();
   const username = displayPeer?.username || t("User");
@@ -276,6 +277,23 @@ export default function DmRemoteParticipantSlot({
                 title={t("Muted")}
               >
                 <MicOff size={12} color="#fff" />
+              </span>
+            )}
+            {cameraOn === false && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: "rgba(237,66,69,0.85)",
+                  flexShrink: 0,
+                }}
+                title={t("Camera off")}
+              >
+                <VideoOff size={12} color="#fff" />
               </span>
             )}
             {!isMuted && isSpeaking && (

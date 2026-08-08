@@ -1185,6 +1185,17 @@ function registerSocketHandlers(io) {
       emitToUser(io, toUserId, "screen:share-stop", { fromUserId: myId });
     });
 
+    // Media state is presentation-only; it lets the remote tile immediately
+    // show muted/camera-off status instead of inferring it from a frozen track.
+    socket.on("call:media-state", ({ toUserId, muted, cameraOn } = {}) => {
+      if (typeof toUserId !== "string") return;
+      emitToUser(io, toUserId, "call:media-state", {
+        fromUserId: myId,
+        muted: Boolean(muted),
+        cameraOn: Boolean(cameraOn),
+      });
+    });
+
     socket.on("room:join", (roomId) => {
       if (typeof roomId !== "string" || !roomId.trim()) return;
       socket.join(roomId);
