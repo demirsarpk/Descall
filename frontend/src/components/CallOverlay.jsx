@@ -16,7 +16,6 @@ import { useIsNarrowViewport } from "../lib/useIsNarrowViewport";
 import useSpeaking from "../hooks/useSpeaking";
 import useAudioLevel from "../hooks/useAudioLevel";
 import { useT } from "../context/LocaleContext";
-import { logScreenShareDebug } from "../lib/screenShareDebug";
 
 /*
  * Google Meet-style call overlay
@@ -44,6 +43,7 @@ export default function CallOverlay({ call, groupCall, me }) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showAudioPanel, setShowAudioPanel] = useState(false);
   const [showScreenQuality, setShowScreenQuality] = useState(false);
+  const [screenShareVolume, setScreenShareVolume] = useState(100);
   const [copiedInfo, setCopiedInfo] = useState(false);
   const [pipApi, setPipApi] = useState(null);
   const narrowViewport = useIsNarrowViewport(720);
@@ -452,6 +452,8 @@ export default function CallOverlay({ call, groupCall, me }) {
             localUsername={localUsername}
             localAvatarUrl={resolveAvatarUrl(me)}
             narrow={narrowViewport}
+            screenShareVolume={screenShareVolume}
+            onScreenShareVolumeChange={setScreenShareVolume}
           />
         ) : (
           <ParticipantGrid
@@ -1143,7 +1145,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
 /* ─────────────────────────────────────────────────────────────────
    ScreenShareLayout — selected screen large on top, strip below
    ───────────────────────────────────────────────────────────────── */
-function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl, narrow = false }) {
+function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl, narrow = false, screenShareVolume = 100, onScreenShareVolumeChange }) {
   const t = useT();
   const [selectedSharerIndex, setSelectedSharerIndex] = useState(0);
   const [viewerCount] = useState(0);
@@ -1176,6 +1178,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
 
   const attachStream = useCallback((el, stream) => {
     if (!el) return;
+    el.volume = Math.max(0, Math.min(1, Number(screenShareVolume) / 100));
     if (!stream) {
       if (el.srcObject) el.srcObject = null;
       return;
@@ -1185,15 +1188,6 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     // element producing a black flash on every React render.
     if (el.srcObject !== stream) {
       el.srcObject = stream;
-      // #region agent log
-      el.onresize = () => logScreenShareDebug("C", "CallOverlay.jsx:ScreenShareLayout", "Screen video intrinsic dimensions changed", {
-        videoWidth: el.videoWidth,
-        videoHeight: el.videoHeight,
-        trackSettings: stream.getVideoTracks()[0]?.getSettings?.() ?? {},
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-      });
-      // #endregion
     }
     // If any video track is still muted (ICE not yet connected), chain onunmute
     // so we don't clobber useGroupCall's applyScreenStream handler.
@@ -1213,7 +1207,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
       });
     }
     playWhenReady();
-  }, []);
+  }, [screenShareVolume]);
 
   // Re-attach via callback ref so remounts from key=sharerId always bind the stream
   const normalVideoCallbackRef = useCallback((el) => {
@@ -1226,6 +1220,13 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     expandedVideoRef.current = el;
     if (el) attachStream(el, screenStream);
   }, [screenStream, attachStream]);
+
+  useEffect(() => {
+    const volume = Math.max(0, Math.min(1, Number(screenShareVolume) / 100));
+    for (const video of [normalVideoRef.current, expandedVideoRef.current]) {
+      if (video) video.volume = volume;
+    }
+  }, [screenShareVolume, screenStream]);
 
   const sharerLabel = activeSharer
     ? (activeSharer.isLocal ? t("Your Screen") : t("{name}'s Screen", { name: activeSharer.username }))
@@ -1345,6 +1346,37 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             </span>
           )}
         </div>
+
+        {!activeSharer?.isLocal && (
+          <label
+            style={{
+              position: "absolute",
+              top: 12,
+              right: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "rgba(0,0,0,0.65)",
+              backdropFilter: "blur(6px)",
+              borderRadius: 8,
+              padding: "6px 10px",
+              color: "#fff",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Volume2 size={15} aria-hidden="true" />
+            <input
+              aria-label={t("Screen share volume")}
+              type="range"
+              min="0"
+              max="100"
+              value={screenShareVolume}
+              onChange={(event) => onScreenShareVolumeChange?.(Number(event.target.value))}
+              style={{ width: narrow ? 78 : 112, accentColor: "#6678ff" }}
+            />
+            <span style={{ fontSize: 11, minWidth: 30 }}>{screenShareVolume}%</span>
+          </label>
+        )}
 
         {/* Expand/collapse hint — bottom-center */}
         <div

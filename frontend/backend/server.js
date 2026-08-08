@@ -77,26 +77,6 @@ if (process.env.NODE_ENV !== "production") {
 const debugRoutesEnabled =
   process.env.NODE_ENV !== "production" || process.env.ENABLE_DEBUG_ROUTES === "true";
 
-// Temporary runtime telemetry for the screen-share investigation. This route
-// is only present in development or when explicitly enabled for a controlled
-// reproduction; it stores non-sensitive media topology/dimension data locally.
-if (debugRoutesEnabled) app.post("/debug/screen-share-runtime", (req, res) => {
-  const { hypothesisId, location, message, data, timestamp } = req.body || {};
-  if (!hypothesisId || !location || !message || !data || typeof data !== "object") {
-    return res.status(400).json({ error: "Invalid screen-share debug payload" });
-  }
-  // #region agent log
-  fs.appendFileSync("/opt/cursor/logs/debug.log", `${JSON.stringify({
-    hypothesisId,
-    location,
-    message,
-    data,
-    timestamp: Number(timestamp) || Date.now(),
-  })}\n`);
-  // #endregion
-  return res.status(204).end();
-});
-
 // TEMP DEBUG: list all tables in public schema
 if (debugRoutesEnabled) app.get("/debug/tables", async (_req, res) => {
   try {

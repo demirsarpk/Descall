@@ -920,6 +920,7 @@ export const phrases = {
   "Ekran paylaşımı kalitesi": "Ekran paylaşımı kalitesi",
   "Ayarlar uygulandı": "Ayarlar uygulandı",
   "Screen share quality": "Ekran paylaşımı kalitesi",
+  "Screen share volume": "Ekran paylaşımı ses seviyesi",
   "Waiting for others to join…": "Başkalarının katılması bekleniyor…",
   "You left the call": "Aramadan ayrıldın",
   "No active call to join": "Katılınacak aktif arama yok",
