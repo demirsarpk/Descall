@@ -21,6 +21,7 @@ import { getPresenceStatus, STATUS_META, isVisiblyOnline } from "../../lib/prese
 import { resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
 import AdminBadge from "../social/AdminBadge";
+import UserProfileModal from "../social/UserProfileModal";
 
 export default function ChatPanel({
   activeView,
@@ -63,6 +64,7 @@ export default function ChatPanel({
   onOpenChatFromCalls,
   onStartGroupCall,
   onOpenGroupFromCalls,
+  onStartDm,
   groups = [],
   children
 }) {
@@ -71,6 +73,7 @@ export default function ChatPanel({
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(false);
+  const [profileTarget, setProfileTarget] = useState(null);
 
   const typingNames = useMemo(() => {
     if (!activeDmUser && !activeGroup) return [];
@@ -187,14 +190,20 @@ export default function ChatPanel({
             </button>
           )}
           {activeDmUser && (
-            <div className="header-avatar">
+            <button
+              type="button"
+              className="header-avatar"
+              onClick={() => setProfileTarget(activeDmUser)}
+              aria-label={t("View profile")}
+              title={t("View profile")}
+            >
               <Avatar 
                 name={resolveDisplayName(activeDmUser)} 
                 size={40}
                 user={activeDmUser}
               />
               <StatusBadge status={getPresenceStatus(onlineUsers, activeDmUser.id)} />
-            </div>
+            </button>
           )}
           {activeGroup && (
             <div className="header-icon">
@@ -210,8 +219,24 @@ export default function ChatPanel({
               <Hash size={20} />
             </div>
           )}
-          <div className="header-title-block">
-            <h1 className="header-title" style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap" }}>
+          <div
+            className="header-title-block"
+            role={activeDmUser ? "button" : undefined}
+            tabIndex={activeDmUser ? 0 : undefined}
+            onClick={activeDmUser ? () => setProfileTarget(activeDmUser) : undefined}
+            onKeyDown={activeDmUser ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setProfileTarget(activeDmUser);
+              }
+            } : undefined}
+            title={activeDmUser ? t("View profile") : undefined}
+            style={{ cursor: activeDmUser ? "pointer" : "default" }}
+          >
+            <h1
+              className="header-title"
+              style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap" }}
+            >
               {getTitle()}
               {activeDmUser && <AdminBadge user={activeDmUser} variant="inline" />}
             </h1>
@@ -385,6 +410,18 @@ export default function ChatPanel({
         </>
       )}
     </main>
+
+    <UserProfileModal
+      open={!!profileTarget}
+      onClose={() => setProfileTarget(null)}
+      userId={profileTarget?.id}
+      username={profileTarget?.username}
+      avatarUrl={profileTarget?.avatarUrl || profileTarget?.avatar_url}
+      me={me}
+      friends={friends}
+      onlineUsers={onlineUsers}
+      onStartDm={onStartDm}
+    />
 
     {/* Members Panel */}
     <AnimatePresence>

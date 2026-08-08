@@ -5,11 +5,11 @@ import notificationService from "../lib/notificationService";
 import {
   buildDisplayMediaConstraints,
   buildElectronDesktopConstraints,
-  isLikelyDrmScreenEnd,
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
   resolveScreenCaptureSize,
   GROUP_SCREEN_DEFAULT_QUALITY,
+  isRemoteScreenVideoTrack,
 } from "../lib/webrtcScreenShare";
 import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
@@ -88,7 +88,7 @@ function showElectronScreenPicker(sources) {
     header.appendChild(closeBtn);
 
     const tip = document.createElement('div');
-    tip.textContent = 'Tip: Netflix / DRM apps show black if you share the whole window — share the browser tab when possible.';
+    tip.textContent = 'Choose the screen, window, or browser tab you want to share.';
     Object.assign(tip.style, {
       padding: '10px 24px', fontSize: '12px', color: '#949ba4',
       borderBottom: '1px solid rgba(255,255,255,0.07)', lineHeight: '1.4',
@@ -166,6 +166,8 @@ export function useCall(socket) {
   const [peer, setPeer] = useState(null);
   const [muted, setMuted] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
+  const [remoteMuted, setRemoteMuted] = useState(false);
+  const [remoteCameraOn, setRemoteCameraOn] = useState(null);
   const [screenSharing, setScreenSharing] = useState(false);
   const [duration, setDuration] = useState(0);
   const [connectionQuality, setConnectionQuality] = useState("unknown");
@@ -173,6 +175,8 @@ export function useCall(socket) {
   const [remoteMediaReady, setRemoteMediaReady] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [remoteScreenStream, setRemoteScreenStream] = useState(null);
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState(null);
   const [audioInputDevices, setAudioInputDevices] = useState([]);
   const [audioOutputDevices, setAudioOutputDevices] = useState([]);
@@ -194,6 +198,9 @@ export function useCall(socket) {
   useEffect(() => { modeRef.current = mode; }, [mode]);
   const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
+  const remoteScreenStreamRef = useRef(null);
+  const remoteScreenSharingRef = useRef(false);
   const remoteAudioRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -210,7 +217,11 @@ export function useCall(socket) {
   const socketRef = useRef(socket);
   const callTypeRef = useRef(callType);
   const makingOfferRef = useRef(false);
+  const negotiationQueuedRef = useRef(false);
   const iceRestartAttemptedRef = useRef(false);
+  // Keep the original stream association so a late screen-share signal can
+  // recover only a likely display track, never an arbitrary camera receiver.
+  const receivedVideoTracksRef = useRef(new Map());
 
   useEffect(() => { peerRef.current = peer; }, [peer]);
   useEffect(() => { socketRef.current = socket; }, [socket]);
@@ -254,6 +265,11 @@ export function useCall(socket) {
     }
     setLocalStream(null);
     setRemoteStream(null);
+    remoteStreamRef.current = null;
+    setRemoteScreenStream(null);
+    remoteScreenStreamRef.current = null;
+    setRemoteScreenSharing(false);
+    remoteScreenSharingRef.current = false;
     setScreenStream(null);
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
@@ -263,12 +279,16 @@ export function useCall(socket) {
     screenSenderRef.current = null;
     screenSharingRef.current = false;
     makingOfferRef.current = false;
+    negotiationQueuedRef.current = false;
     iceRestartAttemptedRef.current = false;
+    receivedVideoTracksRef.current.clear();
     setMode(null);
     setCallType(null);
     setPeer(null);
     setMuted(false);
     setCameraOn(false);
+    setRemoteMuted(false);
+    setRemoteCameraOn(null);
     setScreenSharing(false);
     setConnectionQuality("unknown");
     setPeerConnectionState("idle");
@@ -333,6 +353,29 @@ export function useCall(socket) {
     if (hasUsable) setRemoteMediaReady(true);
   }, []);
 
+  const attachRemoteScreenTrack = useCallback((track, stream = null) => {
+    if (!track || track.kind !== "video") return;
+    const screenStream = stream || new MediaStream([track]);
+    setRemoteScreenStream((prev) => {
+      const next = prev && prev !== screenStream
+        ? new MediaStream([...prev.getTracks().filter((item) => item !== track), track])
+        : screenStream;
+      remoteScreenStreamRef.current = next;
+      return next;
+    });
+
+    track.onended = () => {
+      receivedVideoTracksRef.current.delete(track.id);
+      setRemoteScreenStream((prev) => {
+        if (!prev) return null;
+        const remaining = prev.getTracks().filter((item) => item !== track && item.readyState !== "ended");
+        const next = remaining.length ? new MediaStream(remaining) : null;
+        remoteScreenStreamRef.current = next;
+        return next;
+      });
+    };
+  }, []);
+
   const setupPeerConnection = useCallback((pc, stream, isInitiator) => {
     setPeerConnectionState("connecting");
     stream.getTracks().forEach((t) => pc.addTrack(t, stream));
@@ -342,27 +385,51 @@ export function useCall(socket) {
       // Mid-call camera renegotiation may omit e.streams — wrap the track.
       const raw = e.streams?.[0];
       const rs = (raw && raw.getTracks().length > 0) ? raw : new MediaStream([track]);
+      if (track?.kind === "video") {
+        receivedVideoTracksRef.current.set(track.id, {
+          track,
+          stream: rs,
+          receivedAt: Date.now(),
+          hasAudio: Boolean(raw?.getAudioTracks?.().length),
+        });
+      }
+      const isScreenTrack = isRemoteScreenVideoTrack(track, {
+        rawStream: raw,
+        peerExpectsScreen: remoteScreenSharingRef.current,
+        mainRemoteStream: remoteStreamRef.current,
+        participantHasCameraVideo: Boolean(remoteStreamRef.current?.getVideoTracks().length),
+      });
+
+      if (isScreenTrack) {
+        attachRemoteScreenTrack(track, rs);
+        return;
+      }
 
       // Force a state update even when the same MediaStream gains a new track
       // (same object identity would otherwise skip React re-renders).
       setRemoteStream((prev) => {
+        let next;
         if (prev && prev !== rs) {
           // Merge newly arrived track into the existing remote stream when possible
           try {
             if (track && !prev.getTracks().includes(track)) prev.addTrack(track);
-            return new MediaStream(prev.getTracks());
+            next = new MediaStream(prev.getTracks());
+            remoteStreamRef.current = next;
+            return next;
           } catch {
             /* fall through */
           }
         }
-        if (prev === rs) return new MediaStream(rs.getTracks());
-        return rs;
+        next = prev === rs ? new MediaStream(rs.getTracks()) : rs;
+        remoteStreamRef.current = next;
+        return next;
       });
       markRemoteMediaReady(rs);
 
       // Voice → camera upgrade: flip call type so UI mounts the remote <video>
       if (track?.kind === "video") {
         setCallType("video");
+        setRemoteCameraOn((current) => current ?? true);
       }
 
       const attachMedia = () => {
@@ -397,10 +464,13 @@ export function useCall(socket) {
       }
 
       track.onended = () => {
+        receivedVideoTracksRef.current.delete(track.id);
         setRemoteStream((prev) => {
           if (!prev) return prev;
           const remaining = prev.getTracks().filter((t) => t !== track && t.readyState !== "ended");
-          return remaining.length ? new MediaStream(remaining) : null;
+          const next = remaining.length ? new MediaStream(remaining) : null;
+          remoteStreamRef.current = next;
+          return next;
         });
       };
     };
@@ -462,15 +532,17 @@ export function useCall(socket) {
       }
     };
 
-    // Handle renegotiation for screen/camera changes after call is active.
-    // Skip while dialing — startCall already sends the initial offer; a second
-    // offer from negotiationneeded can race and confuse the callee popup.
-    pc.onnegotiationneeded = async () => {
+    // A single serialized offer path for camera/screen changes. This mirrors
+    // group-call peer behavior and avoids a second, delayed screen offer
+    // racing the browser's negotiationneeded event.
+    const negotiate = async () => {
       const sock = socketRef.current;
       try {
         if (modeRef.current !== "active") return;
         if (!peerRef.current?.id || !sock?.connected) return;
         if (makingOfferRef.current) return;
+        if (pc.signalingState !== "stable") return;
+        negotiationQueuedRef.current = false;
         makingOfferRef.current = true;
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -482,9 +554,23 @@ export function useCall(socket) {
       } catch { /* ignore */ }
       finally {
         makingOfferRef.current = false;
+        if (negotiationQueuedRef.current && pc.signalingState === "stable") {
+          void negotiate();
+        }
       }
     };
-  }, [markRemoteMediaReady]);
+    // Skip while dialing — startCall already sends the initial offer; a
+    // renegotiation request remains queued until the connection is stable.
+    pc.onnegotiationneeded = () => {
+      negotiationQueuedRef.current = true;
+      void negotiate();
+    };
+    pc.onsignalingstatechange = () => {
+      if (pc.signalingState === "stable" && negotiationQueuedRef.current) {
+        void negotiate();
+      }
+    };
+  }, [attachRemoteScreenTrack, markRemoteMediaReady]);
 
   useEffect(() => {
     if (!socket) return;
@@ -510,7 +596,10 @@ export function useCall(socket) {
           socketRef.current?.emit("call:answer", { toUserId: fromUser.id, answer: pc.localDescription });
           await flushIce(pc);
           // Peer upgraded voice → video (camera on): update UI mode
-          if (incomingType === "video") setCallType("video");
+          if (incomingType === "video") {
+            setCallType("video");
+            setRemoteCameraOn(true);
+          }
         } catch (err) { console.error("[WebRTC] Renegotiation failed:", err); }
         return;
       }
@@ -534,6 +623,7 @@ export function useCall(socket) {
       // New incoming call
       incomingOfferRef.current = offer;
       incomingCallTypeRef.current = incomingType || "voice";
+      setRemoteCameraOn(incomingType === "video");
       setPeer({
         ...fromUser,
         avatarUrl: fromUser?.avatarUrl || fromUser?.avatar_url || null,
@@ -569,6 +659,12 @@ export function useCall(socket) {
       if (!fromUserId || peerRef.current?.id === fromUserId) gracefulEnd();
     };
 
+    const onMediaState = ({ fromUserId, muted: peerMuted, cameraOn: peerCameraOn } = {}) => {
+      if (!fromUserId || fromUserId !== peerRef.current?.id) return;
+      setRemoteMuted(Boolean(peerMuted));
+      setRemoteCameraOn(Boolean(peerCameraOn));
+    };
+
     const onCancelled = ({ fromUserId } = {}) => {
       if (!fromUserId || peerRef.current?.id === fromUserId) {
         audioManager.stop('incomingCall');
@@ -598,6 +694,7 @@ export function useCall(socket) {
     socket.on('call:declined', onEnded);
     socket.on('call:cancelled', onCancelled);
     socket.on('call:unreachable', onUnreachable);
+    socket.on('call:media-state', onMediaState);
 
     socket.on('user:profile:updated', onProfileUpdated);
 
@@ -609,6 +706,7 @@ export function useCall(socket) {
       socket.off('call:declined', onEnded);
       socket.off('call:cancelled', onCancelled);
       socket.off('call:unreachable', onUnreachable);
+      socket.off('call:media-state', onMediaState);
       socket.off('user:profile:updated', onProfileUpdated);
     };
   }, [socket, gracefulEnd, cleanup]);
@@ -764,6 +862,13 @@ export function useCall(socket) {
     if (track) {
       track.enabled = !track.enabled;
       setMuted(!track.enabled);
+      if (peerRef.current?.id && socketRef.current?.connected) {
+        socketRef.current.emit("call:media-state", {
+          toUserId: peerRef.current.id,
+          muted: !track.enabled,
+          cameraOn: Boolean(cameraOn),
+        });
+      }
     }
   }, []);
 
@@ -779,6 +884,13 @@ export function useCall(socket) {
       }
       if (localVideoRef.current) localVideoRef.current.style.display = "none";
       setCameraOn(false);
+      if (peerRef.current?.id && socketRef.current?.connected) {
+        socketRef.current.emit("call:media-state", {
+          toUserId: peerRef.current.id,
+          muted: Boolean(muted),
+          cameraOn: false,
+        });
+      }
     } else {
       try {
         let videoTrack = localStreamRef.current?.getVideoTracks()[0];
@@ -806,6 +918,13 @@ export function useCall(socket) {
         }
         setCameraOn(true);
         setCallType("video");
+        if (peerRef.current?.id && socketRef.current?.connected) {
+          socketRef.current.emit("call:media-state", {
+            toUserId: peerRef.current.id,
+            muted: Boolean(muted),
+            cameraOn: true,
+          });
+        }
 
         // Renegotiate so the remote peer gets the new video m-line
         if (addedNewTrack) {
@@ -838,7 +957,7 @@ export function useCall(socket) {
         console.error("[WebRTC] toggleCamera failed:", err);
       }
     }
-  }, [cameraOn]);
+  }, [cameraOn, muted]);
 
   // Keep stopScreenShareRef always pointing to latest stopScreenShare
   useEffect(() => {
@@ -873,6 +992,10 @@ export function useCall(socket) {
           buildElectronDesktopConstraints(sourceId, { width, height, fps })
         );
       } else {
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+          toast("Screen sharing is not available in this browser.", "error");
+          return;
+        }
         console.log('[ScreenShare] web path — getDisplayMedia');
         screenStream = await navigator.mediaDevices.getDisplayMedia(
           buildDisplayMediaConstraints({ width, height, fps })
@@ -880,17 +1003,18 @@ export function useCall(socket) {
       }
 
       const screenTrack = screenStream.getVideoTracks()[0];
-      const shareStartedAt = Date.now();
       await optimizeScreenShareTrack(screenTrack, { width, height, fps });
       if (screenTrack.readyState !== "live") {
         screenStream.getTracks().forEach((t) => t.stop());
-        toast(
-          tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
-          "warning"
-        );
         return;
       }
-      
+
+      // Tell the peer to reserve the next video track for the screen layout
+      // before WebRTC can deliver that track.
+      if (peerRef.current?.id && socketRef.current?.connected) {
+        socketRef.current.emit("screen:share-start", { toUserId: peerRef.current.id });
+      }
+
       // Add screen track - this triggers onnegotiationneeded
       const screenSender = pc.addTrack(screenTrack, screenStream);
       await optimizeScreenShareSender(screenSender, {
@@ -902,30 +1026,9 @@ export function useCall(socket) {
       setScreenStream(screenStream);
       screenSharingRef.current = true;
 
-      // Manual renegotiation fallback only if onnegotiationneeded did not fire
-      setTimeout(async () => {
-        const sock = socketRef.current;
-        if (
-          pc.signalingState === "stable" &&
-          !makingOfferRef.current &&
-          peerRef.current?.id &&
-          sock?.connected
-        ) {
-          makingOfferRef.current = true;
-          try {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            sock.emit("call:offer", {
-              toUserId: peerRef.current.id,
-              offer: pc.localDescription,
-              callType: callTypeRef.current || "voice",
-            });
-          } catch (err) {
-          } finally {
-            makingOfferRef.current = false;
-          }
-        }
-      }, 500);
+      // `addTrack` schedules the sole renegotiation through
+      // `onnegotiationneeded`. A second delayed offer causes glare and was the
+      // main source of tracks arriving before their screen-share signal.
 
       if (screenVideoRef.current) {
         screenVideoRef.current.srcObject = screenStream;
@@ -933,19 +1036,10 @@ export function useCall(socket) {
       }
 
       screenTrack.onended = () => {
-        if (isLikelyDrmScreenEnd(shareStartedAt)) {
-          toast(
-            tRuntime("Screen share stopped — DRM apps (e.g. Netflix) block capture. Share the browser tab, not the whole window."),
-            "warning"
-          );
-        }
         if (stopScreenShareRef.current) stopScreenShareRef.current();
       };
 
       setScreenSharing(true);
-      if (peerRef.current?.id && socketRef.current?.connected) {
-        socketRef.current.emit("screen:share-start", { toUserId: peerRef.current.id });
-      }
     } catch (err) {
     }
   }, [toast]);
@@ -985,6 +1079,58 @@ export function useCall(socket) {
     },
     [startScreenShare, stopScreenShare]
   );
+
+  const handleRemoteScreenShareStart = useCallback((fromUserId) => {
+    if (!fromUserId || fromUserId !== peerRef.current?.id) return;
+    remoteScreenSharingRef.current = true;
+    setRemoteScreenSharing(true);
+
+    // Screen signaling can arrive after a fast ontrack callback. Display
+    // streams carry no audio; select the most recently received such track
+    // instead of blindly moving the latest receiver (which can be a camera).
+    const candidate = [...receivedVideoTracksRef.current.values()]
+      .filter(({ track, hasAudio }) => track.readyState !== "ended" && !hasAudio)
+      .sort((a, b) => b.receivedAt - a.receivedAt)[0];
+    const screenTrack = candidate?.track;
+    if (!screenTrack || remoteScreenStreamRef.current?.getVideoTracks().includes(screenTrack)) return;
+
+    setRemoteStream((prev) => {
+      if (!prev?.getVideoTracks().includes(screenTrack)) return prev;
+      const remaining = prev.getTracks().filter((track) => track !== screenTrack);
+      const next = remaining.length ? new MediaStream(remaining) : null;
+      remoteStreamRef.current = next;
+      return next;
+    });
+    attachRemoteScreenTrack(screenTrack, candidate.stream);
+  }, [attachRemoteScreenTrack]);
+
+  const handleRemoteScreenShareStop = useCallback((fromUserId) => {
+    if (!fromUserId || fromUserId !== peerRef.current?.id) return;
+    remoteScreenSharingRef.current = false;
+    setRemoteScreenSharing(false);
+    setRemoteScreenStream(null);
+    remoteScreenStreamRef.current = null;
+  }, []);
+
+  // DM screen events are separate from SDP. The explicit signal is needed to
+  // reserve/recover the display track before camera-layout heuristics run.
+  useEffect(() => {
+    if (!socket) return;
+
+    const onScreenShareStart = ({ fromUserId } = {}) => {
+      handleRemoteScreenShareStart(fromUserId);
+    };
+    const onScreenShareStop = ({ fromUserId } = {}) => {
+      handleRemoteScreenShareStop(fromUserId);
+    };
+
+    socket.on("screen:share-start", onScreenShareStart);
+    socket.on("screen:share-stop", onScreenShareStop);
+    return () => {
+      socket.off("screen:share-start", onScreenShareStart);
+      socket.off("screen:share-stop", onScreenShareStop);
+    };
+  }, [socket, handleRemoteScreenShareStart, handleRemoteScreenShareStop]);
 
   // Change active microphone mid-call
   const setAudioInput = useCallback(async (deviceId) => {
@@ -1033,6 +1179,8 @@ export function useCall(socket) {
     peer,
     muted,
     cameraOn,
+    remoteMuted,
+    remoteCameraOn,
     screenSharing,
     duration,
     connectionQuality,
@@ -1040,6 +1188,8 @@ export function useCall(socket) {
     remoteMediaReady,
     localStream,
     remoteStream,
+    remoteScreenStream,
+    remoteScreenSharing,
     screenStream,
     isInCall,
     isCalling,
@@ -1056,6 +1206,8 @@ export function useCall(socket) {
     screenQuality,
     setScreenQuality,
     restartScreenShareWithQuality,
+    handleRemoteScreenShareStart,
+    handleRemoteScreenShareStop,
     cleanup,
     audioInputDevices,
     audioOutputDevices,

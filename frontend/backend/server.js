@@ -28,8 +28,10 @@ const errorRoutes = require("./routes/errors");
 const callsRoutes = require("./routes/calls");
 const lfgRoutes = require("./routes/lfg");
 const riotRoutes = require("./routes/riot");
+const webPushRoutes = require("./routes/webPush");
 const { sitemapRouter } = require("./routes/sitemap");
 const state = require("./runtime/sharedState");
+const { sendFeedbackEmail } = require("./lib/feedbackEmail");
 
 // Inline feedback - no external file needed
 const { requireAuth } = require("./middleware/auth");
@@ -164,6 +166,7 @@ app.use("/api/app", appReleaseRoutes);
 app.use("/api/calls", callsRoutes);
 app.use("/api/lfg", lfgRoutes);
 app.use("/api/riot", riotRoutes);
+app.use("/api/web-push", webPushRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)
@@ -175,7 +178,7 @@ app.post("/api/feedback/submit", requireAuth, async (req, res) => {
   console.log("[FEEDBACK] User:", req.user?.username);
   
   try {
-    const { category, priority, message, attachments } = req.body;
+    const { category, priority, subject, message, attachments, platform, appVersion } = req.body;
     
     // Validation
     if (!message || typeof message !== "string" || message.trim().length === 0) {
@@ -188,8 +191,11 @@ app.post("/api/feedback/submit", requireAuth, async (req, res) => {
       username: req.user.username || "Anonymous",
       category: String(category || "general").toLowerCase(),
       priority: String(priority || "medium").toLowerCase(),
+      subject: String(subject || message.trim().split(/\r?\n/, 1)[0]).trim().slice(0, 200),
       message: message.trim(),
       attachments: Array.isArray(attachments) ? attachments.slice(0, 10) : [],
+      platform: String(platform || req.get("user-agent") || "unknown").slice(0, 160),
+      app_version: String(appVersion || req.get("x-app-version") || "unknown").slice(0, 80),
       status: "new",
       viewed: false,
       admin_replies: [],
@@ -212,11 +218,39 @@ app.post("/api/feedback/submit", requireAuth, async (req, res) => {
     }
     
     console.log("[FEEDBACK] SUCCESS! ID:", data?.id);
+
+    let emailDelivery = { sent: false, skipped: true };
+    try {
+      emailDelivery = await sendFeedbackEmail(data);
+      await supabase
+        .from("user_feedback")
+        .update({
+          email_status: emailDelivery.sent ? "sent" : "skipped",
+          email_provider_id: emailDelivery.providerId,
+          email_sent_at: emailDelivery.sent ? new Date().toISOString() : null,
+          email_error: emailDelivery.error || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", data.id);
+    } catch (emailError) {
+      const message = String(emailError?.message || "Email delivery failed").slice(0, 500);
+      console.error("[FEEDBACK] Email delivery failed:", message);
+      await supabase
+        .from("user_feedback")
+        .update({
+          email_status: "failed",
+          email_error: message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", data.id);
+      emailDelivery = { sent: false, error: message };
+    }
     
     return res.status(200).json({
       success: true,
       message: "Feedback submitted successfully",
-      feedbackId: data?.id
+      feedbackId: data?.id,
+      emailSent: Boolean(emailDelivery.sent)
     });
     
   } catch (err) {
