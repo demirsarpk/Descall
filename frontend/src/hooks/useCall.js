@@ -930,33 +930,9 @@ export function useCall(socket, callOccupancyRef = null) {
           });
         }
 
-        // Renegotiate so the remote peer gets the new video m-line
-        if (addedNewTrack) {
-          for (let i = 0; i < 10 && pc.signalingState !== "stable"; i += 1) {
-            await new Promise((r) => setTimeout(r, 100));
-          }
-          // Prefer onnegotiationneeded (fires from addTrack). Manual offer only if
-          // negotiationneeded did not already fire while we waited for stable.
-          if (pc.signalingState === "stable" && !makingOfferRef.current) {
-            const sock = socketRef.current;
-            makingOfferRef.current = true;
-            try {
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              if (peerRef.current?.id && sock?.connected) {
-                sock.emit("call:offer", {
-                  toUserId: peerRef.current.id,
-                  offer: pc.localDescription,
-                  callType: "video",
-                });
-              }
-            } finally {
-              makingOfferRef.current = false;
-            }
-          } else {
-            console.warn("[WebRTC] camera renegotiate skipped — signaling not stable or offer in flight");
-          }
-        }
+        // addTrack schedules the single serialized offer through
+        // onnegotiationneeded. A second manual offer can collide and crash
+        // the remote voice-to-video upgrade.
       } catch (err) {
         console.error("[WebRTC] toggleCamera failed:", err);
       }
