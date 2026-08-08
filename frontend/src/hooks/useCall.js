@@ -211,6 +211,7 @@ export function useCall(socket, callOccupancyRef = null) {
   const peerRef = useRef(null);
   const timerRef = useRef(null);
   const screenSenderRef = useRef(null);
+  const screenAudioSenderRef = useRef(null);
   const screenSharingRef = useRef(false);
   const stopScreenShareRef = useRef(null);
   const cleanupTimerRef = useRef(null);
@@ -277,6 +278,7 @@ export function useCall(socket, callOccupancyRef = null) {
     if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
     pendingIceRef.current = [];
     screenSenderRef.current = null;
+    screenAudioSenderRef.current = null;
     screenSharingRef.current = false;
     makingOfferRef.current = false;
     negotiationQueuedRef.current = false;
@@ -402,6 +404,19 @@ export function useCall(socket, callOccupancyRef = null) {
 
       if (isScreenTrack) {
         attachRemoteScreenTrack(track, rs);
+        return;
+      }
+
+      // A display stream can carry both its video and approved tab/system
+      // audio. Keep that audio with the screen stream so the presentation
+      // player can expose a dedicated volume control without mixing it into
+      // the participant microphone.
+      if (
+        track?.kind === "audio" &&
+        raw &&
+        remoteScreenStreamRef.current &&
+        raw.id === remoteScreenStreamRef.current.id
+      ) {
         return;
       }
 
@@ -997,6 +1012,10 @@ export function useCall(socket, callOccupancyRef = null) {
 
       // Add screen track - this triggers onnegotiationneeded
       const screenSender = pc.addTrack(screenTrack, screenStream);
+      const screenAudioTrack = screenStream.getAudioTracks()[0];
+      if (screenAudioTrack) {
+        screenAudioSenderRef.current = pc.addTrack(screenAudioTrack, screenStream);
+      }
       await optimizeScreenShareSender(screenSender, {
         maxBitrate: 1_500_000,
         maxFramerate: fps,
@@ -1031,6 +1050,10 @@ export function useCall(socket, callOccupancyRef = null) {
     if (screenSenderRef.current) {
       try { pc.removeTrack(screenSenderRef.current); } catch {}
       screenSenderRef.current = null;
+    }
+    if (screenAudioSenderRef.current) {
+      try { pc.removeTrack(screenAudioSenderRef.current); } catch {}
+      screenAudioSenderRef.current = null;
     }
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((t) => t.stop());
