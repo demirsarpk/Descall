@@ -31,11 +31,13 @@ const {
   userSessionStartMs,
   userOnlineAccumMs,
   dmBlockPairs,
+  activeGroupCalls,
   appendAudit,
   appendErrorLog,
 } = require("../runtime/sharedState");
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
+const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
 const { trackOffer, markAnswered, finalizeCall } = require("../lib/dmCallLog");
 
 async function notifyCallHistory(io, record) {
@@ -1478,7 +1480,9 @@ function registerSocketHandlers(io) {
       const remaining = io.sockets?.adapter?.rooms?.get(`user:${myId}`);
       const hasOtherSockets = Boolean(remaining && remaining.size > 0);
       if (!hasOtherSockets) {
-        await removeUserFromAllGroupCalls(io, myId, socket);
+        for (const groupId of activeGroupCalls.keys()) {
+          scheduleParticipantDisconnectGrace(io, groupId, myId);
+        }
       }
       socketToUser.delete(socket.id);
 
