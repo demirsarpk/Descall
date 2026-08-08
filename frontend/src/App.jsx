@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import AuthView from "./components/AuthView";
 import AppLayout from "./components/layout/AppLayout";
 import GroupInviteLanding from "./components/groups/GroupInviteLanding";
@@ -2257,6 +2258,23 @@ export default function App() {
   if (!me) {
     if (isAuthenticatedAppPath(location.pathname)) {
       return <Navigate to="/" replace />;
+    }
+    // Native Android/iOS launches are product entry points, not SEO landing
+    // pages. Take people straight to sign-in/sign-up so an installed app
+    // feels like an app from its first frame.
+    if (Capacitor.isNativePlatform()) {
+      return (
+        <>
+          <TitleBar />
+          <AuthView
+            onLogin={handleLogin}
+            onRegister={handleRegister}
+            onGoogleLogin={handleGoogleLogin}
+            loading={authLoading}
+            error={authError}
+          />
+        </>
+      );
     }
     return (
       <>
