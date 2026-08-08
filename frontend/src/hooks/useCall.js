@@ -1112,6 +1112,26 @@ export function useCall(socket) {
     remoteScreenStreamRef.current = null;
   }, []);
 
+  // DM screen events are separate from SDP. The explicit signal is needed to
+  // reserve/recover the display track before camera-layout heuristics run.
+  useEffect(() => {
+    if (!socket) return;
+
+    const onScreenShareStart = ({ fromUserId } = {}) => {
+      handleRemoteScreenShareStart(fromUserId);
+    };
+    const onScreenShareStop = ({ fromUserId } = {}) => {
+      handleRemoteScreenShareStop(fromUserId);
+    };
+
+    socket.on("screen:share-start", onScreenShareStart);
+    socket.on("screen:share-stop", onScreenShareStop);
+    return () => {
+      socket.off("screen:share-start", onScreenShareStart);
+      socket.off("screen:share-stop", onScreenShareStop);
+    };
+  }, [socket, handleRemoteScreenShareStart, handleRemoteScreenShareStop]);
+
   // Change active microphone mid-call
   const setAudioInput = useCallback(async (deviceId) => {
     setSelectedAudioInput(deviceId);
