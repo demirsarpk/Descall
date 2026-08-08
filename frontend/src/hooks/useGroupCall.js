@@ -154,7 +154,7 @@ function showElectronScreenPicker(sources) {
  * Group Call Hook - Simplified multi-peer WebRTC
  * Based on working DM call (useCall.js) with Map for multiple peers
  */
-export function useGroupCall(socket, currentUserId = null) {
+export function useGroupCall(socket, currentUserId = null, callOccupancyRef = null) {
   const { toast } = useToast();
   const [isInCall, setIsInCall] = useState(false);
   const [isInitiator, setIsInitiator] = useState(false);
@@ -1062,6 +1062,11 @@ export function useGroupCall(socket, currentUserId = null) {
   useEffect(() => {
     if (!socket) return;
 
+    const onConnect = () => {
+      if (isInCallRef.current && activeGroupIdRef.current) {
+        socket.emit("group:call:resume", { groupId: activeGroupIdRef.current });
+      }
+    };
     const onIncoming = ({ groupId, fromUser, callType: type, groupName } = {}) => {
       const myId = myIdRef.current;
       if (!groupId || !fromUser?.id) return;
@@ -1073,7 +1078,7 @@ export function useGroupCall(socket, currentUserId = null) {
       if (now - prevAt < 2500) return;
       incomingDedupeRef.current.set(groupId, now);
 
-      if (isInCallRef.current) {
+      if (isInCallRef.current || callOccupancyRef?.current?.dmMode) {
         socket.emit("group:call:busy", { groupId, toUserId: fromUser.id });
         return;
       }
@@ -1083,8 +1088,10 @@ export function useGroupCall(socket, currentUserId = null) {
       notificationService.groupCall({ groupName: groupName || "Grup", from: fromUser.username });
     };
 
+    socket.on("connect", onConnect);
     socket.on("group:call:incoming", onIncoming);
     return () => {
+      socket.off("connect", onConnect);
       socket.off("group:call:incoming", onIncoming);
     };
   }, [socket]);

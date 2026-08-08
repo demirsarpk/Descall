@@ -63,6 +63,7 @@ app.set("io", io);
 // Middleware
 app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
+app.use("/api/web-push", webPushRoutes);
 
 // Debug - log all requests (skip noise in production)
 if (process.env.NODE_ENV !== "production") {

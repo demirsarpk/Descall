@@ -333,7 +333,7 @@ export default function CallOverlay({ call, groupCall, me }) {
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
   const remoteScreenSharers = isDm
-    ? (call?.remoteScreenSharing && call?.remoteScreenStream && call?.peer
+    ? (call?.remoteScreenSharing && streamHasLiveVideo(call?.remoteScreenStream) && call?.peer
         ? [{
             id: call.peer.id,
             username: call.peer.username,
@@ -341,12 +341,24 @@ export default function CallOverlay({ call, groupCall, me }) {
             isScreenSharing: true,
           }]
         : [])
-    : (groupCall?.participants ?? []).filter((p) => p.isScreenSharing && p.screenStream && p.id !== localId);
+    : (groupCall?.participants ?? [])
+        .filter((p) => p.isScreenSharing && p.screenStream && p.id !== localId)
+        .map((p) => ({
+          id: p.id,
+          username: p.username,
+          stream: p.screenStream,
+          isScreenSharing: true,
+        }));
   const localUsername = me?.username || me?.displayName || t("You");
 
   const allScreenSharers = [
     ...(screenSharing ? [{ id: "local", username: localUsername, isLocal: true }] : []),
-    ...remoteScreenSharers.map((p) => ({ id: p.id, username: p.username, isLocal: false })),
+    ...remoteScreenSharers.map((p) => ({
+      id: p.id,
+      username: p.username,
+      stream: p.stream,
+      isLocal: false,
+    })),
   ];
   const anyScreenShare = allScreenSharers.length > 0;
 
@@ -945,7 +957,15 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
           autoPlay
           playsInline
           muted={isLocal}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            // Local preview behaves like a mirror; remote video and shared
+            // screens preserve their actual orientation.
+            transform: isLocal ? "scaleX(-1)" : undefined,
+          }}
         />
       ) : (
         <div className="participant-tile-avatar-stack">
@@ -1151,9 +1171,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
   // Derive the stream to display for the active sharer
   const screenStream = activeSharer?.isLocal
     ? (isDm ? call?.screenStream : groupCall?.screenStream)
-    : (isDm
-        ? (allScreenSharers.find((p) => p.id === activeSharer?.id)?.stream ?? null)
-        : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null));
+    : (activeSharer?.stream ?? null);
 
   const attachStream = useCallback((el, stream) => {
     if (!el) return;

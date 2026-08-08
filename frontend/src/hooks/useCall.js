@@ -159,7 +159,7 @@ function showElectronScreenPicker(sources) {
  *   call:offer, call:answer, call:ice-candidate, call:ended, call:declined
  *   screen:share-start, screen:share-stop, screen:stream-replace
  */
-export function useCall(socket) {
+export function useCall(socket, callOccupancyRef = null) {
   const { toast } = useToast();
   const [mode, setMode] = useState(null); // null | "incoming" | "outgoing" | "active"
   const [callType, setCallType] = useState(null); // null | "voice" | "video"
@@ -577,6 +577,10 @@ export function useCall(socket) {
 
     const onOffer = async ({ fromUser, offer, callType: incomingType } = {}) => {
       if (!fromUser?.id || !offer) return;
+      if (callOccupancyRef?.current?.groupActive) {
+        socketRef.current?.emit("call:decline", { toUserId: fromUser.id });
+        return;
+      }
       
       const pc = pcRef.current;
       const isRenegotiation = pc && modeRef.current === "active" && peerRef.current?.id === fromUser.id;
@@ -926,33 +930,9 @@ export function useCall(socket) {
           });
         }
 
-        // Renegotiate so the remote peer gets the new video m-line
-        if (addedNewTrack) {
-          for (let i = 0; i < 10 && pc.signalingState !== "stable"; i += 1) {
-            await new Promise((r) => setTimeout(r, 100));
-          }
-          // Prefer onnegotiationneeded (fires from addTrack). Manual offer only if
-          // negotiationneeded did not already fire while we waited for stable.
-          if (pc.signalingState === "stable" && !makingOfferRef.current) {
-            const sock = socketRef.current;
-            makingOfferRef.current = true;
-            try {
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-              if (peerRef.current?.id && sock?.connected) {
-                sock.emit("call:offer", {
-                  toUserId: peerRef.current.id,
-                  offer: pc.localDescription,
-                  callType: "video",
-                });
-              }
-            } finally {
-              makingOfferRef.current = false;
-            }
-          } else {
-            console.warn("[WebRTC] camera renegotiate skipped — signaling not stable or offer in flight");
-          }
-        }
+        // addTrack schedules the single serialized offer through
+        // onnegotiationneeded. A second manual offer can collide and crash
+        // the remote voice-to-video upgrade.
       } catch (err) {
         console.error("[WebRTC] toggleCamera failed:", err);
       }

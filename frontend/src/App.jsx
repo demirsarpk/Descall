@@ -304,8 +304,16 @@ export default function App() {
   const activeGuildRef = useRef(null);
   const typingDmTimeoutRef = useRef(null);
   const typingGroupTimeoutsRef = useRef(new Map());
-  const call = useCall(socketApi);
-  const groupCall = useGroupCall(socketApi, me?.id);
+  const callOccupancyRef = useRef({ dmMode: null, groupActive: false });
+  const call = useCall(socketApi, callOccupancyRef);
+  const groupCall = useGroupCall(socketApi, me?.id, callOccupancyRef);
+
+  useEffect(() => {
+    callOccupancyRef.current = {
+      dmMode: call?.mode || null,
+      groupActive: Boolean(groupCall?.isInCall || groupCall?.incomingCall),
+    };
+  }, [call?.mode, groupCall?.isInCall, groupCall?.incomingCall]);
   const wasDmInCallRef = useRef(false);
   const wasGroupInCallRef = useRef(false);
   const lastDmCallDurationRef = useRef(0);
@@ -609,6 +617,7 @@ export default function App() {
 
   const handleRequestNotifPermission = async () => {
     const result = await notificationService.requestPermission();
+    if (result === "granted") subscribeWebPush().catch(() => {});
     setNotifPermission(result);
     if (result === "granted") {
       subscribeWebPush().catch((error) => {
@@ -1449,13 +1458,6 @@ export default function App() {
         if (cur.some((m) => m.id === item.id)) return prev;
         return { ...prev, [groupId]: [...cur, item] };
       });
-    });
-
-    socket.on("screen:share-start", ({ fromUserId } = {}) => {
-      call.handleRemoteScreenShareStart(fromUserId);
-    });
-    socket.on("screen:share-stop", ({ fromUserId } = {}) => {
-      call.handleRemoteScreenShareStop(fromUserId);
     });
 
     // Guild socket events

@@ -14,7 +14,9 @@ const {
   endGroupCall,
   removeUserFromGroupCall,
   removeUserFromAllGroupCalls,
+  resumeParticipantInGroupCall,
 } = require("./groupCallLifecycle");
+const { sendGroupCallPush } = require("../lib/webPush");
 
 function resolveSocketAvatar(socket) {
   const cached = getCachedPublicUser(socket.user?.id);
@@ -337,6 +339,7 @@ function registerGroupHandlers(io, socket, state) {
       allParticipants: new Set([myId]),
       startTime: Date.now(),
       dbCallId: null,
+      disconnectGraceByUser: new Map(),
     });
 
     const payload = {
@@ -352,6 +355,15 @@ function registerGroupHandlers(io, socket, state) {
     // Dual delivery: per-user rooms + group room (open chats).
     targets.forEach((targetUserId) => {
       io.to(`user:${targetUserId}`).emit("group:call:incoming", payload);
+    });
+    // Backgrounded iOS PWAs cannot rely on Socket.IO; push contains no SDP/ICE.
+    void sendGroupCallPush(targets, {
+      type: "group-call",
+      groupId,
+      callType,
+      title: `${socket.user.username} started a ${callType} call`,
+      body: "Tap to join the group call",
+      deepLink: `/?group=${encodeURIComponent(groupId)}`,
     });
     socket.to(`group:${groupId}`).emit("group:call:incoming", payload);
     void sendWebPushToUsers(targets, {
@@ -372,6 +384,11 @@ function registerGroupHandlers(io, socket, state) {
       callType,
     });
     void emitBannerUpdate(io, groupId);
+  });
+
+  socket.on("group:call:resume", ({ groupId } = {}) => {
+    if (!groupId) return;
+    resumeParticipantInGroupCall(io, groupId, myId, socket);
   });
 
   // Accept call and send offer
