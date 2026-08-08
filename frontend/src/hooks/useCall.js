@@ -19,6 +19,7 @@ import {
 } from "../lib/webrtcNegotiation";
 import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 import { getUser } from "../lib/storage";
+import { logScreenShareDebug } from "../lib/screenShareDebug";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -983,6 +984,14 @@ export function useCall(socket, callOccupancyRef = null) {
       }
 
       const screenTrack = screenStream.getVideoTracks()[0];
+      // #region agent log
+      logScreenShareDebug("A", "useCall.js:startScreenShare", "DM display capture tracks", {
+        audioTrackCount: screenStream.getAudioTracks().length,
+        videoTrackCount: screenStream.getVideoTracks().length,
+        audioEnabled: screenStream.getAudioTracks().map((track) => track.enabled),
+        videoSettings: screenTrack?.getSettings?.() ?? {},
+      });
+      // #endregion
       await optimizeScreenShareTrack(screenTrack, { width, height, fps });
       if (screenTrack.readyState !== "live") {
         screenStream.getTracks().forEach((t) => t.stop());
@@ -997,6 +1006,13 @@ export function useCall(socket, callOccupancyRef = null) {
 
       // Add screen track - this triggers onnegotiationneeded
       const screenSender = pc.addTrack(screenTrack, screenStream);
+      // #region agent log
+      logScreenShareDebug("A", "useCall.js:startScreenShare", "DM screen tracks published", {
+        audioTrackCount: screenStream.getAudioTracks().length,
+        videoSenderCount: pc.getSenders().filter((sender) => sender.track?.kind === "video").length,
+        publishedKinds: [screenSender.track?.kind],
+      });
+      // #endregion
       await optimizeScreenShareSender(screenSender, {
         maxBitrate: 1_500_000,
         maxFramerate: fps,
@@ -1064,6 +1080,13 @@ export function useCall(socket, callOccupancyRef = null) {
     if (!fromUserId || fromUserId !== peerRef.current?.id) return;
     remoteScreenSharingRef.current = true;
     setRemoteScreenSharing(true);
+    // #region agent log
+    logScreenShareDebug("B", "useCall.js:handleRemoteScreenShareStart", "DM remote screen-share state", {
+      receiverKinds: pcRef.current?.getReceivers().map((receiver) => receiver.track?.kind).filter(Boolean) ?? [],
+      receiverAudioCount: pcRef.current?.getReceivers().filter((receiver) => receiver.track?.kind === "audio").length ?? 0,
+      receiverVideoCount: pcRef.current?.getReceivers().filter((receiver) => receiver.track?.kind === "video").length ?? 0,
+    });
+    // #endregion
 
     // Screen signaling can arrive after a fast ontrack callback. Display
     // streams carry no audio; select the most recently received such track

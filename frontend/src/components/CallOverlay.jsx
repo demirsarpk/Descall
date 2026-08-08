@@ -16,6 +16,7 @@ import { useIsNarrowViewport } from "../lib/useIsNarrowViewport";
 import useSpeaking from "../hooks/useSpeaking";
 import useAudioLevel from "../hooks/useAudioLevel";
 import { useT } from "../context/LocaleContext";
+import { logScreenShareDebug } from "../lib/screenShareDebug";
 
 /*
  * Google Meet-style call overlay
@@ -1184,6 +1185,15 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     // element producing a black flash on every React render.
     if (el.srcObject !== stream) {
       el.srcObject = stream;
+      // #region agent log
+      el.onresize = () => logScreenShareDebug("C", "CallOverlay.jsx:ScreenShareLayout", "Screen video intrinsic dimensions changed", {
+        videoWidth: el.videoWidth,
+        videoHeight: el.videoHeight,
+        trackSettings: stream.getVideoTracks()[0]?.getSettings?.() ?? {},
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      });
+      // #endregion
     }
     // If any video track is still muted (ICE not yet connected), chain onunmute
     // so we don't clobber useGroupCall's applyScreenStream handler.
