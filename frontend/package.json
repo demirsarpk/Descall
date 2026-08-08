@@ -1,6 +1,6 @@
 {
   "name": "descall",
-  "version": "2.6.2",
+  "version": "2.6.3",
   "description": "Modern messaging and video conferencing app",
   "private": true,
   "type": "module",
@@ -19,37 +19,45 @@
     "electron:build:mac": "ELECTRON_BUILD=1 npm run build:prod && electron-builder --mac",
     "electron:build:linux": "ELECTRON_BUILD=1 npm run build:prod && electron-builder --linux",
     "electron:pack": "ELECTRON_BUILD=1 npm run build:prod && electron-builder --dir",
-    "electron:publish": "ELECTRON_BUILD=1 npm run build:prod && electron-builder --publish=always"
+    "electron:publish": "ELECTRON_BUILD=1 npm run build:prod && electron-builder --publish=always",
+    "android:sync": "npm run build:prod && cap sync android",
+    "android:open": "cap open android",
+    "android:apk:debug": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:apk:release": "npm run android:sync && cd android && ./gradlew assembleRelease",
+    "android:aab:release": "npm run android:sync && cd android && ./gradlew bundleRelease"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "framer-motion": "^11.11.17",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.22.0",
-    "socket.io-client": "^4.8.1",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@supabase/supabase-js": "^2.39.0",
+    "auto-launch": "^5.0.6",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "electron-log": "^5.0.1",
+    "electron-updater": "^6.3.0",
     "express": "^4.18.3",
+    "framer-motion": "^11.11.17",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.454.0",
     "multer": "^1.4.5-lts.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.22.0",
     "socket.io": "^4.7.4",
-    "vite": "^5.4.10",
-    "electron-updater": "^6.3.0",
-    "electron-log": "^5.0.1",
-    "auto-launch": "^5.0.6"
+    "socket.io-client": "^4.8.1",
+    "vite": "^5.4.10"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^5.4.10",
+    "concurrently": "^8.2.2",
     "electron": "^41.2.1",
     "electron-builder": "^24.13.3",
-    "concurrently": "^8.2.2",
+    "vite": "^5.4.10",
     "wait-on": "^7.2.0"
   },
   "build": {

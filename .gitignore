@@ -26,6 +26,12 @@ Descall-Setup.exe
 .env.local
 .env.*.local
 render.env
+frontend/android/keystore.properties
+frontend/android/local.properties
+frontend/android/**/*.jks
+frontend/android/**/*.keystore
+frontend/android/app/google-services.json
+.android-sdk/
 
 # IDE
 .vscode/
