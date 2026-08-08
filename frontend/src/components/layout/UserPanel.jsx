@@ -156,6 +156,8 @@ const UserPanel = forwardRef(function UserPanel({
   onProfileUpdated,
   myStatus = "online",
   onStatusChange,
+  initialTab = "overview",
+  onTabChange,
 }, ref) {
   const { isMobile } = useMobile();
   const { t, locale, setLocale, locales } = useLocale();
@@ -183,6 +185,10 @@ const UserPanel = forwardRef(function UserPanel({
   }, [t]);
 
   const deviceDefault = useMemo(() => detectDefaultLocale(), []);
+
+  useEffect(() => {
+    if (initialTab && TAB_TITLE_KEYS[initialTab]) setActiveTab(initialTab);
+  }, [initialTab]);
 
   /* ── Profile editor ── */
   const [displayName, setDisplayName] = useState(me?.displayName || me?.username || "");
@@ -488,6 +494,7 @@ const UserPanel = forwardRef(function UserPanel({
 
   const openTab = (id) => {
     setActiveTab(id);
+    onTabChange?.(id);
     if (isMobile) setMobileDetail(true);
   };
 

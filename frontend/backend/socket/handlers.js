@@ -1030,6 +1030,9 @@ function registerSocketHandlers(io) {
 
     socket.on("dm:history", async ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
+      if (!friends.get(myId)?.has(withUserId)) {
+        return socket.emit("dm:history", { withUserId, messages: [] });
+      }
       try {
         const { messages } = await loadDmMessages(myId, withUserId);
         const withReactions = await attachReactions(messages, "dm", convKey(myId, withUserId));

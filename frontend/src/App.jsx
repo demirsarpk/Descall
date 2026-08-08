@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import AuthView from "./components/AuthView";
 import AppLayout from "./components/layout/AppLayout";
 import GroupInviteLanding from "./components/groups/GroupInviteLanding";
@@ -39,6 +40,7 @@ import { subscribeWebPush } from "./lib/webPushSubscription";
 import { useToast } from "./context/ToastContext";
 import { useLocale } from "./context/LocaleContext";
 import { t as tRuntime } from "./i18n/runtime";
+import { appPathForView, directPath, groupPath, isAuthenticatedAppPath, parseAppRoute } from "./lib/appRoutes";
 import AdminPanel from "./components/admin/AdminPanel";
 import TitleBar from "./components/TitleBar";
 import MessageList from "./components/chat/MessageList";
@@ -229,6 +231,9 @@ function mergeReactionsIntoMessages(messages, reactionsByMessageId) {
 }
 
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const requestedRoute = useMemo(() => parseAppRoute(location.pathname), [location.pathname]);
   const [authLoading, setAuthLoading] = useState(false);
   const { toast } = useToast();
   const { t, setLocale } = useLocale();
@@ -259,6 +264,10 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [activeDmUser, setActiveDmUser] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
+  const [activeView, setActiveView] = useState("chat");
+  const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [unreadMarker, setUnreadMarker] = useState(null); // { key, count }
   const [friendNotice, setFriendNotice] = useState("");
@@ -301,6 +310,38 @@ export default function App() {
   const wasGroupInCallRef = useRef(false);
   const lastDmCallDurationRef = useRef(0);
   const lastGroupCallDurationRef = useRef(0);
+
+  // Reflect a live call in the address bar without treating a pasted call URL
+  // as permission to start a microphone/camera session. Refreshing the URL
+  // safely returns to its DM/group conversation instead.
+  useEffect(() => {
+    if (!me?.id) return;
+    if (call.mode && call.peer?.username) {
+      const callPath = `${directPath(call.peer)}/call/${call.callType || "voice"}`;
+      if (location.pathname !== callPath) navigate(callPath, { replace: true });
+      return;
+    }
+    if (groupCall.isInCall && groupCall.activeGroupId) {
+      const callPath = `${groupPath(groupCall.activeGroupId)}/call`;
+      if (location.pathname !== callPath) navigate(callPath, { replace: true });
+      return;
+    }
+    if (requestedRoute.call && call.mode == null) {
+      navigate(directPath(requestedRoute.username), { replace: true });
+    } else if (requestedRoute.joinCall && !groupCall.isInCall) {
+      navigate(groupPath(requestedRoute.groupId), { replace: true });
+    }
+  }, [
+    call.callType,
+    call.mode,
+    call.peer,
+    groupCall.activeGroupId,
+    groupCall.isInCall,
+    location.pathname,
+    me?.id,
+    navigate,
+    requestedRoute,
+  ]);
 
   useEffect(() => {
     preloadIceServers().catch(() => {});
@@ -879,6 +920,7 @@ export default function App() {
     socket.on("friend:list", (list) => {
       const normalized = (list ?? []).map((u) => normalizeUser(u));
       setFriends(normalized);
+      setFriendsLoaded(true);
       // Server now attaches lastMessage/lastActivity from dmHistory — seed list previews.
       setDmPreviews((prev) => {
         let changed = false;
@@ -1599,6 +1641,8 @@ export default function App() {
     } catch (err) {
       // Keep previous list — a transient API failure should not wipe the sidebar
       console.error("[groups] fetch failed", err);
+    } finally {
+      setGroupsLoaded(true);
     }
   }, []);
 
@@ -1702,6 +1746,73 @@ export default function App() {
     }
   }, [me?.id, fetchGroups]);
 
+  // URL is authoritative for an existing browser entry. Only friends and
+  // current group members can resolve a conversation route; invalid targets
+  // fall back to their safe list view without ever loading private history.
+  useEffect(() => {
+    if (!me?.id || !sessionChecked) return;
+
+    if (requestedRoute.unknown) {
+      navigate("/direct", { replace: true });
+      return;
+    }
+
+    setActiveView(requestedRoute.view);
+    setUserPanelOpen(Boolean(requestedRoute.settingsTab));
+
+    if (requestedRoute.view === "chat") {
+      setActiveGroup(null);
+      if (!requestedRoute.username) {
+        setActiveDmUser(null);
+        return;
+      }
+      if (!friendsLoaded) return;
+      const friend = friends.find(
+        (item) => item?.username?.toLowerCase() === requestedRoute.username.toLowerCase()
+      );
+      if (!friend) {
+        setActiveDmUser(null);
+        navigate("/direct", { replace: true });
+        return;
+      }
+      if (activeDmRef.current?.id !== friend.id) handleOpenDm(friend);
+      return;
+    }
+
+    if (requestedRoute.view === "groups") {
+      setActiveDmUser(null);
+      if (!requestedRoute.groupId) {
+        setActiveGroup(null);
+        return;
+      }
+      if (!groupsLoaded) return;
+      const group = myGroups.find((item) => item?.id === requestedRoute.groupId);
+      if (!group) {
+        setActiveGroup(null);
+        navigate("/groups", { replace: true });
+        return;
+      }
+      if (activeGroupRef.current?.id !== group.id) {
+        setActiveGroup(group);
+        socketRef.current?.emit("group:join", group.id);
+      }
+      return;
+    }
+
+    setActiveDmUser(null);
+    setActiveGroup(null);
+  }, [
+    friends,
+    friendsLoaded,
+    groupsLoaded,
+    location.pathname,
+    me?.id,
+    myGroups,
+    navigate,
+    requestedRoute,
+    sessionChecked,
+  ]);
+
   const handleOpenDm = (friend) => {
     if (!friend || !friend.id) {
       // Close DM (null friend)
@@ -1711,6 +1822,8 @@ export default function App() {
       socketRef.current?.emit("dm:set_active", { withUserId: null });
       return;
     }
+    const nextPath = directPath(friend);
+    if (location.pathname !== nextPath) navigate(nextPath);
     const unread = dmUnread[friend.id] || 0;
     setUnreadMarker(unread > 0 ? { key: `dm:${friend.id}`, count: unread } : null);
     setActiveGroup(null);
@@ -2140,6 +2253,9 @@ export default function App() {
 
   // Public marketing site for logged-out users (real SEO routes)
   if (!me) {
+    if (isAuthenticatedAppPath(location.pathname)) {
+      return <Navigate to="/" replace />;
+    }
     return (
       <>
         <TitleBar />
@@ -2188,6 +2304,23 @@ export default function App() {
           onProfileUpdated={applyProfileUpdate}
           activeDmUser={activeDmUser}
           activeGroup={activeGroup}
+          activeView={activeView}
+          onActiveViewChange={(view) => {
+            const nextPath = appPathForView(view);
+            setActiveView(view);
+            if (location.pathname !== nextPath) navigate(nextPath);
+          }}
+          userPanelOpen={userPanelOpen}
+          settingsTab={requestedRoute.settingsTab}
+          onUserPanelOpenChange={(open) => {
+            setUserPanelOpen(open);
+            const nextPath = open ? "/settings" : appPathForView(activeView);
+            if (location.pathname !== nextPath) navigate(nextPath);
+          }}
+          onSettingsTabChange={(tab) => {
+            const nextPath = tab && tab !== "overview" ? `/settings/${encodeURIComponent(tab)}` : "/settings";
+            if (location.pathname !== nextPath) navigate(nextPath);
+          }}
           groups={sortedGroups}
           dms={sortedDms}
           friends={friends}
@@ -2203,8 +2336,11 @@ export default function App() {
               setUnreadMarker(null);
               setMessagesLoading(false);
               socketRef.current?.emit("dm:set_active", { withUserId: null });
+              if (location.pathname.startsWith("/direct/")) navigate("/direct");
               return;
             }
+            const nextPath = directPath(dm);
+            if (location.pathname !== nextPath) navigate(nextPath);
             const unread = dmUnread[dm.id] || 0;
             setUnreadMarker(unread > 0 ? { key: `dm:${dm.id}`, count: unread } : null);
             setActiveGroup(null);
@@ -2223,8 +2359,11 @@ export default function App() {
               setUnreadMarker(null);
               setMessagesLoading(false);
               socketRef.current?.emit("dm:set_active", { withUserId: null });
+              if (location.pathname.startsWith("/groups/")) navigate("/groups");
               return;
             }
+            const nextPath = groupPath(group);
+            if (location.pathname !== nextPath) navigate(nextPath);
             const unread = groupUnread[group.id] || 0;
             setUnreadMarker(unread > 0 ? { key: `group:${group.id}`, count: unread } : null);
             setActiveGroup(group);

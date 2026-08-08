@@ -75,13 +75,29 @@ export default function AppLayout({
   onStatusChange,
   replyTo = null,
   onClearReply,
+  activeView: controlledActiveView,
+  onActiveViewChange,
+  userPanelOpen: controlledUserPanelOpen,
+  onUserPanelOpenChange,
+  settingsTab,
+  onSettingsTabChange,
 }) {
   const t = useT();
   const { isMobile } = useMobile();
   useMobileKeyboard(isMobile);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeView, setActiveView] = useState("chat");
-  const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [localActiveView, setLocalActiveView] = useState("chat");
+  const [localUserPanelOpen, setLocalUserPanelOpen] = useState(false);
+  const activeView = controlledActiveView ?? localActiveView;
+  const userPanelOpen = controlledUserPanelOpen ?? localUserPanelOpen;
+  const setActiveView = useCallback((view) => {
+    if (onActiveViewChange) onActiveViewChange(view);
+    else setLocalActiveView(view);
+  }, [onActiveViewChange]);
+  const setUserPanelOpen = useCallback((open) => {
+    if (onUserPanelOpenChange) onUserPanelOpenChange(open);
+    else setLocalUserPanelOpen(open);
+  }, [onUserPanelOpenChange]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTab, setAddTab] = useState("friend");
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
@@ -396,6 +412,8 @@ export default function AppLayout({
             onProfileUpdated={onProfileUpdated}
             myStatus={myStatus}
             onStatusChange={onStatusChange}
+            initialTab={settingsTab}
+            onTabChange={onSettingsTabChange}
           />
         )}
       </AnimatePresence>
