@@ -20,6 +20,10 @@ const dmRemoteVideo = readFileSync(
   fileURLToPath(new URL("../components/CallOverlay.jsx", import.meta.url)),
   "utf8",
 );
+const remoteScreenEvents = source.slice(
+  source.indexOf("const handleRemoteScreenShareStart"),
+  source.indexOf("// Change active microphone mid-call"),
+);
 
 assert.match(startScreenShare, /navigator\.mediaDevices\?\.getDisplayMedia/);
 assert.doesNotMatch(
@@ -29,7 +33,14 @@ assert.doesNotMatch(
 );
 assert.match(source, /receivedVideoTracksRef/);
 assert.match(source, /hasAudio/);
+assert.match(remoteScreenEvents, /socket\.on\("screen:share-start", onScreenShareStart\)/);
+assert.match(remoteScreenEvents, /socket\.on\("screen:share-stop", onScreenShareStop\)/);
+assert.match(remoteScreenEvents, /socket\.off\("screen:share-start", onScreenShareStart\)/);
+assert.match(remoteScreenEvents, /socket\.off\("screen:share-stop", onScreenShareStop\)/);
 assert.match(dmRemoteVideo, /const dmRemoteHasVideo = streamHasLiveVideo\(call\?\.remoteStream\);/);
 assert.doesNotMatch(dmRemoteVideo, /dmRemoteHasVideo = .*callType === "video"/);
+assert.match(dmRemoteVideo, /const remoteAudio = isDm \?/);
+assert.match(dmRemoteVideo, /audio\.srcObject !== stream/);
+assert.match(dmRemoteVideo, /hasLiveAudio/);
 
 console.log("useCall media negotiation self-test passed");

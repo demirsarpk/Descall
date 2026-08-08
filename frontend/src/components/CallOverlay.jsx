@@ -85,6 +85,7 @@ export default function CallOverlay({ call, groupCall, me }) {
   const isDmActive = call?.mode !== null && call?.mode !== undefined;
   const isGroupActive = groupCall?.isInCall;
   const active = isDmActive || isGroupActive;
+  const isDm = isDmActive;
 
   useEffect(() => {
     if (!active) {
@@ -96,9 +97,23 @@ export default function CallOverlay({ call, groupCall, me }) {
     }
   }, [active]);
 
+  // `ontrack` can run while an incoming caller is still negotiating, before
+  // the active-call UI mounts its <audio>. Retry attachment after each render
+  // so the first remote audio track is never lost until a later renegotiation.
+  useEffect(() => {
+    const audio = call?.remoteAudioRef?.current;
+    const stream = call?.remoteStream;
+    const hasLiveAudio = stream?.getAudioTracks?.().some(
+      (track) => track?.readyState === "live" || track?.readyState === "new"
+    );
+    if (!isDm || !audio || !stream || !hasLiveAudio) return;
+    if (audio.srcObject !== stream) audio.srcObject = stream;
+    audio.muted = false;
+    audio.play().catch(() => {});
+  }, [isDm, call?.mode, call?.remoteAudioRef, call?.remoteStream]);
+
   if (!active) return null;
 
-  const isDm = isDmActive;
   const mode = isDm ? call.mode : "active";
   const peer = isDm ? call.peer : null;
   const callType = isDm ? call.callType : groupCall.callType;
@@ -139,19 +154,32 @@ export default function CallOverlay({ call, groupCall, me }) {
     />
   );
 
+  const remoteAudio = isDm ? (
+    <audio
+      ref={call?.remoteAudioRef}
+      autoPlay
+      playsInline
+      style={{ display: "none" }}
+      aria-hidden="true"
+    />
+  ) : null;
+
   /* ---------- Incoming DM: FaceTime-style avatar rings ---------- */
   if (isDm && mode === "incoming") {
     return (
-      <AnimatePresence>
-        <IncomingCallCard
-          key="dm-incoming-call"
-          username={peer?.username}
-          user={peer}
-          callType={callType}
-          onDecline={() => call.declineIncoming?.()}
-          onAccept={() => call.acceptIncoming?.()}
-        />
-      </AnimatePresence>
+      <>
+        {remoteAudio}
+        <AnimatePresence>
+          <IncomingCallCard
+            key="dm-incoming-call"
+            username={peer?.username}
+            user={peer}
+            callType={callType}
+            onDecline={() => call.declineIncoming?.()}
+            onAccept={() => call.acceptIncoming?.()}
+          />
+        </AnimatePresence>
+      </>
     );
   }
 
@@ -324,15 +352,7 @@ export default function CallOverlay({ call, groupCall, me }) {
 
   return (
     <>
-    {isDm && mode === "active" && (
-      <audio
-        ref={call?.remoteAudioRef}
-        autoPlay
-        playsInline
-        style={{ display: "none" }}
-        aria-hidden="true"
-      />
-    )}
+    {remoteAudio}
     {pipSource}
     <motion.div
       data-call-overlay="true"
