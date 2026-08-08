@@ -822,8 +822,16 @@ export function useGroupCall(socket, currentUserId = null) {
     if (track) {
       track.enabled = !track.enabled;
       setIsMuted(!track.enabled);
+      const groupId = activeGroupIdRef.current;
+      if (groupId && socketRef.current?.connected) {
+        socketRef.current.emit("group:call:media-state", {
+          groupId,
+          muted: !track.enabled,
+          cameraOn: Boolean(isCameraOn),
+        });
+      }
     }
-  }, []);
+  }, [isCameraOn]);
 
   const toggleCamera = useCallback(async () => {
     if (isCameraOn) {
@@ -833,6 +841,14 @@ export function useGroupCall(socket, currentUserId = null) {
       }
       if (localVideoRef.current) localVideoRef.current.style.display = "none";
       setIsCameraOn(false);
+      const groupId = activeGroupIdRef.current;
+      if (groupId && socketRef.current?.connected) {
+        socketRef.current.emit("group:call:media-state", {
+          groupId,
+          muted: Boolean(isMuted),
+          cameraOn: false,
+        });
+      }
     } else {
       try {
         let videoTrack = localStreamRef.current?.getVideoTracks()[0];
@@ -871,6 +887,14 @@ export function useGroupCall(socket, currentUserId = null) {
           localVideoRef.current.play().catch(() => {});
         }
         setIsCameraOn(true);
+        const groupId = activeGroupIdRef.current;
+        if (groupId && socketRef.current?.connected) {
+          socketRef.current.emit("group:call:media-state", {
+            groupId,
+            muted: Boolean(isMuted),
+            cameraOn: true,
+          });
+        }
         if (!addedNewTrack) {
           setCallType("video");
           callTypeRef.current = "video";
@@ -879,7 +903,7 @@ export function useGroupCall(socket, currentUserId = null) {
         console.error("[GroupCall] toggleCamera failed:", err);
       }
     }
-  }, [isCameraOn, renegotiateWithPeer]);
+  }, [isCameraOn, isMuted, renegotiateWithPeer]);
 
   const startScreenShare = useCallback(async (quality) => {
     console.log('[GroupScreenShare] startScreenShare called, quality:', quality);
@@ -914,6 +938,10 @@ export function useGroupCall(socket, currentUserId = null) {
           buildElectronDesktopConstraints(sourceId, { width, height, fps: frameRate })
         );
       } else {
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+          toast(tRuntime("Screen sharing is not available in this browser."), "error");
+          return;
+        }
         stream = await navigator.mediaDevices.getDisplayMedia(
           buildDisplayMediaConstraints({ width, height, fps: frameRate })
         );
@@ -1617,6 +1645,15 @@ export function useGroupCall(socket, currentUserId = null) {
       ));
     };
 
+    const onMediaState = ({ groupId, fromUserId, muted, cameraOn }) => {
+      if (!groupId || !fromUserId || fromUserId === myIdRef.current) return;
+      setParticipants((prev) => prev.map((p) =>
+        p.id === fromUserId
+          ? { ...p, isMuted: Boolean(muted), isCameraOn: Boolean(cameraOn) }
+          : p
+      ));
+    };
+
     const onParticipants = ({ groupId, participants: enrichedList, callType: existingCallType }) => {
       if (!enrichedList?.length) return;
       setParticipants((prev) => {
@@ -1743,6 +1780,7 @@ export function useGroupCall(socket, currentUserId = null) {
     socket.on("group:call:declined", onDeclined);
     socket.on("group:screen:started", onScreenStarted);
     socket.on("group:screen:stopped", onScreenStopped);
+    socket.on("group:call:media-state", onMediaState);
     socket.on("group:call:participant-joined", onParticipantJoined);
     socket.on("group:call:started", onCallStarted);
     socket.on("group:call:join-existing", onJoinExisting);
@@ -1763,6 +1801,7 @@ export function useGroupCall(socket, currentUserId = null) {
       socket.off("group:call:declined", onDeclined);
       socket.off("group:screen:started", onScreenStarted);
       socket.off("group:screen:stopped", onScreenStopped);
+      socket.off("group:call:media-state", onMediaState);
       socket.off("group:call:participant-joined", onParticipantJoined);
       socket.off("group:call:started", onCallStarted);
       socket.off("group:call:join-existing", onJoinExisting);

@@ -557,6 +557,20 @@ function registerGroupHandlers(io, socket, state) {
     await endGroupCall(io, groupId, myId, activeCall);
   });
 
+  // Broadcast per-participant UI state. Media tracks can remain live after
+  // their sender is disabled, so receivers cannot reliably infer these flags.
+  socket.on("group:call:media-state", ({ groupId, muted, cameraOn } = {}) => {
+    if (!groupId) return;
+    const activeCall = activeGroupCalls.get(groupId);
+    if (!activeCall?.participants?.has(myId)) return;
+    socket.to(`group:${groupId}`).emit("group:call:media-state", {
+      groupId,
+      fromUserId: myId,
+      muted: Boolean(muted),
+      cameraOn: Boolean(cameraOn),
+    });
+  });
+
   // Screen share started — persist session
   socket.on("group:screen:start", ({ groupId }) => {
     if (!groupId) return;

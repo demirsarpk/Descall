@@ -402,6 +402,15 @@ async function loadFriendsFromDB(userId) {
   }
 }
 
+async function isAcceptedFriend(userId, otherUserId) {
+  let friendSet = friends.get(userId);
+  // A socket can receive dm:history before its asynchronous boot-time friend
+  // load completes. Hydrate from the durable source instead of treating the
+  // temporary cache miss as a denial.
+  if (!friendSet) friendSet = await loadFriendsFromDB(userId);
+  return Boolean(friendSet?.has(otherUserId));
+}
+
 // Load pending friend requests from DB into memory
 async function loadPendingRequestsFromDB(userId) {
   try {
@@ -1030,7 +1039,7 @@ function registerSocketHandlers(io) {
 
     socket.on("dm:history", async ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
-      if (!friends.get(myId)?.has(withUserId)) {
+      if (!(await isAcceptedFriend(myId, withUserId))) {
         return socket.emit("dm:history", { withUserId, messages: [] });
       }
       try {
@@ -1045,7 +1054,7 @@ function registerSocketHandlers(io) {
 
     socket.on("dm:fetch", async ({ withUserId, before, limit = 50 } = {}) => {
       if (typeof withUserId !== "string") return;
-      if (!friends.get(myId)?.has(withUserId)) {
+      if (!(await isAcceptedFriend(myId, withUserId))) {
         return socket.emit("dm:page", { withUserId, messages: [], hasMore: false });
       }
       try {
@@ -1174,6 +1183,17 @@ function registerSocketHandlers(io) {
     socket.on("screen:share-stop", ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
       emitToUser(io, toUserId, "screen:share-stop", { fromUserId: myId });
+    });
+
+    // Media state is presentation-only; it lets the remote tile immediately
+    // show muted/camera-off status instead of inferring it from a frozen track.
+    socket.on("call:media-state", ({ toUserId, muted, cameraOn } = {}) => {
+      if (typeof toUserId !== "string") return;
+      emitToUser(io, toUserId, "call:media-state", {
+        fromUserId: myId,
+        muted: Boolean(muted),
+        cameraOn: Boolean(cameraOn),
+      });
     });
 
     socket.on("room:join", (roomId) => {

@@ -219,12 +219,23 @@ export default function ChatPanel({
               <Hash size={20} />
             </div>
           )}
-          <div className="header-title-block">
+          <div
+            className="header-title-block"
+            role={activeDmUser ? "button" : undefined}
+            tabIndex={activeDmUser ? 0 : undefined}
+            onClick={activeDmUser ? () => setProfileTarget(activeDmUser) : undefined}
+            onKeyDown={activeDmUser ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setProfileTarget(activeDmUser);
+              }
+            } : undefined}
+            title={activeDmUser ? t("View profile") : undefined}
+            style={{ cursor: activeDmUser ? "pointer" : "default" }}
+          >
             <h1
               className="header-title"
-              style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", cursor: activeDmUser ? "pointer" : "default" }}
-              onClick={activeDmUser ? () => setProfileTarget(activeDmUser) : undefined}
-              title={activeDmUser ? t("View profile") : undefined}
+              style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap" }}
             >
               {getTitle()}
               {activeDmUser && <AdminBadge user={activeDmUser} variant="inline" />}
