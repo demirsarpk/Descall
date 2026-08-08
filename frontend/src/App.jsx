@@ -38,6 +38,7 @@ import {
 import audioManager, { initAudioManager } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
 import { subscribeWebPush } from "./lib/webPushSubscription";
+import { requestNativePushPermission } from "./lib/nativePush";
 import { useToast } from "./context/ToastContext";
 import { useLocale } from "./context/LocaleContext";
 import { t as tRuntime } from "./i18n/runtime";
@@ -597,6 +598,11 @@ export default function App() {
     initAudioManager().catch(() => {});
     notificationService.init().catch(() => {});
     setNotifPermission(notificationService.getPermissionState());
+    requestNativePushPermission()
+      .then((permission) => {
+        if (permission) setNotifPermission(permission);
+      })
+      .catch((error) => console.warn("[NativePush] Permission request failed:", error?.message || error));
     return () => { audioManager.destroy(); };
   }, []);
 
@@ -617,6 +623,11 @@ export default function App() {
   }, []);
 
   const handleRequestNotifPermission = async () => {
+    const nativePermission = await requestNativePushPermission();
+    if (nativePermission) {
+      setNotifPermission(nativePermission);
+      return;
+    }
     const result = await notificationService.requestPermission();
     if (result === "granted") subscribeWebPush().catch(() => {});
     setNotifPermission(result);
