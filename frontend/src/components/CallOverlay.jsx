@@ -333,7 +333,7 @@ export default function CallOverlay({ call, groupCall, me }) {
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
   const remoteScreenSharers = isDm
-    ? (call?.remoteScreenSharing && call?.remoteScreenStream && call?.peer
+    ? (call?.remoteScreenSharing && streamHasLiveVideo(call?.remoteScreenStream) && call?.peer
         ? [{
             id: call.peer.id,
             username: call.peer.username,

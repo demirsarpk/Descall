@@ -159,7 +159,7 @@ function showElectronScreenPicker(sources) {
  *   call:offer, call:answer, call:ice-candidate, call:ended, call:declined
  *   screen:share-start, screen:share-stop, screen:stream-replace
  */
-export function useCall(socket) {
+export function useCall(socket, callOccupancyRef = null) {
   const { toast } = useToast();
   const [mode, setMode] = useState(null); // null | "incoming" | "outgoing" | "active"
   const [callType, setCallType] = useState(null); // null | "voice" | "video"
@@ -577,6 +577,10 @@ export function useCall(socket) {
 
     const onOffer = async ({ fromUser, offer, callType: incomingType } = {}) => {
       if (!fromUser?.id || !offer) return;
+      if (callOccupancyRef?.current?.groupActive) {
+        socketRef.current?.emit("call:decline", { toUserId: fromUser.id });
+        return;
+      }
       
       const pc = pcRef.current;
       const isRenegotiation = pc && modeRef.current === "active" && peerRef.current?.id === fromUser.id;
