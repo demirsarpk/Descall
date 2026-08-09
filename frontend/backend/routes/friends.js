@@ -2,6 +2,7 @@ const express = require("express");
 const supabase = require("../db/supabase");
 const { requireAuth } = require("../middleware/auth");
 const { pendingRequests, presence, usernameById } = require("../runtime/sharedState");
+const { blockUser, unblockUser, getBlockedList } = require("../lib/blocking");
 
 const router = express.Router();
 
@@ -382,6 +383,76 @@ router.get("/mutual/:username", requireAuth, async (req, res) => {
     res.json({ mutualFriends, count: mutualFriends.length });
   } catch (err) {
     console.error("Mutual friends error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ─── Blocking ────────────────────────────────────────────────────────
+// Blocking a user severs the friendship and silently prevents DMs, direct
+// calls, and future friend requests in both directions (see lib/blocking.js
+// and its use in socket/handlers.js for dm:send / call:offer / friend:request).
+
+router.post("/block", requireAuth, async (req, res) => {
+  try {
+    const { userId: targetId } = req.body ?? {};
+    if (typeof targetId !== "string" || !targetId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+    if (targetId === req.user.id) {
+      return res.status(400).json({ error: "You cannot block yourself" });
+    }
+    const result = await blockUser(req.user.id, targetId);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+
+    const io = req.app.get("io");
+    if (io) {
+      // Server-side friends/pending maps were already cleaned in blockUser();
+      // ask both clients to re-pull their lists from the (now consistent) server state.
+      io.to(`user:${req.user.id}`).emit("friend:blocked", { userId: targetId });
+      io.to(`user:${targetId}`).emit("friend:blocked", { userId: req.user.id });
+    }
+
+    res.json({ success: true, blockedUsers: result.blockedUsers });
+  } catch (err) {
+    console.error("Block user error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/unblock", requireAuth, async (req, res) => {
+  try {
+    const { userId: targetId } = req.body ?? {};
+    if (typeof targetId !== "string" || !targetId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+    const result = await unblockUser(req.user.id, targetId);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ success: true, blockedUsers: result.blockedUsers });
+  } catch (err) {
+    console.error("Unblock user error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/blocked", requireAuth, async (req, res) => {
+  try {
+    const ids = await getBlockedList(req.user.id);
+    if (ids.length === 0) return res.json({ blocked: [] });
+
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, username, avatar_url, display_name")
+      .in("id", ids);
+
+    const blocked = (users || []).map((u) => ({
+      id: u.id,
+      username: u.username,
+      avatarUrl: u.avatar_url || null,
+      displayName: u.display_name || null,
+    }));
+    res.json({ blocked });
+  } catch (err) {
+    console.error("List blocked users error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

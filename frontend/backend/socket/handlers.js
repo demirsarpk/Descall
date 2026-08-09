@@ -39,6 +39,7 @@ const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
 const { trackOffer, markAnswered, finalizeCall } = require("../lib/dmCallLog");
+const { isBlockedEitherWay } = require("../lib/blocking");
 
 async function notifyCallHistory(io, record) {
   if (!record) return;
@@ -718,6 +719,9 @@ function registerSocketHandlers(io) {
           appendErrorLog("friend:request", "Cannot add self", {}, myId, me.username);
           return socket.emit("friend:error", { message: "You cannot add yourself." });
         }
+        if (await isBlockedEitherWay(myId, target.id)) {
+          return socket.emit("friend:error", { message: "You can't send a request to this user." });
+        }
         const myFriends = ensureSet(friends, myId);
         if (myFriends.has(target.id) || ensureSet(friends, target.id).has(myId)) {
           appendErrorLog("friend:request", "Already friends", { targetId: target.id, targetUsername: target.username }, myId, me.username);
@@ -945,6 +949,9 @@ function registerSocketHandlers(io) {
         appendErrorLog("dm:send", "Conversation blocked", { toUserId }, myId, me.username);
         return socket.emit("dm:error", { message: "Conversation blocked.", tempId: tempId || null, toUserId });
       }
+      if (await isBlockedEitherWay(myId, toUserId)) {
+        return socket.emit("dm:error", { message: "You can't message this user.", tempId: tempId || null, toUserId });
+      }
       const now = Date.now();
       const last = rateLimitDm.get(myId) || 0;
       if (now - last < systemConfig.dmRateLimitMs) {
@@ -1140,10 +1147,13 @@ function registerSocketHandlers(io) {
       emitToUser(io, myId, "notifications:sync", { notifications: getNotifications(myId) });
     });
 
-    socket.on("call:offer", ({ toUserId, offer, callType } = {}) => {
+    socket.on("call:offer", async ({ toUserId, offer, callType } = {}) => {
       if (typeof toUserId !== "string" || !offer) return;
       const targetId = toUserId.trim();
       if (!targetId) return;
+      if (await isBlockedEitherWay(myId, targetId)) {
+        return socket.emit("call:error", { message: "You can't call this user.", toUserId: targetId });
+      }
 
       // Always attempt delivery via durable user room + presence fallback.
       const room = io.sockets?.adapter?.rooms?.get(`user:${targetId}`);
