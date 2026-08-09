@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, Video, Users, Hash,
   Settings, Search, MessageSquare, X, ChevronDown, ChevronRight, Menu, ChevronLeft,
-  UserPlus, Plus, Crown
+  UserPlus, Plus, Crown, Pin, PinOff
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -73,7 +73,73 @@ export default function ChatPanel({
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showMembers, setShowMembers] = useState(false);
+  const [showPinned, setShowPinned] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState([]);
   const [profileTarget, setProfileTarget] = useState(null);
+
+  const conversationKey = activeGroup?.id
+    ? { kind: "group", groupId: activeGroup.id }
+    : activeDmUser?.id
+      ? { kind: "dm", withUserId: activeDmUser.id }
+      : null;
+
+  useEffect(() => {
+    if (!socket) return undefined;
+    const onDmPinned = ({ withUserId, pinned } = {}) => {
+      if (conversationKey?.kind === "dm" && withUserId === conversationKey.withUserId) {
+        setPinnedMessages(pinned || []);
+      }
+    };
+    const onGroupPinned = ({ groupId, pinned } = {}) => {
+      if (conversationKey?.kind === "group" && groupId === conversationKey.groupId) {
+        setPinnedMessages(pinned || []);
+      }
+    };
+    const refresh = () => {
+      if (!conversationKey) return;
+      if (conversationKey.kind === "dm") socket.emit("dm:pinned:list", { withUserId: conversationKey.withUserId });
+      else socket.emit("group:pinned:list", { groupId: conversationKey.groupId });
+    };
+    socket.on("dm:pinned:list", onDmPinned);
+    socket.on("group:pinned:list", onGroupPinned);
+    socket.on("dm:message:pinned", refresh);
+    socket.on("dm:message:unpinned", refresh);
+    socket.on("group:message:pinned", refresh);
+    socket.on("group:message:unpinned", refresh);
+    return () => {
+      socket.off("dm:pinned:list", onDmPinned);
+      socket.off("group:pinned:list", onGroupPinned);
+      socket.off("dm:message:pinned", refresh);
+      socket.off("dm:message:unpinned", refresh);
+      socket.off("group:message:pinned", refresh);
+      socket.off("group:message:unpinned", refresh);
+    };
+  }, [socket, conversationKey?.kind, conversationKey?.withUserId, conversationKey?.groupId]);
+
+  useEffect(() => {
+    setPinnedMessages([]);
+    setShowPinned(false);
+  }, [activeDmUser?.id, activeGroup?.id]);
+
+  const togglePinnedPanel = () => {
+    const next = !showPinned;
+    setShowPinned(next);
+    setShowMembers(false);
+    setShowSearch(false);
+    if (next && socket && conversationKey) {
+      if (conversationKey.kind === "dm") socket.emit("dm:pinned:list", { withUserId: conversationKey.withUserId });
+      else socket.emit("group:pinned:list", { groupId: conversationKey.groupId });
+    }
+  };
+
+  const unpinMessage = (messageId) => {
+    if (!socket || !conversationKey) return;
+    if (conversationKey.kind === "dm") {
+      socket.emit("dm:message:unpin", { messageId, toUserId: conversationKey.withUserId });
+    } else {
+      socket.emit("group:message:unpin", { messageId, groupId: conversationKey.groupId });
+    }
+  };
 
   const typingNames = useMemo(() => {
     if (!activeDmUser && !activeGroup) return [];
@@ -263,6 +329,18 @@ export default function ChatPanel({
           >
             <Users size={20} />
           </button>
+          {(activeDmUser || activeGroup) && (
+            <button
+              className={`icon-btn ${showPinned ? "active" : ""}`}
+              title={t("Pinned messages")}
+              onClick={togglePinnedPanel}
+            >
+              <Pin size={20} />
+              {pinnedMessages.length > 0 && (
+                <span className="icon-btn-badge">{pinnedMessages.length}</span>
+              )}
+            </button>
+          )}
           {(activeDmUser || activeGroup) && (
             <>
               <button 
@@ -547,6 +625,78 @@ export default function ChatPanel({
                 </>
               );
             })()}
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+
+    {/* Pinned Messages Panel */}
+    <AnimatePresence>
+      {showPinned && (
+        <>
+          <motion.div
+            key="pinned-backdrop"
+            className="members-panel-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setShowPinned(false)}
+            aria-hidden="true"
+          />
+          <motion.aside
+            key="pinned-panel"
+            className="members-panel pinned-panel"
+            role="complementary"
+            aria-label={t("Pinned messages")}
+            initial={isMobile ? { x: "100%" } : { x: 24, opacity: 0 }}
+            animate={isMobile ? { x: 0 } : { x: 0, opacity: 1 }}
+            exit={isMobile ? { x: "100%" } : { x: 24, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+          >
+            <div className="members-panel-header">
+              <h4>
+                <Pin size={16} />
+                {t("Pinned messages")}
+                <span className="members-panel-count">{pinnedMessages.length}</span>
+              </h4>
+              <button type="button" className="icon-btn" onClick={() => setShowPinned(false)} title={t("Close")}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="members-panel-scroll">
+              {pinnedMessages.length === 0 ? (
+                <p className="members-empty">{t("No pinned messages yet")}</p>
+              ) : (
+                pinnedMessages.map((pm) => {
+                  const author = pm.from || pm.sender;
+                  return (
+                    <div key={pm.id} className="pinned-msg-row">
+                      <Avatar name={resolveDisplayName(author) || "?"} size={32} user={author} />
+                      <div className="pinned-msg-body">
+                        <div className="pinned-msg-meta">
+                          <span className="pinned-msg-author">{resolveDisplayName(author)}</span>
+                          <span className="pinned-msg-time">
+                            {pm.timestamp ? new Date(pm.timestamp).toLocaleDateString() : ""}
+                          </span>
+                        </div>
+                        <p className="pinned-msg-text">
+                          {pm.text || (pm.mediaType ? `📎 ${pm.mediaType}` : t("Message"))}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="icon-btn sm"
+                        title={t("Unpin")}
+                        onClick={() => unpinMessage(pm.id)}
+                      >
+                        <PinOff size={14} />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </motion.aside>
         </>
       )}

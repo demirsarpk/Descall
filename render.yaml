@@ -17,6 +17,9 @@
 #   - GITHUB_RELEASE_TOKEN (optional but recommended: a fine-grained PAT with
 #     public-repo read access, so /api/app/latest-release isn't starved by
 #     GitHub's 60 req/hr unauthenticated limit shared across Render's IPs)
+#   - STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET (real-money shop checkout — see
+#     https://dashboard.stripe.com/apikeys and /webhooks; test mode keys work
+#     out of the box, switch to live keys when ready to charge real cards)
 # JWT_SECRET otomatik üretilir (generateValue).
 
 previews:
@@ -73,6 +76,10 @@ services:
         sync: false
       - key: GITHUB_RELEASE_TOKEN
         sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
 
   # ── Staging (test site) ─────────────────────────────────────────
   - type: web
@@ -123,4 +130,8 @@ services:
       - key: VITE_WEB_PUSH_PUBLIC_KEY
         sync: false
       - key: GITHUB_RELEASE_TOKEN
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
         sync: false

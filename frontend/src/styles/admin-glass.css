@@ -1173,3 +1173,139 @@
     display: none;
   }
 }
+
+/* ── Shop: catalog + gifting (Admin panel) ───────────────────────── */
+.admin-shop-gift-card {
+  padding: 20px;
+}
+
+.admin-shop-gift-card h3 {
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.admin-shop-gift-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.admin-shop-gift-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.admin-shop-gift-field-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-shop-gift-field label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(244, 246, 251, 0.45);
+}
+
+.admin-shop-user-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.admin-shop-user-search svg {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.admin-shop-user-search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 9px 0;
+  font-size: 13px;
+  outline: none;
+}
+
+.admin-shop-user-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  z-index: 20;
+  background: rgba(20, 22, 30, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+}
+
+.admin-shop-user-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.admin-shop-user-result:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.admin-shop-selected-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.admin-shop-selected-user span {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-shop-selected-user button {
+  background: none;
+  border: none;
+  color: rgba(244, 246, 251, 0.5);
+  cursor: pointer;
+  display: flex;
+}
+
+.admin-shop-selected-user button:hover {
+  color: #f87171;
+}
+
+.admin-shop-gift-notice {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: rgba(244, 246, 251, 0.65);
+}
+
+.admin-shop-create-form {
+  margin: 12px 0 20px;
+  padding: 18px;
+  overflow: hidden;
+}
+

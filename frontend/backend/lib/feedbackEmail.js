@@ -1,6 +1,6 @@
 "use strict";
 
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
+const { sendEmail } = require("./mailer");
 
 function cleanText(value, maxLength = 4000) {
   return String(value || "")
@@ -37,36 +37,18 @@ function feedbackEmailContent(feedback) {
 }
 
 async function sendFeedbackEmail(feedback, { fetchImpl = fetch, env = process.env } = {}) {
-  const apiKey = env.RESEND_API_KEY;
   const to = env.FEEDBACK_EMAIL_TO;
-  const from = env.FEEDBACK_EMAIL_FROM;
-  if (!apiKey || !to || !from) {
+  if (!to) {
     return { sent: false, skipped: true, error: "Feedback email is not configured" };
   }
 
   const subject = `[Feedback][${cleanText(feedback.category, 80) || "other"}] ${
     cleanText(feedback.subject, 160) || "New feedback"
   }`;
-  const response = await fetchImpl(RESEND_ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject,
-      text: feedbackEmailContent(feedback),
-    }),
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = cleanText(payload?.message || `Resend request failed (${response.status})`, 500);
-    throw new Error(error);
-  }
-  return { sent: true, providerId: cleanText(payload?.id, 128) || null };
+  return sendEmail(
+    { to, subject, text: feedbackEmailContent(feedback) },
+    { fetchImpl, env }
+  );
 }
 
 module.exports = { sendFeedbackEmail, feedbackEmailContent };

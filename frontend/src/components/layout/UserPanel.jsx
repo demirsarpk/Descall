@@ -4,13 +4,27 @@ import {
   X, Mic, Headphones, Bell, User, LogOut, Moon, Sun,
   ChevronRight, ChevronLeft, Palette, Volume2, Camera,
   Type, Upload, Check, MonitorSpeaker, AlertTriangle,
-  Copy, Image as ImageIcon, RefreshCw, Globe,
+  Copy, Image as ImageIcon, RefreshCw, Globe, Shield,
+  ShoppingBag, Mail, Monitor, CheckCircle2, UserX,
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import { getToken, setUser } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { normalizeUser } from "../../lib/userProfile";
+import { cssUrl } from "../../lib/cssUrl";
+import { getMe } from "../../api/auth";
+import {
+  setEmail as apiSetEmail,
+  resendEmailCode,
+  verifyEmailCode,
+  enable2fa,
+  disable2fa,
+  getSessions,
+  revokeSession,
+  revokeOtherSessions,
+} from "../../api/security";
+import { unblockUser, getBlockedUsers } from "../../api/friends";
 import { setSoundEnabled, getAudioSettings } from "../../lib/audioManager";
 import { useMobile } from "../../hooks/useMobile";
 import { useLocale } from "../../context/LocaleContext";
@@ -18,6 +32,7 @@ import { detectDefaultLocale } from "../../i18n/detect";
 import RiotLinkCard from "../settings/RiotLinkCard";
 import ValorantBadge from "../social/ValorantBadge";
 import AdminBadge from "../social/AdminBadge";
+import ShopPanel from "../settings/ShopPanel";
 
 /* ─── Helpers ─── */
 const SETTINGS_KEY = "descall_user_settings";
@@ -120,6 +135,7 @@ const NAV_GROUPS_DEF = [
     items: [
       { id: "overview", labelKey: "settings.myAccount", icon: User, hintKey: "settings.accountHint" },
       { id: "profile", labelKey: "settings.profile", icon: Type, hintKey: "settings.profileHint" },
+      { id: "security", labelKey: "settings.security", icon: Shield, hintKey: "settings.securityHint" },
     ],
   },
   {
@@ -137,16 +153,24 @@ const NAV_GROUPS_DEF = [
       { id: "sound", labelKey: "settings.soundEffects", icon: Volume2, hintKey: "settings.soundHint" },
     ],
   },
+  {
+    labelKey: "settings.personalization",
+    items: [
+      { id: "shop", labelKey: "settings.shop", icon: ShoppingBag, hintKey: "settings.shopHint" },
+    ],
+  },
 ];
 
 const TAB_TITLE_KEYS = {
   overview: "settings.myAccount",
   profile: "settings.profile",
+  security: "settings.security",
   appearance: "settings.appearance",
   notifications: "settings.notifications",
   language: "settings.language",
   voice: "settings.voiceVideo",
   sound: "settings.soundEffects",
+  shop: "settings.shop",
 };
 
 const UserPanel = forwardRef(function UserPanel({
@@ -202,6 +226,193 @@ const UserPanel = forwardRef(function UserPanel({
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const fileInputRef = useRef(null);
+
+  /* ── Security: email verification, 2FA, sessions, blocked users ── */
+  const [emailDraft, setEmailDraft] = useState(me?.email || "");
+  const [emailVerified, setEmailVerified] = useState(Boolean(me?.emailVerified));
+  const [emailCode, setEmailCode] = useState("");
+  const [emailStage, setEmailStage] = useState(me?.email && !me?.emailVerified ? "code" : "idle");
+  const [emailNotice, setEmailNotice] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [twoFactorOn, setTwoFactorOn] = useState(Boolean(me?.twoFactorEnabled));
+  const [disable2faPassword, setDisable2faPassword] = useState("");
+  const [show2faPasswordPrompt, setShow2faPasswordPrompt] = useState(false);
+  const [twoFaBusy, setTwoFaBusy] = useState(false);
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionNotice, setSessionNotice] = useState("");
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [blockedLoading, setBlockedLoading] = useState(false);
+
+  useEffect(() => {
+    setEmailDraft(me?.email || "");
+    setEmailVerified(Boolean(me?.emailVerified));
+    setTwoFactorOn(Boolean(me?.twoFactorEnabled));
+  }, [me?.email, me?.emailVerified, me?.twoFactorEnabled]);
+
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const { sessions: list } = await getSessions();
+      setSessions(list || []);
+    } catch {
+      /* best-effort */
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  const loadBlocked = useCallback(async () => {
+    setBlockedLoading(true);
+    try {
+      const { blocked } = await getBlockedUsers();
+      setBlockedUsers(blocked || []);
+    } catch {
+      /* best-effort */
+    } finally {
+      setBlockedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "security") {
+      loadSessions();
+      loadBlocked();
+    }
+  }, [activeTab, loadSessions, loadBlocked]);
+
+  const refreshMeFromServer = useCallback(async () => {
+    try {
+      const token = getToken();
+      const { user } = await getMe(token);
+      const normalized = normalizeUser(user);
+      setUser(normalized);
+      onProfileUpdated?.(normalized);
+      return normalized;
+    } catch {
+      return null;
+    }
+  }, [onProfileUpdated]);
+
+  const handleSendEmailCode = async () => {
+    setEmailBusy(true);
+    setEmailNotice("");
+    try {
+      await apiSetEmail(emailDraft.trim());
+      setEmailStage("code");
+      setEmailNotice(t("Verification code sent. Check your inbox."));
+    } catch (err) {
+      setEmailNotice(err.message || t("Failed to send verification code."));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handleResendEmailCode = async () => {
+    setEmailBusy(true);
+    setEmailNotice("");
+    try {
+      await resendEmailCode();
+      setEmailNotice(t("Verification code sent. Check your inbox."));
+    } catch (err) {
+      setEmailNotice(err.message || t("Failed to resend code."));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handleVerifyEmailCode = async () => {
+    setEmailBusy(true);
+    setEmailNotice("");
+    try {
+      await verifyEmailCode(emailCode.trim());
+      setEmailVerified(true);
+      setEmailStage("idle");
+      setEmailCode("");
+      setEmailNotice(t("Email verified!"));
+      await refreshMeFromServer();
+    } catch (err) {
+      setEmailNotice(err.message || t("Incorrect code."));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handleToggle2fa = async (checked) => {
+    if (checked) {
+      setTwoFaBusy(true);
+      try {
+        await enable2fa();
+        setTwoFactorOn(true);
+        await refreshMeFromServer();
+      } catch (err) {
+        setEmailNotice(err.message || t("Failed to enable two-factor authentication."));
+      } finally {
+        setTwoFaBusy(false);
+      }
+    } else {
+      setShow2faPasswordPrompt(true);
+    }
+  };
+
+  const confirmDisable2fa = async () => {
+    setTwoFaBusy(true);
+    try {
+      await disable2fa(disable2faPassword);
+      setTwoFactorOn(false);
+      setShow2faPasswordPrompt(false);
+      setDisable2faPassword("");
+      await refreshMeFromServer();
+    } catch (err) {
+      setSessionNotice(err.message || t("Incorrect password."));
+    } finally {
+      setTwoFaBusy(false);
+    }
+  };
+
+  const handleRevokeSession = async (sessionId) => {
+    try {
+      await revokeSession(sessionId);
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    } catch (err) {
+      setSessionNotice(err.message || t("Failed to end session."));
+    }
+  };
+
+  const handleRevokeOthers = async () => {
+    try {
+      const { sessions: list } = await revokeOtherSessions();
+      setSessions(list || []);
+      setSessionNotice(t("All other sessions were signed out."));
+    } catch (err) {
+      setSessionNotice(err.message || t("Failed to end other sessions."));
+    }
+  };
+
+  const handleUnblock = async (userId) => {
+    try {
+      await unblockUser(userId);
+      setBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
+    } catch {
+      /* best-effort */
+    }
+  };
+
+  /* ── Shop: equipped cosmetics ── */
+  const equipped = useMemo(
+    () => ({
+      bannerId: me?.equippedBanner?.id || null,
+      avatarFrameId: me?.equippedAvatarFrame?.id || null,
+      backgroundId: me?.equippedBackground?.id || null,
+    }),
+    [me?.equippedBanner?.id, me?.equippedAvatarFrame?.id, me?.equippedBackground?.id]
+  );
+
+  const handleEquippedChange = useCallback(() => {
+    // Re-fetch /auth/me so the resolved item (name, asset_url) is available
+    // app-wide immediately — nav rail, message avatars, profile modal, etc.
+    refreshMeFromServer();
+  }, [refreshMeFromServer]);
 
   /* ── Appearance ── */
   const [darkMode, setDarkMode] = useState(stored.darkMode !== false);
@@ -372,6 +583,10 @@ const UserPanel = forwardRef(function UserPanel({
     setBannerUrl(me.bannerUrl || me.banner_url || "");
   }, [me?.id, me?.avatarUrl, me?.avatar_url, me?.displayName, me?.display_name, me?.updated_at]);
 
+  // An equipped shop banner always takes precedence over a manually-set URL —
+  // matches how the rest of the app (UserProfileModal, message list) renders it.
+  const effectiveBannerUrl = me?.equippedBanner?.asset_url || bannerUrl;
+
   const applyProfileLocally = (user) => {
     const normalized = normalizeUser(user);
     if (!normalized) return;
@@ -510,14 +725,14 @@ const UserPanel = forwardRef(function UserPanel({
         return (
           <div className="us-tab">
             <div className="us-hero">
-              <div
-                className="us-hero-banner"
-                style={
-                  bannerUrl
-                    ? { backgroundImage: `url(${bannerUrl})` }
-                    : undefined
-                }
-              />
+            <div
+              className="us-hero-banner"
+              style={
+                effectiveBannerUrl
+                  ? { backgroundImage: cssUrl(effectiveBannerUrl) }
+                  : undefined
+              }
+            />
               <div className="us-hero-body">
                 <div className="us-hero-avatar">
                   <Avatar
@@ -590,8 +805,8 @@ const UserPanel = forwardRef(function UserPanel({
             <div
               className="us-profile-preview"
               style={
-                bannerUrl
-                  ? { backgroundImage: `url(${bannerUrl})` }
+                effectiveBannerUrl
+                  ? { backgroundImage: cssUrl(effectiveBannerUrl) }
                   : undefined
               }
             >
@@ -724,6 +939,208 @@ const UserPanel = forwardRef(function UserPanel({
                 {profileSaved ? <><Check size={16} /> {t("Saved")}</> : savingProfile ? t("Saving…") : t("Save changes")}
               </button>
             </div>
+          </div>
+        );
+
+      case "security":
+        return (
+          <div className="us-tab">
+            <p className="us-lead">{t("Protect your account with email verification and two-factor sign-in.")}</p>
+
+            <section className="us-section">
+              <h4 className="us-section-label">{t("Email address")}</h4>
+              <div className="us-card us-form">
+                <SettingRow
+                  icon={Mail}
+                  title={t("Email address")}
+                  description={
+                    emailVerified
+                      ? t("Verified — used for sign-in codes and account alerts.")
+                      : t("Verify your email to enable two-factor authentication.")
+                  }
+                >
+                  {emailVerified && (
+                    <span className="us-verified-pill">
+                      <CheckCircle2 size={13} /> {t("Verified")}
+                    </span>
+                  )}
+                </SettingRow>
+
+                {!emailVerified && (
+                  <div className="us-email-verify-flow">
+                    <input
+                      type="email"
+                      className="us-inline-input"
+                      placeholder={t("you@example.com")}
+                      value={emailDraft}
+                      onChange={(e) => setEmailDraft(e.target.value)}
+                      disabled={emailStage === "code"}
+                    />
+                    {emailStage !== "code" ? (
+                      <button
+                        type="button"
+                        className="us-btn primary"
+                        onClick={handleSendEmailCode}
+                        disabled={emailBusy || !emailDraft.trim()}
+                      >
+                        {emailBusy ? t("Sending…") : t("Send code")}
+                      </button>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          className="us-inline-input us-code-input"
+                          placeholder="123456"
+                          value={emailCode}
+                          onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, ""))}
+                        />
+                        <button
+                          type="button"
+                          className="us-btn primary"
+                          onClick={handleVerifyEmailCode}
+                          disabled={emailBusy || emailCode.length !== 6}
+                        >
+                          {emailBusy ? t("Verifying…") : t("Verify")}
+                        </button>
+                        <button type="button" className="us-link-btn" onClick={handleResendEmailCode} disabled={emailBusy}>
+                          {t("Resend code")}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+                {emailNotice && <p className="us-inline-notice">{emailNotice}</p>}
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">{t("Two-Factor Authentication")}</h4>
+              <div className="us-card stack">
+                <SettingRow
+                  icon={Shield}
+                  title={t("Two-Factor Authentication")}
+                  description={
+                    emailVerified
+                      ? t("Get a sign-in code emailed to you on every new login.")
+                      : t("Verify your email above to unlock this.")
+                  }
+                >
+                  <Toggle
+                    value={twoFactorOn}
+                    onChange={handleToggle2fa}
+                    label={t("Two-Factor Authentication")}
+                  />
+                </SettingRow>
+
+                <AnimatePresence>
+                  {show2faPasswordPrompt && (
+                    <motion.div
+                      className="us-email-verify-flow"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}
+                    >
+                      <p className="us-inline-notice">{t("Enter your password to turn off two-factor authentication.")}</p>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input
+                          type="password"
+                          className="us-inline-input"
+                          placeholder={t("Password")}
+                          value={disable2faPassword}
+                          onChange={(e) => setDisable2faPassword(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="us-btn primary"
+                          onClick={confirmDisable2fa}
+                          disabled={twoFaBusy || !disable2faPassword}
+                        >
+                          {t("Confirm")}
+                        </button>
+                        <button
+                          type="button"
+                          className="us-link-btn"
+                          onClick={() => { setShow2faPasswordPrompt(false); setDisable2faPassword(""); }}
+                        >
+                          {t("Cancel")}
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </section>
+
+            <section className="us-section">
+              <div className="us-section-label-row">
+                <h4 className="us-section-label">{t("Active sessions")}</h4>
+                {sessions.length > 1 && (
+                  <button type="button" className="us-link-btn" onClick={handleRevokeOthers}>
+                    <LogOut size={12} /> {t("Sign out all other sessions")}
+                  </button>
+                )}
+              </div>
+              {sessionNotice && <p className="us-inline-notice">{sessionNotice}</p>}
+              <div className="us-card stack">
+                {sessionsLoading ? (
+                  <p className="us-muted" style={{ padding: "8px 4px" }}>{t("Loading…")}</p>
+                ) : sessions.length === 0 ? (
+                  <p className="us-muted" style={{ padding: "8px 4px" }}>{t("No active sessions found.")}</p>
+                ) : (
+                  sessions.map((session) => (
+                    <div className="us-list-row" key={session.id}>
+                      <span className="us-row-icon"><Monitor size={16} /></span>
+                      <div className="us-row-copy" style={{ flex: 1 }}>
+                        <span className="us-row-title">
+                          {session.device}
+                          {session.current && <em className="us-current-tag"> · {t("This device")}</em>}
+                        </span>
+                        <span className="us-row-desc">
+                          {session.ip} • {t("Last active")}{" "}
+                          {session.lastActiveAt ? new Date(session.lastActiveAt).toLocaleString() : ""}
+                        </span>
+                      </div>
+                      {!session.current && (
+                        <button type="button" className="us-btn ghost sm" onClick={() => handleRevokeSession(session.id)}>
+                          {t("End session")}
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">{t("Blocked users")} ({blockedUsers.length})</h4>
+              <div className="us-card stack">
+                {blockedLoading ? (
+                  <p className="us-muted" style={{ padding: "8px 4px" }}>{t("Loading…")}</p>
+                ) : blockedUsers.length === 0 ? (
+                  <p className="us-muted" style={{ padding: "8px 4px" }}>{t("No blocked users")}</p>
+                ) : (
+                  blockedUsers.map((user) => (
+                    <div className="us-list-row" key={user.id}>
+                      <Avatar name={user.username} size={32} user={user} />
+                      <span className="us-row-title" style={{ flex: 1 }}>{user.displayName || user.username}</span>
+                      <button type="button" className="us-btn ghost sm" onClick={() => handleUnblock(user.id)}>
+                        <UserX size={13} /> {t("Unblock")}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+        );
+
+      case "shop":
+        return (
+          <div className="us-tab">
+            <ShopPanel equipped={equipped} onEquippedChange={handleEquippedChange} />
           </div>
         );
 

@@ -39,6 +39,8 @@ const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
 const { trackOffer, markAnswered, finalizeCall } = require("../lib/dmCallLog");
+const { isBlockedEitherWay } = require("../lib/blocking");
+const shop = require("../lib/shop");
 
 async function notifyCallHistory(io, record) {
   if (!record) return;
@@ -116,6 +118,8 @@ function mapDmRow(row, usersById) {
     readAt: row.read_at || null,
     editedAt: row.edited_at || null,
     editHistory: row.edit_history || [],
+    pinnedAt: row.pinned_at || null,
+    pinnedBy: row.pinned_by || null,
   };
 }
 
@@ -123,7 +127,7 @@ async function loadDmMessages(myId, peerId, { before, limit = 100 } = {}) {
   const pageSize = Math.min(Math.max(Number(limit) || 100, 1), 100);
   let query = supabase
     .from("dm_messages")
-    .select("id, from_user_id, to_user_id, content, media_url, media_type, mime_type, file_size, original_name, duration, reply_to, delivered_at, read_at, edited_at, edit_history, created_at")
+    .select("id, from_user_id, to_user_id, content, media_url, media_type, mime_type, file_size, original_name, duration, reply_to, delivered_at, read_at, edited_at, edit_history, pinned_at, pinned_by, created_at")
     .or(`and(from_user_id.eq.${myId},to_user_id.eq.${peerId}),and(from_user_id.eq.${peerId},to_user_id.eq.${myId})`)
     .order("created_at", { ascending: false })
     .limit(pageSize + 1);
@@ -683,6 +687,21 @@ function registerSocketHandlers(io) {
       socket.emit("friend:requests", getPendingList(myId));
       emitSyncState(io, myId, socket);
       broadcastUsers(io);
+
+      // Deliver any gift popups the recipient missed while offline (e.g. an
+      // admin gifted them a cosmetic before they ever connected this
+      // session). Delivered once per gift via the notified_at flag.
+      shop
+        .getUnnotifiedGifts(myId)
+        .then((pending) => {
+          if (!pending.length) return;
+          pending.forEach((gift) => {
+            if (!gift.item) return;
+            socket.emit("shop:gift:received", { item: gift.item, message: gift.message, from: gift.from });
+          });
+          shop.markGiftsNotified(pending.map((g) => g.inventoryId)).catch(() => {});
+        })
+        .catch((err) => console.warn("[shop] failed to deliver pending gifts:", err.message));
     });
 
     socket.on("status:set", async ({ status } = {}) => {
@@ -717,6 +736,9 @@ function registerSocketHandlers(io) {
         if (target.id === myId) {
           appendErrorLog("friend:request", "Cannot add self", {}, myId, me.username);
           return socket.emit("friend:error", { message: "You cannot add yourself." });
+        }
+        if (await isBlockedEitherWay(myId, target.id)) {
+          return socket.emit("friend:error", { message: "You can't send a request to this user." });
         }
         const myFriends = ensureSet(friends, myId);
         if (myFriends.has(target.id) || ensureSet(friends, target.id).has(myId)) {
@@ -945,6 +967,9 @@ function registerSocketHandlers(io) {
         appendErrorLog("dm:send", "Conversation blocked", { toUserId }, myId, me.username);
         return socket.emit("dm:error", { message: "Conversation blocked.", tempId: tempId || null, toUserId });
       }
+      if (await isBlockedEitherWay(myId, toUserId)) {
+        return socket.emit("dm:error", { message: "You can't message this user.", tempId: tempId || null, toUserId });
+      }
       const now = Date.now();
       const last = rateLimitDm.get(myId) || 0;
       if (now - last < systemConfig.dmRateLimitMs) {
@@ -1140,10 +1165,13 @@ function registerSocketHandlers(io) {
       emitToUser(io, myId, "notifications:sync", { notifications: getNotifications(myId) });
     });
 
-    socket.on("call:offer", ({ toUserId, offer, callType } = {}) => {
+    socket.on("call:offer", async ({ toUserId, offer, callType } = {}) => {
       if (typeof toUserId !== "string" || !offer) return;
       const targetId = toUserId.trim();
       if (!targetId) return;
+      if (await isBlockedEitherWay(myId, targetId)) {
+        return socket.emit("call:error", { message: "You can't call this user.", toUserId: targetId });
+      }
 
       // Always attempt delivery via durable user room + presence fallback.
       const room = io.sockets?.adapter?.rooms?.get(`user:${targetId}`);
@@ -1483,6 +1511,88 @@ function registerSocketHandlers(io) {
       });
     });
 
+    // Message pinning - DM (either participant may pin/unpin)
+    socket.on("dm:message:pin", async ({ messageId, toUserId } = {}) => {
+      if (!messageId || !toUserId) return;
+      if (!(await isAcceptedFriend(myId, toUserId))) return;
+
+      const pinnedAt = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("dm_messages")
+        .update({ pinned_at: pinnedAt, pinned_by: myId })
+        .eq("id", messageId)
+        .or(`and(from_user_id.eq.${myId},to_user_id.eq.${toUserId}),and(from_user_id.eq.${toUserId},to_user_id.eq.${myId})`)
+        .select("id")
+        .maybeSingle();
+      if (error || !data) {
+        return socket.emit("dm:error", { message: "Failed to pin message.", toUserId });
+      }
+
+      const key = convKey(myId, toUserId);
+      const msg = (dmHistory.get(key) || []).find((m) => m.id === messageId);
+      if (msg) {
+        msg.pinnedAt = pinnedAt;
+        msg.pinnedBy = myId;
+      }
+
+      const payload = { messageId, pinnedAt, pinnedBy: myId, byUsername: me.username };
+      socket.emit("dm:message:pinned", { ...payload, toUserId });
+      emitToUser(io, toUserId, "dm:message:pinned", { ...payload, toUserId: myId });
+    });
+
+    socket.on("dm:message:unpin", async ({ messageId, toUserId } = {}) => {
+      if (!messageId || !toUserId) return;
+      if (!(await isAcceptedFriend(myId, toUserId))) return;
+
+      const { data, error } = await supabase
+        .from("dm_messages")
+        .update({ pinned_at: null, pinned_by: null })
+        .eq("id", messageId)
+        .or(`and(from_user_id.eq.${myId},to_user_id.eq.${toUserId}),and(from_user_id.eq.${toUserId},to_user_id.eq.${myId})`)
+        .select("id")
+        .maybeSingle();
+      if (error || !data) {
+        return socket.emit("dm:error", { message: "Failed to unpin message.", toUserId });
+      }
+
+      const key = convKey(myId, toUserId);
+      const msg = (dmHistory.get(key) || []).find((m) => m.id === messageId);
+      if (msg) {
+        msg.pinnedAt = null;
+        msg.pinnedBy = null;
+      }
+
+      socket.emit("dm:message:unpinned", { messageId, toUserId });
+      emitToUser(io, toUserId, "dm:message:unpinned", { messageId, toUserId: myId });
+    });
+
+    socket.on("dm:pinned:list", async ({ withUserId } = {}) => {
+      if (typeof withUserId !== "string") return socket.emit("dm:pinned:list", { withUserId, pinned: [] });
+      if (!(await isAcceptedFriend(myId, withUserId))) {
+        return socket.emit("dm:pinned:list", { withUserId, pinned: [] });
+      }
+      try {
+        const { data: rows, error } = await supabase
+          .from("dm_messages")
+          .select("id, from_user_id, to_user_id, content, media_url, media_type, mime_type, original_name, pinned_at, pinned_by, created_at")
+          .or(`and(from_user_id.eq.${myId},to_user_id.eq.${withUserId}),and(from_user_id.eq.${withUserId},to_user_id.eq.${myId})`)
+          .not("pinned_at", "is", null)
+          .order("pinned_at", { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        const userIds = [...new Set((rows || []).map((r) => r.from_user_id))];
+        const { data: profiles } = userIds.length
+          ? await supabase.from("users").select("id, username, avatar_url").in("id", userIds)
+          : { data: [] };
+        const usersById = new Map((profiles || []).map((p) => [p.id, p]));
+        const pinned = (rows || []).map((row) => mapDmRow(row, usersById));
+        socket.emit("dm:pinned:list", { withUserId, pinned });
+      } catch (err) {
+        console.error("[DM] pinned list failed:", err.message);
+        socket.emit("dm:pinned:list", { withUserId, pinned: [] });
+      }
+    });
+
     // Message Edit - Group
     socket.on("group:message:edit", async ({ messageId, newText, groupId } = {}) => {
       if (!messageId || !newText || !groupId) return;
@@ -1522,6 +1632,90 @@ function registerSocketHandlers(io) {
         io.to(`group:${groupId}`).emit("group:message:edited", editData);
       } catch (err) {
         console.error("[group:message:edit] Error:", err);
+      }
+    });
+
+    // Message pinning - Group (any member may pin/unpin, mirrors edit's membership check)
+    socket.on("group:message:pin", async ({ messageId, groupId } = {}) => {
+      if (!messageId || !groupId) return;
+      if (!socket.rooms.has(`group:${groupId}`)) return;
+
+      const pinnedAt = new Date().toISOString();
+      try {
+        const { data, error } = await supabase
+          .from("group_messages")
+          .update({ pinned_at: pinnedAt, pinned_by: myId })
+          .eq("id", messageId)
+          .eq("group_id", groupId)
+          .select("id")
+          .maybeSingle();
+        if (error || !data) throw error || new Error("Message not found");
+
+        io.to(`group:${groupId}`).emit("group:message:pinned", {
+          messageId,
+          groupId,
+          pinnedAt,
+          pinnedBy: myId,
+          byUsername: me.username,
+        });
+      } catch (err) {
+        console.error("[group:message:pin] Error:", err.message || err);
+      }
+    });
+
+    socket.on("group:message:unpin", async ({ messageId, groupId } = {}) => {
+      if (!messageId || !groupId) return;
+      if (!socket.rooms.has(`group:${groupId}`)) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("group_messages")
+          .update({ pinned_at: null, pinned_by: null })
+          .eq("id", messageId)
+          .eq("group_id", groupId)
+          .select("id")
+          .maybeSingle();
+        if (error || !data) throw error || new Error("Message not found");
+
+        io.to(`group:${groupId}`).emit("group:message:unpinned", { messageId, groupId });
+      } catch (err) {
+        console.error("[group:message:unpin] Error:", err.message || err);
+      }
+    });
+
+    socket.on("group:pinned:list", async ({ groupId } = {}) => {
+      if (typeof groupId !== "string") return socket.emit("group:pinned:list", { groupId, pinned: [] });
+      if (!socket.rooms.has(`group:${groupId}`)) return socket.emit("group:pinned:list", { groupId, pinned: [] });
+      try {
+        const { data: rows, error } = await supabase
+          .from("group_messages")
+          .select("id, group_id, sender_id, content, media_url, media_type, original_name, pinned_at, pinned_by, created_at")
+          .eq("group_id", groupId)
+          .not("pinned_at", "is", null)
+          .order("pinned_at", { ascending: false })
+          .limit(100);
+        if (error) throw error;
+        const senderIds = [...new Set((rows || []).map((r) => r.sender_id))];
+        const { data: profiles } = senderIds.length
+          ? await supabase.from("users").select("id, username, avatar_url").in("id", senderIds)
+          : { data: [] };
+        const usersById = new Map((profiles || []).map((p) => [p.id, p]));
+        const pinned = (rows || []).map((row) => ({
+          id: row.id,
+          groupId: row.group_id,
+          sender: messageSender(row.sender_id, usersById.get(row.sender_id)?.username),
+          text: row.content || "",
+          mediaUrl: row.media_url || null,
+          mediaType: row.media_type || null,
+          originalName: row.original_name || null,
+          pinnedAt: row.pinned_at,
+          pinnedBy: row.pinned_by,
+          timestamp: row.created_at,
+        }));
+        socket.emit("group:pinned:list", { groupId, pinned });
+      } catch (err) {
+        console.error("[group:pinned:list] Error:", err.message || err);
+        socket.emit("group:pinned:list", { groupId, pinned: [] });
       }
     });
 

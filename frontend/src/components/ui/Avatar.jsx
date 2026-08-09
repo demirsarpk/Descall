@@ -148,16 +148,14 @@ export function Avatar({
     size >= 56;
 
   const showImage = Boolean(displaySrc) && !failed;
+  const frameUrl = user?.equippedAvatarFrame?.asset_url || null;
 
   return (
     <motion.div
-      className={`ui-avatar ${className}`.trim()}
+      className={`ui-avatar ${frameUrl ? "has-frame" : ""} ${className}`.trim()}
       style={{
         width: size,
         height: size,
-        background: showImage ? "var(--surface-2)" : bg,
-        borderRadius: "50%",
-        overflow: "hidden",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -170,6 +168,20 @@ export function Avatar({
       whileHover={{ scale: onClick ? 1.06 : 1 }}
       role={onClick ? "button" : undefined}
     >
+      <div
+        className="ui-avatar-inner"
+        style={{
+          width: "100%",
+          height: "100%",
+          background: showImage ? "var(--surface-2)" : bg,
+          borderRadius: "50%",
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          position: "relative",
+        }}
+      >
       {showImage ? (
         <>
           {!loaded && (
@@ -212,6 +224,26 @@ export function Avatar({
         </>
       ) : (
         <span className="ui-avatar-letter">{letter}</span>
+      )}
+      </div>
+      {frameUrl && (
+        <img
+          className="ui-avatar-frame-overlay"
+          src={frameUrl}
+          alt=""
+          draggable={false}
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: "132%",
+            height: "132%",
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "none",
+            objectFit: "contain",
+          }}
+        />
       )}
     </motion.div>
   );

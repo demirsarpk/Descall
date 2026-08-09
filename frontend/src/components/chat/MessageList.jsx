@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
-import { FileText, Download, Smile, Reply, X } from "lucide-react";
+import { FileText, Download, Smile, Reply, X, Pin, PinOff } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import CallSummaryBubble from "./CallSummaryBubble";
@@ -402,6 +402,21 @@ function MessageBubble({
   );
   const reactions = Array.isArray(message.reactions) ? message.reactions : [];
   const reply = message.replyTo || message.reply_to || null;
+  const isPinned = Boolean(message.pinnedAt);
+
+  const togglePin = useCallback(() => {
+    if (!message?.id || String(message.id).startsWith("temp-")) return;
+    if (conversationType === "group") {
+      socket?.emit(isPinned ? "group:message:unpin" : "group:message:pin", {
+        messageId: message.id,
+        groupId: conversationId,
+      });
+    } else if (conversationId) {
+      const [a, b] = String(conversationId).split("::");
+      const toUserId = a === currentUserId ? b : a;
+      socket?.emit(isPinned ? "dm:message:unpin" : "dm:message:pin", { messageId: message.id, toUserId });
+    }
+  }, [message?.id, isPinned, conversationType, conversationId, currentUserId, socket]);
 
   const resetSwipe = useCallback(() => {
     setSwiping(false);
@@ -532,6 +547,13 @@ function MessageBubble({
                 : t("Original message")}
             </span>
           </button>
+        )}
+
+        {isPinned && (
+          <div className="message-pinned-badge" title={t("Pinned")}>
+            <Pin size={11} strokeWidth={2.5} />
+            <span>{t("Pinned")}</span>
+          </div>
         )}
 
         {message.text && <MessageContent text={message.text} highlight={highlight} />}
@@ -665,6 +687,17 @@ function MessageBubble({
                 }}
               >
                 <Reply size={14} />
+              </button>
+              <button
+                type="button"
+                className={`hover-bar-btn ${isPinned ? "active" : ""}`}
+                title={isPinned ? t("Unpin") : t("Pin")}
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  togglePin();
+                }}
+              >
+                {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
               </button>
 
               <AnimatePresence>

@@ -44,6 +44,7 @@ import { useLocale } from "./context/LocaleContext";
 import { t as tRuntime } from "./i18n/runtime";
 import { appPathForView, directPath, groupPath, isAuthenticatedAppPath, parseAppRoute } from "./lib/appRoutes";
 import AdminPanel from "./components/admin/AdminPanel";
+import ShopGiftPopup from "./components/shop/ShopGiftPopup";
 import TitleBar from "./components/TitleBar";
 import MessageList from "./components/chat/MessageList";
 import MessageComposer from "./components/chat/MessageComposer";
@@ -268,6 +269,7 @@ export default function App() {
   const [activeGroup, setActiveGroup] = useState(null);
   const [activeView, setActiveView] = useState("chat");
   const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [shopGift, setShopGift] = useState(null);
   const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -1420,6 +1422,75 @@ export default function App() {
       });
     });
 
+    const patchPinState = (messageId, pinnedAt, pinnedBy) => {
+      const patchList = (list) => {
+        if (!Array.isArray(list)) return list;
+        let changed = false;
+        const next = list.map((m) => {
+          if (m.id !== messageId) return m;
+          changed = true;
+          return { ...m, pinnedAt: pinnedAt || null, pinnedBy: pinnedBy || null };
+        });
+        return changed ? next : list;
+      };
+      return patchList;
+    };
+
+    socket.on("dm:message:pinned", ({ messageId, pinnedAt, pinnedBy, toUserId } = {}) => {
+      if (!messageId || !toUserId) return;
+      const patchList = patchPinState(messageId, pinnedAt, pinnedBy);
+      setDmByUserId((prev) => {
+        const cur = prev[toUserId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [toUserId]: next };
+      });
+    });
+
+    socket.on("dm:message:unpinned", ({ messageId, toUserId } = {}) => {
+      if (!messageId || !toUserId) return;
+      const patchList = patchPinState(messageId, null, null);
+      setDmByUserId((prev) => {
+        const cur = prev[toUserId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [toUserId]: next };
+      });
+    });
+
+    socket.on("group:message:pinned", ({ messageId, groupId, pinnedAt, pinnedBy } = {}) => {
+      if (!messageId || !groupId) return;
+      const patchList = patchPinState(messageId, pinnedAt, pinnedBy);
+      setGroupMessagesById((prev) => {
+        const cur = prev[groupId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [groupId]: next };
+      });
+    });
+
+    socket.on("group:message:unpinned", ({ messageId, groupId } = {}) => {
+      if (!messageId || !groupId) return;
+      const patchList = patchPinState(messageId, null, null);
+      setGroupMessagesById((prev) => {
+        const cur = prev[groupId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [groupId]: next };
+      });
+    });
+
+    socket.on("shop:gift:received", (payload = {}) => {
+      if (!payload?.item) return;
+      setShopGift(payload);
+      playUiSound("notification");
+    });
+
+    socket.on("shop:purchase:completed", ({ item } = {}) => {
+      if (!item) return;
+      toast(t("You now own {name}!", { name: item.name }), "success");
+    });
+
     socket.on("dm:unread:sync", ({ peerId, count } = {}) => {
       if (!peerId) return;
       setDmUnread((prev) => { const n = { ...prev }; if (count === 0) delete n[peerId]; else n[peerId] = count; return n; });
@@ -2325,6 +2396,21 @@ export default function App() {
         )}
         {(me?.is_admin || me?.username === "admin") && adminOpen && (
           <AdminPanel socket={socketApi} onClose={() => setAdminOpen(false)} onAdminChanged={() => setAdminChanged(true)} />
+        )}
+
+        {shopGift && (
+          <ShopGiftPopup
+            gift={shopGift}
+            onDismiss={() => setShopGift(null)}
+            onEquipped={async () => {
+              try {
+                const token = getToken();
+                const { user } = await getMe(token);
+                applyProfileUpdate(user);
+              } catch { /* best-effort */ }
+              setShopGift(null);
+            }}
+          />
         )}
         
         {/* NEW MODULAR LAYOUT SYSTEM */}
