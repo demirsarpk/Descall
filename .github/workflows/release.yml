@@ -1,3 +1,65 @@
+name: Publish Descall release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - name: Build signed APK
+        working-directory: frontend
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          npm ci
+          npm run build:prod
+          npx cap sync android
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/descall-release.jks
+          cat > android/keystore.properties <<EOF
+          storeFile=app/descall-release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+          cd android && ./gradlew assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk ../Descall-APK-${GITHUB_REF_NAME}.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: android-apk, path: frontend/Descall-APK-*.apk }
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - name: Build Windows setup
+        working-directory: frontend
+        run: npm ci; npm run electron:build:win
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-setup, path: frontend/release/*.exe }
+
+  publish:
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: release-assets }
+      - name: Publish GitHub release
+        env: { GH_TOKEN: ${{ github.token }} }
+        run: gh release create "${GITHUB_REF_NAME}" release-assets/android-apk/* release-assets/windows-setup/* --generate-notes
 name: Build and Release Descall Electron
 
 on:
