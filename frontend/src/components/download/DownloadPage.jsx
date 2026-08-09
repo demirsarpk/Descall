@@ -317,7 +317,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                 <div className="platform-details">
                   <h3>{t("Descall for {name}", { name: currentPlatform.name })}</h3>
                   <p>
-                    {selectedPlatform === 'windows'
+                    {selectedPlatform === 'windows' || selectedPlatform === 'android'
                       ? `${currentPlatform.file}${releaseLabel ? ` • ${releaseLabel}` : ''} • ${currentPlatform.size}`
                       : `${currentPlatform.file} • ${t("Web app")}`}
                   </p>
@@ -330,6 +330,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                   <CheckCircle2 size={16} />
                   <span>
                     {selectedPlatform === 'windows' && t("Windows 10/11 (64-bit) — desktop installer")}
+                    {selectedPlatform === 'android' && t("Android 10+ — signed APK")}
                     {selectedPlatform === 'mac' && t("macOS — use Descall in your browser (no desktop build)")}
                     {selectedPlatform === 'linux' && t("Linux — use Descall in your browser (no desktop build)")}
                   </span>
@@ -360,7 +361,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                     <Loader2 size={20} className="spin" />
                     <span>{t("Checking for updates…")}</span>
                   </>
-                ) : isInstalled && selectedPlatform === 'windows' ? (
+                ) : isInstalled ? (
                   <>
                     <CheckCircle2 size={20} />
                     <span>{t("Download started")}</span>
@@ -369,7 +370,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                   <>
                     <Download size={20} />
                     <span>
-                      {selectedPlatform === 'windows'
+                      {selectedPlatform === 'windows' || selectedPlatform === 'android'
                         ? t("Download for {name}", { name: currentPlatform.name })
                         : t("Sign in to use web app")}
                     </span>
