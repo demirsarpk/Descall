@@ -12,6 +12,8 @@
 #   - SUPABASE_URL
 #   - SUPABASE_SERVICE_ROLE_KEY
 #   - GOOGLE_CLIENT_ID / VITE_GOOGLE_CLIENT_ID (opsiyonel)
+#   - RESEND_API_KEY, FEEDBACK_EMAIL_FROM, FEEDBACK_EMAIL_TO (in-app feedback → email)
+#   - WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT, VITE_WEB_PUSH_PUBLIC_KEY (web push)
 # JWT_SECRET otomatik üretilir (generateValue).
 
 previews:
@@ -52,6 +54,20 @@ services:
         value: production
       - key: VITE_API_BASE_URL
         value: https://des-call.onrender.com
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FEEDBACK_EMAIL_FROM
+        sync: false
+      - key: FEEDBACK_EMAIL_TO
+        sync: false
+      - key: WEB_PUSH_PUBLIC_KEY
+        sync: false
+      - key: WEB_PUSH_PRIVATE_KEY
+        sync: false
+      - key: WEB_PUSH_SUBJECT
+        sync: false
+      - key: VITE_WEB_PUSH_PUBLIC_KEY
+        sync: false
 
   # ── Staging (test site) ─────────────────────────────────────────
   - type: web
@@ -87,3 +103,17 @@ services:
         value: staging
       - key: VITE_API_BASE_URL
         value: https://des-call-staging.onrender.com
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FEEDBACK_EMAIL_FROM
+        sync: false
+      - key: FEEDBACK_EMAIL_TO
+        sync: false
+      - key: WEB_PUSH_PUBLIC_KEY
+        sync: false
+      - key: WEB_PUSH_PRIVATE_KEY
+        sync: false
+      - key: WEB_PUSH_SUBJECT
+        sync: false
+      - key: VITE_WEB_PUSH_PUBLIC_KEY
+        sync: false
