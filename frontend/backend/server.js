@@ -820,7 +820,6 @@ app.get(["/invite/:code", "/i/:code"], (req, res) => {
 });
 
 // Serve React frontend (Vite build output: frontend/dist)
-const fs = require("fs");
 const distPath = path.join(__dirname, "..", "dist");
 const indexPath = path.join(distPath, "index.html");
 const hasFrontend = fs.existsSync(indexPath);
