@@ -1702,7 +1702,20 @@ export const phrases = {
   "📞 Call": "📞 Call",
   "Descall staff": "Descall staff",
   "Pending — {count}": "Pending — {count}",
-  "Friend request accepted": "Friend request accepted"
+  "Friend request accepted": "Friend request accepted",
+  "Excellent": "Excellent",
+  "Fair": "Fair",
+  "Connection quality": "Connection quality",
+  "Latency": "Latency",
+  "Jitter": "Jitter",
+  "Packet loss": "Packet loss",
+  "Bitrate": "Bitrate",
+  "Weak connection": "Weak connection",
+  "No messages match \"{query}\"": "No messages match \"{query}\"",
+  "{count} matching messages": "{count} matching messages",
+  "{name} raised their hand": "{name} raised their hand",
+  "Someone": "Someone",
+  "Hand raised": "Hand raised"
 };
 
 const locale = { nested, phrases };

@@ -19,6 +19,7 @@ import {
 } from "../lib/webrtcNegotiation";
 import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 import { getUser } from "../lib/storage";
+import useConnectionStats from "./useConnectionStats";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -196,6 +197,7 @@ export function useCall(socket, callOccupancyRef = null) {
   const pcRef = useRef(null);
   const modeRef = useRef(mode);
   useEffect(() => { modeRef.current = mode; }, [mode]);
+  const networkStats = useConnectionStats(pcRef, { active: mode === "active" });
   const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
@@ -1193,6 +1195,7 @@ export function useCall(socket, callOccupancyRef = null) {
     screenSharing,
     duration,
     connectionQuality,
+    networkStats,
     peerConnectionState,
     remoteMediaReady,
     localStream,

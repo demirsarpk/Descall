@@ -39,7 +39,7 @@ export default function CallOverlay({ call, groupCall, me }) {
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [screenExpanded, setScreenExpanded] = useState(false);
-  const [handRaised, setHandRaised] = useState(false);
+  const [localHandRaised, setLocalHandRaised] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showAudioPanel, setShowAudioPanel] = useState(false);
   const [showScreenQuality, setShowScreenQuality] = useState(false);
@@ -87,6 +87,13 @@ export default function CallOverlay({ call, groupCall, me }) {
   const isGroupActive = groupCall?.isInCall;
   const active = isDmActive || isGroupActive;
   const isDm = isDmActive;
+  // Group calls broadcast hand-raise to every participant over the socket;
+  // DM calls have no one else to notify, so it stays a purely local toggle.
+  const handRaised = isDm ? localHandRaised : Boolean(groupCall?.isHandRaised);
+  const toggleHandRaise = () => {
+    if (isDm) setLocalHandRaised((v) => !v);
+    else groupCall?.toggleHandRaise?.();
+  };
 
   useEffect(() => {
     if (!active) {
@@ -412,7 +419,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             {subtitle}{formattedDuration ? ` · ${formattedDuration}` : ""}
           </span>
           {isDm && mode === "active" && (
-            <CallQualityHud quality={call?.connectionQuality || "unknown"} />
+            <CallQualityHud quality={call?.connectionQuality || "unknown"} stats={call?.networkStats} />
           )}
         </div>
         <div style={{ display: "flex", gap: 8, pointerEvents: "auto" }}>
@@ -608,7 +615,7 @@ export default function CallOverlay({ call, groupCall, me }) {
 
             {!narrowViewport && (
               <motion.button
-                onClick={() => setHandRaised((v) => !v)}
+                onClick={toggleHandRaise}
                 title={handRaised ? t("Lower hand") : t("Raise hand")}
                 animate={handRaised ? { scale: [1, 1.2, 1] } : { scale: 1 }}
                 transition={handRaised ? { repeat: Infinity, duration: 1.6, ease: "easeInOut" } : {}}
@@ -713,7 +720,7 @@ export default function CallOverlay({ call, groupCall, me }) {
                           icon={<Hand size={16} color={handRaised ? "#f0a500" : undefined} />}
                           label={handRaised ? t("Lower hand") : t("Raise hand")}
                           onClick={() => {
-                            setHandRaised((v) => !v);
+                            toggleHandRaise();
                             setShowMoreMenu(false);
                           }}
                         />
@@ -895,34 +902,94 @@ function SpeakingRemoteSlot(props) {
   return <DmRemoteParticipantSlot {...props} isSpeaking={speaking} />;
 }
 
-function CallQualityHud({ quality = "unknown" }) {
+function CallQualityHud({ quality = "unknown", stats = null }) {
   const t = useT();
+  const [showDetails, setShowDetails] = useState(false);
+  const detailsRef = useRef(null);
   const q = String(quality || "unknown");
+  // Refine the coarse ICE-state bucket with real measured stats once the
+  // connection has settled, so "good" can still surface as excellent/fair/poor.
+  const measuredQuality = q === "good" ? (stats?.quality || "good") : q;
   const bars =
-    q === "good" ? 3 :
+    measuredQuality === "excellent" ? 4 :
+    measuredQuality === "good" ? 3 :
     q === "connecting" || q === "unknown" ? 2 :
-    q === "poor" ? 1 :
+    measuredQuality === "fair" || measuredQuality === "poor" || q === "poor" ? 1 :
     0;
   const label =
-    q === "good" ? t("Good") :
+    measuredQuality === "excellent" ? t("Excellent") :
+    measuredQuality === "good" ? t("Good") :
     q === "connecting" ? t("Connecting") :
-    q === "poor" ? t("Weak") :
+    measuredQuality === "fair" ? t("Fair") :
+    measuredQuality === "poor" || q === "poor" ? t("Weak") :
     q === "failed" ? t("Failed") :
     t("Link");
 
+  const hasNumbers = stats && (stats.rttMs != null || stats.packetLossPct != null || stats.bitrateKbps != null);
+
+  useEffect(() => {
+    if (!showDetails) return;
+    const onOutside = (e) => {
+      if (detailsRef.current && !detailsRef.current.contains(e.target)) setShowDetails(false);
+    };
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [showDetails]);
+
   return (
-    <div className={`call-quality-hud ${q}`} title={t("Connection: {label}", { label })}>
+    <div
+      ref={detailsRef}
+      className={`call-quality-hud ${q}`}
+      title={t("Connection: {label}", { label })}
+      onClick={hasNumbers ? () => setShowDetails((v) => !v) : undefined}
+      style={{ cursor: hasNumbers ? "pointer" : "default", position: "relative" }}
+    >
       <div className="call-quality-bars" aria-hidden>
-        <span className={bars >= 1 ? "on" : ""} style={{ height: 5 }} />
-        <span className={bars >= 2 ? "on" : ""} style={{ height: 8 }} />
-        <span className={bars >= 3 ? "on" : ""} style={{ height: 12 }} />
+        <span className={bars >= 1 ? "on" : ""} style={{ height: 4 }} />
+        <span className={bars >= 2 ? "on" : ""} style={{ height: 7 }} />
+        <span className={bars >= 3 ? "on" : ""} style={{ height: 10 }} />
+        <span className={bars >= 4 ? "on" : ""} style={{ height: 13 }} />
       </div>
       <span>{label}</span>
+      {showDetails && hasNumbers && (
+        <div
+          style={{
+            position: "absolute", top: "calc(100% + 8px)", left: 0, zIndex: 30,
+            background: "#1e1f24", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 10, padding: "10px 12px", minWidth: 168,
+            boxShadow: "0 10px 28px rgba(0,0,0,0.45)", fontSize: 12, color: "#dcddde",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 6, color: "#fff" }}>{t("Connection quality")}</div>
+          {stats.rttMs != null && (
+            <StatRow label={t("Latency")} value={`${stats.rttMs} ms`} />
+          )}
+          {stats.jitterMs != null && (
+            <StatRow label={t("Jitter")} value={`${stats.jitterMs} ms`} />
+          )}
+          {stats.packetLossPct != null && (
+            <StatRow label={t("Packet loss")} value={`${stats.packetLossPct}%`} />
+          )}
+          {stats.bitrateKbps != null && (
+            <StatRow label={t("Bitrate")} value={`${stats.bitrateKbps} kbps`} />
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false, cameraOn = true }) {
+function StatRow({ label, value }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "2px 0" }}>
+      <span style={{ color: "#96989d" }}>{label}</span>
+      <span style={{ fontWeight: 600 }}>{value}</span>
+    </div>
+  );
+}
+
+function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false, cameraOn = true, connectionQuality = null, handRaised = false }) {
   const t = useT();
   const elRef = useRef(null);
   const detected = useSpeaking(stream, {
@@ -954,6 +1021,11 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
 
   return (
     <div className={`participant-tile${small ? " small" : ""}${isSpeaking ? " is-speaking" : ""}`}>
+      {handRaised && (
+        <span className="participant-tile-hand-badge" title={t("Hand raised")} aria-label={t("Hand raised")}>
+          <Hand size={14} />
+        </span>
+      )}
       {hasVideo && cameraOn !== false && (videoRef || stream) ? (
         <video
           ref={setVideoEl}
@@ -996,6 +1068,13 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
         <span className="participant-tile-name">{username}</span>
         {muted && <MicOff size={14} aria-label={t("Muted")} title={t("Muted")} />}
         {cameraOn === false && <VideoOff size={14} aria-label={t("Camera off")} title={t("Camera off")} />}
+        {!isLocal && (connectionQuality === "poor" || connectionQuality === "fair") && (
+          <span
+            className={`participant-tile-net-badge ${connectionQuality}`}
+            aria-label={t("Weak connection")}
+            title={t("Weak connection")}
+          />
+        )}
       </div>
     </div>
   );
@@ -1067,6 +1146,8 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
       hasVideo: p.isCameraOn !== false && live,
       muted: Boolean(p.isMuted),
       cameraOn: p.isCameraOn,
+      connectionQuality: p.connectionQuality || null,
+      handRaised: Boolean(p.isHandRaised),
     };
   });
 
@@ -1135,6 +1216,8 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
             isLocal={false}
             muted={tile.muted}
             cameraOn={tile.cameraOn}
+            connectionQuality={tile.connectionQuality}
+            handRaised={tile.handRaised}
           />
         </motion.div>
       ))}

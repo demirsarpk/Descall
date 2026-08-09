@@ -19,6 +19,7 @@ import {
   isPolitePeer,
 } from "../lib/webrtcNegotiation";
 import { getIceServers, preloadIceServers } from "../lib/iceConfig";
+import { sampleConnectionStats } from "../lib/connectionStats";
 import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
 
@@ -164,6 +165,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
   const [screenStream, setScreenStream] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [duration, setDuration] = useState(0);
   const [participants, setParticipants] = useState([]);
@@ -212,6 +214,52 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
 
   useEffect(() => {
     isInCallRef.current = isInCall;
+  }, [isInCall]);
+
+  // Poll real per-peer WebRTC stats (RTT, packet loss, jitter) so each
+  // participant tile can show an actionable network indicator instead of
+  // only the binary connected/disconnected state.
+  const peerStatsSamplesRef = useRef(new Map());
+  useEffect(() => {
+    if (!isInCall) {
+      peerStatsSamplesRef.current.clear();
+      return undefined;
+    }
+    let alive = true;
+    const poll = async () => {
+      const entries = Array.from(pcMapRef.current.entries());
+      if (!entries.length) return;
+      const results = await Promise.all(
+        entries.map(async ([userId, peerData]) => {
+          const pc = peerData?.pc;
+          if (!pc || pc.connectionState === "closed") return null;
+          const prev = peerStatsSamplesRef.current.get(userId) || null;
+          const result = await sampleConnectionStats(pc, prev);
+          if (!result) return null;
+          peerStatsSamplesRef.current.set(userId, result.sample);
+          return [userId, result.quality];
+        })
+      );
+      if (!alive) return;
+      const qualityByUser = new Map(results.filter(Boolean));
+      if (!qualityByUser.size) return;
+      setParticipants((prev) => {
+        let changed = false;
+        const next = prev.map((p) => {
+          const quality = qualityByUser.get(p.id);
+          if (!quality || p.connectionQuality === quality) return p;
+          changed = true;
+          return { ...p, connectionQuality: quality };
+        });
+        return changed ? next : prev;
+      });
+    };
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, [isInCall]);
 
   useEffect(() => {
@@ -358,6 +406,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     setScreenStream(null);
     setIsMuted(false);
     setIsCameraOn(false);
+    setIsHandRaised(false);
     setIsScreenSharing(false);
     setParticipants([]);
     setIncomingCall(null);
@@ -840,6 +889,17 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       }
     }
   }, [isCameraOn]);
+
+  const toggleHandRaise = useCallback(() => {
+    setIsHandRaised((prev) => {
+      const next = !prev;
+      const groupId = activeGroupIdRef.current;
+      if (groupId && socketRef.current?.connected) {
+        socketRef.current.emit("group:call:hand-raise", { groupId, raised: next });
+      }
+      return next;
+    });
+  }, []);
 
   const toggleCamera = useCallback(async () => {
     if (isCameraOn) {
@@ -1693,6 +1753,17 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       ));
     };
 
+    const onHandRaise = ({ groupId, fromUserId, raised }) => {
+      if (!groupId || !fromUserId || fromUserId === myIdRef.current) return;
+      setParticipants((prev) => {
+        const match = prev.find((p) => p.id === fromUserId);
+        if (raised && match) {
+          toast?.(tRuntime("{name} raised their hand", { name: match.username || tRuntime("Someone") }), "info");
+        }
+        return prev.map((p) => (p.id === fromUserId ? { ...p, isHandRaised: Boolean(raised) } : p));
+      });
+    };
+
     const onParticipants = ({ groupId, participants: enrichedList, callType: existingCallType }) => {
       if (!enrichedList?.length) return;
       setParticipants((prev) => {
@@ -1820,6 +1891,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     socket.on("group:screen:started", onScreenStarted);
     socket.on("group:screen:stopped", onScreenStopped);
     socket.on("group:call:media-state", onMediaState);
+    socket.on("group:call:hand-raise", onHandRaise);
     socket.on("group:call:participant-joined", onParticipantJoined);
     socket.on("group:call:started", onCallStarted);
     socket.on("group:call:join-existing", onJoinExisting);
@@ -1841,6 +1913,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       socket.off("group:screen:started", onScreenStarted);
       socket.off("group:screen:stopped", onScreenStopped);
       socket.off("group:call:media-state", onMediaState);
+      socket.off("group:call:hand-raise", onHandRaise);
       socket.off("group:call:participant-joined", onParticipantJoined);
       socket.off("group:call:started", onCallStarted);
       socket.off("group:call:join-existing", onJoinExisting);
@@ -2048,6 +2121,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     screenStream,
     isMuted,
     isCameraOn,
+    isHandRaised,
     isScreenSharing,
     duration,
     participants,
@@ -2069,6 +2143,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     leaveCall,
     toggleMute,
     toggleCamera,
+    toggleHandRaise,
     startScreenShare,
     stopScreenShare,
     restartScreenShareWithQuality,

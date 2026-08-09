@@ -588,6 +588,19 @@ function registerGroupHandlers(io, socket, state) {
     });
   });
 
+  // Hand raise is a lightweight signal-only state (no media track), so it
+  // needs its own explicit broadcast rather than piggybacking media-state.
+  socket.on("group:call:hand-raise", ({ groupId, raised } = {}) => {
+    if (!groupId) return;
+    const activeCall = activeGroupCalls.get(groupId);
+    if (!activeCall?.participants?.has(myId)) return;
+    socket.to(`group:${groupId}`).emit("group:call:hand-raise", {
+      groupId,
+      fromUserId: myId,
+      raised: Boolean(raised),
+    });
+  });
+
   // Screen share started — persist session
   socket.on("group:screen:start", ({ groupId }) => {
     if (!groupId) return;

@@ -2017,7 +2017,19 @@ export const phrases = {
   "Servers & channels": "Sunucular ve kanallar",
   "Price": "Fiyat",
   "Free": "Ücretsiz",
-  "Free + Nitro": "Ücretsiz + Nitro"
+  "Free + Nitro": "Ücretsiz + Nitro",
+  "Excellent": "Mükemmel",
+  "Fair": "Orta",
+  "Connection quality": "Bağlantı kalitesi",
+  "Latency": "Gecikme",
+  "Jitter": "Titreşim",
+  "Packet loss": "Paket kaybı",
+  "Bitrate": "Bit hızı",
+  "Weak connection": "Zayıf bağlantı",
+  "No messages match \"{query}\"": "\"{query}\" ile eşleşen mesaj yok",
+  "{count} matching messages": "{count} eşleşen mesaj",
+  "{name} raised their hand": "{name} elini kaldırdı",
+  "Hand raised": "El kaldırıldı"
 };
 
 const locale = { nested, phrases };
