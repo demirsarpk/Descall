@@ -1420,6 +1420,64 @@ export default function App() {
       });
     });
 
+    const patchPinState = (messageId, pinnedAt, pinnedBy) => {
+      const patchList = (list) => {
+        if (!Array.isArray(list)) return list;
+        let changed = false;
+        const next = list.map((m) => {
+          if (m.id !== messageId) return m;
+          changed = true;
+          return { ...m, pinnedAt: pinnedAt || null, pinnedBy: pinnedBy || null };
+        });
+        return changed ? next : list;
+      };
+      return patchList;
+    };
+
+    socket.on("dm:message:pinned", ({ messageId, pinnedAt, pinnedBy, toUserId } = {}) => {
+      if (!messageId || !toUserId) return;
+      const patchList = patchPinState(messageId, pinnedAt, pinnedBy);
+      setDmByUserId((prev) => {
+        const cur = prev[toUserId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [toUserId]: next };
+      });
+    });
+
+    socket.on("dm:message:unpinned", ({ messageId, toUserId } = {}) => {
+      if (!messageId || !toUserId) return;
+      const patchList = patchPinState(messageId, null, null);
+      setDmByUserId((prev) => {
+        const cur = prev[toUserId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [toUserId]: next };
+      });
+    });
+
+    socket.on("group:message:pinned", ({ messageId, groupId, pinnedAt, pinnedBy } = {}) => {
+      if (!messageId || !groupId) return;
+      const patchList = patchPinState(messageId, pinnedAt, pinnedBy);
+      setGroupMessagesById((prev) => {
+        const cur = prev[groupId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [groupId]: next };
+      });
+    });
+
+    socket.on("group:message:unpinned", ({ messageId, groupId } = {}) => {
+      if (!messageId || !groupId) return;
+      const patchList = patchPinState(messageId, null, null);
+      setGroupMessagesById((prev) => {
+        const cur = prev[groupId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [groupId]: next };
+      });
+    });
+
     socket.on("dm:unread:sync", ({ peerId, count } = {}) => {
       if (!peerId) return;
       setDmUnread((prev) => { const n = { ...prev }; if (count === 0) delete n[peerId]; else n[peerId] = count; return n; });

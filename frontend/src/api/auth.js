@@ -15,6 +15,13 @@ export function login(payload) {
   });
 }
 
+export function verify2faLogin(pendingToken, code) {
+  return httpRequest("/auth/2fa/verify-login", {
+    method: "POST",
+    body: JSON.stringify({ pendingToken, code }),
+  });
+}
+
 export function loginWithGoogle(credential) {
   return httpRequest(API_ROUTES.google, {
     method: "POST",

@@ -1,15 +1,19 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { getToken } from "../../lib/storage";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Camera, Palette, Type, Bell, Shield, Lock, Globe,
   Clock, Moon, Sun, Volume2, Keyboard, UserX,
-  Download, Mail, Smartphone, Eye, EyeOff, AlertCircle
+  Download, Mail, Smartphone, Eye, EyeOff, AlertCircle,
+  CheckCircle2, LogOut, Monitor
 } from "lucide-react";
 import RippleButton from "../ui/RippleButton";
 import { Avatar } from "../ui/Avatar";
 import { API_BASE_URL } from "../../config/api";
 import { uploadFile } from "../../api/media";
+import { setEmail as apiSetEmail, resendEmailCode, verifyEmailCode, enable2fa, disable2fa, getSessions, revokeSession, revokeOtherSessions } from "../../api/security";
+import { blockUser, unblockUser, getBlockedUsers } from "../../api/friends";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * Profile Customization Panel (15+ features)
@@ -36,11 +40,166 @@ import { uploadFile } from "../../api/media";
  * 20. Keyboard shortcuts
  */
 export default function ProfileCustomization({ me, onUpdate }) {
+  const t = useT();
   const [activeTab, setActiveTab] = useState("profile");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef(null);
   const bannerInputRef = useRef(null);
+
+  // Email verification
+  const [emailDraft, setEmailDraft] = useState(me?.email || "");
+  const [emailVerified, setEmailVerified] = useState(Boolean(me?.emailVerified));
+  const [emailCode, setEmailCode] = useState("");
+  const [emailStage, setEmailStage] = useState(me?.email && !me?.emailVerified ? "code" : "idle"); // idle | sending | code
+  const [emailNotice, setEmailNotice] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+
+  // Two-factor authentication
+  const [twoFactorOn, setTwoFactorOn] = useState(Boolean(me?.twoFactorEnabled));
+  const [disable2faPassword, setDisable2faPassword] = useState("");
+  const [show2faPasswordPrompt, setShow2faPasswordPrompt] = useState(false);
+  const [twoFaBusy, setTwoFaBusy] = useState(false);
+
+  // Session management
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionNotice, setSessionNotice] = useState("");
+
+  // Real blocked users (replaces the old cosmetic list)
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [blockedLoading, setBlockedLoading] = useState(false);
+
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const { sessions: list } = await getSessions();
+      setSessions(list || []);
+    } catch {
+      // best-effort
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  const loadBlocked = useCallback(async () => {
+    setBlockedLoading(true);
+    try {
+      const { blocked } = await getBlockedUsers();
+      setBlockedUsers(blocked || []);
+    } catch {
+      // best-effort
+    } finally {
+      setBlockedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "security") loadSessions();
+    if (activeTab === "privacy") loadBlocked();
+  }, [activeTab, loadSessions, loadBlocked]);
+
+  const handleSendEmailCode = async () => {
+    setEmailBusy(true);
+    setEmailNotice("");
+    try {
+      await apiSetEmail(emailDraft.trim());
+      setEmailStage("code");
+      setEmailNotice(t("Verification code sent. Check your inbox."));
+    } catch (err) {
+      setEmailNotice(err.message || t("Failed to send verification code."));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handleResendEmailCode = async () => {
+    setEmailBusy(true);
+    setEmailNotice("");
+    try {
+      await resendEmailCode();
+      setEmailNotice(t("Verification code sent. Check your inbox."));
+    } catch (err) {
+      setEmailNotice(err.message || t("Failed to resend code."));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handleVerifyEmailCode = async () => {
+    setEmailBusy(true);
+    setEmailNotice("");
+    try {
+      await verifyEmailCode(emailCode.trim());
+      setEmailVerified(true);
+      setEmailStage("idle");
+      setEmailCode("");
+      setEmailNotice(t("Email verified!"));
+      await onUpdate?.({ ...profile, email: emailDraft.trim(), emailVerified: true });
+    } catch (err) {
+      setEmailNotice(err.message || t("Incorrect code."));
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const handleToggle2fa = async (checked) => {
+    if (checked) {
+      setTwoFaBusy(true);
+      try {
+        await enable2fa();
+        setTwoFactorOn(true);
+      } catch (err) {
+        setEmailNotice(err.message || t("Failed to enable two-factor authentication."));
+      } finally {
+        setTwoFaBusy(false);
+      }
+    } else {
+      setShow2faPasswordPrompt(true);
+    }
+  };
+
+  const confirmDisable2fa = async () => {
+    setTwoFaBusy(true);
+    try {
+      await disable2fa(disable2faPassword);
+      setTwoFactorOn(false);
+      setShow2faPasswordPrompt(false);
+      setDisable2faPassword("");
+    } catch (err) {
+      setSessionNotice(err.message || t("Incorrect password."));
+    } finally {
+      setTwoFaBusy(false);
+    }
+  };
+
+  const handleRevokeSession = async (sessionId) => {
+    try {
+      await revokeSession(sessionId);
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    } catch (err) {
+      setSessionNotice(err.message || t("Failed to end session."));
+    }
+  };
+
+  const handleRevokeOthers = async () => {
+    try {
+      const { sessions: list } = await revokeOtherSessions();
+      setSessions(list || []);
+      setSessionNotice(t("All other sessions were signed out."));
+    } catch (err) {
+      setSessionNotice(err.message || t("Failed to end other sessions."));
+    }
+  };
+
+  const handleUnblock = async (userId) => {
+    try {
+      await unblockUser(userId);
+      setBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
+    } catch {
+      // best-effort
+    }
+  };
 
   // Profile state
   const [profile, setProfile] = useState({
@@ -597,16 +756,18 @@ export default function ProfileCustomization({ me, onUpdate }) {
 
             {/* Blocked Users */}
             <div className="pc-blocked-section">
-              <h4>Blocked Users ({profile.blockedUsers.length})</h4>
-              {profile.blockedUsers.length === 0 ? (
-                <p className="pc-empty">No blocked users</p>
+              <h4>{t("Blocked users")} ({blockedUsers.length})</h4>
+              {blockedLoading ? (
+                <p className="pc-empty">{t("Loading…")}</p>
+              ) : blockedUsers.length === 0 ? (
+                <p className="pc-empty">{t("No blocked users")}</p>
               ) : (
                 <ul className="pc-blocked-list">
-                  {profile.blockedUsers.map(user => (
+                  {blockedUsers.map(user => (
                     <li key={user.id}>
                       <Avatar name={user.username} size={32} user={user} />
-                      <span>{user.username}</span>
-                      <button>Unblock</button>
+                      <span>{user.displayName || user.username}</span>
+                      <button onClick={() => handleUnblock(user.id)}>{t("Unblock")}</button>
                     </li>
                   ))}
                 </ul>
@@ -622,26 +783,116 @@ export default function ProfileCustomization({ me, onUpdate }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <h3>Security</h3>
+            <h3>{t("Security")}</h3>
+
+            {/* Email verification */}
+            <div className="pc-security-card">
+              <div className="pc-toggle-info">
+                <Mail size={20} />
+                <div>
+                  <span>{t("Email address")}</span>
+                  <small>
+                    {emailVerified
+                      ? t("Verified — used for sign-in codes and account alerts.")
+                      : t("Verify your email to enable two-factor authentication.")}
+                  </small>
+                </div>
+                {emailVerified && (
+                  <span className="pc-verified-pill">
+                    <CheckCircle2 size={13} /> {t("Verified")}
+                  </span>
+                )}
+              </div>
+
+              {!emailVerified && (
+                <div className="pc-email-verify-flow">
+                  <input
+                    type="email"
+                    className="pc-inline-input"
+                    placeholder={t("you@example.com")}
+                    value={emailDraft}
+                    onChange={(e) => setEmailDraft(e.target.value)}
+                    disabled={emailStage === "code"}
+                  />
+                  {emailStage !== "code" ? (
+                    <RippleButton className="btn-secondary sm" onClick={handleSendEmailCode} disabled={emailBusy || !emailDraft.trim()}>
+                      {emailBusy ? t("Sending…") : t("Send code")}
+                    </RippleButton>
+                  ) : (
+                    <>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        className="pc-inline-input pc-code-input"
+                        placeholder="123456"
+                        value={emailCode}
+                        onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, ""))}
+                      />
+                      <RippleButton className="btn-primary sm" onClick={handleVerifyEmailCode} disabled={emailBusy || emailCode.length !== 6}>
+                        {emailBusy ? t("Verifying…") : t("Verify")}
+                      </RippleButton>
+                      <button type="button" className="pc-link-btn" onClick={handleResendEmailCode} disabled={emailBusy}>
+                        {t("Resend code")}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              {emailNotice && <p className="pc-inline-notice">{emailNotice}</p>}
+            </div>
 
             {/* Two Factor */}
             <div className="pc-toggle-row">
               <div className="pc-toggle-info">
                 <Shield size={20} />
                 <div>
-                  <span>Two-Factor Authentication</span>
-                  <small>Add an extra layer of security</small>
+                  <span>{t("Two-Factor Authentication")}</span>
+                  <small>
+                    {emailVerified
+                      ? t("Get a sign-in code emailed to you on every new login.")
+                      : t("Verify your email above to unlock this.")}
+                  </small>
                 </div>
               </div>
               <label className="pc-switch">
                 <input
                   type="checkbox"
-                  checked={profile.twoFactorEnabled}
-                  onChange={(e) => handleChange("twoFactorEnabled", e.target.checked)}
+                  checked={twoFactorOn}
+                  disabled={!emailVerified || twoFaBusy}
+                  onChange={(e) => handleToggle2fa(e.target.checked)}
                 />
                 <span className="pc-slider" />
               </label>
             </div>
+
+            <AnimatePresence>
+              {show2faPasswordPrompt && (
+                <motion.div
+                  className="pc-security-card"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                >
+                  <p className="pc-inline-notice">{t("Enter your password to turn off two-factor authentication.")}</p>
+                  <div className="pc-email-verify-flow">
+                    <input
+                      type="password"
+                      className="pc-inline-input"
+                      placeholder={t("Password")}
+                      value={disable2faPassword}
+                      onChange={(e) => setDisable2faPassword(e.target.value)}
+                    />
+                    <RippleButton className="btn-primary sm" onClick={confirmDisable2fa} disabled={twoFaBusy || !disable2faPassword}>
+                      {t("Confirm")}
+                    </RippleButton>
+                    <button type="button" className="pc-link-btn" onClick={() => { setShow2faPasswordPrompt(false); setDisable2faPassword(""); }}>
+                      {t("Cancel")}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Email Notifications */}
             <div className="pc-toggle-row">
@@ -664,20 +915,39 @@ export default function ProfileCustomization({ me, onUpdate }) {
 
             {/* Active Sessions */}
             <div className="pc-sessions-section">
-              <h4>Active Sessions</h4>
-              <ul className="pc-sessions-list">
-                {profile.activeSessions.map((session, idx) => (
-                  <li key={idx} className={session.isCurrent ? "current" : ""}>
-                    <div>
-                      <span>{session.device}</span>
-                      <small>{session.location} • {session.lastActive}</small>
-                    </div>
-                    {!session.isCurrent && (
-                      <button>Revoke</button>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <div className="pc-sessions-header">
+                <h4>{t("Active sessions")}</h4>
+                {sessions.length > 1 && (
+                  <button type="button" className="pc-link-btn" onClick={handleRevokeOthers}>
+                    <LogOut size={12} /> {t("Sign out all other sessions")}
+                  </button>
+                )}
+              </div>
+              {sessionNotice && <p className="pc-inline-notice">{sessionNotice}</p>}
+              {sessionsLoading ? (
+                <p className="pc-empty">{t("Loading…")}</p>
+              ) : (
+                <ul className="pc-sessions-list">
+                  {sessions.map((session) => (
+                    <li key={session.id} className={session.current ? "current" : ""}>
+                      <Monitor size={16} />
+                      <div>
+                        <span>
+                          {session.device}
+                          {session.current && <em className="pc-current-tag"> · {t("This device")}</em>}
+                        </span>
+                        <small>
+                          {session.ip} • {t("Last active")} {session.lastActiveAt ? new Date(session.lastActiveAt).toLocaleString() : ""}
+                        </small>
+                      </div>
+                      {!session.current && (
+                        <button onClick={() => handleRevokeSession(session.id)}>{t("End session")}</button>
+                      )}
+                    </li>
+                  ))}
+                  {sessions.length === 0 && <p className="pc-empty">{t("No active sessions found.")}</p>}
+                </ul>
+              )}
             </div>
 
             {/* Data Export */}

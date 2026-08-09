@@ -2403,6 +2403,103 @@ button.header-avatar {
   border-color: var(--surface-2);
 }
 
+.icon-btn {
+  position: relative;
+}
+
+.icon-btn-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+
+.pinned-msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 8px;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+
+.pinned-msg-row:hover {
+  background: var(--surface-2);
+}
+
+.pinned-msg-row:hover .icon-btn {
+  opacity: 1;
+}
+
+.pinned-msg-row .icon-btn {
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.12s ease;
+}
+
+.pinned-msg-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.pinned-msg-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.pinned-msg-author {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pinned-msg-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pinned-msg-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.message-pinned-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  width: fit-content;
+}
+
+.hover-bar-btn.active {
+  color: var(--primary);
+}
+
 .member-meta {
   flex: 1;
   min-width: 0;
