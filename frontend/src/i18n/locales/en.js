@@ -379,7 +379,6 @@ export const phrases = {
   "No microphones found": "No microphones found",
   "Speaker": "Speaker",
   "Browser may not support output selection": "Browser may not support output selection",
-  "Picture in Picture": "Picture in Picture",
   "Ekran kalitesi": "Ekran kalitesi",
   "Audio devices": "Audio devices",
   "More options": "More options",
@@ -920,7 +919,6 @@ export const phrases = {
   "End Call": "End Call",
   "Muted": "Muted",
   "Speaking": "Speaking",
-  "Call picture-in-picture preview": "Call picture-in-picture preview",
   "Ekran paylaşımı kalitesi": "Ekran paylaşımı kalitesi",
   "Ayarlar uygulandı": "Ayarlar uygulandı",
   "Screen share quality": "Screen share quality",
@@ -1804,6 +1802,30 @@ export const phrases = {
   "Recipient": "Recipient",
   "Select an item…": "Select an item…",
   "Send gift": "Send gift",
+
+  // DesCoin economy + premium themes
+  "Premium Themes": "Premium Themes",
+  "Premium Theme": "Premium Theme",
+  "Earn DesCoin by talking in calls, messaging, and sharing your screen — then spend it on banners, avatar frames, backgrounds, and premium themes.":
+    "Earn DesCoin by talking in calls, messaging, and sharing your screen — then spend it on banners, avatar frames, backgrounds, and premium themes.",
+  "Your DesCoin balance": "Your DesCoin balance",
+  "Not enough DesCoin yet": "Not enough DesCoin yet",
+  "Not enough DesCoin": "Not enough DesCoin",
+  "Buying…": "Buying…",
+  "Purchase failed. Please try again.": "Purchase failed. Please try again.",
+  "Get more in Shop": "Get more in Shop",
+  "Price (DesCoin)": "Price (DesCoin)",
+  "Select a theme key…": "Select a theme key…",
+  "Grant / revoke DesCoin": "Grant / revoke DesCoin",
+  "User": "User",
+  "Amount": "Amount",
+  "Reason (optional)": "Reason (optional)",
+  "e.g. compensation, event reward…": "e.g. compensation, event reward…",
+  "Working…": "Working…",
+  "Grant DesCoin": "Grant DesCoin",
+  "Revoke DesCoin": "Revoke DesCoin",
+  "{name}'s new balance: {balance} DesCoin": "{name}'s new balance: {balance} DesCoin",
+  "Failed to update DesCoin balance.": "Failed to update DesCoin balance.",
 };
 
 const locale = { nested, phrases };
