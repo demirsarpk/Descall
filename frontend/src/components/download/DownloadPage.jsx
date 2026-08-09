@@ -53,22 +53,6 @@ const platforms = [
     size: '~138 MB',
     color: '#0078D4'
   },
-  { 
-    id: 'mac', 
-    name: 'macOS', 
-    icon: Smartphone, 
-    file: 'Descall.dmg',
-    size: '~165 MB',
-    color: '#000000'
-  },
-  { 
-    id: 'linux', 
-    name: 'Linux', 
-    icon: Terminal, 
-    file: 'Descall.AppImage',
-    size: '~170 MB',
-    color: '#25D366'
-  },
 ];
 
 export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authLoading, authError }) {
@@ -84,7 +68,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [releaseError, setReleaseError] = useState(null);
-  const [downloadLinks, setDownloadLinks] = useState({ windows: null, mac: null, linux: null });
+  const [downloadLinks, setDownloadLinks] = useState({ windows: null });
   const [windowsDownloadUrl, setWindowsDownloadUrl] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -103,8 +87,6 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
     setWindowsDownloadUrl(winUrl);
     setDownloadLinks({
       windows: winUrl,
-      mac: null,
-      linux: null,
     });
     setReleaseError(softError);
   };
@@ -180,8 +162,6 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
   const detectPlatform = () => {
     const userAgent = navigator.userAgent.toLowerCase();
     if (userAgent.includes('win')) setSelectedPlatform('windows');
-    else if (userAgent.includes('mac')) setSelectedPlatform('mac');
-    else if (userAgent.includes('linux')) setSelectedPlatform('linux');
   };
 
   const handleDownload = () => {

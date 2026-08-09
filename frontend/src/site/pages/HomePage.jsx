@@ -35,7 +35,7 @@ export default function HomePage({ onSignIn }) {
             {t("Sign In")}
           </button>
           <Link to="/download" className="mkt-btn mkt-btn-soft">
-            {t("Download")} {t("Desktop")}
+            {t("Download")} Windows & Android
           </Link>
           <Link to="/features" className="mkt-btn mkt-btn-ghost">
             {t("Features")}
