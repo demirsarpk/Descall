@@ -30,7 +30,10 @@ import './DownloadPage.css';
 
 const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
 const FALLBACK_WINDOWS_URL = DESKTOP_RELEASE_FALLBACK.windowsDownloadUrl;
-const ANDROID_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/download/Descall-APK-v2.8.3.apk`;
+// The Android asset filename is version-suffixed per release
+// (Descall-APK-vX.Y.Z.apk), so there is no stable "latest" direct-download
+// URL — the real link always comes from the live GitHub release asset list.
+const ANDROID_RELEASES_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 
 const FEATURE_DEFS = [
   { icon: MessageCircle, title: "Real-time Chat", desc: "Instant messaging with typing indicators" },
@@ -50,7 +53,7 @@ const platforms = [
     id: 'windows', 
     name: 'Windows', 
     icon: Monitor, 
-    file: 'Descall-Setup-2.5.0.exe',
+    file: 'Descall-Setup.exe',
     size: '~138 MB',
     color: '#0078D4'
   },
@@ -58,7 +61,7 @@ const platforms = [
     id: 'android',
     name: 'Android APK',
     icon: Smartphone,
-    file: 'Descall-APK-v2.8.3.apk',
+    file: 'Descall-APK.apk',
     size: 'Latest release',
     color: '#5B74FF'
   },
@@ -77,7 +80,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [releaseError, setReleaseError] = useState(null);
-  const [downloadLinks, setDownloadLinks] = useState({ windows: null, android: ANDROID_APK_URL });
+  const [downloadLinks, setDownloadLinks] = useState({ windows: null, android: null });
   const [windowsDownloadUrl, setWindowsDownloadUrl] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -96,7 +99,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
     setWindowsDownloadUrl(winUrl);
     setDownloadLinks({
       windows: winUrl,
-      android: ANDROID_APK_URL,
+      android: data.androidDownloadUrl || null,
     });
     setReleaseError(softError);
   };
@@ -177,7 +180,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
 
   const handleDownload = () => {
     const downloadUrl = selectedPlatform === 'android'
-      ? (downloadLinks.android || ANDROID_APK_URL)
+      ? (downloadLinks.android || ANDROID_RELEASES_PAGE_URL)
       : (windowsDownloadUrl || downloadLinks.windows || FALLBACK_WINDOWS_URL);
     window.open(downloadUrl, '_blank');
     setIsInstalled(true);

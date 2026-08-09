@@ -15,6 +15,10 @@ const FALLBACK_RELEASE = {
   publishedAt: new Date().toISOString(),
   htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v2.6.2`,
   windowsDownloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.6.2/Descall-Setup-2.6.2.exe`,
+  // The Android APK filename is version-suffixed per release
+  // (Descall-APK-vX.Y.Z.apk), so it cannot be guessed without a live asset
+  // list. Send people to the releases page instead of a dead direct link.
+  androidDownloadUrl: null,
   repo: GITHUB_REPO,
   fallback: true,
 };
@@ -46,6 +50,14 @@ function pickWindowsExeUrl(release) {
   return exes[0]?.browser_download_url || null;
 }
 
+/** Android asset name is version-suffixed (Descall-APK-vX.Y.Z.apk) per the
+ * release workflow, so it must be resolved from the live asset list. */
+function pickAndroidApkUrl(release) {
+  if (!release?.assets?.length) return null;
+  const apk = release.assets.find((a) => (a.name || "").toLowerCase().endsWith(".apk"));
+  return apk?.browser_download_url || null;
+}
+
 function githubHeaders() {
   const headers = {
     Accept: "application/vnd.github+json",
@@ -64,6 +76,7 @@ function payloadFromRelease(release) {
     publishedAt: release.published_at,
     htmlUrl: release.html_url,
     windowsDownloadUrl: pickWindowsExeUrl(release),
+    androidDownloadUrl: pickAndroidApkUrl(release),
     repo: GITHUB_REPO,
     fallback: false,
   };
