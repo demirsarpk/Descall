@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useLocale, useT } from "../context/LocaleContext";
+import DescallBrand from "../components/brand/DescallBrand";
 import "./site.css";
 
 const NAV = [
@@ -54,8 +55,7 @@ export default function MarketingLayout({ children, onSignIn }) {
 
       <header className="mkt-header">
         <Link to="/" className="mkt-brand" aria-label="Descall home">
-          <img src="/icon.png" alt="" width={32} height={32} />
-          <span>Descall</span>
+          <DescallBrand />
         </Link>
         {nav}
         <div className="mkt-header-actions">
@@ -85,8 +85,7 @@ export default function MarketingLayout({ children, onSignIn }) {
 
       <footer className="mkt-footer">
         <div className="mkt-footer-brand">
-          <img src="/icon.png" alt="" width={24} height={24} />
-          <strong>Descall</strong>
+          <DescallBrand />
         </div>
         <div className="mkt-footer-links">
           <Link to="/privacy">{t("Privacy Policy")}</Link>

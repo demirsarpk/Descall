@@ -10,6 +10,7 @@ import { STATUS_META } from "../../lib/presence";
 import { getUser } from "../../lib/storage";
 import { resolveAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
+import DescallBrand from "../brand/DescallBrand";
 
 const STATUS_OPTIONS = ["online", "idle", "dnd", "invisible"];
 
@@ -168,8 +169,7 @@ export default function NavigationRail({
   return (
     <nav className="nav-rail">
       <div className="nav-rail-brand">
-        <div className="brand-icon">D</div>
-        <span className="brand-wordmark">descall</span>
+        <DescallBrand />
       </div>
 
       <div className="nav-rail-main">
