@@ -8,6 +8,7 @@ const { userLastLoginAt, revokedSessionIds, authCodeAttempts } = require("../run
 const { sendEmail, generateCode, codeEmailHtml } = require("../lib/mailer");
 const { hashCode, verifyStoredCode } = require("../lib/authCodes");
 const { createSession, listSessions, removeSession, removeOtherSessions, clientIp } = require("../lib/sessions");
+const shop = require("../lib/shop");
 
 const { toPublicUser } = require("../lib/userProfile");
 const { publicRiotCard } = require("../lib/riotLink");
@@ -225,7 +226,7 @@ router.post("/login", async (req, res) => {
     const { data: user, error: lookupError } = await supabase
       .from("users")
       .select(
-        "id, username, password_hash, avatar_url, display_name, bio, custom_status, banner_url, updated_at, auth_provider, email, email_confirmed_at, two_factor_enabled"
+        "id, username, password_hash, avatar_url, display_name, bio, custom_status, banner_url, updated_at, auth_provider, email, email_confirmed_at, two_factor_enabled, is_admin"
       )
       .ilike("username", cleanUsername)
       .maybeSingle();
@@ -322,7 +323,7 @@ router.post("/2fa/verify-login", async (req, res) => {
     const { data: user, error } = await supabase
       .from("users")
       .select(
-        "id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, reauthentication_token, reauthentication_sent_at"
+        "id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, reauthentication_token, reauthentication_sent_at, is_admin"
       )
       .eq("id", decoded.sub)
       .maybeSingle();
@@ -413,7 +414,7 @@ router.post("/google", async (req, res) => {
 
     let { data: user, error: byGoogleError } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin")
       .eq("google_id", googleId)
       .maybeSingle();
 
@@ -425,7 +426,7 @@ router.post("/google", async (req, res) => {
     if (!user && email) {
       const { data: byEmail, error: byEmailError } = await supabase
         .from("users")
-        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled")
+        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin")
         .ilike("email", email)
         .maybeSingle();
 
@@ -452,7 +453,7 @@ router.post("/google", async (req, res) => {
           .from("users")
           .update(linkUpdate)
           .eq("id", byEmail.id)
-          .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled")
+          .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, is_admin")
           .single();
 
         if (linkError || !linked) {
@@ -485,7 +486,7 @@ router.post("/google", async (req, res) => {
       const { data: created, error: insertError } = await supabase
         .from("users")
         .insert(insertPayload)
-        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled")
+        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, is_admin")
         .single();
 
       if (insertError || !created) {
@@ -530,7 +531,7 @@ router.get("/me", requireAuth, async (req, res) => {
     const { data: user, error } = await supabase
       .from("users")
       .select(
-        "id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at, language, email, email_confirmed_at, two_factor_enabled, blocked_users"
+        "id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at, language, email, email_confirmed_at, two_factor_enabled, blocked_users, equipped_avatar_frame_id, equipped_banner_id, equipped_background_id"
       )
       .eq("id", req.user.id)
       .single();
@@ -540,6 +541,11 @@ router.get("/me", requireAuth, async (req, res) => {
     }
 
     const valorant = await loadPublicValorant(user.id);
+    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({
+      avatarFrame: null,
+      banner: null,
+      background: null,
+    }));
     return res.status(200).json({
       user: {
         ...toPublicUser(user),
@@ -548,6 +554,9 @@ router.get("/me", requireAuth, async (req, res) => {
         emailVerified: Boolean(user.email_confirmed_at),
         twoFactorEnabled: Boolean(user.two_factor_enabled),
         blockedUsers: Array.isArray(user.blocked_users) ? user.blocked_users : [],
+        equippedAvatarFrame: equipped.avatarFrame,
+        equippedBanner: equipped.banner,
+        equippedBackground: equipped.background,
       },
     });
   } catch (err) {
@@ -561,18 +570,28 @@ router.get("/users/:userId", requireAuth, async (req, res) => {
     const { userId } = req.params;
     const { data: user, error } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at")
+      .select(
+        "id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at, equipped_avatar_frame_id, equipped_banner_id, equipped_background_id"
+      )
       .eq("id", userId)
       .single();
 
     if (error || !user) return res.status(404).json({ error: "User not found" });
 
     const valorant = await loadPublicValorant(user.id);
+    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({
+      avatarFrame: null,
+      banner: null,
+      background: null,
+    }));
     return res.json({
       user: {
         ...toPublicUser(user),
         createdAt: user.created_at,
         valorant,
+        equippedAvatarFrame: equipped.avatarFrame,
+        equippedBanner: equipped.banner,
+        equippedBackground: equipped.background,
       },
     });
   } catch (err) {
