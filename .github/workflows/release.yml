@@ -65,7 +65,15 @@ jobs:
           npm run build:prod
           npx electron-builder --win --publish=never
       - uses: actions/upload-artifact@v4
-        with: { name: windows-setup, path: frontend/release/*.exe }
+        with:
+          name: windows-setup
+          # latest.yml + the .exe.blockmap are required by electron-updater's
+          # generic/github feed to detect and verify new versions — without
+          # them the desktop app silently never sees an update again.
+          path: |
+            frontend/release/*.exe
+            frontend/release/*.blockmap
+            frontend/release/latest.yml
 
   publish:
     needs: [android, windows]
