@@ -20,6 +20,8 @@ function matches(row, filters) {
     if (type === "not-is-null") return rowVal !== null && rowVal !== undefined;
     if (type === "is-null") return rowVal === null || rowVal === undefined;
     if (type === "in") return Array.isArray(val) && val.includes(rowVal);
+    if (type === "gt") return rowVal > val;
+    if (type === "gte") return rowVal >= val;
     return true;
   });
 }
@@ -107,6 +109,18 @@ class FakeQuery {
     this.orderAsc = opts.ascending !== false;
     return this;
   }
+  limit(n) {
+    this.limitCount = n;
+    return this;
+  }
+  gt(col, val) {
+    this.filters.push({ type: "gt", col, val });
+    return this;
+  }
+  gte(col, val) {
+    this.filters.push({ type: "gte", col, val });
+    return this;
+  }
   update(obj) {
     this.mode = "update";
     this.payload = obj;
@@ -192,6 +206,7 @@ class FakeQuery {
       }
       return { data: matched[0], error: null };
     }
+    if (typeof this.limitCount === "number") matched = matched.slice(0, this.limitCount);
     return { data: matched, error: null };
   }
 
