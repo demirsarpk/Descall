@@ -1342,6 +1342,7 @@ router.post("/credits/update", async (req, res) => {
 // ============================================================================
 
 const shop = require("../lib/shop");
+const descoin = require("../lib/descoin");
 
 // List every item (including inactive) for the admin catalog editor.
 router.get("/shop/items", async (_req, res) => {
@@ -1354,15 +1355,20 @@ router.get("/shop/items", async (_req, res) => {
   }
 });
 
+const SHOP_CATEGORIES = ["banner", "avatar_frame", "profile_background", "theme"];
+
 router.post("/shop/items", async (req, res) => {
   try {
-    const { sku, name, description, category, assetUrl, previewUrl, priceCents, currency, rarity, sortOrder } =
+    const { sku, name, description, category, assetUrl, previewUrl, priceDescoin, themeKey, rarity, sortOrder } =
       req.body || {};
-    if (!sku || !name || !category || !assetUrl || priceCents == null) {
-      return res.status(400).json({ error: "sku, name, category, assetUrl, and priceCents are required." });
+    if (!sku || !name || !category || !assetUrl || priceDescoin == null) {
+      return res.status(400).json({ error: "sku, name, category, assetUrl, and priceDescoin are required." });
     }
-    if (!["banner", "avatar_frame", "profile_background"].includes(category)) {
+    if (!SHOP_CATEGORIES.includes(category)) {
       return res.status(400).json({ error: "Invalid category." });
+    }
+    if (category === "theme" && !themeKey) {
+      return res.status(400).json({ error: "themeKey is required for theme items." });
     }
     const item = await shop.createItem({
       sku,
@@ -1371,8 +1377,8 @@ router.post("/shop/items", async (req, res) => {
       category,
       asset_url: assetUrl,
       preview_url: previewUrl || null,
-      price_cents: Math.round(Number(priceCents)),
-      currency: currency || "usd",
+      price_descoin: Math.max(0, Math.round(Number(priceDescoin))),
+      theme_key: category === "theme" ? themeKey : null,
       rarity: rarity || "common",
       sort_order: Number(sortOrder) || 0,
     });
@@ -1386,16 +1392,17 @@ router.post("/shop/items", async (req, res) => {
 
 router.patch("/shop/items/:id", async (req, res) => {
   try {
-    const { name, description, active, priceCents, previewUrl, assetUrl, sortOrder, rarity } = req.body || {};
+    const { name, description, active, priceDescoin, previewUrl, assetUrl, sortOrder, rarity, themeKey } = req.body || {};
     const fields = {};
     if (name != null) fields.name = name;
     if (description !== undefined) fields.description = description;
     if (active != null) fields.active = Boolean(active);
-    if (priceCents != null) fields.price_cents = Math.round(Number(priceCents));
+    if (priceDescoin != null) fields.price_descoin = Math.max(0, Math.round(Number(priceDescoin)));
     if (previewUrl !== undefined) fields.preview_url = previewUrl;
     if (assetUrl != null) fields.asset_url = assetUrl;
     if (sortOrder != null) fields.sort_order = Number(sortOrder);
     if (rarity != null) fields.rarity = rarity;
+    if (themeKey !== undefined) fields.theme_key = themeKey || null;
     const item = await shop.updateItem(req.params.id, fields);
     if (!item) return res.status(404).json({ error: "Item not found." });
     audit(req.user, "shop_item_update", item.id, fields);
@@ -1403,6 +1410,36 @@ router.patch("/shop/items/:id", async (req, res) => {
   } catch (err) {
     console.error("[Admin] update shop item error:", err.message);
     res.status(500).json({ error: "Failed to update shop item." });
+  }
+});
+
+// Directly credit or debit a user's DesCoin balance (support / compensation).
+router.post("/descoin/grant", async (req, res) => {
+  try {
+    const { userId, amount, reason } = req.body || {};
+    const parsedAmount = Math.round(Number(amount));
+    if (!userId || !Number.isFinite(parsedAmount) || parsedAmount === 0) {
+      return res.status(400).json({ error: "userId and a non-zero amount are required." });
+    }
+    const result =
+      parsedAmount > 0
+        ? await descoin.credit(userId, parsedAmount, "admin_grant", { by: req.user.id, reason: reason || null })
+        : await descoin.debit(userId, Math.abs(parsedAmount), "admin_revoke", { by: req.user.id, reason: reason || null });
+    audit(req.user, "descoin_grant", userId, { amount: parsedAmount, reason: reason || null });
+
+    const io = getIo(req);
+    io?.to(`user:${userId}`)?.emit("descoin:balance", {
+      balance: result.balance,
+      delta: parsedAmount,
+      reason: parsedAmount > 0 ? "admin_grant" : "admin_revoke",
+    });
+    res.json({ success: true, balance: result.balance });
+  } catch (err) {
+    if (err.message === "INSUFFICIENT_BALANCE") {
+      return res.status(400).json({ error: "User does not have enough DesCoin to revoke that amount." });
+    }
+    console.error("[Admin] descoin grant error:", err.message);
+    res.status(500).json({ error: "Failed to update DesCoin balance." });
   }
 });
 

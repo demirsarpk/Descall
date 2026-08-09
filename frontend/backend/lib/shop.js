@@ -13,10 +13,11 @@ const EQUIP_COLUMN_BY_CATEGORY = {
   banner: "equipped_banner_id",
   avatar_frame: "equipped_avatar_frame_id",
   profile_background: "equipped_background_id",
+  theme: "equipped_theme_id",
 };
 
 const ITEM_COLUMNS =
-  "id, sku, name, description, category, asset_url, preview_url, price_cents, currency, active, rarity, sort_order, created_at";
+  "id, sku, name, description, category, asset_url, preview_url, price_cents, currency, price_descoin, theme_key, active, rarity, sort_order, created_at";
 
 async function listActiveItems() {
   const { data, error } = await supabase
@@ -191,17 +192,23 @@ async function equipItem(userId, category, itemId) {
   if (error) throw error;
 }
 
-/** Resolves one user's three equip slots into full item records for profile rendering. */
+/** Resolves one user's equip slots (incl. premium theme) into full item records. */
 async function getEquippedCosmeticsForUser(userId) {
+  const empty = { avatarFrame: null, banner: null, background: null, theme: null };
   const { data: user, error } = await supabase
     .from("users")
-    .select("equipped_avatar_frame_id, equipped_banner_id, equipped_background_id")
+    .select("equipped_avatar_frame_id, equipped_banner_id, equipped_background_id, equipped_theme_id")
     .eq("id", userId)
     .maybeSingle();
-  if (error || !user) return { avatarFrame: null, banner: null, background: null };
+  if (error || !user) return empty;
 
-  const ids = [user.equipped_avatar_frame_id, user.equipped_banner_id, user.equipped_background_id].filter(Boolean);
-  if (!ids.length) return { avatarFrame: null, banner: null, background: null };
+  const ids = [
+    user.equipped_avatar_frame_id,
+    user.equipped_banner_id,
+    user.equipped_background_id,
+    user.equipped_theme_id,
+  ].filter(Boolean);
+  if (!ids.length) return empty;
 
   const { data: shopRows } = await supabase.from("shop_items").select(ITEM_COLUMNS).in("id", ids);
   const byId = new Map((shopRows || []).map((i) => [i.id, i]));
@@ -209,6 +216,7 @@ async function getEquippedCosmeticsForUser(userId) {
     avatarFrame: byId.get(user.equipped_avatar_frame_id) || null,
     banner: byId.get(user.equipped_banner_id) || null,
     background: byId.get(user.equipped_background_id) || null,
+    theme: byId.get(user.equipped_theme_id) || null,
   };
 }
 
