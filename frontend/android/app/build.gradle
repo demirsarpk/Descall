@@ -17,8 +17,8 @@ android {
         // .github/workflows/release.yml) so every APK sideload is a strictly
         // increasing versionCode — otherwise Android's package manager treats
         // a same-versionCode APK as a downgrade/no-op install over itself.
-        versionCode 20808
-        versionName "2.8.8"
+        versionCode 20809
+        versionName "2.8.9"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -29,7 +29,9 @@ android {
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
             release {
-                storeFile file(keystoreProperties['storeFile'])
+                // Resolve relative to android/ (where keystore.properties lives),
+                // not android/app/ — file() here would double the "app/" segment.
+                storeFile rootProject.file(keystoreProperties['storeFile'])
                 storePassword keystoreProperties['storePassword']
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
