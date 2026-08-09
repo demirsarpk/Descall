@@ -31,6 +31,15 @@ const autoDeleteRules = [];
 const flaggedMessages = [];
 const messageFlags = new Map();
 const dmBlockPairs = new Set();
+// Instant session revocation: "End session" removes the session from the
+// durable users.active_sessions column (shown in Settings) AND adds its id
+// here so requests/sockets using that JWT are rejected immediately, without
+// a DB round-trip per request. Resets on restart, matching the existing
+// in-memory ban/block pattern in this codebase.
+const revokedSessionIds = new Set();
+// Per (userId:purpose) guess-attempt counter for email verification / 2FA
+// login codes, reset whenever a fresh code is issued.
+const authCodeAttempts = new Map();
 const userLastLoginAt = new Map();
 const userSessionStartMs = new Map();
 const userOnlineAccumMs = new Map();
@@ -139,6 +148,8 @@ module.exports = {
   flaggedMessages,
   messageFlags,
   dmBlockPairs,
+  revokedSessionIds,
+  authCodeAttempts,
   userLastLoginAt,
   userSessionStartMs,
   userOnlineAccumMs,

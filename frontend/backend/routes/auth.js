@@ -2,12 +2,38 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const { OAuth2Client } = require("google-auth-library");
 const supabase = require("../db/supabase");
-const { signToken } = require("../config/jwt");
+const { signToken, signPending2faToken, verifyToken } = require("../config/jwt");
 const { requireAuth } = require("../middleware/auth");
-const { userLastLoginAt } = require("../runtime/sharedState");
+const { userLastLoginAt, revokedSessionIds, authCodeAttempts } = require("../runtime/sharedState");
+const { sendEmail, generateCode, codeEmailHtml } = require("../lib/mailer");
+const { hashCode, verifyStoredCode } = require("../lib/authCodes");
+const { createSession, listSessions, removeSession, removeOtherSessions, clientIp } = require("../lib/sessions");
 
 const { toPublicUser } = require("../lib/userProfile");
 const { publicRiotCard } = require("../lib/riotLink");
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function attemptKey(userId, purpose) {
+  return `${userId}:${purpose}`;
+}
+
+async function issueAndSendCode({ userId, email, username, purpose, column, sentAtColumn, title, footer }) {
+  const code = generateCode();
+  const update = { [column]: hashCode(code), [sentAtColumn]: new Date().toISOString() };
+  await supabase.from("users").update(update).eq("id", userId);
+  authCodeAttempts.set(attemptKey(userId, purpose), 0);
+  const result = await sendEmail({
+    to: email,
+    subject: title,
+    text: `Your Descall verification code is ${code}. It expires in 10 minutes.`,
+    html: codeEmailHtml({ title, code, minutes: 10, footer }),
+  });
+  if (!result.sent && !result.skipped) {
+    console.warn(`[AUTH] ${purpose} email failed for`, username, result.error);
+  }
+  return result;
+}
 
 const router = express.Router();
 const BCRYPT_ROUNDS = 12;
@@ -45,6 +71,9 @@ function authUserPayload(user) {
     updated_at: user.updated_at || null,
     is_admin: isAdmin,
     isAdmin,
+    email: user.email || null,
+    emailVerified: Boolean(user.email_confirmed_at),
+    twoFactorEnabled: Boolean(user.two_factor_enabled),
   };
 }
 
@@ -92,7 +121,7 @@ function validatePassword(password) {
 
 router.post("/register", async (req, res) => {
   try {
-    const { username, password } = req.body ?? {};
+    const { username, password, email: rawEmail } = req.body ?? {};
 
     const usernameError = validateUsername(username);
     if (usernameError) {
@@ -102,6 +131,11 @@ router.post("/register", async (req, res) => {
     const passwordError = validatePassword(password);
     if (passwordError) {
       return res.status(400).json({ error: passwordError });
+    }
+
+    const email = rawEmail ? String(rawEmail).trim().toLowerCase() : null;
+    if (email && !EMAIL_RE.test(email)) {
+      return res.status(400).json({ error: "Enter a valid email address." });
     }
 
     const cleanUsername = username.trim();
@@ -120,11 +154,23 @@ router.post("/register", async (req, res) => {
       return res.status(409).json({ error: "Username is already taken." });
     }
 
+    if (email) {
+      const { data: emailTaken } = await supabase
+        .from("users")
+        .select("id")
+        .ilike("email", email)
+        .not("email_confirmed_at", "is", null)
+        .maybeSingle();
+      if (emailTaken) {
+        return res.status(409).json({ error: "Email is already in use." });
+      }
+    }
+
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     const { data: newUser, error: insertError } = await supabase
       .from("users")
-      .insert({ username: cleanUsername, password_hash })
+      .insert({ username: cleanUsername, password_hash, email })
       .select("id, username, avatar_url")
       .single();
 
@@ -132,9 +178,26 @@ router.post("/register", async (req, res) => {
       return res.status(500).json({ error: "Failed to create user." });
     }
 
+    let emailSent = false;
+    if (email) {
+      const result = await issueAndSendCode({
+        userId: newUser.id,
+        email,
+        username: cleanUsername,
+        purpose: "email_verify",
+        column: "confirmation_token",
+        sentAtColumn: "confirmation_sent_at",
+        title: "Verify your Descall email",
+        footer: "Welcome to Descall! Enter this code in the app to verify your email address.",
+      }).catch(() => ({ sent: false }));
+      emailSent = Boolean(result?.sent);
+    }
+
     return res.status(201).json({
       message: "User registered successfully.",
       user: { id: newUser.id, username: newUser.username, avatarUrl: newUser.avatar_url || null },
+      needsEmailVerification: Boolean(email),
+      verificationEmailSent: emailSent,
     });
   } catch (err) {
     return res.status(500).json({ error: "Internal server error." });
@@ -161,7 +224,9 @@ router.post("/login", async (req, res) => {
 
     const { data: user, error: lookupError } = await supabase
       .from("users")
-      .select("id, username, password_hash, avatar_url, display_name, bio, custom_status, banner_url, updated_at, auth_provider")
+      .select(
+        "id, username, password_hash, avatar_url, display_name, bio, custom_status, banner_url, updated_at, auth_provider, email, email_confirmed_at, two_factor_enabled"
+      )
       .ilike("username", cleanUsername)
       .maybeSingle();
 
@@ -192,13 +257,43 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid username or password." });
     }
 
-    const token = signToken({ id: user.id, username: user.username });
+    if (user.two_factor_enabled && user.email_confirmed_at && user.email) {
+      const result = await issueAndSendCode({
+        userId: user.id,
+        email: user.email,
+        username: user.username,
+        purpose: "2fa_login",
+        column: "reauthentication_token",
+        sentAtColumn: "reauthentication_sent_at",
+        title: "Your Descall sign-in code",
+        footer: "Enter this code to finish signing in to Descall.",
+      }).catch(() => ({ sent: false, error: "send_failed" }));
+
+      if (!result.sent) {
+        console.error("[AUTH] 2FA code email failed for", user.username, result.error);
+        return res.status(503).json({ error: "Could not send your sign-in code. Please try again shortly." });
+      }
+
+      return res.status(200).json({
+        message: "Two-factor code sent.",
+        requires2fa: true,
+        pendingToken: signPending2faToken({ id: user.id, username: user.username }),
+        emailHint: maskEmail(user.email),
+      });
+    }
+
+    const { session } = await createSession(user.id, {
+      userAgent: req.headers["user-agent"],
+      ip: clientIp(req),
+    });
+    const token = signToken({ id: user.id, username: user.username, sid: session.id });
 
     userLastLoginAt.set(user.id, new Date().toISOString());
 
     return res.status(200).json({
       message: "Login successful.",
       token,
+      sessionId: session.id,
       user: authUserPayload(user),
     });
   } catch (err) {
@@ -206,6 +301,83 @@ router.post("/login", async (req, res) => {
     return res.status(500).json({ error: "Internal server error.", details: err.message });
   }
 });
+
+router.post("/2fa/verify-login", async (req, res) => {
+  try {
+    const { pendingToken, code } = req.body ?? {};
+    if (!pendingToken || !code) {
+      return res.status(400).json({ error: "Code is required." });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyToken(pendingToken);
+    } catch {
+      return res.status(401).json({ error: "Sign-in session expired. Please log in again." });
+    }
+    if (!decoded.pending2fa || !decoded.sub) {
+      return res.status(401).json({ error: "Invalid sign-in session." });
+    }
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select(
+        "id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, reauthentication_token, reauthentication_sent_at"
+      )
+      .eq("id", decoded.sub)
+      .maybeSingle();
+    if (error || !user) return res.status(401).json({ error: "Invalid sign-in session." });
+
+    const key = attemptKey(user.id, "2fa_login");
+    const attempts = authCodeAttempts.get(key) || 0;
+    const verdict = verifyStoredCode({
+      code,
+      storedHash: user.reauthentication_token,
+      sentAtIso: user.reauthentication_sent_at,
+      attempts,
+    });
+    if (!verdict.ok) {
+      authCodeAttempts.set(key, attempts + 1);
+      const message =
+        verdict.reason === "expired"
+          ? "Code expired. Please log in again to request a new one."
+          : verdict.reason === "too_many_attempts"
+          ? "Too many incorrect attempts. Please log in again."
+          : "Incorrect code.";
+      return res.status(401).json({ error: message });
+    }
+
+    authCodeAttempts.delete(key);
+    await supabase
+      .from("users")
+      .update({ reauthentication_token: null, reauthentication_sent_at: null })
+      .eq("id", user.id);
+
+    const { session } = await createSession(user.id, {
+      userAgent: req.headers["user-agent"],
+      ip: clientIp(req),
+    });
+    const token = signToken({ id: user.id, username: user.username, sid: session.id });
+    userLastLoginAt.set(user.id, new Date().toISOString());
+
+    return res.status(200).json({
+      message: "Login successful.",
+      token,
+      sessionId: session.id,
+      user: authUserPayload(user),
+    });
+  } catch (err) {
+    console.error("[AUTH] 2FA verify error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+function maskEmail(email) {
+  const [name, domain] = String(email).split("@");
+  if (!domain) return email;
+  const visible = name.slice(0, Math.min(2, name.length));
+  return `${visible}${"*".repeat(Math.max(1, name.length - visible.length))}@${domain}`;
+}
 
 router.post("/google", async (req, res) => {
   try {
@@ -241,7 +413,7 @@ router.post("/google", async (req, res) => {
 
     let { data: user, error: byGoogleError } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled")
       .eq("google_id", googleId)
       .maybeSingle();
 
@@ -253,7 +425,7 @@ router.post("/google", async (req, res) => {
     if (!user && email) {
       const { data: byEmail, error: byEmailError } = await supabase
         .from("users")
-        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider")
+        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled")
         .ilike("email", email)
         .maybeSingle();
 
@@ -270,6 +442,7 @@ router.post("/google", async (req, res) => {
         const linkUpdate = {
           google_id: googleId,
           email,
+          email_confirmed_at: byEmail.email_confirmed_at || new Date().toISOString(),
           auth_provider: byEmail.auth_provider === "local" ? "local+google" : "google",
           avatar_url: byEmail.avatar_url || picture,
         };
@@ -279,7 +452,7 @@ router.post("/google", async (req, res) => {
           .from("users")
           .update(linkUpdate)
           .eq("id", byEmail.id)
-          .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at")
+          .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled")
           .single();
 
         if (linkError || !linked) {
@@ -302,6 +475,7 @@ router.post("/google", async (req, res) => {
         username,
         password_hash: null,
         email,
+        email_confirmed_at: email ? new Date().toISOString() : null,
         google_id: googleId,
         auth_provider: "google",
         avatar_url: picture,
@@ -311,7 +485,7 @@ router.post("/google", async (req, res) => {
       const { data: created, error: insertError } = await supabase
         .from("users")
         .insert(insertPayload)
-        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at")
+        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled")
         .single();
 
       if (insertError || !created) {
@@ -325,12 +499,17 @@ router.post("/google", async (req, res) => {
       user = created;
     }
 
-    const token = signToken({ id: user.id, username: user.username });
+    const { session } = await createSession(user.id, {
+      userAgent: req.headers["user-agent"],
+      ip: clientIp(req),
+    });
+    const token = signToken({ id: user.id, username: user.username, sid: session.id });
     userLastLoginAt.set(user.id, new Date().toISOString());
 
     return res.status(200).json({
       message: "Google login successful.",
       token,
+      sessionId: session.id,
       user: authUserPayload(user),
     });
   } catch (err) {
@@ -350,7 +529,9 @@ router.get("/me", requireAuth, async (req, res) => {
   try {
     const { data: user, error } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at, language")
+      .select(
+        "id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at, language, email, email_confirmed_at, two_factor_enabled, blocked_users"
+      )
       .eq("id", req.user.id)
       .single();
     
@@ -359,7 +540,16 @@ router.get("/me", requireAuth, async (req, res) => {
     }
 
     const valorant = await loadPublicValorant(user.id);
-    return res.status(200).json({ user: { ...toPublicUser(user), valorant } });
+    return res.status(200).json({
+      user: {
+        ...toPublicUser(user),
+        valorant,
+        email: user.email || null,
+        emailVerified: Boolean(user.email_confirmed_at),
+        twoFactorEnabled: Boolean(user.two_factor_enabled),
+        blockedUsers: Array.isArray(user.blocked_users) ? user.blocked_users : [],
+      },
+    });
   } catch (err) {
     console.error("[AUTH] /me error:", err);
     return res.status(500).json({ error: "Internal server error" });
@@ -402,5 +592,227 @@ router.get("/test", async (_req, res) => {
     return res.status(500).json({ status: "error", message: err.message });
   }
 });
+
+// ─── Email verification ─────────────────────────────────────────────
+
+router.post("/email/set", requireAuth, async (req, res) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({ error: "Enter a valid email address." });
+    }
+
+    const { data: taken } = await supabase
+      .from("users")
+      .select("id")
+      .ilike("email", email)
+      .not("email_confirmed_at", "is", null)
+      .neq("id", req.user.id)
+      .maybeSingle();
+    if (taken) {
+      return res.status(409).json({ error: "This email is already in use." });
+    }
+
+    await supabase
+      .from("users")
+      .update({ email, email_confirmed_at: null })
+      .eq("id", req.user.id);
+
+    const result = await issueAndSendCode({
+      userId: req.user.id,
+      email,
+      username: req.user.username,
+      purpose: "email_verify",
+      column: "confirmation_token",
+      sentAtColumn: "confirmation_sent_at",
+      title: "Verify your Descall email",
+      footer: "Enter this code in Descall to verify your email address.",
+    });
+
+    if (!result.sent && !result.skipped) {
+      return res.status(503).json({ error: "Could not send verification email. Please try again." });
+    }
+
+    return res.json({ message: "Verification code sent.", emailConfigured: !result.skipped });
+  } catch (err) {
+    console.error("[AUTH] email/set error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+router.post("/email/resend", requireAuth, async (req, res) => {
+  try {
+    const { data: user } = await supabase
+      .from("users")
+      .select("email, email_confirmed_at")
+      .eq("id", req.user.id)
+      .maybeSingle();
+    if (!user?.email) return res.status(400).json({ error: "No email on file. Add one first." });
+    if (user.email_confirmed_at) return res.status(400).json({ error: "Email is already verified." });
+
+    const result = await issueAndSendCode({
+      userId: req.user.id,
+      email: user.email,
+      username: req.user.username,
+      purpose: "email_verify",
+      column: "confirmation_token",
+      sentAtColumn: "confirmation_sent_at",
+      title: "Verify your Descall email",
+      footer: "Enter this code in Descall to verify your email address.",
+    });
+    if (!result.sent && !result.skipped) {
+      return res.status(503).json({ error: "Could not send verification email. Please try again." });
+    }
+    return res.json({ message: "Verification code sent." });
+  } catch (err) {
+    console.error("[AUTH] email/resend error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+router.post("/email/verify", requireAuth, async (req, res) => {
+  try {
+    const code = String(req.body?.code || "").trim();
+    const { data: user } = await supabase
+      .from("users")
+      .select("confirmation_token, confirmation_sent_at")
+      .eq("id", req.user.id)
+      .maybeSingle();
+
+    const key = attemptKey(req.user.id, "email_verify");
+    const attempts = authCodeAttempts.get(key) || 0;
+    const verdict = verifyStoredCode({
+      code,
+      storedHash: user?.confirmation_token,
+      sentAtIso: user?.confirmation_sent_at,
+      attempts,
+    });
+    if (!verdict.ok) {
+      authCodeAttempts.set(key, attempts + 1);
+      const message =
+        verdict.reason === "expired"
+          ? "Code expired. Request a new one."
+          : verdict.reason === "too_many_attempts"
+          ? "Too many incorrect attempts. Request a new code."
+          : verdict.reason === "no_pending_code"
+          ? "No verification pending. Add your email first."
+          : "Incorrect code.";
+      return res.status(400).json({ error: message });
+    }
+
+    authCodeAttempts.delete(key);
+    await supabase
+      .from("users")
+      .update({ email_confirmed_at: new Date().toISOString(), confirmation_token: null })
+      .eq("id", req.user.id);
+
+    return res.json({ message: "Email verified.", emailVerified: true });
+  } catch (err) {
+    console.error("[AUTH] email/verify error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+// ─── Two-factor authentication ──────────────────────────────────────
+
+router.post("/2fa/enable", requireAuth, async (req, res) => {
+  try {
+    const { data: user } = await supabase
+      .from("users")
+      .select("email, email_confirmed_at")
+      .eq("id", req.user.id)
+      .maybeSingle();
+    if (!user?.email || !user.email_confirmed_at) {
+      return res.status(400).json({ error: "Verify your email before enabling two-factor authentication." });
+    }
+    await supabase.from("users").update({ two_factor_enabled: true }).eq("id", req.user.id);
+    return res.json({ message: "Two-factor authentication enabled.", twoFactorEnabled: true });
+  } catch (err) {
+    console.error("[AUTH] 2fa/enable error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+router.post("/2fa/disable", requireAuth, async (req, res) => {
+  try {
+    const { password } = req.body ?? {};
+    const { data: user } = await supabase
+      .from("users")
+      .select("password_hash")
+      .eq("id", req.user.id)
+      .maybeSingle();
+
+    if (user?.password_hash) {
+      if (typeof password !== "string" || !(await bcrypt.compare(password, user.password_hash))) {
+        return res.status(401).json({ error: "Incorrect password." });
+      }
+    }
+
+    await supabase.from("users").update({ two_factor_enabled: false }).eq("id", req.user.id);
+    return res.json({ message: "Two-factor authentication disabled.", twoFactorEnabled: false });
+  } catch (err) {
+    console.error("[AUTH] 2fa/disable error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+// ─── Session management ─────────────────────────────────────────────
+
+router.get("/sessions", requireAuth, async (req, res) => {
+  try {
+    const sessions = await listSessions(req.user.id);
+    return res.json({
+      sessions: sessions.map((s) => ({ ...s, current: s.id === req.user.sid })),
+    });
+  } catch (err) {
+    console.error("[AUTH] /sessions error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+router.post("/sessions/:sessionId/revoke", requireAuth, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    if (sessionId === req.user.sid) {
+      return res.status(400).json({ error: "Use logout to end your current session." });
+    }
+    const sessions = await removeSession(req.user.id, sessionId);
+    revokedSessionIds.add(sessionId);
+    disconnectSocketsForSession(req, req.user.id, sessionId);
+    return res.json({ message: "Session ended.", sessions });
+  } catch (err) {
+    console.error("[AUTH] session revoke error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+router.post("/sessions/revoke-others", requireAuth, async (req, res) => {
+  try {
+    const { removed, sessions } = await removeOtherSessions(req.user.id, req.user.sid);
+    removed.forEach((id) => {
+      revokedSessionIds.add(id);
+      disconnectSocketsForSession(req, req.user.id, id);
+    });
+    return res.json({ message: "Other sessions ended.", sessions, revokedCount: removed.length });
+  } catch (err) {
+    console.error("[AUTH] revoke-others error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+function disconnectSocketsForSession(req, userId, sessionId) {
+  try {
+    const io = req.app.get("io");
+    if (!io) return;
+    for (const [, sock] of io.sockets.sockets) {
+      if (sock.user?.id === userId && sock.user?.sid === sessionId) {
+        sock.emit("session:revoked", { sessionId });
+        sock.disconnect(true);
+      }
+    }
+  } catch (err) {
+    console.warn("[AUTH] disconnectSocketsForSession failed:", err?.message);
+  }
+}
 
 module.exports = router;

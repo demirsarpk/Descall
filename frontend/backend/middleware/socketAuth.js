@@ -1,5 +1,5 @@
 const { verifyToken } = require("../config/jwt");
-const { bannedUserIds } = require("../runtime/sharedState");
+const { bannedUserIds, revokedSessionIds } = require("../runtime/sharedState");
 
 function socketAuthMiddleware(socket, next) {
   const token = socket.handshake.auth?.token;
@@ -10,10 +10,16 @@ function socketAuthMiddleware(socket, next) {
 
   try {
     const decoded = verifyToken(token);
+    if (decoded.pending2fa) {
+      return next(new Error("Authentication failed: two-factor verification required."));
+    }
     if (bannedUserIds.has(decoded.sub)) {
       return next(new Error("Authentication failed: account is banned."));
     }
-    socket.user = { id: decoded.sub, username: decoded.username };
+    if (decoded.sid && revokedSessionIds.has(decoded.sid)) {
+      return next(new Error("Authentication failed: session has been signed out."));
+    }
+    socket.user = { id: decoded.sub, username: decoded.username, sid: decoded.sid || null };
     next();
   } catch (err) {
     if (err.name === "TokenExpiredError") {
