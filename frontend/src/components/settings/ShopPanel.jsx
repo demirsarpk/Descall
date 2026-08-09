@@ -56,7 +56,7 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
     try {
       await purchaseShopItem(item.id);
       await load();
-      onEquippedChange?.(null, null); // no-op signal to let parents re-sync equip state if needed
+      await onEquippedChange?.(null, null); // no-op signal to let parents re-sync equip state if needed
     } catch (err) {
       setNotice(err.message || t("Purchase failed. Please try again."));
     } finally {
@@ -68,7 +68,7 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
     setBusyItemId(item.id);
     try {
       await equipShopItem(item.category, isEquipped ? null : item.id);
-      onEquippedChange?.(item.category, isEquipped ? null : item.id);
+      await onEquippedChange?.(item.category, isEquipped ? null : item.id);
     } catch (_) {
       // best-effort
     } finally {
