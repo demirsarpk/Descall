@@ -410,12 +410,6 @@ const UserPanel = forwardRef(function UserPanel({
     [me?.equippedBanner?.id, me?.equippedAvatarFrame?.id, me?.equippedBackground?.id, me?.equippedTheme?.id]
   );
 
-  const handleEquippedChange = useCallback(() => {
-    // Re-fetch /auth/me so the resolved item (name, asset_url) is available
-    // app-wide immediately — nav rail, message avatars, profile modal, etc.
-    refreshMeFromServer();
-  }, [refreshMeFromServer]);
-
   /* ── Appearance ── */
   const [darkMode, setDarkMode] = useState(stored.darkMode !== false);
   const [accentColor, setAccentColor] = useState(stored.accentColor || "#5865F2");
@@ -424,22 +418,36 @@ const UserPanel = forwardRef(function UserPanel({
   const [bubbleStyle, setBubbleStyle] = useState(stored.bubbleStyle || "modern");
   const [ownedThemes, setOwnedThemes] = useState([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [{ items }, { inventory }] = await Promise.all([getShopCatalog(), getShopInventory()]);
-        if (cancelled) return;
-        const ownedIds = new Set((inventory || []).map((i) => i.itemId));
-        setOwnedThemes((items || []).filter((i) => i.category === "theme" && ownedIds.has(i.id)));
-      } catch {
-        /* best-effort — Appearance tab still works with Dark/Light only */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const loadOwnedThemes = useCallback(async () => {
+    try {
+      const [{ items }, { inventory }] = await Promise.all([getShopCatalog(), getShopInventory()]);
+      const ownedIds = new Set((inventory || []).map((i) => i.itemId));
+      setOwnedThemes((items || []).filter((i) => i.category === "theme" && ownedIds.has(i.id)));
+    } catch {
+      /* best-effort — Appearance tab still works with Dark/Light only */
+    }
   }, []);
+
+  useEffect(() => {
+    loadOwnedThemes();
+  }, [loadOwnedThemes]);
+
+  // A theme bought in the Shop tab must show up here without requiring a
+  // full settings reopen — refresh the owned list whenever this tab is
+  // opened, not just once on the panel's very first mount.
+  useEffect(() => {
+    if (activeTab === "appearance") loadOwnedThemes();
+  }, [activeTab, loadOwnedThemes]);
+
+  const handleEquippedChange = useCallback(() => {
+    // Re-fetch /auth/me so the resolved item (name, asset_url) is available
+    // app-wide immediately — nav rail, message avatars, profile modal, etc.
+    // Also refresh the Appearance tab's owned-themes list, since a Shop-tab
+    // purchase/equip must show up there without needing a full reopen.
+    // Callers await this so their "busy" state (and any imperative
+    // data-theme write) can't finish before the fresh equip data lands.
+    return Promise.all([refreshMeFromServer(), loadOwnedThemes()]);
+  }, [refreshMeFromServer, loadOwnedThemes]);
 
   // A purchased premium theme always wins over the plain Dark/Light choice —
   // picking Dark or Light explicitly clears it (see handlePickBaseTheme).

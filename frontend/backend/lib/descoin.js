@@ -103,12 +103,36 @@ async function writeLedger(userId, amount, reason, meta, balanceAfter) {
   if (error) throw error;
 }
 
+/**
+ * Applies a balance delta and writes the matching ledger row. The audit
+ * trail must never drift from the balance it explains, so if the ledger
+ * write fails after the balance already moved, we compensate by reversing
+ * the delta before rethrowing — callers can trust that either both sides
+ * of the change land, or neither does.
+ */
+async function applyDeltaWithLedger(userId, delta, reason, meta) {
+  const balance = await applyDelta(userId, delta);
+  try {
+    await writeLedger(userId, delta, reason, meta, balance);
+  } catch (ledgerError) {
+    try {
+      await applyDelta(userId, -delta);
+    } catch (rollbackError) {
+      console.error(
+        `[descoin] CRITICAL: ledger write failed for user ${userId} and rollback also failed — balance may be out of sync with the ledger.`,
+        rollbackError
+      );
+    }
+    throw ledgerError;
+  }
+  return balance;
+}
+
 /** Uncapped credit — used for admin grants and purchase refunds only. */
 async function credit(userId, amount, reason, meta = {}) {
   const wholeAmount = Math.max(0, Math.floor(Number(amount) || 0));
   if (wholeAmount <= 0) return { credited: 0, balance: await getBalance(userId) };
-  const balance = await applyDelta(userId, wholeAmount);
-  await writeLedger(userId, wholeAmount, reason, meta, balance);
+  const balance = await applyDeltaWithLedger(userId, wholeAmount, reason, meta);
   return { credited: wholeAmount, balance };
 }
 
@@ -116,8 +140,7 @@ async function credit(userId, amount, reason, meta = {}) {
 async function debit(userId, amount, reason, meta = {}) {
   const wholeAmount = Math.max(0, Math.floor(Number(amount) || 0));
   if (wholeAmount <= 0) throw new Error("INVALID_AMOUNT");
-  const balance = await applyDelta(userId, -wholeAmount);
-  await writeLedger(userId, -wholeAmount, reason, meta, balance);
+  const balance = await applyDeltaWithLedger(userId, -wholeAmount, reason, meta);
   return { debited: wholeAmount, balance };
 }
 
@@ -149,8 +172,7 @@ async function creditCapped(userId, amount, reason, meta = {}) {
     return { credited: 0, capped, balance: await getBalance(userId) };
   }
 
-  const balance = await applyDelta(userId, room);
-  await writeLedger(userId, room, reason, meta, balance);
+  const balance = await applyDeltaWithLedger(userId, room, reason, meta);
   return { credited: room, capped: null, balance };
 }
 
