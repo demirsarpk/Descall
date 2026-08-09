@@ -90,7 +90,14 @@ router.get("/latest-release", async (_req, res) => {
       return res.json(cache.payload);
     }
 
-    const ghRes = await fetch(GITHUB_API, { headers: githubHeaders() });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    let ghRes;
+    try {
+      ghRes = await fetch(GITHUB_API, { headers: githubHeaders(), signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (ghRes.ok) {
       const release = await ghRes.json();
@@ -105,12 +112,25 @@ router.get("/latest-release", async (_req, res) => {
     }
 
     // Rate limit / outage: still serve a working Setup download for Windows
+    const rateRemaining = ghRes.headers.get("x-ratelimit-remaining");
+    const bodyText = await ghRes.text().catch(() => "");
     console.warn(
       "[latest-release] GitHub API failed:",
       ghRes.status,
+      rateRemaining !== null ? `rateRemaining=${rateRemaining}` : "",
       "— serving fallback",
-      FALLBACK_RELEASE.tagName
+      FALLBACK_RELEASE.tagName,
+      bodyText.slice(0, 300)
     );
+    if (!process.env.GITHUB_TOKEN && !process.env.GH_TOKEN && !process.env.GITHUB_RELEASE_TOKEN) {
+      console.warn(
+        "[latest-release] No GITHUB_TOKEN/GH_TOKEN/GITHUB_RELEASE_TOKEN set — unauthenticated " +
+        "GitHub API calls share a 60 req/hr limit across Render's egress IP pool and can be " +
+        "exhausted by unrelated traffic. Set one of those env vars to raise it to 5000 req/hr."
+      );
+    }
+    // Cached under the same CACHE_MS window as a successful lookup, so a
+    // rate-limited GitHub API is retried at most once every 5 minutes.
     cache = { at: Date.now(), payload: FALLBACK_RELEASE };
     res.set("Cache-Control", "public, max-age=60");
     return res.json(FALLBACK_RELEASE);

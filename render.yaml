@@ -14,6 +14,9 @@
 #   - GOOGLE_CLIENT_ID / VITE_GOOGLE_CLIENT_ID (opsiyonel)
 #   - RESEND_API_KEY, FEEDBACK_EMAIL_FROM, FEEDBACK_EMAIL_TO (in-app feedback → email)
 #   - WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT, VITE_WEB_PUSH_PUBLIC_KEY (web push)
+#   - GITHUB_RELEASE_TOKEN (optional but recommended: a fine-grained PAT with
+#     public-repo read access, so /api/app/latest-release isn't starved by
+#     GitHub's 60 req/hr unauthenticated limit shared across Render's IPs)
 # JWT_SECRET otomatik üretilir (generateValue).
 
 previews:
@@ -68,6 +71,8 @@ services:
         sync: false
       - key: VITE_WEB_PUSH_PUBLIC_KEY
         sync: false
+      - key: GITHUB_RELEASE_TOKEN
+        sync: false
 
   # ── Staging (test site) ─────────────────────────────────────────
   - type: web
@@ -116,4 +121,6 @@ services:
       - key: WEB_PUSH_SUBJECT
         sync: false
       - key: VITE_WEB_PUSH_PUBLIC_KEY
+        sync: false
+      - key: GITHUB_RELEASE_TOKEN
         sync: false
