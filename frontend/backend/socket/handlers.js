@@ -149,21 +149,65 @@ async function loadDmMessages(myId, peerId, { before, limit = 100 } = {}) {
   return { messages, hasMore };
 }
 
-/** Build preview + activity maps for every DM thread involving this user. */
-function buildDmPreviewMaps(userId) {
+/** Build preview + activity maps for every DM thread involving this user.
+ * The in-memory history is only a cache, so cold/restarted servers must use
+ * persisted messages rather than rendering every thread as empty.
+ */
+async function buildDmPreviewMaps(userId) {
   const dmPreviewsByPeer = {};
   const dmLastActivityByPeer = {};
+  const missingPeerIds = [];
+  const friendIds = friends.get(userId) || new Set();
+
   for (const [key, arr] of dmHistory) {
-    if (!Array.isArray(arr) || arr.length === 0) continue;
     const parts = String(key).split("::");
     if (parts.length !== 2 || !parts.includes(userId)) continue;
     const peerId = parts[0] === userId ? parts[1] : parts[0];
+    if (!Array.isArray(arr) || arr.length === 0) {
+      missingPeerIds.push(peerId);
+      continue;
+    }
     const last = arr[arr.length - 1];
     const preview = formatDmPreview(last);
     if (preview) dmPreviewsByPeer[peerId] = preview;
     const ts = last?.timestamp || last?.created_at || null;
     if (ts) dmLastActivityByPeer[peerId] = ts;
   }
+
+  // A process restart leaves dmHistory empty, so make every accepted friend a
+  // candidate for a persisted preview, not only conversations touched in this
+  // process. This keeps the sidebar and its ordering durable.
+  for (const peerId of friendIds) {
+    if (!dmLastActivityByPeer[peerId] && !missingPeerIds.includes(peerId)) {
+      missingPeerIds.push(peerId);
+    }
+  }
+
+  await Promise.all(missingPeerIds.map(async (peerId) => {
+    try {
+      const { data, error } = await supabase
+        .from("dm_messages")
+        .select("content, media_url, media_type, created_at")
+        .or(
+          `and(from_user_id.eq.${userId},to_user_id.eq.${peerId}),and(from_user_id.eq.${peerId},to_user_id.eq.${userId})`,
+        )
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      const preview = formatDmPreview({
+        text: data.content,
+        mediaUrl: data.media_url,
+        mediaType: data.media_type,
+      });
+      if (preview) dmPreviewsByPeer[peerId] = preview;
+      if (data.created_at) dmLastActivityByPeer[peerId] = data.created_at;
+    } catch (error) {
+      console.warn("[DM] Preview lookup failed:", error?.message || error);
+    }
+  }));
+
   return { dmPreviewsByPeer, dmLastActivityByPeer };
 }
 
@@ -325,19 +369,28 @@ function emitToUser(io, userId, event, payload) {
   }
 }
 
-function buildSyncState(userId) {
+async function buildSyncState(userId) {
   const dmMap = ensureDmUnreadMap(userId);
   const dmUnreadByPeer = {};
   for (const [k, v] of dmMap) {
     dmUnreadByPeer[k] = v;
   }
-  const { dmPreviewsByPeer, dmLastActivityByPeer } = buildDmPreviewMaps(userId);
+  const { dmPreviewsByPeer, dmLastActivityByPeer } = await buildDmPreviewMaps(userId);
   return {
     dmUnreadByPeer,
     dmPreviewsByPeer,
     dmLastActivityByPeer,
     notifications: getNotifications(userId),
   };
+}
+
+function emitSyncState(io, userId, socket = null) {
+  buildSyncState(userId)
+    .then((state) => {
+      if (socket) socket.emit("sync:state", state);
+      else emitToUser(io, userId, "sync:state", state);
+    })
+    .catch((error) => console.warn("[DM] Sync state build failed:", error?.message || error));
 }
 
 async function findUserByUsername(username) {
@@ -628,7 +681,7 @@ function registerSocketHandlers(io) {
       socket.emit("status:current", { status: presence.get(myId)?.status || "online" });
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
-      socket.emit("sync:state", buildSyncState(myId));
+      emitSyncState(io, myId, socket);
       broadcastUsers(io);
     });
 
@@ -791,10 +844,10 @@ function registerSocketHandlers(io) {
       socket.emit("friend:accepted", { by: { id: fromUserId } });
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
-      socket.emit("sync:state", buildSyncState(myId));
+      emitSyncState(io, myId, socket);
       emitToUser(io, fromUserId, "friend:list", getFriendList(fromUserId));
       emitToUser(io, fromUserId, "friend:requests", getPendingList(fromUserId));
-      emitToUser(io, fromUserId, "sync:state", buildSyncState(fromUserId));
+      emitSyncState(io, fromUserId);
       
       console.log("[Friends] Request accepted:", { fromUserId, by: myId });
     });
@@ -854,9 +907,9 @@ function registerSocketHandlers(io) {
       await removeFriendshipFromDB(myId, friendId);
       
       socket.emit("friend:list", getFriendList(myId));
-      socket.emit("sync:state", buildSyncState(myId));
+      emitSyncState(io, myId, socket);
       emitToUser(io, friendId, "friend:list", getFriendList(friendId));
-      emitToUser(io, friendId, "sync:state", buildSyncState(friendId));
+      emitSyncState(io, friendId);
     });
 
     socket.on("dm:set_active", ({ withUserId } = {}) => {

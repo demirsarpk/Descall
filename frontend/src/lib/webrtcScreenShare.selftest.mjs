@@ -51,5 +51,7 @@ const constraints = buildDisplayMediaConstraints({ width: 1280, height: 720, fps
 assert(constraints.video.displaySurface === "browser", "prefer browser tab");
 assert(constraints.preferCurrentTab === true, "preferCurrentTab");
 assert(!("max" in (constraints.video.width || {})), "no hard max width");
+assert(constraints.audio === true, "request user-approved display audio");
+assert(constraints.systemAudio === "include", "allow system audio selection");
 
 console.log("webrtcScreenShare.selftest.mjs: ok");

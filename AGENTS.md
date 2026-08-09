@@ -30,6 +30,7 @@
 ### Services
 - Backend: `frontend/backend` (Express + Socket.IO). Frontend Vite app is served from backend `dist` in production; local UI via Vite. See `README.md` / `frontend/package.json` scripts.
 - Secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` (required); `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` (optional until OAuth is enabled).
+- Release policy: after every two or three code changes, proactively build, sign, tag, and publish the matching Windows Electron and Android APK release without waiting for a separate request. The public download page must offer only Windows and Android APK latest-release assets; do not list macOS or Linux downloads.
 
 ### Valorant / Riot account link
 - Users link Valorant from **Settings → My Account** with **Name#TAG only**. Rank + Riot ID appear on profile/hover/LFG **only after a successful link**.

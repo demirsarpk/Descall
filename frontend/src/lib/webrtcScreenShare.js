@@ -43,7 +43,7 @@ export function screenBitrateForPeerCount(peerCount, resolution = "720p") {
  * Soft post-capture tuning. Never use hard `max` constraints after
  * getDisplayMedia because browsers may end the track.
  */
-export async function optimizeScreenShareTrack(track, { width, height, fps } = {}) {
+export async function optimizeScreenShareTrack(track, { fps } = {}) {
   if (!track || track.kind !== "video") return;
   try {
     // detail = prioritize text/UI sharpness; pair with capped FPS/bitrate
@@ -55,11 +55,10 @@ export async function optimizeScreenShareTrack(track, { width, height, fps } = {
   if (track.readyState !== "live") return;
 
   try {
-    await track.applyConstraints({
-      width: { ideal: width },
-      height: { ideal: height },
-      frameRate: { ideal: fps },
-    });
+    // Do not force a landscape width/height after capture. Display tracks
+    // expose their real dimensions and update them when a phone/window rotates;
+    // constraining them here can leave viewers stuck with the old orientation.
+    await track.applyConstraints({ frameRate: { ideal: fps } });
   } catch {
     /* browser may reject some constraints after getDisplayMedia — leave track as-is */
   }
@@ -98,18 +97,28 @@ export function buildDisplayMediaConstraints({ width, height, fps }) {
       height: { ideal: height },
       frameRate: { ideal: fps },
     },
-    audio: false,
+    // Chromium only captures tab/system sound after the person explicitly
+    // selects "Share audio" in the picker. Requesting it never bypasses that
+    // consent, but makes an approved audio track available to WebRTC.
+    audio: true,
     // Chromium extensions to the getDisplayMedia options dictionary
     preferCurrentTab: true,
     selfBrowserSurface: "include",
     surfaceSwitching: "include",
-    systemAudio: "exclude",
+    systemAudio: "include",
   };
 }
 
 export function buildElectronDesktopConstraints(sourceId, { width, height, fps }) {
   return {
-    audio: false,
+    // Electron can provide loopback audio for desktop sources when supported
+    // by the operating system. Unsupported platforms simply return video.
+    audio: {
+      mandatory: {
+        chromeMediaSource: "desktop",
+        chromeMediaSourceId: sourceId,
+      },
+    },
     video: {
       mandatory: {
         chromeMediaSource: "desktop",
