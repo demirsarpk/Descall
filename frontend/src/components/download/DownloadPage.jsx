@@ -30,6 +30,7 @@ import './DownloadPage.css';
 
 const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
 const FALLBACK_WINDOWS_URL = DESKTOP_RELEASE_FALLBACK.windowsDownloadUrl;
+const ANDROID_APK_URL = `https://github.com/${GITHUB_REPO}/releases/latest/download/Descall-APK-v2.8.3.apk`;
 
 const FEATURE_DEFS = [
   { icon: MessageCircle, title: "Real-time Chat", desc: "Instant messaging with typing indicators" },
@@ -53,6 +54,14 @@ const platforms = [
     size: '~138 MB',
     color: '#0078D4'
   },
+  {
+    id: 'android',
+    name: 'Android APK',
+    icon: Smartphone,
+    file: 'Descall-APK-v2.8.3.apk',
+    size: 'Latest release',
+    color: '#5B74FF'
+  },
 ];
 
 export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authLoading, authError }) {
@@ -68,7 +77,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [releaseError, setReleaseError] = useState(null);
-  const [downloadLinks, setDownloadLinks] = useState({ windows: null });
+  const [downloadLinks, setDownloadLinks] = useState({ windows: null, android: ANDROID_APK_URL });
   const [windowsDownloadUrl, setWindowsDownloadUrl] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -87,6 +96,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
     setWindowsDownloadUrl(winUrl);
     setDownloadLinks({
       windows: winUrl,
+      android: ANDROID_APK_URL,
     });
     setReleaseError(softError);
   };
@@ -161,16 +171,14 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
 
   const detectPlatform = () => {
     const userAgent = navigator.userAgent.toLowerCase();
-    if (userAgent.includes('win')) setSelectedPlatform('windows');
+    if (userAgent.includes('android')) setSelectedPlatform('android');
+    else if (userAgent.includes('win')) setSelectedPlatform('windows');
   };
 
   const handleDownload = () => {
-    if (selectedPlatform !== 'windows') {
-      setReleaseError(t("Desktop installer is available for Windows only. Sign in above to use Descall in your browser."));
-      return;
-    }
-    const downloadUrl =
-      windowsDownloadUrl || downloadLinks.windows || FALLBACK_WINDOWS_URL;
+    const downloadUrl = selectedPlatform === 'android'
+      ? (downloadLinks.android || ANDROID_APK_URL)
+      : (windowsDownloadUrl || downloadLinks.windows || FALLBACK_WINDOWS_URL);
     window.open(downloadUrl, '_blank');
     setIsInstalled(true);
   };
