@@ -937,6 +937,105 @@
   color: #fff;
 }
 
+.us-btn.sm {
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
+/* ── Security tab: email verify / 2FA / sessions / blocked users ── */
+.us-section-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.us-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.us-link-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.us-link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.us-verified-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--success);
+  background: var(--success-soft);
+  padding: 4px 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.us-email-verify-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 14px;
+  flex-wrap: wrap;
+}
+
+.us-inline-input {
+  flex: 1;
+  min-width: 140px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border-2);
+  background: var(--surface-1);
+  color: var(--text-0);
+  font-size: 13px;
+}
+
+.us-inline-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.us-code-input {
+  flex: none;
+  width: 100px;
+  letter-spacing: 3px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.us-inline-notice {
+  margin: 0 14px 14px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.us-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.us-current-tag {
+  font-style: normal;
+  color: var(--primary);
+  font-weight: 600;
+}
+
 .us-danger-btn {
   width: 100%;
   display: inline-flex;

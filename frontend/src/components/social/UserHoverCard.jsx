@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { Avatar } from "../ui/Avatar";
 import { pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
+import { cssUrl } from "../../lib/cssUrl";
 import ValorantBadge from "./ValorantBadge";
 import AdminBadge from "./AdminBadge";
 import { getUserValorant } from "../../api/riot";
@@ -114,7 +115,7 @@ export default function UserHoverCard({ user, anchor }) {
     >
       <div
         className="uhc-banner"
-        style={banner ? { backgroundImage: `url(${banner})` } : undefined}
+        style={banner ? { backgroundImage: cssUrl(banner) } : undefined}
       />
       <div className="uhc-body">
         <div className="uhc-avatar-wrap">

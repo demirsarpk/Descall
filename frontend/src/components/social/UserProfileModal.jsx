@@ -11,6 +11,7 @@ import AdminBadge from "./AdminBadge";
 import { getUserValorant } from "../../api/riot";
 import { useT } from "../../context/LocaleContext";
 import { isUserAdmin } from "../../lib/userProfile";
+import { cssUrl } from "../../lib/cssUrl";
 
 function formatMemberSince(iso, t) {
   if (!iso) return t("Unknown");
@@ -174,6 +175,8 @@ export default function UserProfileModal({
   const displayName =
     profile?.displayName || profile?.display_name || displayUsername;
   const displayAvatar = profile?.avatarUrl ?? avatarUrl ?? null;
+  const equippedBannerUrl = profile?.equippedBanner?.asset_url || null;
+  const equippedBackgroundUrl = profile?.equippedBackground?.asset_url || null;
   const bannerGradient = generateBannerGradient(displayUsername);
   const statusLabel = {
     online: t("Online"),
@@ -209,7 +212,11 @@ export default function UserProfileModal({
             transition={{ type: "spring", damping: 26, stiffness: 360 }}
             style={{
               width: 300,
-              background: "var(--surface-1)",
+              // A purchased profile background shows through everywhere the card
+              // isn't otherwise opaque, gently tinted so text stays legible.
+              background: equippedBackgroundUrl
+                ? `linear-gradient(180deg, rgba(18,18,24,0.35) 0%, rgba(18,18,24,0.82) 65%, rgba(18,18,24,0.94) 100%), ${cssUrl(equippedBackgroundUrl)} center/cover no-repeat`
+                : "var(--surface-1)",
               borderRadius: 16,
               overflow: "hidden",
               boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
@@ -248,7 +255,9 @@ export default function UserProfileModal({
             <div
               style={{
                 height: 80,
-                background: bannerGradient,
+                background: equippedBannerUrl
+                  ? `${cssUrl(equippedBannerUrl)} center/cover no-repeat`
+                  : bannerGradient,
                 flexShrink: 0,
               }}
             />
