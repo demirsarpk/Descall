@@ -3,9 +3,10 @@
 /**
  * Minimal in-memory stand-in for the supabase-js query builder, covering
  * exactly the chain shapes this backend uses (.select/.eq/.ilike/.neq/.not/
- * .maybeSingle/.single/.insert/.update/.delete), so route handlers can be
- * exercised end-to-end via real HTTP without a live database. Not a general
- * Postgrest client — extend the matcher list if a new route needs one.
+ * .in/.or/.order/.maybeSingle/.single/.insert/.upsert/.update/.delete), so
+ * route handlers can be exercised end-to-end via real HTTP without a live
+ * database. Not a general Postgrest client — extend the matcher list if a
+ * new route needs one.
  */
 
 const crypto = require("crypto");
@@ -17,6 +18,7 @@ function matches(row, filters) {
     if (type === "neq") return rowVal !== val;
     if (type === "ilike") return String(rowVal ?? "").toLowerCase() === String(val).toLowerCase();
     if (type === "not-is-null") return rowVal !== null && rowVal !== undefined;
+    if (type === "is-null") return rowVal === null || rowVal === undefined;
     if (type === "in") return Array.isArray(val) && val.includes(rowVal);
     return true;
   });
@@ -77,6 +79,10 @@ class FakeQuery {
     if (op === "is" && val === null) this.filters.push({ type: "not-is-null", col });
     return this;
   }
+  is(col, val) {
+    if (val === null) this.filters.push({ type: "is-null", col });
+    return this;
+  }
   or(expr) {
     this.orGroups = parseOrExpression(expr);
     return this;
@@ -88,6 +94,17 @@ class FakeQuery {
   insert(obj) {
     this.mode = "insert";
     this.payload = obj;
+    return this;
+  }
+  upsert(obj, opts = {}) {
+    this.mode = "upsert";
+    this.payload = obj;
+    this.upsertOpts = opts;
+    return this;
+  }
+  order(col, opts = {}) {
+    this.orderCol = col;
+    this.orderAsc = opts.ascending !== false;
     return this;
   }
   update(obj) {
@@ -121,9 +138,31 @@ class FakeQuery {
       return { data: this.wantSingle ? row : [row], error: null };
     }
 
+    if (this.mode === "upsert") {
+      const onConflict = String(this.upsertOpts?.onConflict || "").split(",").filter(Boolean);
+      const existing = onConflict.length
+        ? rows.find((r) => onConflict.every((col) => r[col] === this.payload[col]))
+        : undefined;
+      if (existing) {
+        if (this.upsertOpts?.ignoreDuplicates) {
+          return { data: this.wantSingle ? null : [], error: null };
+        }
+        Object.assign(existing, this.payload);
+        return { data: this.wantSingle ? existing : [existing], error: null };
+      }
+      const row = {
+        id: crypto.randomUUID(),
+        acquired_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        ...this.payload,
+      };
+      rows.push(row);
+      return { data: this.wantSingle ? row : [row], error: null };
+    }
+
     const passesRow = (r) =>
       matches(r, this.filters) && (!this.orGroups || matchesOrGroups(r, this.orGroups));
-    const matched = rows.filter(passesRow);
+    let matched = rows.filter(passesRow);
 
     if (this.mode === "update") {
       matched.forEach((row) => Object.assign(row, this.payload));
@@ -138,6 +177,15 @@ class FakeQuery {
     }
 
     // select
+    if (this.orderCol) {
+      matched = [...matched].sort((a, b) => {
+        const av = a[this.orderCol];
+        const bv = b[this.orderCol];
+        if (av === bv) return 0;
+        const cmp = av > bv ? 1 : -1;
+        return this.orderAsc ? cmp : -cmp;
+      });
+    }
     if (this.wantSingle) {
       if (matched.length === 0) {
         return this.maybe ? { data: null, error: null } : { data: null, error: { message: "not found" } };
