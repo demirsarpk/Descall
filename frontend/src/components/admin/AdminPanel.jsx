@@ -14,13 +14,14 @@ import {
   MousePointer, Play, Pause, Square, Maximize2, Minimize2, Copy,
   ExternalLink, FileDown, Printer, Share2, Star, ThumbsUp,
   ThumbsDown, Upload, Video, Voicemail, ZoomIn, ZoomOut, Megaphone,
-  Coins, DollarSign, Wallet, Plus, Minus
+  Coins, DollarSign, Wallet, Plus, Minus, ShoppingBag
 } from "lucide-react";
 import { adminFetch } from "../../api/adminHttp";
 import { API_BASE_URL } from "../../config/api";
 import RippleButton from "../ui/RippleButton";
 import AdminFeedback from "./AdminFeedback";
 import AdminErrorLogs from "./AdminErrorLogs";
+import AdminShop from "./AdminShop";
 import { Avatar } from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
 
@@ -36,6 +37,7 @@ const TABS = [
   { id: "sockets", label: "admin.sockets", icon: Wifi },
   { id: "errors", label: "admin.errors", icon: AlertCircle },
   { id: "feedback", label: "admin.feedback", icon: Bell },
+  { id: "shop", label: "admin.shop", icon: ShoppingBag },
   { id: "announcements", label: "admin.announcements", icon: Megaphone },
   { id: "casino", label: "admin.casino", icon: Coins },
   { id: "moderation", label: "admin.moderation", icon: Shield },
@@ -1579,6 +1581,12 @@ function getTimeAgo(date, t) {
         {tab === "feedback" && (
           <section className="admin-section admin-section-full">
             <AdminFeedback socket={socket} />
+          </section>
+        )}
+
+        {tab === "shop" && (
+          <section className="admin-section admin-section-full">
+            <AdminShop />
           </section>
         )}
 
