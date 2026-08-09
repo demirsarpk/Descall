@@ -7,11 +7,8 @@ on:
 
 jobs:
   build:
-    name: Build Electron (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+    name: Build Electron (Windows)
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
@@ -24,13 +21,6 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst-dev xvfb
-        working-directory: frontend
-
       - name: Install npm dependencies
         run: npm ci
         working-directory: frontend
@@ -42,43 +32,13 @@ jobs:
           VITE_API_BASE_URL: https://descall-qzkg.onrender.com
 
       - name: Build Electron (Windows)
-        if: runner.os == 'Windows'
         run: npx electron-builder --win --publish=always
         working-directory: frontend
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Electron (macOS)
-        if: runner.os == 'macOS'
-        run: npx electron-builder --mac --publish=always
-        working-directory: frontend
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build Electron (Linux)
-        if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum npx electron-builder --linux --publish=always
-        working-directory: frontend
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload artifacts (Windows)
-        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: descall-windows
           path: frontend/release/*.exe
-
-      - name: Upload artifacts (macOS)
-        if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
-        with:
-          name: descall-macos
-          path: frontend/release/*.{dmg,zip}
-
-      - name: Upload artifacts (Linux)
-        if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: descall-linux
-          path: frontend/release/*.{AppImage,deb}
