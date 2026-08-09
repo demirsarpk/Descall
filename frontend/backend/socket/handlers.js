@@ -38,9 +38,23 @@ const {
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
-const { trackOffer, markAnswered, finalizeCall } = require("../lib/dmCallLog");
+const { trackOffer, markAnswered, isActiveDmCall, finalizeCall } = require("../lib/dmCallLog");
 const { isBlockedEitherWay } = require("../lib/blocking");
 const shop = require("../lib/shop");
+const descoin = require("../lib/descoin");
+const { screenShareSessions } = require("../runtime/sharedState");
+
+// Basic anti-farm guards that don't belong in the ledger caps themselves:
+// throttle how often a single socket can even ask for a heartbeat credit,
+// and skip paying out messages that are exact repeats of the sender's last
+// message (classic "spam the same text for coins" bot behavior).
+const { shouldCreditMessage } = require("../lib/descoinMessageGuard");
+const descoinHeartbeatLastAt = new Map(); // `${userId}:${reason}` -> ms
+const DESCOIN_HEARTBEAT_MIN_INTERVAL_MS = 15_000;
+// DM calls have no DB-backed screen-share session (unlike group calls' own
+// `screenShareSessions`), so track it in-memory here purely to validate
+// DesCoin screenshare heartbeats server-side instead of trusting the client.
+const dmScreenSharingUsers = new Set();
 
 async function notifyCallHistory(io, record) {
   if (!record) return;
@@ -1019,6 +1033,21 @@ function registerSocketHandlers(io) {
       const messageId = row.id;
       const timestamp = row.created_at;
 
+      // DesCoin: a small, capped reward per genuine message. Fully
+      // server-driven (no client heartbeat) since it fires only after the
+      // message actually persisted; a repeat of the same text within 60s
+      // (copy/paste spam bots) earns nothing.
+      if (shouldCreditMessage(myId, storedText)) {
+        descoin
+          .creditCapped(myId, 1, "message_activity", { context: "dm", toUserId })
+          .then((result) => {
+            if (result.credited > 0) {
+              socket.emit("descoin:balance", { balance: result.balance, delta: result.credited, reason: "message_activity" });
+            }
+          })
+          .catch((err) => console.warn("[DesCoin] message credit failed:", err?.message || err));
+      }
+
       // Unread for recipient — skip if they currently have this DM open
       const recipientSocket = getSocketForUser(io, toUserId);
       const recipientActivePeer = recipientSocket?.data?.activeDmPeer;
@@ -1260,12 +1289,53 @@ function registerSocketHandlers(io) {
 
     socket.on("screen:share-start", ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
+      dmScreenSharingUsers.add(myId);
       emitToUser(io, toUserId, "screen:share-start", { fromUserId: myId });
     });
 
     socket.on("screen:share-stop", ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
+      dmScreenSharingUsers.delete(myId);
       emitToUser(io, toUserId, "screen:share-stop", { fromUserId: myId });
+    });
+
+    // DesCoin earning heartbeat — sent every ~15-20s by an active call's UI
+    // while the mic is genuinely producing speech (or a screen share is on).
+    // Every check here is against server-owned state; the client can only
+    // ever *ask* to be credited, never assert the amount or the fact.
+    socket.on("descoin:heartbeat", async ({ context, peerId, groupId, type, speaking } = {}) => {
+      try {
+        if (type !== "voice" && type !== "screenshare") return;
+
+        let valid = false;
+        if (context === "dm" && typeof peerId === "string") {
+          valid = isActiveDmCall(myId, peerId) && (type === "voice" || dmScreenSharingUsers.has(myId));
+        } else if (context === "group" && typeof groupId === "string") {
+          const activeCall = activeGroupCalls.get(groupId);
+          const inCall = Boolean(activeCall?.participants?.has(myId) && activeCall.participants.size >= 2);
+          valid = inCall && (type === "voice" || screenShareSessions.has(`${groupId}:${myId}`));
+        }
+        if (!valid) return;
+        if (type === "voice" && !speaking) return; // only pay for actual talking, not idle presence
+
+        const throttleKey = `${myId}:${type}`;
+        const lastAt = descoinHeartbeatLastAt.get(throttleKey) || 0;
+        if (Date.now() - lastAt < DESCOIN_HEARTBEAT_MIN_INTERVAL_MS) return;
+        descoinHeartbeatLastAt.set(throttleKey, Date.now());
+
+        const reason = type === "voice" ? "voice_activity" : "screenshare_activity";
+        const amount = type === "voice" ? 1 : 2;
+        const result = await descoin.creditCapped(myId, amount, reason, {
+          context,
+          groupId: groupId || null,
+          peerId: peerId || null,
+        });
+        if (result.credited > 0) {
+          socket.emit("descoin:balance", { balance: result.balance, delta: result.credited, reason });
+        }
+      } catch (err) {
+        console.warn("[DesCoin] heartbeat error:", err?.message || err);
+      }
     });
 
     // Media state is presentation-only; it lets the remote tile immediately
@@ -1730,6 +1800,7 @@ function registerSocketHandlers(io) {
         for (const groupId of activeGroupCalls.keys()) {
           scheduleParticipantDisconnectGrace(io, groupId, myId);
         }
+        dmScreenSharingUsers.delete(myId);
       }
       socketToUser.delete(socket.id);
 

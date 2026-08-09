@@ -8,6 +8,8 @@ const supabase = require("../db/supabase");
 const { handleGameCommand, createGameMessage } = require("./gameHandlers");
 const { getCachedPublicUser, getAvatarUrl } = require("../lib/userProfile");
 const { sendWebPushToUsers } = require("../lib/webPush");
+const descoin = require("../lib/descoin");
+const { shouldCreditMessage } = require("../lib/descoinMessageGuard");
 const {
   broadcastToGroupMembers,
   emitBannerUpdate,
@@ -165,6 +167,17 @@ function registerGroupHandlers(io, socket, state) {
         message: "Failed to send message. Please try again.",
       });
       return;
+    }
+
+    if (trimmedContent && shouldCreditMessage(myId, trimmedContent)) {
+      descoin
+        .creditCapped(myId, 1, "message_activity", { context: "group", groupId })
+        .then((result) => {
+          if (result.credited > 0) {
+            socket.emit("descoin:balance", { balance: result.balance, delta: result.credited, reason: "message_activity" });
+          }
+        })
+        .catch((err) => console.warn("[DesCoin] group message credit failed:", err?.message || err));
     }
 
     const replyMeta = replyTo && typeof replyTo === "object"
