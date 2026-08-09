@@ -744,9 +744,15 @@ export function useCall(socket, callOccupancyRef = null) {
       return;
     }
     try {
+      const audio = {
+        echoCancellation: { ideal: true },
+        noiseSuppression: { ideal: true },
+        autoGainControl: { ideal: true },
+        channelCount: { ideal: 1 },
+      };
       const constraints = type === "video"
-        ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
-        : { audio: true, video: false };
+        ? { audio, video: { width: 1280, height: 720, facingMode: "user" } }
+        : { audio, video: false };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
