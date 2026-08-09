@@ -30,6 +30,7 @@ const callsRoutes = require("./routes/calls");
 const lfgRoutes = require("./routes/lfg");
 const riotRoutes = require("./routes/riot");
 const webPushRoutes = require("./routes/webPush");
+const shopRoutes = require("./routes/shop");
 const { sitemapRouter } = require("./routes/sitemap");
 const state = require("./runtime/sharedState");
 const { sendFeedbackEmail } = require("./lib/feedbackEmail");
@@ -63,8 +64,15 @@ app.set("io", io);
 
 // Middleware
 app.use(cors({ origin: true, credentials: false }));
+
+// Stripe webhook needs the exact raw request body for signature
+// verification, so it must be mounted with express.raw() before the global
+// express.json() parser touches the request.
+app.use("/api/shop/webhook", express.raw({ type: "application/json" }));
+
 app.use(express.json());
 app.use("/api/web-push", webPushRoutes);
+app.use("/api/shop", shopRoutes);
 
 // Debug - log all requests (skip noise in production)
 if (process.env.NODE_ENV !== "production") {

@@ -40,6 +40,7 @@ const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupH
 const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
 const { trackOffer, markAnswered, finalizeCall } = require("../lib/dmCallLog");
 const { isBlockedEitherWay } = require("../lib/blocking");
+const shop = require("../lib/shop");
 
 async function notifyCallHistory(io, record) {
   if (!record) return;
@@ -686,6 +687,21 @@ function registerSocketHandlers(io) {
       socket.emit("friend:requests", getPendingList(myId));
       emitSyncState(io, myId, socket);
       broadcastUsers(io);
+
+      // Deliver any gift popups the recipient missed while offline (e.g. an
+      // admin gifted them a cosmetic before they ever connected this
+      // session). Delivered once per gift via the notified_at flag.
+      shop
+        .getUnnotifiedGifts(myId)
+        .then((pending) => {
+          if (!pending.length) return;
+          pending.forEach((gift) => {
+            if (!gift.item) return;
+            socket.emit("shop:gift:received", { item: gift.item, message: gift.message, from: gift.from });
+          });
+          shop.markGiftsNotified(pending.map((g) => g.inventoryId)).catch(() => {});
+        })
+        .catch((err) => console.warn("[shop] failed to deliver pending gifts:", err.message));
     });
 
     socket.on("status:set", async ({ status } = {}) => {

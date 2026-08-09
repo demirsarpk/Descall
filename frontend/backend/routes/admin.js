@@ -1337,4 +1337,124 @@ router.post("/credits/update", async (req, res) => {
   }
 });
 
+// ============================================================================
+// SHOP — catalog management + gifting cosmetics to users
+// ============================================================================
+
+const shop = require("../lib/shop");
+
+// List every item (including inactive) for the admin catalog editor.
+router.get("/shop/items", async (_req, res) => {
+  try {
+    const items = await shop.listAllItems();
+    res.json({ items });
+  } catch (err) {
+    console.error("[Admin] shop items error:", err.message);
+    res.status(500).json({ error: "Failed to load shop items." });
+  }
+});
+
+router.post("/shop/items", async (req, res) => {
+  try {
+    const { sku, name, description, category, assetUrl, previewUrl, priceCents, currency, rarity, sortOrder } =
+      req.body || {};
+    if (!sku || !name || !category || !assetUrl || priceCents == null) {
+      return res.status(400).json({ error: "sku, name, category, assetUrl, and priceCents are required." });
+    }
+    if (!["banner", "avatar_frame", "profile_background"].includes(category)) {
+      return res.status(400).json({ error: "Invalid category." });
+    }
+    const item = await shop.createItem({
+      sku,
+      name,
+      description: description || null,
+      category,
+      asset_url: assetUrl,
+      preview_url: previewUrl || null,
+      price_cents: Math.round(Number(priceCents)),
+      currency: currency || "usd",
+      rarity: rarity || "common",
+      sort_order: Number(sortOrder) || 0,
+    });
+    audit(req.user, "shop_item_create", item.id, { sku });
+    res.json({ item });
+  } catch (err) {
+    console.error("[Admin] create shop item error:", err.message);
+    res.status(500).json({ error: "Failed to create shop item." });
+  }
+});
+
+router.patch("/shop/items/:id", async (req, res) => {
+  try {
+    const { name, description, active, priceCents, previewUrl, assetUrl, sortOrder, rarity } = req.body || {};
+    const fields = {};
+    if (name != null) fields.name = name;
+    if (description !== undefined) fields.description = description;
+    if (active != null) fields.active = Boolean(active);
+    if (priceCents != null) fields.price_cents = Math.round(Number(priceCents));
+    if (previewUrl !== undefined) fields.preview_url = previewUrl;
+    if (assetUrl != null) fields.asset_url = assetUrl;
+    if (sortOrder != null) fields.sort_order = Number(sortOrder);
+    if (rarity != null) fields.rarity = rarity;
+    const item = await shop.updateItem(req.params.id, fields);
+    if (!item) return res.status(404).json({ error: "Item not found." });
+    audit(req.user, "shop_item_update", item.id, fields);
+    res.json({ item });
+  } catch (err) {
+    console.error("[Admin] update shop item error:", err.message);
+    res.status(500).json({ error: "Failed to update shop item." });
+  }
+});
+
+// Gift an item to a user with an optional message. Grants it immediately
+// (acquired_via = 'gift') and pushes a real-time popup notification.
+router.post("/shop/gift", async (req, res) => {
+  try {
+    const { userId, itemId, message } = req.body || {};
+    if (!userId || !itemId) {
+      return res.status(400).json({ error: "userId and itemId are required." });
+    }
+
+    const item = await shop.getItemById(itemId);
+    if (!item) return res.status(404).json({ error: "Item not found." });
+
+    const { data: targetUser } = await supabase
+      .from("users")
+      .select("id, username")
+      .eq("id", userId)
+      .maybeSingle();
+    if (!targetUser) return res.status(404).json({ error: "User not found." });
+
+    const inventoryRow = await shop.grantItem(userId, itemId, {
+      acquiredVia: "gift",
+      giftedBy: req.user.id,
+      giftMessage: message || null,
+    });
+
+    audit(req.user, "shop_gift", userId, { itemId, sku: item.sku, message: message || null });
+
+    const io = getIo(req);
+    // Only claim the popup as "delivered" if the recipient actually has a
+    // live socket connection right now — otherwise leave notified_at unset
+    // so socket/handlers.js delivers it the moment they next connect,
+    // instead of losing the popup silently.
+    const isOnline = Boolean(io?.sockets?.adapter?.rooms?.get(`user:${userId}`)?.size);
+    if (io && isOnline) {
+      io.to(`user:${userId}`).emit("shop:gift:received", {
+        item,
+        message: message || null,
+        from: { id: req.user.id, username: req.user.username },
+      });
+      if (inventoryRow?.id) {
+        await shop.markGiftsNotified([inventoryRow.id]).catch(() => {});
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[Admin] shop gift error:", err.message);
+    res.status(500).json({ error: "Failed to gift item." });
+  }
+});
+
 module.exports = router;
