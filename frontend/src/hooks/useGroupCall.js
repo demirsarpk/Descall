@@ -20,6 +20,7 @@ import {
 } from "../lib/webrtcNegotiation";
 import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 import { sampleConnectionStats } from "../lib/connectionStats";
+import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
 import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
 
@@ -220,9 +221,11 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
   // participant tile can show an actionable network indicator instead of
   // only the binary connected/disconnected state.
   const peerStatsSamplesRef = useRef(new Map());
+  const adaptiveQualityRef = useRef(new Map());
   useEffect(() => {
     if (!isInCall) {
       peerStatsSamplesRef.current.clear();
+      adaptiveQualityRef.current.clear();
       return undefined;
     }
     let alive = true;
@@ -237,6 +240,27 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
           const result = await sampleConnectionStats(pc, prev);
           if (!result) return null;
           peerStatsSamplesRef.current.set(userId, result.sample);
+          if (result.quality) {
+            // Each mesh peer connection is independent, so adapt this
+            // outbound video/audio to *that specific* peer's live quality
+            // instead of a single global bucket for every participant.
+            const senders = pc.getSenders();
+            const videoSender = senders.find(
+              (s) => s.track?.kind === "video" && s !== peerData.screenSender
+            );
+            const audioSender = senders.find(
+              (s) => s.track?.kind === "audio" && s !== peerData.screenAudioSender
+            );
+            if (!adaptiveQualityRef.current.has(userId)) {
+              adaptiveQualityRef.current.set(userId, {
+                video: { current: null },
+                audio: { current: null },
+              });
+            }
+            const tracker = adaptiveQualityRef.current.get(userId);
+            applyAdaptiveVideoEncoding(videoSender, result.quality, tracker.video);
+            applyAdaptiveAudioEncoding(audioSender, result.quality, tracker.audio);
+          }
           return [userId, result.quality];
         })
       );

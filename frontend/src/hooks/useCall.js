@@ -20,6 +20,7 @@ import {
 import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 import { getUser } from "../lib/storage";
 import useConnectionStats from "./useConnectionStats";
+import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -198,6 +199,22 @@ export function useCall(socket, callOccupancyRef = null) {
   const modeRef = useRef(mode);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   const networkStats = useConnectionStats(pcRef, { active: mode === "active" });
+  const lastAdaptiveVideoQualityRef = useRef(null);
+  const lastAdaptiveAudioQualityRef = useRef(null);
+  useEffect(() => {
+    if (mode !== "active" || !networkStats.quality) return;
+    const pc = pcRef.current;
+    if (!pc) return;
+    const senders = pc.getSenders();
+    const videoSender = senders.find(
+      (s) => s.track?.kind === "video" && s !== screenSenderRef.current
+    );
+    const audioSender = senders.find(
+      (s) => s.track?.kind === "audio" && s !== screenAudioSenderRef.current
+    );
+    applyAdaptiveVideoEncoding(videoSender, networkStats.quality, lastAdaptiveVideoQualityRef);
+    applyAdaptiveAudioEncoding(audioSender, networkStats.quality, lastAdaptiveAudioQualityRef);
+  }, [mode, networkStats.quality]);
   const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
