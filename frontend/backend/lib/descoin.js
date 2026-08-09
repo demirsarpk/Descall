@@ -32,6 +32,25 @@ const CAPS = {
 const GLOBAL_DAILY_CAP = 400;
 const UNCAPPED_REASONS = new Set(["admin_grant", "admin_revoke", "shop_purchase"]);
 
+/**
+ * creditCapped() reads the user's recent ledger sums, decides how much room
+ * is left under the caps, then writes — three separate round trips with no
+ * database-level lock between them. Two heartbeats/messages arriving close
+ * together (e.g. a client hammering the socket) can each read the same
+ * "room left" before either has written, so each gets credited independently
+ * and the cap is exceeded. Serializing per-user calls through this queue
+ * closes that race without needing a DB-level advisory lock.
+ */
+const userQueues = new Map();
+function withUserQueue(userId, fn) {
+  const previous = userQueues.get(userId) || Promise.resolve();
+  const next = previous.then(fn, fn).finally(() => {
+    if (userQueues.get(userId) === next) userQueues.delete(userId);
+  });
+  userQueues.set(userId, next);
+  return next;
+}
+
 function hoursAgoIso(h) {
   return new Date(Date.now() - h * 3600_000).toISOString();
 }
@@ -156,24 +175,26 @@ async function creditCapped(userId, amount, reason, meta = {}) {
   const caps = CAPS[reason];
   if (!caps) throw new Error(`Unknown capped DesCoin reason: ${reason}`);
 
-  const [hourSum, daySum, globalDaySum] = await Promise.all([
-    sumCreditsSince(userId, hoursAgoIso(1), reason),
-    sumCreditsSince(userId, todayStartIso(), reason),
-    sumCreditsSince(userId, todayStartIso()),
-  ]);
+  return withUserQueue(userId, async () => {
+    const [hourSum, daySum, globalDaySum] = await Promise.all([
+      sumCreditsSince(userId, hoursAgoIso(1), reason),
+      sumCreditsSince(userId, todayStartIso(), reason),
+      sumCreditsSince(userId, todayStartIso()),
+    ]);
 
-  const hourRoom = caps.perHour != null ? caps.perHour - hourSum : Infinity;
-  const dayRoom = caps.perDay != null ? caps.perDay - daySum : Infinity;
-  const globalRoom = GLOBAL_DAILY_CAP - globalDaySum;
+    const hourRoom = caps.perHour != null ? caps.perHour - hourSum : Infinity;
+    const dayRoom = caps.perDay != null ? caps.perDay - daySum : Infinity;
+    const globalRoom = GLOBAL_DAILY_CAP - globalDaySum;
 
-  const room = Math.floor(Math.min(amount, hourRoom, dayRoom, globalRoom));
-  if (room <= 0) {
-    const capped = hourRoom <= 0 ? "hour" : dayRoom <= 0 ? "day" : "global";
-    return { credited: 0, capped, balance: await getBalance(userId) };
-  }
+    const room = Math.floor(Math.min(amount, hourRoom, dayRoom, globalRoom));
+    if (room <= 0) {
+      const capped = hourRoom <= 0 ? "hour" : dayRoom <= 0 ? "day" : "global";
+      return { credited: 0, capped, balance: await getBalance(userId) };
+    }
 
-  const balance = await applyDeltaWithLedger(userId, room, reason, meta);
-  return { credited: room, capped: null, balance };
+    const balance = await applyDeltaWithLedger(userId, room, reason, meta);
+    return { credited: room, capped: null, balance };
+  });
 }
 
 async function getLedger(userId, { limit = 50 } = {}) {
