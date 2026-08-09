@@ -2,8 +2,10 @@ import { authedRequest } from "./authedHttp";
 
 export const getShopCatalog = () => authedRequest("/api/shop/catalog");
 export const getShopInventory = () => authedRequest("/api/shop/inventory");
-export const startShopCheckout = (itemId) =>
-  authedRequest("/api/shop/checkout", { method: "POST", body: { itemId } });
+export const getDesCoinWallet = () => authedRequest("/api/shop/wallet");
+export const getDesCoinLedger = (limit = 50) => authedRequest(`/api/shop/ledger?limit=${limit}`);
+export const purchaseShopItem = (itemId) =>
+  authedRequest("/api/shop/purchase", { method: "POST", body: { itemId } });
 export const equipShopItem = (category, itemId) =>
   authedRequest("/api/shop/equip", { method: "POST", body: { category, itemId } });
 
@@ -11,3 +13,5 @@ export const equipShopItem = (category, itemId) =>
 export const listAllShopItems = () => authedRequest("/api/admin/shop/items");
 export const giftShopItem = (userId, itemId, message) =>
   authedRequest("/api/admin/shop/gift", { method: "POST", body: { userId, itemId, message } });
+export const grantDesCoin = (userId, amount, reason) =>
+  authedRequest("/api/admin/descoin/grant", { method: "POST", body: { userId, amount, reason } });

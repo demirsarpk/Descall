@@ -14,6 +14,63 @@
   margin: -8px 0 4px;
 }
 
+.shop-panel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.shop-panel-header-row h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.shop-wallet-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(240, 178, 50, 0.18), rgba(240, 178, 50, 0.08));
+  border: 1px solid rgba(240, 178, 50, 0.35);
+  color: #f0b232;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.shop-wallet-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+.shop-theme-swatch {
+  width: 100%;
+  height: 100%;
+}
+
+.shop-theme-swatch.theme-midnight {
+  background: linear-gradient(135deg, #0b0b18 0%, #262547 55%, #7c5cfc 100%);
+}
+
+.shop-theme-swatch.theme-crimson {
+  background: linear-gradient(135deg, #150808 0%, #351818 55%, #ed3b4e 100%);
+}
+
+.shop-theme-swatch.theme-ocean {
+  background: linear-gradient(135deg, #061418 0%, #17343c 55%, #22c7d6 100%);
+}
+
+.shop-theme-swatch.theme-default {
+  background: linear-gradient(135deg, #111214 0%, #2b2d31 55%, #5865f2 100%);
+}
+
 .shop-category-block h4 {
   margin: 0 0 10px;
   font-size: 13px;

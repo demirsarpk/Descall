@@ -1486,9 +1486,9 @@ export default function App() {
       playUiSound("notification");
     });
 
-    socket.on("shop:purchase:completed", ({ item } = {}) => {
-      if (!item) return;
-      toast(t("You now own {name}!", { name: item.name }), "success");
+    socket.on("descoin:balance", ({ balance } = {}) => {
+      if (typeof balance !== "number") return;
+      setMe((prev) => (prev ? { ...prev, descoinBalance: balance } : prev));
     });
 
     socket.on("dm:unread:sync", ({ peerId, count } = {}) => {

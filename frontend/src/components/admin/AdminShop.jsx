@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Gift, Plus, RefreshCw, ShoppingBag, Search, CheckCircle2, XCircle } from "lucide-react";
+import { Gift, Plus, RefreshCw, ShoppingBag, Search, CheckCircle2, XCircle, Coins, Sparkles } from "lucide-react";
 import { adminFetch } from "../../api/adminHttp";
+import { grantDesCoin } from "../../api/shop";
 import RippleButton from "../ui/RippleButton";
 import { Avatar } from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
@@ -10,6 +11,7 @@ const CATEGORIES = [
   { id: "banner", label: "Banner" },
   { id: "avatar_frame", label: "Avatar Frame" },
   { id: "profile_background", label: "Profile Background" },
+  { id: "theme", label: "Premium Theme" },
 ];
 
 const RARITIES = ["common", "rare", "epic", "legendary"];
@@ -21,20 +23,13 @@ const EMPTY_DRAFT = {
   category: "banner",
   assetUrl: "",
   previewUrl: "",
-  price: "0.00",
-  currency: "usd",
+  priceDescoin: "250",
+  themeKey: "",
   rarity: "common",
 };
 
-function formatPrice(cents, currency) {
-  const amount = (cents || 0) / 100;
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: (currency || "usd").toUpperCase() }).format(
-      amount
-    );
-  } catch {
-    return `$${amount.toFixed(2)}`;
-  }
+function formatDescoin(amount) {
+  return `${(Number(amount) || 0).toLocaleString()} DesCoin`;
 }
 
 export default function AdminShop() {
@@ -55,6 +50,16 @@ export default function AdminShop() {
   const [giftMessage, setGiftMessage] = useState("");
   const [giftSending, setGiftSending] = useState(false);
   const [giftNotice, setGiftNotice] = useState("");
+
+  // DesCoin grant/revoke flow
+  const [coinUserQuery, setCoinUserQuery] = useState("");
+  const [coinUserResults, setCoinUserResults] = useState([]);
+  const [coinSearching, setCoinSearching] = useState(false);
+  const [coinTargetUser, setCoinTargetUser] = useState(null);
+  const [coinAmount, setCoinAmount] = useState("100");
+  const [coinReason, setCoinReason] = useState("");
+  const [coinSending, setCoinSending] = useState(false);
+  const [coinNotice, setCoinNotice] = useState("");
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -78,6 +83,7 @@ export default function AdminShop() {
   const handleCreateItem = async (e) => {
     e.preventDefault();
     if (!draft.sku.trim() || !draft.name.trim() || !draft.assetUrl.trim()) return;
+    if (draft.category === "theme" && !draft.themeKey.trim()) return;
     setCreating(true);
     try {
       await adminFetch("/shop/items", {
@@ -89,8 +95,8 @@ export default function AdminShop() {
           category: draft.category,
           assetUrl: draft.assetUrl.trim(),
           previewUrl: draft.previewUrl.trim() || draft.assetUrl.trim(),
-          priceCents: Math.round(parseFloat(draft.price || "0") * 100),
-          currency: draft.currency,
+          priceDescoin: Math.max(0, Math.round(Number(draft.priceDescoin) || 0)),
+          themeKey: draft.category === "theme" ? draft.themeKey.trim() : undefined,
           rarity: draft.rarity,
         }),
       });
@@ -137,6 +143,48 @@ export default function AdminShop() {
     return () => clearTimeout(id);
   }, [searchGiftUsers]);
 
+  const searchCoinUsers = useCallback(async () => {
+    if (!coinUserQuery.trim()) {
+      setCoinUserResults([]);
+      return;
+    }
+    setCoinSearching(true);
+    try {
+      const d = await adminFetch(`/users?q=${encodeURIComponent(coinUserQuery.trim())}&limit=8`);
+      setCoinUserResults(d.users || []);
+    } catch {
+      setCoinUserResults([]);
+    } finally {
+      setCoinSearching(false);
+    }
+  }, [coinUserQuery]);
+
+  useEffect(() => {
+    const id = setTimeout(searchCoinUsers, 300);
+    return () => clearTimeout(id);
+  }, [searchCoinUsers]);
+
+  const handleGrantCoins = async (sign) => {
+    const parsed = Math.round(Number(coinAmount));
+    if (!coinTargetUser || !Number.isFinite(parsed) || parsed <= 0) return;
+    setCoinSending(true);
+    setCoinNotice("");
+    try {
+      const res = await grantDesCoin(coinTargetUser.id, parsed * sign, coinReason.trim() || null);
+      setCoinNotice(
+        t("{name}'s new balance: {balance} DesCoin", {
+          name: coinTargetUser.username,
+          balance: res.balance,
+        })
+      );
+      setCoinReason("");
+    } catch (err) {
+      setCoinNotice(err.message || t("Failed to update DesCoin balance."));
+    } finally {
+      setCoinSending(false);
+    }
+  };
+
   const handleSendGift = async () => {
     if (!giftTargetUser || !giftItemId) return;
     setGiftSending(true);
@@ -178,6 +226,97 @@ export default function AdminShop() {
           <span>{error}</span>
         </div>
       )}
+
+      {/* DesCoin grant/revoke card */}
+      <motion.div className="admin-card admin-shop-gift-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <h3><Coins size={16} style={{ verticalAlign: "-2px", marginRight: 6 }} /> {t("Grant / revoke DesCoin")}</h3>
+        <div className="admin-shop-gift-grid">
+          <div className="admin-shop-gift-field">
+            <label>{t("User")}</label>
+            {coinTargetUser ? (
+              <div className="admin-shop-selected-user">
+                <Avatar name={coinTargetUser.username} size={28} user={coinTargetUser} />
+                <span>{coinTargetUser.username}</span>
+                <button type="button" onClick={() => setCoinTargetUser(null)}>
+                  <XCircle size={14} />
+                </button>
+              </div>
+            ) : (
+              <div className="admin-shop-user-search">
+                <Search size={14} />
+                <input
+                  className="admin-input"
+                  placeholder={t("Search username…")}
+                  value={coinUserQuery}
+                  onChange={(e) => setCoinUserQuery(e.target.value)}
+                />
+                {coinSearching && <RefreshCw size={13} className="spin" />}
+              </div>
+            )}
+            {!coinTargetUser && coinUserResults.length > 0 && (
+              <div className="admin-shop-user-results">
+                {coinUserResults.map((u) => (
+                  <button
+                    type="button"
+                    key={u.id}
+                    className="admin-shop-user-result"
+                    onClick={() => {
+                      setCoinTargetUser(u);
+                      setCoinUserResults([]);
+                    }}
+                  >
+                    <Avatar name={u.username} size={24} user={u} />
+                    <span>{u.username}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="admin-shop-gift-field">
+            <label>{t("Amount")}</label>
+            <input
+              className="admin-input"
+              type="number"
+              min="1"
+              step="1"
+              value={coinAmount}
+              onChange={(e) => setCoinAmount(e.target.value)}
+            />
+          </div>
+
+          <div className="admin-shop-gift-field admin-shop-gift-field-wide">
+            <label>{t("Reason (optional)")}</label>
+            <input
+              className="admin-input"
+              placeholder={t("e.g. compensation, event reward…")}
+              value={coinReason}
+              onChange={(e) => setCoinReason(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {coinNotice && <p className="admin-shop-gift-notice">{coinNotice}</p>}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <RippleButton
+            type="button"
+            className="admin-btn-green"
+            onClick={() => handleGrantCoins(1)}
+            disabled={coinSending || !coinTargetUser}
+          >
+            {coinSending ? t("Working…") : t("Grant DesCoin")}
+          </RippleButton>
+          <RippleButton
+            type="button"
+            className="admin-btn-red"
+            onClick={() => handleGrantCoins(-1)}
+            disabled={coinSending || !coinTargetUser}
+          >
+            {coinSending ? t("Working…") : t("Revoke DesCoin")}
+          </RippleButton>
+        </div>
+      </motion.div>
 
       {/* Gift item card */}
       <motion.div className="admin-card admin-shop-gift-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -284,15 +423,28 @@ export default function AdminShop() {
             <input className="admin-input" placeholder={t("Name")} value={draft.name}
               onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} required />
             <select className="admin-select" value={draft.category}
-              onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value }))}>
+              onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value, themeKey: e.target.value === "theme" ? d.themeKey : "" }))}>
               {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
             <select className="admin-select" value={draft.rarity}
               onChange={(e) => setDraft((d) => ({ ...d, rarity: e.target.value }))}>
               {RARITIES.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
-            <input className="admin-input" type="number" min="0" step="0.01" placeholder={t("Price (USD)")}
-              value={draft.price} onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))} />
+            <input className="admin-input" type="number" min="0" step="1" placeholder={t("Price (DesCoin)")}
+              value={draft.priceDescoin} onChange={(e) => setDraft((d) => ({ ...d, priceDescoin: e.target.value }))} />
+            {draft.category === "theme" && (
+              <select
+                className="admin-select"
+                value={draft.themeKey}
+                onChange={(e) => setDraft((d) => ({ ...d, themeKey: e.target.value }))}
+                required
+              >
+                <option value="">{t("Select a theme key…")}</option>
+                <option value="midnight">Midnight</option>
+                <option value="crimson">Crimson</option>
+                <option value="ocean">Ocean</option>
+              </select>
+            )}
             <input className="admin-input admin-shop-gift-field-wide" placeholder={t("Image / SVG data URL")}
               value={draft.assetUrl} onChange={(e) => setDraft((d) => ({ ...d, assetUrl: e.target.value }))} required />
             <textarea className="admin-textarea admin-shop-gift-field-wide" rows={2} placeholder={t("Description (optional)")}
@@ -330,10 +482,23 @@ export default function AdminShop() {
             ) : (
               items.map((item) => (
                 <motion.tr key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                  <td><img src={item.preview_url || item.asset_url} alt="" style={{ width: 40, height: 28, objectFit: "cover", borderRadius: 6 }} /></td>
-                  <td>{item.name}</td>
+                  <td>
+                    {item.category === "theme" ? (
+                      <div className={`shop-theme-swatch theme-${item.theme_key || "default"}`} style={{ width: 40, height: 28, borderRadius: 6 }} />
+                    ) : (
+                      <img src={item.preview_url || item.asset_url} alt="" style={{ width: 40, height: 28, objectFit: "cover", borderRadius: 6 }} />
+                    )}
+                  </td>
+                  <td>
+                    {item.name}
+                    {item.category === "theme" && (
+                      <span className="mono" style={{ marginLeft: 6, fontSize: 11, opacity: 0.6 }}>
+                        <Sparkles size={11} style={{ verticalAlign: "-1px" }} /> {item.theme_key}
+                      </span>
+                    )}
+                  </td>
                   <td>{CATEGORIES.find((c) => c.id === item.category)?.label || item.category}</td>
-                  <td>{formatPrice(item.price_cents, item.currency)}</td>
+                  <td>{formatDescoin(item.price_descoin)}</td>
                   <td className="mono">{item.rarity}</td>
                   <td className="admin-status">
                     {item.active ? (

@@ -5,7 +5,7 @@ import {
   ChevronRight, ChevronLeft, Palette, Volume2, Camera,
   Type, Upload, Check, MonitorSpeaker, AlertTriangle,
   Copy, Image as ImageIcon, RefreshCw, Globe, Shield,
-  ShoppingBag, Mail, Monitor, CheckCircle2, UserX,
+  ShoppingBag, Mail, Monitor, CheckCircle2, UserX, Sparkles,
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -33,6 +33,7 @@ import RiotLinkCard from "../settings/RiotLinkCard";
 import ValorantBadge from "../social/ValorantBadge";
 import AdminBadge from "../social/AdminBadge";
 import ShopPanel from "../settings/ShopPanel";
+import { getShopCatalog, getShopInventory, equipShopItem } from "../../api/shop";
 
 /* ─── Helpers ─── */
 const SETTINGS_KEY = "descall_user_settings";
@@ -404,8 +405,9 @@ const UserPanel = forwardRef(function UserPanel({
       bannerId: me?.equippedBanner?.id || null,
       avatarFrameId: me?.equippedAvatarFrame?.id || null,
       backgroundId: me?.equippedBackground?.id || null,
+      themeId: me?.equippedTheme?.id || null,
     }),
-    [me?.equippedBanner?.id, me?.equippedAvatarFrame?.id, me?.equippedBackground?.id]
+    [me?.equippedBanner?.id, me?.equippedAvatarFrame?.id, me?.equippedBackground?.id, me?.equippedTheme?.id]
   );
 
   const handleEquippedChange = useCallback(() => {
@@ -420,10 +422,60 @@ const UserPanel = forwardRef(function UserPanel({
   const [chatFontSize, setChatFontSize] = useState(stored.chatFontSize || 14);
   const [uiDensity, setUiDensity] = useState(stored.uiDensity || "comfortable");
   const [bubbleStyle, setBubbleStyle] = useState(stored.bubbleStyle || "modern");
+  const [ownedThemes, setOwnedThemes] = useState([]);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const [{ items }, { inventory }] = await Promise.all([getShopCatalog(), getShopInventory()]);
+        if (cancelled) return;
+        const ownedIds = new Set((inventory || []).map((i) => i.itemId));
+        setOwnedThemes((items || []).filter((i) => i.category === "theme" && ownedIds.has(i.id)));
+      } catch {
+        /* best-effort — Appearance tab still works with Dark/Light only */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A purchased premium theme always wins over the plain Dark/Light choice —
+  // picking Dark or Light explicitly clears it (see handlePickBaseTheme).
+  const equippedThemeKey = me?.equippedTheme?.theme_key || null;
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", equippedThemeKey || (darkMode ? "dark" : "light"));
+  }, [darkMode, equippedThemeKey]);
+
+  const handlePickBaseTheme = useCallback(
+    async (wantDark) => {
+      setDarkMode(wantDark);
+      if (equippedThemeKey) {
+        try {
+          await equipShopItem("theme", null);
+          await refreshMeFromServer();
+        } catch {
+          /* best-effort */
+        }
+      }
+    },
+    [equippedThemeKey, refreshMeFromServer]
+  );
+
+  const handlePickPremiumTheme = useCallback(
+    async (themeItem) => {
+      try {
+        await equipShopItem("theme", themeItem.id);
+        document.documentElement.setAttribute("data-theme", themeItem.theme_key);
+        await refreshMeFromServer();
+      } catch {
+        /* best-effort */
+      }
+    },
+    [refreshMeFromServer]
+  );
 
   useEffect(() => {
     applyAppearanceSettings({ accentColor, chatFontSize, uiDensity, bubbleStyle });
@@ -1140,7 +1192,11 @@ const UserPanel = forwardRef(function UserPanel({
       case "shop":
         return (
           <div className="us-tab">
-            <ShopPanel equipped={equipped} onEquippedChange={handleEquippedChange} />
+            <ShopPanel
+              equipped={equipped}
+              onEquippedChange={handleEquippedChange}
+              balance={me?.descoinBalance || 0}
+            />
           </div>
         );
 
@@ -1153,28 +1209,58 @@ const UserPanel = forwardRef(function UserPanel({
               <div className="us-theme-grid">
                 <button
                   type="button"
-                  className={`us-theme-card dark ${darkMode ? "selected" : ""}`}
-                  onClick={() => setDarkMode(true)}
+                  className={`us-theme-card dark ${darkMode && !equippedThemeKey ? "selected" : ""}`}
+                  onClick={() => handlePickBaseTheme(true)}
                 >
                   <div className="us-theme-swatch dark" />
                   <div className="us-theme-meta">
                     <Moon size={15} />
                     <span>{t("Dark")}</span>
                   </div>
-                  {darkMode && <Check size={14} className="us-theme-check" />}
+                  {darkMode && !equippedThemeKey && <Check size={14} className="us-theme-check" />}
                 </button>
                 <button
                   type="button"
-                  className={`us-theme-card light ${!darkMode ? "selected" : ""}`}
-                  onClick={() => setDarkMode(false)}
+                  className={`us-theme-card light ${!darkMode && !equippedThemeKey ? "selected" : ""}`}
+                  onClick={() => handlePickBaseTheme(false)}
                 >
                   <div className="us-theme-swatch light" />
                   <div className="us-theme-meta">
                     <Sun size={15} />
                     <span>{t("Light")}</span>
                   </div>
-                  {!darkMode && <Check size={14} className="us-theme-check" />}
+                  {!darkMode && !equippedThemeKey && <Check size={14} className="us-theme-check" />}
                 </button>
+                {ownedThemes.map((themeItem) => {
+                  const selected = equippedThemeKey === themeItem.theme_key;
+                  return (
+                    <button
+                      type="button"
+                      key={themeItem.id}
+                      className={`us-theme-card premium theme-${themeItem.theme_key} ${selected ? "selected" : ""}`}
+                      onClick={() => handlePickPremiumTheme(themeItem)}
+                    >
+                      <div className={`us-theme-swatch theme-${themeItem.theme_key}`} />
+                      <div className="us-theme-meta">
+                        <Sparkles size={15} />
+                        <span>{themeItem.name}</span>
+                      </div>
+                      {selected && <Check size={14} className="us-theme-check" />}
+                    </button>
+                  );
+                })}
+                {!ownedThemes.length && (
+                  <button
+                    type="button"
+                    className="us-theme-card us-theme-card-shop-link"
+                    onClick={() => setActiveTab("shop")}
+                  >
+                    <div className="us-theme-meta">
+                      <ShoppingBag size={15} />
+                      <span>{t("Get more in Shop")}</span>
+                    </div>
+                  </button>
+                )}
               </div>
             </section>
 
