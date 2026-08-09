@@ -37,6 +37,12 @@ function markAnswered({ callerId, calleeId }) {
   hit.call.startedAt = new Date().toISOString();
 }
 
+/** True when userA and userB are in a genuinely connected DM call right now. */
+function isActiveDmCall(userA, userB) {
+  const hit = findPending(userA, userB);
+  return Boolean(hit && hit.call.status === "active");
+}
+
 async function persistCall(row) {
   try {
     const { data, error } = await supabase
@@ -342,6 +348,7 @@ function buildGroupCallHistoryRecord({ callRow, group, meId, joined = true }) {
 module.exports = {
   trackOffer,
   markAnswered,
+  isActiveDmCall,
   finalizeCall,
   listCallsForUser,
   listDmCallsForUser,
