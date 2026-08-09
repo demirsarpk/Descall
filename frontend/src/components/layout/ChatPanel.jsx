@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useRef, useEffect, useState, useMemo, cloneElement, isValidElement } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, Video, Users, Hash,
@@ -91,6 +91,8 @@ export default function ChatPanel({
 
   useEffect(() => {
     scrollToBottom();
+    setShowSearch(false);
+    setSearchQuery("");
   }, [activeDmUser, activeGroup]);
 
   // Close members sheet when leaving a conversation surface
@@ -362,7 +364,11 @@ export default function ChatPanel({
             <button className="icon-btn" onClick={() => { setShowSearch(false); setSearchQuery(""); }}><X size={16} /></button>
           </motion.div>
         )}
-        {(activeDmUser || activeGroup) ? children : (
+        {(activeDmUser || activeGroup) ? (
+          isValidElement(children)
+            ? cloneElement(children, { searchQuery: showSearch ? searchQuery : "" })
+            : children
+        ) : (
           <EmptyState
             icon={emptyCopy.icon || MessageSquare}
             title={emptyCopy.title}

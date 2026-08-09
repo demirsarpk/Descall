@@ -2,10 +2,26 @@
  * Lightweight rich-text renderer: autolinks, `inline code`, ```code blocks```, @mentions.
  * Keeps the wire format as plain strings.
  */
+import { splitHighlightRanges } from "../../lib/textHighlight";
+
 const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?'")\]])/g;
 const MENTION_RE = /@([a-zA-Z0-9_]{2,32})/g;
 
-function renderInline(text, keyPrefix = "t") {
+/** Wrap case-insensitive matches of `needle` inside plain text with <mark>. */
+function highlightPlain(value, needle, keyPrefix) {
+  if (!needle) return value;
+  const segments = splitHighlightRanges(value, needle);
+  if (segments.length <= 1 && !segments[0]?.isMatch) return value;
+  return segments.map((segment, idx) =>
+    segment.isMatch ? (
+      <mark key={`${keyPrefix}-hl-${idx}`} className="msg-search-hit">{segment.text}</mark>
+    ) : (
+      <span key={`${keyPrefix}-hl-${idx}`}>{segment.text}</span>
+    )
+  );
+}
+
+function renderInline(text, keyPrefix = "t", highlight = "") {
   if (!text) return null;
   const parts = [];
   let last = 0;
@@ -14,7 +30,7 @@ function renderInline(text, keyPrefix = "t") {
   let i = 0;
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) {
-      parts.push(<span key={`${keyPrefix}-${i++}`}>{text.slice(last, m.index)}</span>);
+      parts.push(<span key={`${keyPrefix}-${i++}`}>{highlightPlain(text.slice(last, m.index), highlight, `${keyPrefix}-${i}`)}</span>);
     }
     const token = m[0];
     if (token.startsWith("`")) {
@@ -45,12 +61,12 @@ function renderInline(text, keyPrefix = "t") {
     last = m.index + token.length;
   }
   if (last < text.length) {
-    parts.push(<span key={`${keyPrefix}-${i++}`}>{text.slice(last)}</span>);
+    parts.push(<span key={`${keyPrefix}-${i++}`}>{highlightPlain(text.slice(last), highlight, `${keyPrefix}-${i}`)}</span>);
   }
-  return parts.length ? parts : text;
+  return parts.length ? parts : highlightPlain(text, highlight, keyPrefix);
 }
 
-export default function MessageContent({ text }) {
+export default function MessageContent({ text, highlight = "" }) {
   if (!text) return null;
 
   const blocks = text.split(/(```[\s\S]*?```)/g);
@@ -68,7 +84,7 @@ export default function MessageContent({ text }) {
         }
         return (
           <span key={`p-${idx}`} className="msg-text-chunk">
-            {renderInline(block, `i${idx}`)}
+            {renderInline(block, `i${idx}`, highlight)}
           </span>
         );
       })}

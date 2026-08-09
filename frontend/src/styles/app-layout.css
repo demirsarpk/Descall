@@ -2224,6 +2224,31 @@ button.header-avatar {
   color: var(--text-muted);
 }
 
+.message-search-result-count {
+  padding: 8px 16px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.message-search-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.msg-search-hit {
+  background: color-mix(in srgb, var(--warning) 55%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
 /* ─── Members panel (Discord-adjacent) ─── */
 .members-panel-backdrop {
   display: none;

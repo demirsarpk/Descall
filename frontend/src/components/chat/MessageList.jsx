@@ -92,6 +92,7 @@ export default function MessageList({
   loading = false,
   unreadCount = 0,
   onReply,
+  searchQuery = "",
 }) {
   const t = useT();
   const messagesEndRef = useRef(null);
@@ -107,18 +108,28 @@ export default function MessageList({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const trimmedSearch = searchQuery.trim();
+  const isSearching = trimmedSearch.length > 0;
+
   useEffect(() => {
-    if (!loading) scrollToBottom();
-  }, [messages, loading]);
+    if (!loading && !isSearching) scrollToBottom();
+  }, [messages, loading, isSearching]);
+
+  const searchedMessages = useMemo(() => {
+    const msgs = Array.isArray(messages) ? messages : [];
+    if (!isSearching) return msgs;
+    const needle = trimmedSearch.toLowerCase();
+    return msgs.filter((m) => typeof m?.text === "string" && m.text.toLowerCase().includes(needle));
+  }, [messages, isSearching, trimmedSearch]);
 
   const groupedMessages = useMemo(() => {
-    const msgs = Array.isArray(messages) ? messages : [];
+    const msgs = searchedMessages;
     if (!msgs.length) return [];
 
     const grouped = [];
     let currentGroup = null;
     const unreadStartIndex =
-      unreadCount > 0 ? Math.max(0, msgs.length - unreadCount) : -1;
+      !isSearching && unreadCount > 0 ? Math.max(0, msgs.length - unreadCount) : -1;
 
     const flush = () => {
       if (currentGroup) {
@@ -198,7 +209,7 @@ export default function MessageList({
 
     flush();
     return grouped;
-  }, [messages, unreadCount, t]);
+  }, [searchedMessages, unreadCount, isSearching, t]);
 
   if (loading) {
     return (
@@ -208,8 +219,23 @@ export default function MessageList({
     );
   }
 
+  if (isSearching && groupedMessages.length === 0) {
+    return (
+      <div className="message-list">
+        <div className="message-search-empty">
+          <span>{t('No messages match "{query}"', { query: trimmedSearch })}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="message-list">
+      {isSearching && (
+        <div className="message-search-result-count">
+          {t("{count} matching messages", { count: groupedMessages.reduce((n, g) => n + (g.messages?.length || (g.isSummary || g.isGame || g.isActiveBanner ? 1 : 0)), 0) })}
+        </div>
+      )}
       {groupedMessages.map((group, groupIndex) => {
         if (group.isDaySep) {
           return (
@@ -324,6 +350,7 @@ export default function MessageList({
                   conversationType={conversationType}
                   conversationId={conversationId}
                   onReply={onReply}
+                  highlight={trimmedSearch}
                 />
               ))}
             </div>
@@ -360,6 +387,7 @@ function MessageBubble({
   conversationType,
   conversationId,
   onReply,
+  highlight = "",
 }) {
   const t = useT();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -506,7 +534,7 @@ function MessageBubble({
           </button>
         )}
 
-        {message.text && <MessageContent text={message.text} />}
+        {message.text && <MessageContent text={message.text} highlight={highlight} />}
 
         {message.mediaUrl && (
           <div className="message-media">
