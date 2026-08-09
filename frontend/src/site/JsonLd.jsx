@@ -9,7 +9,7 @@ export function buildOrganizationLd() {
     "@type": "Organization",
     name: SITE_NAME,
     url: absoluteUrl("/"),
-    logo: absoluteUrl("/icon.png"),
+    logo: absoluteUrl("/favicon.svg"),
     sameAs: ["https://github.com/demirrsarppkurtlarr/Descall"],
   };
 }

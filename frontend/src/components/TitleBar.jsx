@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Minus, Square, X } from "lucide-react";
 import { useT } from "../context/LocaleContext";
+import DescallBrand from "./brand/DescallBrand";
 
 /**
  * Frameless Electron title bar — always mounted while the desktop app runs.
@@ -33,10 +34,7 @@ export default function TitleBar() {
   return (
     <div className="titlebar" role="banner">
       <div className="titlebar-brand">
-        <div className="titlebar-logo" aria-hidden>
-          D
-        </div>
-        <span className="titlebar-title">{t("Descall")}</span>
+        <DescallBrand />
       </div>
 
       <div className="titlebar-controls">

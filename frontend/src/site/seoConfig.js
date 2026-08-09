@@ -3,7 +3,7 @@
 export const SITE_NAME = "Descall";
 // descall.com is the canonical public host; the Render hostname is infrastructure.
 export const DEFAULT_ORIGIN = "https://descall.com";
-export const DEFAULT_OG_IMAGE = "/icon.png";
+export const DEFAULT_OG_IMAGE = "/favicon.svg";
 
 export function siteOrigin() {
   try {
