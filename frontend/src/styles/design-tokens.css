@@ -172,3 +172,135 @@
   --border: var(--border-2);
   --shadow: var(--shadow-lg);
 }
+
+/* ============================================
+   PREMIUM THEMES — purchasable with DesCoin
+   Each keeps the dark-mode text/spacing scale and
+   only re-tints the primary accent + surfaces.
+   ============================================ */
+
+/* ─── Midnight (deep indigo/violet) ─── */
+[data-theme="midnight"] {
+  color-scheme: dark;
+
+  --primary: #7C5CFC;
+  --primary-2: #6845E8;
+  --primary-3: #5433C4;
+  --primary-glow: rgba(124, 92, 252, 0.35);
+  --primary-soft: rgba(124, 92, 252, 0.14);
+
+  --surface-0: #0B0B18;
+  --surface-1: #15142A;
+  --surface-2: #1E1D3A;
+  --surface-3: #262547;
+  --surface-hover: #302E56;
+  --surface-active: #3D3A6B;
+
+  --text-0: #FFFFFF;
+  --text-1: #F1EFFF;
+  --text-2: #D9D5F5;
+  --text-3: #ADA6DE;
+  --text-muted: #8B84BE;
+  --text-link: #A78BFA;
+
+  --border-1: rgba(180, 160, 255, 0.06);
+  --border-2: rgba(180, 160, 255, 0.12);
+  --border-3: rgba(180, 160, 255, 0.18);
+  --border-4: rgba(180, 160, 255, 0.28);
+
+  --shadow-glow-primary: 0 0 20px rgba(124, 92, 252, 0.32);
+
+  --bg: var(--surface-0);
+  --bg-soft: var(--surface-1);
+  --panel: var(--surface-1);
+  --panel-2: var(--surface-2);
+  --text: var(--text-1);
+  --muted: var(--text-muted);
+  --accent: var(--primary);
+  --border: var(--border-2);
+  --shadow: var(--shadow-lg);
+}
+
+/* ─── Crimson (deep red/black, bold) ─── */
+[data-theme="crimson"] {
+  color-scheme: dark;
+
+  --primary: #ED3B4E;
+  --primary-2: #D42A3C;
+  --primary-3: #A81E2C;
+  --primary-glow: rgba(237, 59, 78, 0.35);
+  --primary-soft: rgba(237, 59, 78, 0.14);
+
+  --surface-0: #150808;
+  --surface-1: #1F0D0D;
+  --surface-2: #2B1414;
+  --surface-3: #351818;
+  --surface-hover: #421D1D;
+  --surface-active: #522323;
+
+  --text-0: #FFFFFF;
+  --text-1: #FBEEEE;
+  --text-2: #E9D3D3;
+  --text-3: #C7A5A5;
+  --text-muted: #A98686;
+  --text-link: #FF7A8A;
+
+  --border-1: rgba(255, 150, 150, 0.06);
+  --border-2: rgba(255, 150, 150, 0.12);
+  --border-3: rgba(255, 150, 150, 0.18);
+  --border-4: rgba(255, 150, 150, 0.28);
+
+  --shadow-glow-primary: 0 0 20px rgba(237, 59, 78, 0.32);
+
+  --bg: var(--surface-0);
+  --bg-soft: var(--surface-1);
+  --panel: var(--surface-1);
+  --panel-2: var(--surface-2);
+  --text: var(--text-1);
+  --muted: var(--text-muted);
+  --accent: var(--primary);
+  --border: var(--border-2);
+  --shadow: var(--shadow-lg);
+}
+
+/* ─── Ocean (deep teal/blue, calm) ─── */
+[data-theme="ocean"] {
+  color-scheme: dark;
+
+  --primary: #22C7D6;
+  --primary-2: #1AA6B3;
+  --primary-3: #13818C;
+  --primary-glow: rgba(34, 199, 214, 0.35);
+  --primary-soft: rgba(34, 199, 214, 0.14);
+
+  --surface-0: #061418;
+  --surface-1: #0C1F25;
+  --surface-2: #122B32;
+  --surface-3: #17343C;
+  --surface-hover: #1D3E47;
+  --surface-active: #254C56;
+
+  --text-0: #FFFFFF;
+  --text-1: #EAF7F9;
+  --text-2: #CDE9EC;
+  --text-3: #9EC5C9;
+  --text-muted: #7FA6AA;
+  --text-link: #5CE1EC;
+
+  --border-1: rgba(140, 220, 230, 0.06);
+  --border-2: rgba(140, 220, 230, 0.12);
+  --border-3: rgba(140, 220, 230, 0.18);
+  --border-4: rgba(140, 220, 230, 0.28);
+
+  --shadow-glow-primary: 0 0 20px rgba(34, 199, 214, 0.32);
+
+  --bg: var(--surface-0);
+  --bg-soft: var(--surface-1);
+  --panel: var(--surface-1);
+  --panel-2: var(--surface-2);
+  --text: var(--text-1);
+  --muted: var(--text-muted);
+  --accent: var(--primary);
+  --border: var(--border-2);
+  --shadow: var(--shadow-lg);
+}
