@@ -400,10 +400,19 @@ function MessageBubble({
   const [swiping, setSwiping] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const hideTimer = useRef(null);
+  const mediaTypeNorm = String(message.mediaType || "").toLowerCase();
+  const mediaUrl = message.mediaUrl || message.media_url || "";
+  const looksLikeVisualUrl = /\.(gif|png|jpe?g|webp|avif)(\?|#|$)/i.test(mediaUrl)
+    || /giphy\.com|tenor\.com/i.test(mediaUrl);
   const isVisualMedia =
-    !!message.mediaUrl &&
-    (message.mediaType === "gif" || message.mediaType === "image");
-  const mediaOnly = isVisualMedia && !message.text;
+    !!mediaUrl &&
+    (mediaTypeNorm === "gif" ||
+      mediaTypeNorm === "image" ||
+      mediaTypeNorm === "photo" ||
+      (!mediaTypeNorm && looksLikeVisualUrl));
+  const isGif =
+    mediaTypeNorm === "gif" || /\.gif(\?|#|$)/i.test(mediaUrl) || /giphy\.com/i.test(mediaUrl);
+  const mediaOnly = isVisualMedia && !String(message.text || "").trim();
   const x = useMotionValue(0);
   const replyHintOpacity = useTransform(
     x,
@@ -511,7 +520,7 @@ function MessageBubble({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
         style={{ x }}
-        drag="x"
+        drag={mediaOnly ? false : "x"}
         dragDirectionLock
         dragSnapToOrigin
         dragConstraints={isOwn ? { left: -72, right: 0 } : { left: 0, right: 72 }}
@@ -568,26 +577,24 @@ function MessageBubble({
 
         {message.text && <MessageContent text={message.text} highlight={highlight} />}
 
-        {message.mediaUrl && (
+        {mediaUrl && (
           <div className={`message-media${isVisualMedia ? " is-visual" : ""}`}>
-            {message.mediaType === "gif" || message.mediaType === "image" ? (
+            {isVisualMedia ? (
               <button
                 type="button"
                 className="message-media-trigger"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   setLightboxOpen(true);
                 }}
-                aria-label={
-                  message.mediaType === "gif"
-                    ? t("Open GIF")
-                    : t("Open image")
-                }
+                aria-label={isGif ? t("Open GIF") : t("Open image")}
               >
                 <img
-                  src={message.mediaUrl}
+                  src={mediaUrl}
                   alt={
-                    message.mediaType === "gif"
+                    isGif
                       ? "GIF"
                       : message.originalName || t("Image")
                   }
@@ -595,26 +602,26 @@ function MessageBubble({
                   loading="lazy"
                   draggable={false}
                 />
-                {message.mediaType === "gif" && (
+                {isGif && (
                   <span className="message-media-badge" aria-hidden="true">GIF</span>
                 )}
               </button>
-            ) : message.mediaType === "video" ? (
+            ) : mediaTypeNorm === "video" ? (
               <video
-                src={message.mediaUrl}
+                src={mediaUrl}
                 controls
                 className="message-video"
                 onClick={(e) => e.stopPropagation()}
               />
-            ) : message.mediaType === "audio" || message.mediaType === "voice" ? (
+            ) : mediaTypeNorm === "audio" || mediaTypeNorm === "voice" ? (
               <VoiceMessagePlayer
-                audioUrl={message.mediaUrl}
+                audioUrl={mediaUrl}
                 duration={message.duration || message.durationSeconds || 0}
                 isOwn={isOwn}
               />
-            ) : (message.mediaType === "document" || message.mediaType === "file") ? (
+            ) : (mediaTypeNorm === "document" || mediaTypeNorm === "file") ? (
               <a
-                href={message.mediaUrl}
+                href={mediaUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 download={message.originalName || true}
@@ -642,12 +649,8 @@ function MessageBubble({
         {isVisualMedia && (
           <MessageMediaLightbox
             open={lightboxOpen}
-            src={message.mediaUrl}
-            alt={
-              message.mediaType === "gif"
-                ? "GIF"
-                : message.originalName || t("Image")
-            }
+            src={mediaUrl}
+            alt={isGif ? "GIF" : message.originalName || t("Image")}
             onClose={() => setLightboxOpen(false)}
           />
         )}
