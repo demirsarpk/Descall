@@ -80,22 +80,27 @@ function authUserPayload(user, extra = {}) {
     equippedBanner: extra.equippedBanner || null,
     equippedBackground: extra.equippedBackground || null,
     equippedTheme: extra.equippedTheme || null,
+    equippedBadge: extra.equippedBadge || null,
+    equippedTitle: extra.equippedTitle || null,
+    equippedNameEffect: extra.equippedNameEffect || null,
+    equippedAvatarEffect: extra.equippedAvatarEffect || null,
+    equippedChatBubble: extra.equippedChatBubble || null,
   };
 }
 
 /** Resolves equipped cosmetics for a freshly-authenticated user (login / 2FA / Google) — same shape as GET /me. */
 async function resolveEquippedExtra(userId) {
-  const equipped = await shop.getEquippedCosmeticsForUser(userId).catch(() => ({
-    avatarFrame: null,
-    banner: null,
-    background: null,
-    theme: null,
-  }));
+  const equipped = await shop.getEquippedCosmeticsForUser(userId).catch(() => ({}));
   return {
-    equippedAvatarFrame: equipped.avatarFrame,
-    equippedBanner: equipped.banner,
-    equippedBackground: equipped.background,
-    equippedTheme: equipped.theme,
+    equippedAvatarFrame: equipped.avatarFrame || null,
+    equippedBanner: equipped.banner || null,
+    equippedBackground: equipped.background || null,
+    equippedTheme: equipped.theme || null,
+    equippedBadge: equipped.badge || null,
+    equippedTitle: equipped.title || null,
+    equippedNameEffect: equipped.nameEffect || null,
+    equippedAvatarEffect: equipped.avatarEffect || null,
+    equippedChatBubble: equipped.chatBubble || null,
   };
 }
 
@@ -562,12 +567,7 @@ router.get("/me", requireAuth, async (req, res) => {
     }
 
     const valorant = await loadPublicValorant(user.id);
-    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({
-      avatarFrame: null,
-      banner: null,
-      background: null,
-      theme: null,
-    }));
+    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({}));
     return res.status(200).json({
       user: {
         ...toPublicUser(user),
@@ -576,10 +576,15 @@ router.get("/me", requireAuth, async (req, res) => {
         emailVerified: Boolean(user.email_confirmed_at),
         twoFactorEnabled: Boolean(user.two_factor_enabled),
         blockedUsers: Array.isArray(user.blocked_users) ? user.blocked_users : [],
-        equippedAvatarFrame: equipped.avatarFrame,
-        equippedBanner: equipped.banner,
-        equippedBackground: equipped.background,
-        equippedTheme: equipped.theme,
+        equippedAvatarFrame: equipped.avatarFrame || null,
+        equippedBanner: equipped.banner || null,
+        equippedBackground: equipped.background || null,
+        equippedTheme: equipped.theme || null,
+        equippedBadge: equipped.badge || null,
+        equippedTitle: equipped.title || null,
+        equippedNameEffect: equipped.nameEffect || null,
+        equippedAvatarEffect: equipped.avatarEffect || null,
+        equippedChatBubble: equipped.chatBubble || null,
         descoinBalance: Number(user.descoin_balance) || 0,
       },
     });
@@ -603,21 +608,21 @@ router.get("/users/:userId", requireAuth, async (req, res) => {
     if (error || !user) return res.status(404).json({ error: "User not found" });
 
     const valorant = await loadPublicValorant(user.id);
-    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({
-      avatarFrame: null,
-      banner: null,
-      background: null,
-      theme: null,
-    }));
+    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({}));
     return res.json({
       user: {
         ...toPublicUser(user),
         createdAt: user.created_at,
         valorant,
-        equippedAvatarFrame: equipped.avatarFrame,
-        equippedBanner: equipped.banner,
-        equippedBackground: equipped.background,
-        equippedTheme: equipped.theme,
+        equippedAvatarFrame: equipped.avatarFrame || null,
+        equippedBanner: equipped.banner || null,
+        equippedBackground: equipped.background || null,
+        equippedTheme: equipped.theme || null,
+        equippedBadge: equipped.badge || null,
+        equippedTitle: equipped.title || null,
+        equippedNameEffect: equipped.nameEffect || null,
+        equippedAvatarEffect: equipped.avatarEffect || null,
+        equippedChatBubble: equipped.chatBubble || null,
       },
     });
   } catch (err) {
