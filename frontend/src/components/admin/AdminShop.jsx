@@ -30,7 +30,62 @@ const EFFECT_KEY_OPTIONS = {
   chat_bubble: ["glass", "neon-outline", "sunset", "carbon", "holo", "royal-purple"],
 };
 
-const RARITIES = ["common", "rare", "epic", "legendary"];
+const RARITIES = ["common", "rare", "epic", "legendary", "mythic"];
+
+// All 30 sellable app-wide theme keys, grouped by visual style so admins can
+// see at a glance what kind of effect each premium theme applies.
+const THEME_KEY_GROUPS = [
+  {
+    label: "Classic",
+    options: [
+      ["midnight", "Midnight"],
+      ["crimson", "Crimson"],
+      ["ocean", "Ocean"],
+      ["emerald", "Emerald"],
+      ["sakura", "Sakura"],
+      ["solar", "Solar"],
+    ],
+  },
+  {
+    label: "Gradient",
+    options: [
+      ["aurora", "Aurora"],
+      ["sunset", "Sunset Boulevard"],
+      ["cottoncandy", "Cotton Candy"],
+      ["peach", "Peach Fizz"],
+      ["lavender", "Lavender Dream"],
+      ["mint", "Mint Breeze"],
+      ["rosegold", "Rose Gold"],
+      ["deepspace", "Deep Space"],
+      ["goldenhour", "Golden Hour"],
+      ["desertbloom", "Desert Bloom"],
+    ],
+  },
+  {
+    label: "Neon",
+    options: [
+      ["neontokyo", "Neon Tokyo"],
+      ["cyberpunk", "Cyberpunk"],
+      ["vaporwave", "Vaporwave"],
+      ["neonjungle", "Neon Jungle"],
+      ["electricviolet", "Electric Violet"],
+      ["toxicgreen", "Toxic Green"],
+      ["neonblaze", "Neon Blaze"],
+      ["hyperdrive", "Hyperdrive"],
+    ],
+  },
+  {
+    label: "Glowing (animated)",
+    options: [
+      ["phoenixfire", "Phoenix Fire"],
+      ["frostbite", "Frostbite"],
+      ["voidwalker", "Voidwalker"],
+      ["starlight", "Starlight"],
+      ["plasmastorm", "Plasma Storm"],
+      ["moltencore", "Molten Core"],
+    ],
+  },
+];
 
 const EMPTY_DRAFT = {
   sku: "",
@@ -490,12 +545,13 @@ export default function AdminShop() {
                 required
               >
                 <option value="">{t("Select a theme key…")}</option>
-                <option value="midnight">Midnight</option>
-                <option value="crimson">Crimson</option>
-                <option value="ocean">Ocean</option>
-                <option value="emerald">Emerald</option>
-                <option value="sakura">Sakura</option>
-                <option value="solar">Solar</option>
+                {THEME_KEY_GROUPS.map((group) => (
+                  <optgroup key={group.label} label={t(group.label)}>
+                    {group.options.map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             )}
             {draft.category === "profile_badge" && (
