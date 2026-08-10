@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { MessageCircle, UserPlus, Lock, Mail, ShieldCheck, ArrowLeft } from "lucide-react";
+import { MessageCircle, UserPlus, Lock, Mail, User, ShieldCheck, ArrowLeft } from "lucide-react";
 import GoogleSignInButton from "./auth/GoogleSignInButton";
 import { useT } from "../context/LocaleContext";
 import DescallBrand from "./brand/DescallBrand";
@@ -11,6 +11,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [legalModal, setLegalModal] = useState(null); // "terms" | "privacy" | null
 
@@ -38,7 +39,13 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
       return;
     }
     if (!termsAccepted) return;
-    await onRegister({ username: username.trim(), password, termsAccepted: true });
+    const trimmedEmail = email.trim();
+    await onRegister({
+      username: username.trim(),
+      password,
+      termsAccepted: true,
+      ...(trimmedEmail ? { email: trimmedEmail } : {}),
+    });
   };
 
   const submitCode = async (event) => {
@@ -151,13 +158,14 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
 
         <form onSubmit={submit} className="auth-form">
           <div className="input-wrapper">
-            <Mail className="input-icon" size={20} />
+            <User className="input-icon" size={20} />
             <input
               type="text"
               placeholder={t("Username")}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               maxLength={24}
+              autoComplete="username"
               required
             />
           </div>
@@ -170,9 +178,29 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               maxLength={72}
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
               required
             />
           </div>
+
+          {mode === "register" && (
+            <div className="input-wrapper">
+              <Mail className="input-icon" size={20} />
+              <input
+                type="email"
+                placeholder={t("Email (optional)")}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                maxLength={254}
+                autoComplete="email"
+              />
+            </div>
+          )}
+          {mode === "register" && (
+            <p className="auth-field-hint">
+              {t("Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings.")}
+            </p>
+          )}
 
           {mode === "register" && (
             <div className="legal-consent">

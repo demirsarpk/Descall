@@ -2065,6 +2065,8 @@ export const phrases = {
   "Suggested for you": "Senin için önerildi",
   "No suggestions right now — check back after you join a few groups or make some friends.": "Şu anda öneri yok — birkaç gruba katıldıktan veya birkaç arkadaş edindikten sonra tekrar kontrol et.",
   "Failed to load suggestions": "Öneriler yüklenemedi",
+  "Email (optional)": "E-posta (opsiyonel)",
+  "Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings.": "E-posta eklemek hesap kurtarma, giriş kodları ve iki adımlı doğrulamayı açar. Dilersen daha sonra Ayarlar'dan da ekleyebilirsin.",
   "Email verified!": "E-posta doğrulandı!",
   "Failed to enable two-factor authentication.": "İki adımlı doğrulama etkinleştirilemedi.",
   "Incorrect password.": "Şifre yanlış.",

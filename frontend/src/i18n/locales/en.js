@@ -1752,6 +1752,8 @@ export const phrases = {
   "Suggested for you": "Suggested for you",
   "No suggestions right now — check back after you join a few groups or make some friends.": "No suggestions right now — check back after you join a few groups or make some friends.",
   "Failed to load suggestions": "Failed to load suggestions",
+  "Email (optional)": "Email (optional)",
+  "Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings.": "Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings.",
   "Resend code": "Resend code",
   "Get a sign-in code emailed to you on every new login.": "Get a sign-in code emailed to you on every new login.",
   "Verify your email above to unlock this.": "Verify your email above to unlock this.",
