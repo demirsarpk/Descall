@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm install --include=dev && npm run build:prod",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/sitemap.xml", "destination": "https://des-call.onrender.com/sitemap.xml" },
+    { "source": "/sitemap-pages.xml", "destination": "https://des-call.onrender.com/sitemap-pages.xml" },
+    { "source": "/sitemap-invites.xml", "destination": "https://des-call.onrender.com/sitemap-invites.xml" },
+    { "source": "/sitemap-announcements.xml", "destination": "https://des-call.onrender.com/sitemap-announcements.xml" },
+    { "source": "/sitemap.html", "destination": "https://des-call.onrender.com/sitemap.html" },
+    { "source": "/sitemap.xsl", "destination": "https://des-call.onrender.com/sitemap.xsl" },
+    { "source": "/robots.txt", "destination": "https://des-call.onrender.com/robots.txt" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
