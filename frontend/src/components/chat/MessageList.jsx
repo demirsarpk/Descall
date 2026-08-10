@@ -10,6 +10,7 @@ import UserProfileModal from "../social/UserProfileModal";
 import GameMessageBubble from "./GameMessageBubble";
 import MessageReactions from "./MessageReactions";
 import MessageContent from "./MessageContent";
+import MessageMediaLightbox from "./MessageMediaLightbox";
 import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
 import UserHoverCard from "../social/UserHoverCard";
@@ -397,7 +398,12 @@ function MessageBubble({
   const [menuOpen, setMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [swiping, setSwiping] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const hideTimer = useRef(null);
+  const isVisualMedia =
+    !!message.mediaUrl &&
+    (message.mediaType === "gif" || message.mediaType === "image");
+  const mediaOnly = isVisualMedia && !message.text;
   const x = useMotionValue(0);
   const replyHintOpacity = useTransform(
     x,
@@ -518,12 +524,12 @@ function MessageBubble({
           resetSwipe();
           if (shouldReply) triggerReply();
         }}
-        className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""} ${menuOpen ? "menu-open" : ""} ${chatBubbleKey ? `cosmetic-chat-bubble bubble-${chatBubbleKey}` : ""}`}
+        className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""} ${menuOpen ? "menu-open" : ""} ${mediaOnly ? "has-media-only" : ""} ${isVisualMedia ? "has-media" : ""} ${chatBubbleKey ? `cosmetic-chat-bubble bubble-${chatBubbleKey}` : ""}`}
         onMouseEnter={openMenu}
         onMouseLeave={scheduleClose}
         onClick={(e) => {
           // Touch / click toggle for devices without hover
-          if (e.target.closest("a, button, video, .message-hover-bar, .message-reactions")) return;
+          if (e.target.closest("a, button, video, img, .message-media, .message-hover-bar, .message-reactions")) return;
           if (window.matchMedia("(hover: none)").matches) {
             setMenuOpen((v) => !v);
             setPickerOpen(false);
@@ -563,28 +569,42 @@ function MessageBubble({
         {message.text && <MessageContent text={message.text} highlight={highlight} />}
 
         {message.mediaUrl && (
-          <div className="message-media">
-            {message.mediaType === "gif" ? (
-              <img
-                src={message.mediaUrl}
-                alt="GIF"
-                className="message-image"
-                style={{ maxWidth: 320, maxHeight: 240, borderRadius: 8, display: "block" }}
-              />
-            ) : message.mediaType === "image" ? (
-              <img
-                src={message.mediaUrl}
-                alt={message.originalName || t("Image")}
-                className="message-image"
-                style={{ maxWidth: 400, maxHeight: 300, borderRadius: 8, display: "block", cursor: "pointer" }}
-                onClick={() => window.open(message.mediaUrl, "_blank")}
-              />
+          <div className={`message-media${isVisualMedia ? " is-visual" : ""}`}>
+            {message.mediaType === "gif" || message.mediaType === "image" ? (
+              <button
+                type="button"
+                className="message-media-trigger"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxOpen(true);
+                }}
+                aria-label={
+                  message.mediaType === "gif"
+                    ? t("Open GIF")
+                    : t("Open image")
+                }
+              >
+                <img
+                  src={message.mediaUrl}
+                  alt={
+                    message.mediaType === "gif"
+                      ? "GIF"
+                      : message.originalName || t("Image")
+                  }
+                  className="message-image"
+                  loading="lazy"
+                  draggable={false}
+                />
+                {message.mediaType === "gif" && (
+                  <span className="message-media-badge" aria-hidden="true">GIF</span>
+                )}
+              </button>
             ) : message.mediaType === "video" ? (
               <video
                 src={message.mediaUrl}
                 controls
                 className="message-video"
-                style={{ maxWidth: 400, borderRadius: 8, display: "block" }}
+                onClick={(e) => e.stopPropagation()}
               />
             ) : message.mediaType === "audio" || message.mediaType === "voice" ? (
               <VoiceMessagePlayer
@@ -617,6 +637,19 @@ function MessageBubble({
               </a>
             ) : null}
           </div>
+        )}
+
+        {isVisualMedia && (
+          <MessageMediaLightbox
+            open={lightboxOpen}
+            src={message.mediaUrl}
+            alt={
+              message.mediaType === "gif"
+                ? "GIF"
+                : message.originalName || t("Image")
+            }
+            onClose={() => setLightboxOpen(false)}
+          />
         )}
 
         {reactions.length > 0 && (

@@ -1605,6 +1605,8 @@ export const phrases = {
   "Again": "Again",
   "Double stake": "Double stake",
   "Image": "Image",
+  "Open image": "Open image",
+  "Open GIF": "Open GIF",
   "Empty recording — try again.": "Empty recording — try again.",
   "Recording failed.": "Recording failed.",
   "Microphone access denied.": "Microphone access denied.",

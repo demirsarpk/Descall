@@ -1825,6 +1825,8 @@ export const phrases = {
   "Again": "Tekrar",
   "Double stake": "Bahsi ikiye katla",
   "Image": "Görsel",
+  "Open image": "Görseli aç",
+  "Open GIF": "GIF'i aç",
   "Empty recording — try again.": "Boş kayıt — tekrar dene.",
   "Recording failed.": "Kayıt başarısız.",
   "Microphone access denied.": "Mikrofon erişimi reddedildi.",
