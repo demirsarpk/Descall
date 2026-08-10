@@ -33,16 +33,16 @@ export default function ValorantBadge({ valorant, compact = false }) {
     );
   }
 
+  // Note: this full variant is only ever rendered underneath a "Valorant"
+  // section heading (profile card / settings link card), so it doesn't
+  // repeat the "V Valorant" label itself here — that duplication used to
+  // make the section look cluttered/redundant.
   return (
     <div className="val-badge">
       <div className="val-badge-top">
-        <span className="val-badge-mark" aria-hidden>
-          V
-        </span>
-        <span className="val-badge-label">Valorant</span>
+        <span className="val-badge-id">{riotId}</span>
         {valorant.verified && <span className="val-badge-verified">{t("Linked")}</span>}
       </div>
-      <div className="val-badge-id">{riotId}</div>
       <div className="val-badge-rank">
         {rankLabel}
         {rank && rr != null ? ` · ${rr} RR` : ""}
