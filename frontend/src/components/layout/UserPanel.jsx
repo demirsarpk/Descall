@@ -75,15 +75,26 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function applyAppearanceSettings({ accentColor, chatFontSize, uiDensity, bubbleStyle } = {}) {
+// A purchased premium theme fully re-tints `--primary` (and every other
+// token) via its `[data-theme="…"]` CSS block. The custom "Accent Color"
+// swatch picker used to set these same properties as an *inline* style on
+// <html>, which — because inline styles always beat stylesheet rules,
+// regardless of selector specificity — permanently pinned every theme's
+// accent back to the default/custom color and made premium themes look
+// broken. When a premium theme is equipped we now clear the inline accent
+// overrides instead of (re)applying them, so the theme's own CSS wins.
+export function applyAppearanceSettings({ accentColor, chatFontSize, uiDensity, bubbleStyle, premiumTheme } = {}) {
   const root = document.documentElement;
-  if (accentColor) {
+  const ACCENT_PROPS = ["--primary", "--primary-2", "--primary-soft", "--primary-glow", "--shadow-glow-primary", "--accent"];
+  if (accentColor && !premiumTheme) {
     root.style.setProperty("--primary", accentColor);
     root.style.setProperty("--primary-2", accentColor);
     root.style.setProperty("--primary-soft", hexToRgba(accentColor, 0.12));
     root.style.setProperty("--primary-glow", hexToRgba(accentColor, 0.35));
     root.style.setProperty("--shadow-glow-primary", `0 0 16px ${hexToRgba(accentColor, 0.24)}`);
     root.style.setProperty("--accent", accentColor);
+  } else {
+    ACCENT_PROPS.forEach((prop) => root.style.removeProperty(prop));
   }
   if (chatFontSize) {
     root.style.setProperty("--chat-font-size", `${chatFontSize}px`);
@@ -501,8 +512,8 @@ const UserPanel = forwardRef(function UserPanel({
   );
 
   useEffect(() => {
-    applyAppearanceSettings({ accentColor, chatFontSize, uiDensity, bubbleStyle });
-  }, [accentColor, chatFontSize, uiDensity, bubbleStyle]);
+    applyAppearanceSettings({ accentColor, chatFontSize, uiDensity, bubbleStyle, premiumTheme: !!equippedThemeKey });
+  }, [accentColor, chatFontSize, uiDensity, bubbleStyle, equippedThemeKey]);
 
   /* ── Notifications ── */
   const [msgNotifications, setMsgNotifications] = useState(stored.msgNotifications !== false);
@@ -537,6 +548,7 @@ const UserPanel = forwardRef(function UserPanel({
       chatFontSize,
       uiDensity,
       bubbleStyle,
+      premiumThemeKey: equippedThemeKey,
       msgNotifications,
       callNotifications,
       msgSounds,
@@ -552,6 +564,7 @@ const UserPanel = forwardRef(function UserPanel({
     chatFontSize,
     uiDensity,
     bubbleStyle,
+    equippedThemeKey,
     msgNotifications,
     callNotifications,
     msgSounds,
