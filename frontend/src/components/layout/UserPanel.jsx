@@ -406,8 +406,23 @@ const UserPanel = forwardRef(function UserPanel({
       avatarFrameId: me?.equippedAvatarFrame?.id || null,
       backgroundId: me?.equippedBackground?.id || null,
       themeId: me?.equippedTheme?.id || null,
+      badgeId: me?.equippedBadge?.id || null,
+      titleId: me?.equippedTitle?.id || null,
+      nameEffectId: me?.equippedNameEffect?.id || null,
+      avatarEffectId: me?.equippedAvatarEffect?.id || null,
+      chatBubbleId: me?.equippedChatBubble?.id || null,
     }),
-    [me?.equippedBanner?.id, me?.equippedAvatarFrame?.id, me?.equippedBackground?.id, me?.equippedTheme?.id]
+    [
+      me?.equippedBanner?.id,
+      me?.equippedAvatarFrame?.id,
+      me?.equippedBackground?.id,
+      me?.equippedTheme?.id,
+      me?.equippedBadge?.id,
+      me?.equippedTitle?.id,
+      me?.equippedNameEffect?.id,
+      me?.equippedAvatarEffect?.id,
+      me?.equippedChatBubble?.id,
+    ]
   );
 
   /* ── Appearance ── */

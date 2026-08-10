@@ -10,9 +10,24 @@ const CATEGORY_LABEL = {
   avatar_frame: "Avatar Frames",
   profile_background: "Profile Backgrounds",
   theme: "Premium Themes",
+  profile_badge: "Profile Badges",
+  profile_title: "Profile Titles",
+  name_effect: "Name Effects",
+  avatar_effect: "Avatar Effects",
+  chat_bubble: "Chat Bubble Skins",
 };
 
-const CATEGORY_ORDER = ["banner", "avatar_frame", "profile_background", "theme"];
+const CATEGORY_ORDER = [
+  "banner",
+  "avatar_frame",
+  "profile_background",
+  "theme",
+  "profile_badge",
+  "profile_title",
+  "name_effect",
+  "avatar_effect",
+  "chat_bubble",
+];
 
 export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
   const t = useT();
@@ -81,6 +96,11 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
     if (category === "avatar_frame") return equipped?.avatarFrameId;
     if (category === "profile_background") return equipped?.backgroundId;
     if (category === "theme") return equipped?.themeId;
+    if (category === "profile_badge") return equipped?.badgeId;
+    if (category === "profile_title") return equipped?.titleId;
+    if (category === "name_effect") return equipped?.nameEffectId;
+    if (category === "avatar_effect") return equipped?.avatarEffectId;
+    if (category === "chat_bubble") return equipped?.chatBubbleId;
     return null;
   };
 
@@ -122,6 +142,23 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
                     <div className="shop-item-preview" data-theme-preview={category === "theme" ? item.theme_key : undefined}>
                       {category === "theme" ? (
                         <div className={`shop-theme-swatch theme-${item.theme_key || "default"}`} />
+                      ) : category === "profile_badge" ? (
+                        <span className="shop-badge-preview">{item.badge_icon}</span>
+                      ) : category === "profile_title" ? (
+                        <span className="cosmetic-title-tag shop-title-preview">{item.title_text}</span>
+                      ) : category === "name_effect" ? (
+                        <span className={`cosmetic-name-effect effect-${item.effect_key} shop-name-effect-preview`}>
+                          {item.name}
+                        </span>
+                      ) : category === "avatar_effect" ? (
+                        <div className="shop-avatar-effect-preview">
+                          <div className={`cosmetic-avatar-effect effect-${item.effect_key}`} />
+                          <div className="shop-avatar-effect-dot" />
+                        </div>
+                      ) : category === "chat_bubble" ? (
+                        <div className={`cosmetic-chat-bubble bubble-${item.effect_key} shop-bubble-preview`}>
+                          {t("Hey there!")}
+                        </div>
                       ) : (
                         <img src={item.preview_url || item.asset_url} alt={item.name} loading="lazy" />
                       )}

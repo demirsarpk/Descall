@@ -71,6 +71,18 @@
   background: linear-gradient(135deg, #111214 0%, #2b2d31 55%, #5865f2 100%);
 }
 
+.shop-theme-swatch.theme-emerald {
+  background: linear-gradient(135deg, #031f13 0%, #0f3d24 55%, #2ecc71 100%);
+}
+
+.shop-theme-swatch.theme-sakura {
+  background: linear-gradient(135deg, #1a1015 0%, #3d2531 55%, #ff8fab 100%);
+}
+
+.shop-theme-swatch.theme-solar {
+  background: linear-gradient(135deg, #1a1207 0%, #3d2b0f 55%, #f9a826 100%);
+}
+
 .shop-category-block h4 {
   margin: 0 0 10px;
   font-size: 13px;
@@ -131,6 +143,59 @@
   width: 72%;
   height: 72%;
   object-fit: contain;
+}
+
+.shop-item-card[data-category="profile_badge"] .shop-item-preview,
+.shop-item-card[data-category="profile_title"] .shop-item-preview,
+.shop-item-card[data-category="name_effect"] .shop-item-preview,
+.shop-item-card[data-category="avatar_effect"] .shop-item-preview,
+.shop-item-card[data-category="chat_bubble"] .shop-item-preview {
+  aspect-ratio: 3 / 1.4;
+  background: radial-gradient(circle at 30% 20%, #1c2333 0%, #0b0f18 100%);
+}
+
+.shop-badge-preview {
+  font-size: 44px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+}
+
+.shop-title-preview {
+  font-size: 13px;
+  padding: 6px 14px;
+}
+
+.shop-name-effect-preview {
+  font-size: 20px;
+}
+
+.shop-avatar-effect-preview {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shop-avatar-effect-preview .cosmetic-avatar-effect {
+  inset: 0;
+}
+
+.shop-avatar-effect-dot {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface-3, #2b2d31);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  z-index: 1;
+}
+
+.shop-bubble-preview {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-0, #f4f6fb);
 }
 
 .shop-item-body {
@@ -331,6 +396,23 @@
   margin-top: 16px;
 }
 .shop-gift-actions .btn-primary { width: 100%; }
+
+/* DesCoin gift popup — same shell as the item gift popup, coin amount hero */
+.descoin-gift-icon {
+  background: linear-gradient(135deg, #f6d365, #fda085);
+}
+
+.descoin-gift-amount {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 30px;
+  font-weight: 800;
+  color: #ffd76a;
+  margin: 6px 0 4px;
+  text-shadow: 0 0 16px rgba(255, 215, 106, 0.35);
+}
 
 /* Admin gifting form */
 .admin-gift-form {
