@@ -7,18 +7,18 @@ const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernam
 const supabase = require("../db/supabase");
 const { handleGameCommand, createGameMessage } = require("./gameHandlers");
 const { getCachedPublicUser, getAvatarUrl } = require("../lib/userProfile");
-const { sendWebPushToUsers } = require("../lib/webPush");
+const { sendGroupCallPush } = require("../lib/webPush");
 const descoin = require("../lib/descoin");
 const { shouldCreditMessage } = require("../lib/descoinMessageGuard");
 const {
   broadcastToGroupMembers,
+  buildBannerFromCall,
   emitBannerUpdate,
   endGroupCall,
   removeUserFromGroupCall,
   removeUserFromAllGroupCalls,
   resumeParticipantInGroupCall,
 } = require("./groupCallLifecycle");
-const { sendGroupCallPush } = require("../lib/webPush");
 
 function resolveSocketAvatar(socket) {
   const cached = getCachedPublicUser(socket.user?.id);
@@ -259,23 +259,17 @@ function registerGroupHandlers(io, socket, state) {
 
   // ========== GROUP CALL ==========
 
-  // Check if there's an active call in the group
+  // Check if there's an active call in the group — used to sync the
+  // "ongoing call" banner when a client opens/switches to a group chat, or
+  // reconnects, and may have missed the original push (offline, socket not
+  // yet joined to the group room, app was closed, etc). Reuses the same
+  // group:call:banner-update event/shape the live push uses so there's only
+  // one code path on the client for "should the banner be showing".
   socket.on("group:call:check", ({ groupId }) => {
     if (!groupId) return;
-    
     const activeCall = activeGroupCalls.get(groupId);
-    if (activeCall) {
-      // There's an active call, notify the user to join instead
-      socket.emit("group:call:active", {
-        groupId,
-        initiatorId: activeCall.initiatorId,
-        callType: activeCall.callType,
-        participants: Array.from(activeCall.participants),
-      });
-    } else {
-      // No active call — tell client to clear any stale banner
-      socket.emit("group:call:banner-update", { groupId, banner: null });
-    }
+    const banner = buildBannerFromCall(groupId, activeCall);
+    socket.emit("group:call:banner-update", { groupId, banner });
   });
 
   // Start group call
@@ -374,17 +368,12 @@ function registerGroupHandlers(io, socket, state) {
       type: "group-call",
       groupId,
       callType,
-      title: `${socket.user.username} started a ${callType} call`,
-      body: "Tap to join the group call",
-      deepLink: `/?group=${encodeURIComponent(groupId)}`,
-    });
-    socket.to(`group:${groupId}`).emit("group:call:incoming", payload);
-    void sendWebPushToUsers(targets, {
       title: `${socket.user.username} is calling`,
       body: `Join the ${callType} call in your group.`,
       tag: `group-call-${groupId}`,
       deepLink: `/?group=${encodeURIComponent(groupId)}`,
     });
+    socket.to(`group:${groupId}`).emit("group:call:incoming", payload);
 
     io.to(`group:${groupId}`).emit("group:call:started", {
       groupId,

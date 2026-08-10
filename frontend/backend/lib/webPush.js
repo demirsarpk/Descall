@@ -55,4 +55,26 @@ async function sendWebPushToUsers(userIds, payload) {
   }));
 }
 
-module.exports = { sendWebPushToUsers };
+/**
+ * Group-call push notification. This used to be imported by
+ * socket/groupHandlers.js but was never actually defined here, so every
+ * `group:call:start` threw an uncaught TypeError ("sendGroupCallPush is not
+ * a function") straight out of a socket event handler — which crashes the
+ * entire Node process, dropping every connected user's socket and killing
+ * any in-progress calls/signaling for the whole server, not just the one
+ * group call being started. That single crash-on-every-group-call is the
+ * root cause behind a wide range of previously reported group call symptoms
+ * (sudden drops, calls where nobody can see/hear each other, banners never
+ * reaching other members, etc).
+ *
+ * For now this is a thin wrapper around the existing Web Push (VAPID) path,
+ * which already covers the "notify even while backgrounded" use case this
+ * was meant for. Kept as a distinct export (rather than inlining a second
+ * sendWebPushToUsers call at the call site) so a native/FCM delivery path
+ * can be added here later without touching callers.
+ */
+async function sendGroupCallPush(userIds, payload = {}) {
+  return sendWebPushToUsers(userIds, payload);
+}
+
+module.exports = { sendWebPushToUsers, sendGroupCallPush };
