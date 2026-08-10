@@ -195,6 +195,13 @@
   font-size: 13px;
 }
 
+.auth-field-hint {
+  margin: -4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #7c8594;
+}
+
 .auth-footer {
   margin: 14px 0 0;
   text-align: center;

@@ -67,6 +67,7 @@ function AuthModal({
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [legalModal, setLegalModal] = useState(null);
@@ -84,6 +85,7 @@ function AuthModal({
     if (!open) {
       setUsername("");
       setPassword("");
+      setEmail("");
       setIsRegistering(false);
       setIsSubmitting(false);
       setTermsAccepted(false);
@@ -100,7 +102,13 @@ function AuthModal({
     setIsSubmitting(true);
     try {
       if (isRegistering) {
-        await onRegister?.({ username, password, termsAccepted: true });
+        const trimmedEmail = email.trim();
+        await onRegister?.({
+          username,
+          password,
+          termsAccepted: true,
+          ...(trimmedEmail ? { email: trimmedEmail } : {}),
+        });
       } else {
         const result = await onLogin?.({ username, password });
         if (result?.requires2fa) {
@@ -211,6 +219,21 @@ function AuthModal({
                 autoComplete={isRegistering ? "new-password" : "current-password"}
                 required
               />
+              {isRegistering && (
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t("Email (optional)")}
+                  autoComplete="email"
+                  maxLength={254}
+                />
+              )}
+              {isRegistering && (
+                <p className="mkt-auth-field-hint">
+                  {t("Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings.")}
+                </p>
+              )}
               {isRegistering && (
                 <div className="legal-consent">
                   <input

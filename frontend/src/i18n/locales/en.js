@@ -1744,6 +1744,8 @@ export const phrases = {
   "Enter the code we sent to {email}": "Enter the code we sent to {email}",
   "Verification code": "Verification code",
   "Back to login": "Back to login",
+  "Email (optional)": "Email (optional)",
+  "Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings.": "Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings.",
   "Resend code": "Resend code",
   "Get a sign-in code emailed to you on every new login.": "Get a sign-in code emailed to you on every new login.",
   "Verify your email above to unlock this.": "Verify your email above to unlock this.",

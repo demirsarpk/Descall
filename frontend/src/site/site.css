@@ -432,13 +432,24 @@
   color: rgba(255, 255, 255, 0.52);
 }
 
+.mkt-auth-field-hint {
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .login-modal form input:focus {
   outline: none;
   border-color: #7b89ff;
   box-shadow: 0 0 0 3px rgba(123, 137, 255, 0.18);
 }
 
-.login-modal form button {
+/* Direct child only — the submit button. Without the ">" this also matched
+   the inline "Terms of Service"/"Privacy Policy" <button> links nested
+   inside the terms checkbox label, turning them into big gradient pill
+   buttons that wrapped awkwardly instead of reading as plain inline text. */
+.login-modal form > button {
   min-height: 46px;
   border: 0;
   border-radius: 11px;
@@ -449,7 +460,7 @@
   cursor: pointer;
 }
 
-.login-modal form button:disabled {
+.login-modal form > button:disabled {
   opacity: 0.6;
   cursor: wait;
 }

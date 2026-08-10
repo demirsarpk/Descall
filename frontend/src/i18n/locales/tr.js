@@ -2057,6 +2057,8 @@ export const phrases = {
   "Enter the code we sent to {email}": "{email} adresine gönderdiğimiz kodu girin",
   "Verification code": "Doğrulama kodu",
   "Back to login": "Girişe geri dön",
+  "Email (optional)": "E-posta (opsiyonel)",
+  "Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings.": "E-posta eklemek hesap kurtarma, giriş kodları ve iki adımlı doğrulamayı açar. Dilersen daha sonra Ayarlar'dan da ekleyebilirsin.",
   "Email verified!": "E-posta doğrulandı!",
   "Failed to enable two-factor authentication.": "İki adımlı doğrulama etkinleştirilemedi.",
   "Incorrect password.": "Şifre yanlış.",
