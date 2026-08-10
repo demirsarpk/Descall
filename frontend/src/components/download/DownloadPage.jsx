@@ -22,6 +22,7 @@ import {
   X
 } from 'lucide-react';
 import GoogleSignInButton from '../auth/GoogleSignInButton';
+import LegalContentModal from '../legal/LegalContentModal';
 import { fetchLatestDesktopRelease } from '../../lib/githubRelease';
 import { formatReleaseLabel } from '../../lib/releaseVersion';
 import { DESKTOP_RELEASE_FALLBACK } from '../../lib/desktopRelease';
@@ -79,6 +80,8 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [legalModal, setLegalModal] = useState(null);
   const [releaseError, setReleaseError] = useState(null);
   const [downloadLinks, setDownloadLinks] = useState({ windows: null, android: null });
   const [windowsDownloadUrl, setWindowsDownloadUrl] = useState(null);
@@ -525,10 +528,11 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             
             <form onSubmit={async (e) => {
               e.preventDefault();
+              if (isRegistering && !termsAccepted) return;
               setIsSubmitting(true);
               try {
                 if (isRegistering) {
-                  await onRegister?.({ username, password });
+                  await onRegister?.({ username, password, termsAccepted: true });
                 } else {
                   await onLogin?.({ username, password });
                 }
@@ -536,6 +540,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                 setShowLogin(false);
                 setUsername('');
                 setPassword('');
+                setTermsAccepted(false);
               } catch (err) {
                 // Keep modal open to show error
               } finally {
@@ -564,10 +569,32 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                 />
               </div>
               
+              {isRegistering && (
+                <div className="legal-consent">
+                  <input
+                    id="dl-auth-terms-checkbox"
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                  />
+                  <label htmlFor="dl-auth-terms-checkbox">
+                    {t("I have read and agree to the")}{" "}
+                    <button type="button" className="legal-consent-link" onClick={() => setLegalModal("terms")}>
+                      {t("Terms of Service")}
+                    </button>{" "}
+                    {t("and")}{" "}
+                    <button type="button" className="legal-consent-link" onClick={() => setLegalModal("privacy")}>
+                      {t("Privacy Policy")}
+                    </button>
+                    .
+                  </label>
+                </div>
+              )}
+
               <button
                 type="submit"
                 className="submit-btn"
-                disabled={isSubmitting || authLoading}
+                disabled={isSubmitting || authLoading || (isRegistering && !termsAccepted)}
               >
                 {(isSubmitting || authLoading) ? t("Loading...") : (isRegistering ? t("Create Account") : t("Sign In"))}
               </button>
@@ -587,6 +614,8 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
         </motion.div>
       )}
       </AnimatePresence>
+      <LegalContentModal open={legalModal === "terms"} type="terms" onClose={() => setLegalModal(null)} />
+      <LegalContentModal open={legalModal === "privacy"} type="privacy" onClose={() => setLegalModal(null)} />
       </div>
     </>
   );

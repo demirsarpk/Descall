@@ -148,7 +148,11 @@ function validatePassword(password) {
 
 router.post("/register", async (req, res) => {
   try {
-    const { username, password, email: rawEmail } = req.body ?? {};
+    const { username, password, email: rawEmail, termsAccepted } = req.body ?? {};
+
+    if (!termsAccepted) {
+      return res.status(400).json({ error: "You must accept the Terms of Service and Privacy Policy to register." });
+    }
 
     const usernameError = validateUsername(username);
     if (usernameError) {
@@ -197,7 +201,7 @@ router.post("/register", async (req, res) => {
 
     const { data: newUser, error: insertError } = await supabase
       .from("users")
-      .insert({ username: cleanUsername, password_hash, email })
+      .insert({ username: cleanUsername, password_hash, email, terms_accepted_at: new Date().toISOString() })
       .select("id, username, avatar_url")
       .single();
 

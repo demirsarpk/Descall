@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
+import LegalContentModal from "../components/legal/LegalContentModal";
 import DownloadPage from "../components/download/DownloadPage";
 import "../components/download/DownloadPage.css";
 import { useT } from "../context/LocaleContext";
@@ -66,6 +67,8 @@ function AuthModal({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [legalModal, setLegalModal] = useState(null);
 
   useEffect(() => {
     if (!open) {
@@ -73,15 +76,17 @@ function AuthModal({
       setPassword("");
       setIsRegistering(false);
       setIsSubmitting(false);
+      setTermsAccepted(false);
     }
   }, [open]);
 
   const submit = async (e) => {
     e.preventDefault();
     if (isSubmitting || authLoading) return;
+    if (isRegistering && !termsAccepted) return;
     setIsSubmitting(true);
     try {
-      if (isRegistering) await onRegister?.({ username, password });
+      if (isRegistering) await onRegister?.({ username, password, termsAccepted: true });
       else await onLogin?.({ username, password });
     } finally {
       setIsSubmitting(false);
@@ -139,7 +144,31 @@ function AuthModal({
                 autoComplete={isRegistering ? "new-password" : "current-password"}
                 required
               />
-              <button type="submit" disabled={isSubmitting || authLoading}>
+              {isRegistering && (
+                <div className="legal-consent">
+                  <input
+                    id="mkt-auth-terms-checkbox"
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                  />
+                  <label htmlFor="mkt-auth-terms-checkbox">
+                    {t("I have read and agree to the")}{" "}
+                    <button type="button" className="legal-consent-link" onClick={() => setLegalModal("terms")}>
+                      {t("Terms of Service")}
+                    </button>{" "}
+                    {t("and")}{" "}
+                    <button type="button" className="legal-consent-link" onClick={() => setLegalModal("privacy")}>
+                      {t("Privacy Policy")}
+                    </button>
+                    .
+                  </label>
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={isSubmitting || authLoading || (isRegistering && !termsAccepted)}
+              >
                 {isRegistering ? t("Create Account") : t("Sign In")}
               </button>
             </form>
@@ -151,6 +180,8 @@ function AuthModal({
               {isRegistering ? t("Already have an account? Sign in") : t("Need an account? Register")}
             </button>
           </motion.div>
+          <LegalContentModal open={legalModal === "terms"} type="terms" onClose={() => setLegalModal(null)} />
+          <LegalContentModal open={legalModal === "privacy"} type="privacy" onClose={() => setLegalModal(null)} />
         </motion.div>
       )}
     </AnimatePresence>
