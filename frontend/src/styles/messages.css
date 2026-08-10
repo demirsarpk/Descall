@@ -37,7 +37,13 @@
 .message-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  /* Wide enough to clear an equipped avatar frame (132% overlay) and,
+     especially, an avatar effect ring — effect-pulse's box-shadow alone
+     animates out to a 10px spread on top of the effect layer's own -8px
+     inset, so at its peak it reaches ~18px past the avatar's edge. A
+     narrower gap let the name/badges visually run into the glow during
+     that animation phase. */
+  gap: 20px;
   margin-bottom: 2px;
   padding-left: 0;
 }
