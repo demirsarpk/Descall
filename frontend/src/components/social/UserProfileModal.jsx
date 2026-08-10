@@ -13,11 +13,12 @@ import { getUserValorant } from "../../api/riot";
 import { useT } from "../../context/LocaleContext";
 import { isUserAdmin } from "../../lib/userProfile";
 import { cssUrl } from "../../lib/cssUrl";
+import { useLocale } from "../../context/LocaleContext";
 
-function formatMemberSince(iso, t) {
+function formatMemberSince(iso, t, locale) {
   if (!iso) return t("Unknown");
   try {
-    return new Date(iso).toLocaleDateString(undefined, {
+    return new Date(iso).toLocaleDateString(locale === "tr" ? "tr-TR" : "en-US", {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -52,6 +53,7 @@ export default function UserProfileModal({
   onFriendSent,
 }) {
   const t = useT();
+  const { locale } = useLocale();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [friendState, setFriendState] = useState("none"); // "none" | "friend" | "sent"
@@ -378,7 +380,7 @@ export default function UserProfileModal({
                     {t("Member Since")}
                   </div>
                   <div style={{ fontSize: 13, color: "var(--text-1)", fontWeight: 500 }}>
-                    {formatMemberSince(profile.createdAt, t)}
+                    {formatMemberSince(profile.createdAt, t, locale)}
                   </div>
                 </div>
               ) : null}
