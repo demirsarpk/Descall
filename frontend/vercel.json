@@ -1,6 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm install --include=dev && npm run build:prod",
+  "framework": "vite",
+  "installCommand": "npm install --include=dev",
+  "buildCommand": "npm run build:prod",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "https://des-call.onrender.com/sitemap.xml" },
@@ -10,6 +12,20 @@
     { "source": "/sitemap.html", "destination": "https://des-call.onrender.com/sitemap.html" },
     { "source": "/sitemap.xsl", "destination": "https://des-call.onrender.com/sitemap.xsl" },
     { "source": "/robots.txt", "destination": "https://des-call.onrender.com/robots.txt" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    }
   ]
 }
