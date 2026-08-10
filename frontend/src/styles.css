@@ -21,6 +21,8 @@
 @import './styles/titlebar.css';
 @import './styles/voice-message.css';
 @import './styles/shop.css';
+@import './styles/cosmetics.css';
+@import './styles/legal.css';
 
 /* ============================================
    OLD CSS REMOVED — Using new modular system

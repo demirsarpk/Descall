@@ -6,6 +6,7 @@ import { pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import { cssUrl } from "../../lib/cssUrl";
 import ValorantBadge from "./ValorantBadge";
 import AdminBadge from "./AdminBadge";
+import { BadgeIcon, NameEffectText, TitleTag } from "../ui/Cosmetics";
 import { getUserValorant } from "../../api/riot";
 import { useT } from "../../context/LocaleContext";
 
@@ -130,10 +131,12 @@ export default function UserHoverCard({ user, anchor }) {
         </div>
         <div className="uhc-text">
           <div className="uhc-name">
-            {display}
+            <NameEffectText user={user}>{display}</NameEffectText>
+            <BadgeIcon user={user} />
             <AdminBadge user={user} variant="inline" />
           </div>
           <div className="uhc-handle">@{user.username || t("user")}</div>
+          <TitleTag user={user} />
           <div className={`uhc-status ${statusClass}`}>
             <span className="uhc-dot" /> {statusLabel}
           </div>

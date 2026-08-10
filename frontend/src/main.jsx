@@ -23,19 +23,32 @@ try {
     localStorage.getItem("descall_settings") ||
     "{}";
   const settings = JSON.parse(raw);
-  document.documentElement.setAttribute("data-theme", settings.darkMode === false ? "light" : "dark");
-  const accent = settings.accentColor || "#5865F2";
-  const hex = String(accent).replace("#", "");
-  if (hex.length === 6) {
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const root = document.documentElement.style;
-    root.setProperty("--primary", accent);
-    root.setProperty("--primary-2", accent);
-    root.setProperty("--primary-soft", `rgba(${r}, ${g}, ${b}, 0.12)`);
-    root.setProperty("--primary-glow", `rgba(${r}, ${g}, ${b}, 0.35)`);
-    root.setProperty("--accent", accent);
+  // A cached premium theme (set the last time UserPanel resolved it from
+  // /auth/me) wins over the plain dark/light choice — this also lets us
+  // paint the correct theme before first paint instead of flashing dark
+  // mode and then swapping once the server response lands.
+  document.documentElement.setAttribute(
+    "data-theme",
+    settings.premiumThemeKey || (settings.darkMode === false ? "light" : "dark")
+  );
+  // Only force the custom "Accent Color" swatch inline when the user has
+  // actually picked one AND no premium theme is equipped — a premium
+  // theme's own [data-theme="…"] CSS must be free to set --primary itself,
+  // since inline styles otherwise always win over any stylesheet rule.
+  const accent = settings.accentColor;
+  if (accent && !settings.premiumThemeKey) {
+    const hex = String(accent).replace("#", "");
+    if (hex.length === 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      const root = document.documentElement.style;
+      root.setProperty("--primary", accent);
+      root.setProperty("--primary-2", accent);
+      root.setProperty("--primary-soft", `rgba(${r}, ${g}, ${b}, 0.12)`);
+      root.setProperty("--primary-glow", `rgba(${r}, ${g}, ${b}, 0.35)`);
+      root.setProperty("--accent", accent);
+    }
   }
   if (settings.chatFontSize) {
     document.documentElement.style.setProperty("--chat-font-size", `${settings.chatFontSize}px`);

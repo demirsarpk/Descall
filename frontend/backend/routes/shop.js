@@ -1,24 +1,18 @@
 "use strict";
 
 /**
- * Real-money cosmetics shop: catalog, inventory, Stripe Checkout, and equip
- * state. Stripe is optional at boot — until STRIPE_SECRET_KEY is configured,
- * /checkout responds 503 instead of crashing the whole backend.
+ * Cosmetics + premium-theme shop: catalog, inventory, DesCoin wallet, and
+ * equip state. Purchases are paid for entirely with DesCoin — the in-app
+ * currency users earn by being active (see lib/descoin.js) — there is no
+ * real-money checkout.
  */
 
 const express = require("express");
-const supabase = require("../db/supabase");
 const { requireAuth } = require("../middleware/auth");
 const shop = require("../lib/shop");
+const descoin = require("../lib/descoin");
 
 const router = express.Router();
-
-function getStripe() {
-  if (!process.env.STRIPE_SECRET_KEY) return null;
-  // Lazy-required so environments without the key never import the SDK.
-  const Stripe = require("stripe");
-  return new Stripe(process.env.STRIPE_SECRET_KEY);
-}
 
 router.get("/catalog", requireAuth, async (_req, res) => {
   try {
@@ -40,11 +34,30 @@ router.get("/inventory", requireAuth, async (req, res) => {
   }
 });
 
-router.post("/checkout", requireAuth, async (req, res) => {
-  const stripe = getStripe();
-  if (!stripe) {
-    return res.status(503).json({ error: "Payments are not configured yet. Please try again later." });
+router.get("/wallet", requireAuth, async (req, res) => {
+  try {
+    const balance = await descoin.getBalance(req.user.id);
+    res.json({ balance });
+  } catch (err) {
+    console.error("[shop] wallet error:", err.message);
+    res.status(500).json({ error: "Failed to load your DesCoin balance." });
   }
+});
+
+router.get("/ledger", requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const entries = await descoin.getLedger(req.user.id, { limit });
+    res.json({ entries });
+  } catch (err) {
+    console.error("[shop] ledger error:", err.message);
+    res.status(500).json({ error: "Failed to load your DesCoin history." });
+  }
+});
+
+// Instant DesCoin purchase — no redirect, no pending state. Debits the
+// buyer's balance and grants the item atomically-ish (balance CAS + insert).
+router.post("/purchase", requireAuth, async (req, res) => {
   try {
     const { itemId } = req.body || {};
     if (!itemId) return res.status(400).json({ error: "itemId is required." });
@@ -56,91 +69,31 @@ router.post("/checkout", requireAuth, async (req, res) => {
       return res.status(409).json({ error: "You already own this item." });
     }
 
-    const appUrl = (process.env.APP_PUBLIC_URL || "https://des-call.onrender.com").replace(/\/$/, "");
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: item.currency || "usd",
-            product_data: {
-              name: item.name,
-              description: item.description || undefined,
-              images: item.preview_url ? [item.preview_url] : undefined,
-            },
-            unit_amount: item.price_cents,
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: `${appUrl}/app?shop=success&item=${encodeURIComponent(item.sku)}`,
-      cancel_url: `${appUrl}/app?shop=cancelled`,
-      client_reference_id: req.user.id,
-      metadata: { userId: req.user.id, itemId: item.id },
-    });
+    const price = Number(item.price_descoin) || 0;
+    let debitResult;
+    try {
+      debitResult = await descoin.debit(req.user.id, price, "shop_purchase", { itemId: item.id, sku: item.sku });
+    } catch (err) {
+      if (err.message === "INSUFFICIENT_BALANCE") {
+        return res.status(402).json({ error: "Not enough DesCoin for this item." });
+      }
+      throw err;
+    }
 
+    await shop.grantItem(req.user.id, itemId, { acquiredVia: "purchase" });
+
+    const supabase = require("../db/supabase");
     await supabase.from("shop_purchases").insert({
       user_id: req.user.id,
       item_id: item.id,
-      stripe_session_id: session.id,
-      amount_cents: item.price_cents,
-      currency: item.currency || "usd",
-      status: "pending",
+      amount_descoin: price,
+      status: "paid",
     });
 
-    res.json({ url: session.url });
+    res.json({ ok: true, balance: debitResult.balance, item });
   } catch (err) {
-    console.error("[shop] checkout error:", err.message);
-    res.status(500).json({ error: "Failed to start checkout." });
-  }
-});
-
-/**
- * Stripe webhook — mounted in server.js with express.raw() BEFORE the global
- * express.json() middleware, since Stripe signature verification needs the
- * exact raw request bytes.
- */
-router.post("/webhook", async (req, res) => {
-  const stripe = getStripe();
-  if (!stripe) return res.status(503).end();
-
-  const signature = req.headers["stripe-signature"];
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, signature, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    console.error("[shop] webhook signature verification failed:", err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  try {
-    if (event.type === "checkout.session.completed") {
-      const session = event.data.object;
-      const userId = session.metadata?.userId || session.client_reference_id;
-      const itemId = session.metadata?.itemId;
-      if (userId && itemId && session.payment_status === "paid") {
-        await shop.grantItem(userId, itemId, { acquiredVia: "purchase" });
-        await supabase
-          .from("shop_purchases")
-          .update({
-            status: "paid",
-            stripe_payment_intent: session.payment_intent || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("stripe_session_id", session.id);
-
-        const io = req.app.get("io");
-        if (io) {
-          const item = await shop.getItemById(itemId);
-          io.to(`user:${userId}`).emit("shop:purchase:completed", { item });
-        }
-      }
-    }
-    res.json({ received: true });
-  } catch (err) {
-    console.error("[shop] webhook handling error:", err.message);
-    res.status(500).json({ error: "Webhook processing failed." });
+    console.error("[shop] purchase error:", err.message);
+    res.status(500).json({ error: "Failed to complete purchase." });
   }
 });
 

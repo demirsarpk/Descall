@@ -14,6 +14,7 @@ import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
 import UserHoverCard from "../social/UserHoverCard";
 import AdminBadge from "../social/AdminBadge";
+import { BadgeIcon, NameEffectText } from "../ui/Cosmetics";
 import { mergeUserProfiles, pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
 
@@ -328,7 +329,8 @@ export default function MessageList({
                     onMouseEnter={(e) => { if (avatarUser?.id) e.currentTarget.style.textDecoration = "underline"; }}
                     onMouseLeave={(e) => { e.currentTarget.style.textDecoration = ""; }}
                   >
-                    {resolveDisplayName(avatarUser)}
+                    <NameEffectText user={avatarUser}>{resolveDisplayName(avatarUser)}</NameEffectText>
+                    <BadgeIcon user={avatarUser} />
                     <AdminBadge user={avatarUser} variant="inline" />
                   </span>
                   <span className="message-timestamp">
@@ -351,6 +353,7 @@ export default function MessageList({
                   conversationId={conversationId}
                   onReply={onReply}
                   highlight={trimmedSearch}
+                  chatBubbleKey={isOwn ? me?.equippedChatBubble?.effect_key || null : null}
                 />
               ))}
             </div>
@@ -388,6 +391,7 @@ function MessageBubble({
   conversationId,
   onReply,
   highlight = "",
+  chatBubbleKey = null,
 }) {
   const t = useT();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -514,7 +518,7 @@ function MessageBubble({
           resetSwipe();
           if (shouldReply) triggerReply();
         }}
-        className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""} ${menuOpen ? "menu-open" : ""}`}
+        className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""} ${menuOpen ? "menu-open" : ""} ${chatBubbleKey ? `cosmetic-chat-bubble bubble-${chatBubbleKey}` : ""}`}
         onMouseEnter={openMenu}
         onMouseLeave={scheduleClose}
         onClick={(e) => {

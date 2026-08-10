@@ -715,6 +715,212 @@
     linear-gradient(90deg, #f2f3f5 0 28%, #e3e5e8 28%);
 }
 
+.us-theme-swatch.theme-midnight {
+  background:
+    linear-gradient(180deg, #15142a 0 28%, transparent 28%),
+    linear-gradient(90deg, #0b0b18 0 28%, #262547 28%);
+}
+
+.us-theme-swatch.theme-crimson {
+  background:
+    linear-gradient(180deg, #1f0d0d 0 28%, transparent 28%),
+    linear-gradient(90deg, #150808 0 28%, #351818 28%);
+}
+
+.us-theme-swatch.theme-ocean {
+  background:
+    linear-gradient(180deg, #0c1f25 0 28%, transparent 28%),
+    linear-gradient(90deg, #061418 0 28%, #17343c 28%);
+}
+
+.us-theme-swatch.theme-emerald {
+  background:
+    linear-gradient(180deg, #0e251a 0 28%, transparent 28%),
+    linear-gradient(90deg, #08160f 0 28%, #183f2b 28%);
+}
+
+.us-theme-swatch.theme-sakura {
+  background:
+    linear-gradient(180deg, #231016 0 28%, transparent 28%),
+    linear-gradient(90deg, #15090d 0 28%, #3c1b26 28%);
+}
+
+.us-theme-swatch.theme-solar {
+  background:
+    linear-gradient(180deg, #241a0f 0 28%, transparent 28%),
+    linear-gradient(90deg, #161009 0 28%, #3e2d19 28%);
+}
+
+.us-theme-swatch.theme-aurora {
+  background:
+    linear-gradient(180deg, #0f2024 0 28%, transparent 28%),
+    linear-gradient(90deg, #091315 0 28%, #1a373d 28%);
+}
+
+.us-theme-swatch.theme-sunset {
+  background:
+    linear-gradient(180deg, #240f20 0 28%, transparent 28%),
+    linear-gradient(90deg, #150913 0 28%, #3d1a36 28%);
+}
+
+.us-theme-swatch.theme-cottoncandy {
+  background:
+    linear-gradient(180deg, #1d1023 0 28%, transparent 28%),
+    linear-gradient(90deg, #110a15 0 28%, #311c3b 28%);
+}
+
+.us-theme-swatch.theme-peach {
+  background:
+    linear-gradient(180deg, #24120f 0 28%, transparent 28%),
+    linear-gradient(90deg, #160b09 0 28%, #3e1e19 28%);
+}
+
+.us-theme-swatch.theme-lavender {
+  background:
+    linear-gradient(180deg, #171122 0 28%, transparent 28%),
+    linear-gradient(90deg, #0e0a15 0 28%, #271d3a 28%);
+}
+
+.us-theme-swatch.theme-mint {
+  background:
+    linear-gradient(180deg, #102322 0 28%, transparent 28%),
+    linear-gradient(90deg, #091514 0 28%, #1b3c3a 28%);
+}
+
+.us-theme-swatch.theme-rosegold {
+  background:
+    linear-gradient(180deg, #221711 0 28%, transparent 28%),
+    linear-gradient(90deg, #150e0a 0 28%, #3a271d 28%);
+}
+
+.us-theme-swatch.theme-deepspace {
+  background:
+    linear-gradient(180deg, #110e25 0 28%, transparent 28%),
+    linear-gradient(90deg, #0a0916 0 28%, #1c183e 28%);
+}
+
+.us-theme-swatch.theme-neontokyo {
+  background:
+    linear-gradient(180deg, #14141f 0 28%, transparent 28%),
+    linear-gradient(90deg, #0c0c13 0 28%, #222235 28%);
+}
+
+.us-theme-swatch.theme-cyberpunk {
+  background:
+    linear-gradient(180deg, #201320 0 28%, transparent 28%),
+    linear-gradient(90deg, #130c13 0 28%, #362136 28%);
+}
+
+.us-theme-swatch.theme-vaporwave {
+  background:
+    linear-gradient(180deg, #201320 0 28%, transparent 28%),
+    linear-gradient(90deg, #130b13 0 28%, #372037 28%);
+}
+
+.us-theme-swatch.theme-neonjungle {
+  background:
+    linear-gradient(180deg, #141f16 0 28%, transparent 28%),
+    linear-gradient(90deg, #0c130d 0 28%, #223525 28%);
+}
+
+.us-theme-swatch.theme-electricviolet {
+  background:
+    linear-gradient(180deg, #1a1320 0 28%, transparent 28%),
+    linear-gradient(90deg, #0f0c13 0 28%, #2b2136 28%);
+}
+
+.us-theme-swatch.theme-toxicgreen {
+  background:
+    linear-gradient(180deg, #191f14 0 28%, transparent 28%),
+    linear-gradient(90deg, #0f120c 0 28%, #2b3423 28%);
+}
+
+.us-theme-swatch.theme-neonblaze {
+  background:
+    linear-gradient(180deg, #201513 0 28%, transparent 28%),
+    linear-gradient(90deg, #130d0c 0 28%, #362421 28%);
+}
+
+.us-theme-swatch.theme-hyperdrive {
+  background:
+    linear-gradient(180deg, #131720 0 28%, transparent 28%),
+    linear-gradient(90deg, #0c0e13 0 28%, #212836 28%);
+}
+
+.us-theme-swatch.theme-phoenixfire {
+  background:
+    linear-gradient(180deg, #25130e 0 28%, transparent 28%),
+    linear-gradient(90deg, #160c08 0 28%, #3f2117 28%);
+}
+
+.us-theme-swatch.theme-frostbite {
+  background:
+    linear-gradient(180deg, #0f1d24 0 28%, transparent 28%),
+    linear-gradient(90deg, #091115 0 28%, #1a313d 28%);
+}
+
+.us-theme-swatch.theme-voidwalker {
+  background:
+    linear-gradient(180deg, #140a1f 0 28%, transparent 28%),
+    linear-gradient(90deg, #0a050f 0 28%, #261339 28%);
+}
+
+.us-theme-swatch.theme-starlight {
+  background:
+    linear-gradient(180deg, #0f1224 0 28%, transparent 28%),
+    linear-gradient(90deg, #090b16 0 28%, #191f3e 28%);
+}
+
+.us-theme-swatch.theme-plasmastorm {
+  background:
+    linear-gradient(180deg, #120e25 0 28%, transparent 28%),
+    linear-gradient(90deg, #0b0816 0 28%, #1e173f 28%);
+}
+
+.us-theme-swatch.theme-moltencore {
+  background:
+    linear-gradient(180deg, #230d0b 0 28%, transparent 28%),
+    linear-gradient(90deg, #130706 0 28%, #3e1614 28%);
+}
+
+.us-theme-swatch.theme-goldenhour {
+  background:
+    linear-gradient(180deg, #24190f 0 28%, transparent 28%),
+    linear-gradient(90deg, #150f09 0 28%, #3d2a1a 28%);
+}
+
+.us-theme-swatch.theme-desertbloom {
+  background:
+    linear-gradient(180deg, #221811 0 28%, transparent 28%),
+    linear-gradient(90deg, #150e0a 0 28%, #3a281d 28%);
+}
+
+.us-theme-card.premium {
+  border-color: var(--border-3);
+}
+
+.us-theme-card.premium.selected {
+  border-color: var(--primary);
+}
+
+.us-theme-card.premium .us-theme-meta svg {
+  color: #f0b232;
+}
+
+.us-theme-card-shop-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  color: var(--text-muted);
+  min-height: 96px;
+}
+
+.us-theme-card-shop-link:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
 .us-theme-meta {
   display: flex;
   align-items: center;

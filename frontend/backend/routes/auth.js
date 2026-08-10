@@ -56,7 +56,7 @@ async function loadPublicValorant(userId) {
   }
 }
 
-function authUserPayload(user) {
+function authUserPayload(user, extra = {}) {
   const displayName = user.display_name || user.displayName || null;
   const isAdmin = Boolean(user.is_admin) || user.username === "admin";
   return {
@@ -75,6 +75,32 @@ function authUserPayload(user) {
     email: user.email || null,
     emailVerified: Boolean(user.email_confirmed_at),
     twoFactorEnabled: Boolean(user.two_factor_enabled),
+    descoinBalance: Number(user.descoin_balance) || 0,
+    equippedAvatarFrame: extra.equippedAvatarFrame || null,
+    equippedBanner: extra.equippedBanner || null,
+    equippedBackground: extra.equippedBackground || null,
+    equippedTheme: extra.equippedTheme || null,
+    equippedBadge: extra.equippedBadge || null,
+    equippedTitle: extra.equippedTitle || null,
+    equippedNameEffect: extra.equippedNameEffect || null,
+    equippedAvatarEffect: extra.equippedAvatarEffect || null,
+    equippedChatBubble: extra.equippedChatBubble || null,
+  };
+}
+
+/** Resolves equipped cosmetics for a freshly-authenticated user (login / 2FA / Google) — same shape as GET /me. */
+async function resolveEquippedExtra(userId) {
+  const equipped = await shop.getEquippedCosmeticsForUser(userId).catch(() => ({}));
+  return {
+    equippedAvatarFrame: equipped.avatarFrame || null,
+    equippedBanner: equipped.banner || null,
+    equippedBackground: equipped.background || null,
+    equippedTheme: equipped.theme || null,
+    equippedBadge: equipped.badge || null,
+    equippedTitle: equipped.title || null,
+    equippedNameEffect: equipped.nameEffect || null,
+    equippedAvatarEffect: equipped.avatarEffect || null,
+    equippedChatBubble: equipped.chatBubble || null,
   };
 }
 
@@ -122,7 +148,11 @@ function validatePassword(password) {
 
 router.post("/register", async (req, res) => {
   try {
-    const { username, password, email: rawEmail } = req.body ?? {};
+    const { username, password, email: rawEmail, termsAccepted } = req.body ?? {};
+
+    if (!termsAccepted) {
+      return res.status(400).json({ error: "You must accept the Terms of Service and Privacy Policy to register." });
+    }
 
     const usernameError = validateUsername(username);
     if (usernameError) {
@@ -171,7 +201,7 @@ router.post("/register", async (req, res) => {
 
     const { data: newUser, error: insertError } = await supabase
       .from("users")
-      .insert({ username: cleanUsername, password_hash, email })
+      .insert({ username: cleanUsername, password_hash, email, terms_accepted_at: new Date().toISOString() })
       .select("id, username, avatar_url")
       .single();
 
@@ -226,7 +256,7 @@ router.post("/login", async (req, res) => {
     const { data: user, error: lookupError } = await supabase
       .from("users")
       .select(
-        "id, username, password_hash, avatar_url, display_name, bio, custom_status, banner_url, updated_at, auth_provider, email, email_confirmed_at, two_factor_enabled, is_admin"
+        "id, username, password_hash, avatar_url, display_name, bio, custom_status, banner_url, updated_at, auth_provider, email, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance"
       )
       .ilike("username", cleanUsername)
       .maybeSingle();
@@ -295,7 +325,7 @@ router.post("/login", async (req, res) => {
       message: "Login successful.",
       token,
       sessionId: session.id,
-      user: authUserPayload(user),
+      user: authUserPayload(user, await resolveEquippedExtra(user.id)),
     });
   } catch (err) {
     console.error("[AUTH] Login error:", err);
@@ -323,7 +353,7 @@ router.post("/2fa/verify-login", async (req, res) => {
     const { data: user, error } = await supabase
       .from("users")
       .select(
-        "id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, reauthentication_token, reauthentication_sent_at, is_admin"
+        "id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, reauthentication_token, reauthentication_sent_at, is_admin, descoin_balance"
       )
       .eq("id", decoded.sub)
       .maybeSingle();
@@ -365,7 +395,7 @@ router.post("/2fa/verify-login", async (req, res) => {
       message: "Login successful.",
       token,
       sessionId: session.id,
-      user: authUserPayload(user),
+      user: authUserPayload(user, await resolveEquippedExtra(user.id)),
     });
   } catch (err) {
     console.error("[AUTH] 2FA verify error:", err);
@@ -414,7 +444,7 @@ router.post("/google", async (req, res) => {
 
     let { data: user, error: byGoogleError } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance")
       .eq("google_id", googleId)
       .maybeSingle();
 
@@ -426,7 +456,7 @@ router.post("/google", async (req, res) => {
     if (!user && email) {
       const { data: byEmail, error: byEmailError } = await supabase
         .from("users")
-        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin")
+        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance")
         .ilike("email", email)
         .maybeSingle();
 
@@ -453,7 +483,7 @@ router.post("/google", async (req, res) => {
           .from("users")
           .update(linkUpdate)
           .eq("id", byEmail.id)
-          .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, is_admin")
+          .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance")
           .single();
 
         if (linkError || !linked) {
@@ -486,7 +516,7 @@ router.post("/google", async (req, res) => {
       const { data: created, error: insertError } = await supabase
         .from("users")
         .insert(insertPayload)
-        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, is_admin")
+        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance")
         .single();
 
       if (insertError || !created) {
@@ -511,7 +541,7 @@ router.post("/google", async (req, res) => {
       message: "Google login successful.",
       token,
       sessionId: session.id,
-      user: authUserPayload(user),
+      user: authUserPayload(user, await resolveEquippedExtra(user.id)),
     });
   } catch (err) {
     console.error("[AUTH] Google login error:", err);
@@ -531,7 +561,7 @@ router.get("/me", requireAuth, async (req, res) => {
     const { data: user, error } = await supabase
       .from("users")
       .select(
-        "id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at, language, email, email_confirmed_at, two_factor_enabled, blocked_users, equipped_avatar_frame_id, equipped_banner_id, equipped_background_id"
+        "id, username, avatar_url, display_name, bio, custom_status, banner_url, is_admin, updated_at, created_at, language, email, email_confirmed_at, two_factor_enabled, blocked_users, equipped_avatar_frame_id, equipped_banner_id, equipped_background_id, equipped_theme_id, descoin_balance"
       )
       .eq("id", req.user.id)
       .single();
@@ -541,11 +571,7 @@ router.get("/me", requireAuth, async (req, res) => {
     }
 
     const valorant = await loadPublicValorant(user.id);
-    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({
-      avatarFrame: null,
-      banner: null,
-      background: null,
-    }));
+    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({}));
     return res.status(200).json({
       user: {
         ...toPublicUser(user),
@@ -554,9 +580,16 @@ router.get("/me", requireAuth, async (req, res) => {
         emailVerified: Boolean(user.email_confirmed_at),
         twoFactorEnabled: Boolean(user.two_factor_enabled),
         blockedUsers: Array.isArray(user.blocked_users) ? user.blocked_users : [],
-        equippedAvatarFrame: equipped.avatarFrame,
-        equippedBanner: equipped.banner,
-        equippedBackground: equipped.background,
+        equippedAvatarFrame: equipped.avatarFrame || null,
+        equippedBanner: equipped.banner || null,
+        equippedBackground: equipped.background || null,
+        equippedTheme: equipped.theme || null,
+        equippedBadge: equipped.badge || null,
+        equippedTitle: equipped.title || null,
+        equippedNameEffect: equipped.nameEffect || null,
+        equippedAvatarEffect: equipped.avatarEffect || null,
+        equippedChatBubble: equipped.chatBubble || null,
+        descoinBalance: Number(user.descoin_balance) || 0,
       },
     });
   } catch (err) {
@@ -579,19 +612,21 @@ router.get("/users/:userId", requireAuth, async (req, res) => {
     if (error || !user) return res.status(404).json({ error: "User not found" });
 
     const valorant = await loadPublicValorant(user.id);
-    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({
-      avatarFrame: null,
-      banner: null,
-      background: null,
-    }));
+    const equipped = await shop.getEquippedCosmeticsForUser(user.id).catch(() => ({}));
     return res.json({
       user: {
         ...toPublicUser(user),
         createdAt: user.created_at,
         valorant,
-        equippedAvatarFrame: equipped.avatarFrame,
-        equippedBanner: equipped.banner,
-        equippedBackground: equipped.background,
+        equippedAvatarFrame: equipped.avatarFrame || null,
+        equippedBanner: equipped.banner || null,
+        equippedBackground: equipped.background || null,
+        equippedTheme: equipped.theme || null,
+        equippedBadge: equipped.badge || null,
+        equippedTitle: equipped.title || null,
+        equippedNameEffect: equipped.nameEffect || null,
+        equippedAvatarEffect: equipped.avatarEffect || null,
+        equippedChatBubble: equipped.chatBubble || null,
       },
     });
   } catch (err) {

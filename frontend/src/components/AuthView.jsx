@@ -4,12 +4,17 @@ import { MessageCircle, UserPlus, Lock, Mail } from "lucide-react";
 import GoogleSignInButton from "./auth/GoogleSignInButton";
 import { useT } from "../context/LocaleContext";
 import DescallBrand from "./brand/DescallBrand";
+import LegalContentModal from "./legal/LegalContentModal";
 
 export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, error }) {
   const t = useT();
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [legalModal, setLegalModal] = useState(null); // "terms" | "privacy" | null
+
+  const needsTerms = mode === "register" && !termsAccepted;
 
   const submit = async (event) => {
     event.preventDefault();
@@ -18,7 +23,8 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
       await onLogin({ username: username.trim(), password });
       return;
     }
-    await onRegister({ username: username.trim(), password });
+    if (!termsAccepted) return;
+    await onRegister({ username: username.trim(), password, termsAccepted: true });
   };
 
   return (
@@ -97,12 +103,34 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
             />
           </div>
 
+          {mode === "register" && (
+            <div className="legal-consent">
+              <input
+                id="auth-terms-checkbox"
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+              />
+              <label htmlFor="auth-terms-checkbox">
+                {t("I have read and agree to the")}{" "}
+                <button type="button" className="legal-consent-link" onClick={() => setLegalModal("terms")}>
+                  {t("Terms of Service")}
+                </button>{" "}
+                {t("and")}{" "}
+                <button type="button" className="legal-consent-link" onClick={() => setLegalModal("privacy")}>
+                  {t("Privacy Policy")}
+                </button>
+                .
+              </label>
+            </div>
+          )}
+
           {error && <p className="error-message">{error}</p>}
 
           <button
             type="submit"
             className="auth-submit"
-            disabled={loading || !username.trim() || !password}
+            disabled={loading || !username.trim() || !password || needsTerms}
           >
             {loading ? (
               <span>{t("Please wait...")}</span>
@@ -118,6 +146,9 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
           {t("By continuing, you agree to our Terms of Service")}
         </p>
       </motion.section>
+
+      <LegalContentModal open={legalModal === "terms"} type="terms" onClose={() => setLegalModal(null)} />
+      <LegalContentModal open={legalModal === "privacy"} type="privacy" onClose={() => setLegalModal(null)} />
     </main>
   );
 }

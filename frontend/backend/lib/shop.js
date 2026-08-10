@@ -13,10 +13,16 @@ const EQUIP_COLUMN_BY_CATEGORY = {
   banner: "equipped_banner_id",
   avatar_frame: "equipped_avatar_frame_id",
   profile_background: "equipped_background_id",
+  theme: "equipped_theme_id",
+  profile_badge: "equipped_badge_id",
+  profile_title: "equipped_title_id",
+  name_effect: "equipped_name_effect_id",
+  avatar_effect: "equipped_avatar_effect_id",
+  chat_bubble: "equipped_chat_bubble_id",
 };
 
 const ITEM_COLUMNS =
-  "id, sku, name, description, category, asset_url, preview_url, price_cents, currency, active, rarity, sort_order, created_at";
+  "id, sku, name, description, category, asset_url, preview_url, price_cents, currency, price_descoin, theme_key, badge_icon, title_text, effect_key, active, rarity, sort_order, created_at";
 
 async function listActiveItems() {
   const { data, error } = await supabase
@@ -191,17 +197,43 @@ async function equipItem(userId, category, itemId) {
   if (error) throw error;
 }
 
-/** Resolves one user's three equip slots into full item records for profile rendering. */
+const EQUIPPED_USER_COLUMNS =
+  "equipped_avatar_frame_id, equipped_banner_id, equipped_background_id, equipped_theme_id, " +
+  "equipped_badge_id, equipped_title_id, equipped_name_effect_id, equipped_avatar_effect_id, equipped_chat_bubble_id";
+
+const EMPTY_EQUIPPED = {
+  avatarFrame: null,
+  banner: null,
+  background: null,
+  theme: null,
+  badge: null,
+  title: null,
+  nameEffect: null,
+  avatarEffect: null,
+  chatBubble: null,
+};
+
+/** Resolves one user's equip slots (all 9 cosmetic categories) into full item records. */
 async function getEquippedCosmeticsForUser(userId) {
   const { data: user, error } = await supabase
     .from("users")
-    .select("equipped_avatar_frame_id, equipped_banner_id, equipped_background_id")
+    .select(EQUIPPED_USER_COLUMNS)
     .eq("id", userId)
     .maybeSingle();
-  if (error || !user) return { avatarFrame: null, banner: null, background: null };
+  if (error || !user) return { ...EMPTY_EQUIPPED };
 
-  const ids = [user.equipped_avatar_frame_id, user.equipped_banner_id, user.equipped_background_id].filter(Boolean);
-  if (!ids.length) return { avatarFrame: null, banner: null, background: null };
+  const ids = [
+    user.equipped_avatar_frame_id,
+    user.equipped_banner_id,
+    user.equipped_background_id,
+    user.equipped_theme_id,
+    user.equipped_badge_id,
+    user.equipped_title_id,
+    user.equipped_name_effect_id,
+    user.equipped_avatar_effect_id,
+    user.equipped_chat_bubble_id,
+  ].filter(Boolean);
+  if (!ids.length) return { ...EMPTY_EQUIPPED };
 
   const { data: shopRows } = await supabase.from("shop_items").select(ITEM_COLUMNS).in("id", ids);
   const byId = new Map((shopRows || []).map((i) => [i.id, i]));
@@ -209,6 +241,12 @@ async function getEquippedCosmeticsForUser(userId) {
     avatarFrame: byId.get(user.equipped_avatar_frame_id) || null,
     banner: byId.get(user.equipped_banner_id) || null,
     background: byId.get(user.equipped_background_id) || null,
+    theme: byId.get(user.equipped_theme_id) || null,
+    badge: byId.get(user.equipped_badge_id) || null,
+    title: byId.get(user.equipped_title_id) || null,
+    nameEffect: byId.get(user.equipped_name_effect_id) || null,
+    avatarEffect: byId.get(user.equipped_avatar_effect_id) || null,
+    chatBubble: byId.get(user.equipped_chat_bubble_id) || null,
   };
 }
 
@@ -216,7 +254,7 @@ async function getEquippedForUsers(userIds) {
   if (!userIds || !userIds.length) return new Map();
   const { data, error } = await supabase
     .from("users")
-    .select("id, equipped_avatar_frame_id, equipped_banner_id, equipped_background_id")
+    .select(`id, ${EQUIPPED_USER_COLUMNS}`)
     .in("id", userIds);
   if (error) throw error;
   const map = new Map();
@@ -225,6 +263,12 @@ async function getEquippedForUsers(userIds) {
       avatarFrameId: u.equipped_avatar_frame_id,
       bannerId: u.equipped_banner_id,
       backgroundId: u.equipped_background_id,
+      themeId: u.equipped_theme_id,
+      badgeId: u.equipped_badge_id,
+      titleId: u.equipped_title_id,
+      nameEffectId: u.equipped_name_effect_id,
+      avatarEffectId: u.equipped_avatar_effect_id,
+      chatBubbleId: u.equipped_chat_bubble_id,
     });
   });
   return map;

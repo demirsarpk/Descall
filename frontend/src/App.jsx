@@ -45,6 +45,7 @@ import { t as tRuntime } from "./i18n/runtime";
 import { appPathForView, directPath, groupPath, isAuthenticatedAppPath, parseAppRoute } from "./lib/appRoutes";
 import AdminPanel from "./components/admin/AdminPanel";
 import ShopGiftPopup from "./components/shop/ShopGiftPopup";
+import DesCoinGiftPopup from "./components/shop/DesCoinGiftPopup";
 import TitleBar from "./components/TitleBar";
 import MessageList from "./components/chat/MessageList";
 import MessageComposer from "./components/chat/MessageComposer";
@@ -270,6 +271,7 @@ export default function App() {
   const [activeView, setActiveView] = useState("chat");
   const [userPanelOpen, setUserPanelOpen] = useState(false);
   const [shopGift, setShopGift] = useState(null);
+  const [descoinGift, setDescoinGift] = useState(null);
   const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -1486,9 +1488,15 @@ export default function App() {
       playUiSound("notification");
     });
 
-    socket.on("shop:purchase:completed", ({ item } = {}) => {
-      if (!item) return;
-      toast(t("You now own {name}!", { name: item.name }), "success");
+    socket.on("descoin:balance", ({ balance } = {}) => {
+      if (typeof balance !== "number") return;
+      setMe((prev) => (prev ? { ...prev, descoinBalance: balance } : prev));
+    });
+
+    socket.on("descoin:gift", (payload = {}) => {
+      if (!payload || typeof payload.amount !== "number") return;
+      setDescoinGift(payload);
+      playUiSound("notification");
     });
 
     socket.on("dm:unread:sync", ({ peerId, count } = {}) => {
@@ -2411,6 +2419,10 @@ export default function App() {
               setShopGift(null);
             }}
           />
+        )}
+
+        {descoinGift && (
+          <DesCoinGiftPopup gift={descoinGift} onDismiss={() => setDescoinGift(null)} />
         )}
         
         {/* NEW MODULAR LAYOUT SYSTEM */}

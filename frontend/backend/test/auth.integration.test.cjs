@@ -75,16 +75,22 @@ async function req(base, method, urlPath, { body, token } = {}) {
 async function run() {
   const { server, base } = await startServer();
   try {
-    // 1. Register without email
+    // 1. Registering without accepting the Terms is rejected
     let r = await req(base, "POST", "/register", {
       body: { username: "alice", password: "password123" },
+    });
+    assert(r.status === 400, "register without terms acceptance rejected: " + JSON.stringify(r.body));
+
+    // 2. Register without email (terms accepted)
+    r = await req(base, "POST", "/register", {
+      body: { username: "alice", password: "password123", termsAccepted: true },
     });
     assert(r.status === 201, "register without email succeeds: " + JSON.stringify(r.body));
     assert(r.body.needsEmailVerification === false, "no verification needed without email");
 
-    // 2. Register with email
+    // 3. Register with email
     r = await req(base, "POST", "/register", {
-      body: { username: "bob", password: "password123", email: "bob@example.com" },
+      body: { username: "bob", password: "password123", email: "bob@example.com", termsAccepted: true },
     });
     assert(r.status === 201, "register with email succeeds: " + JSON.stringify(r.body));
     assert(r.body.needsEmailVerification === true, "flags email verification needed");
@@ -92,8 +98,10 @@ async function run() {
     const verifyCode = lastCodeFor("bob@example.com");
     assert(/^\d{6}$/.test(verifyCode || ""), "captured a 6-digit verification code");
 
-    // 3. Duplicate username rejected
-    r = await req(base, "POST", "/register", { body: { username: "bob", password: "password123" } });
+    // 4. Duplicate username rejected
+    r = await req(base, "POST", "/register", {
+      body: { username: "bob", password: "password123", termsAccepted: true },
+    });
     assert(r.status === 409, "duplicate username rejected");
 
     // 4. Login as bob (2FA not enabled yet) issues a real token immediately
