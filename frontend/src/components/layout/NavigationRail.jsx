@@ -169,7 +169,9 @@ export default function NavigationRail({
   return (
     <nav className="nav-rail">
       <div className="nav-rail-brand">
-        <DescallBrand />
+        {/* Icon-only: the full "Descall" wordmark doesn't fit this 72px/60px
+            icon rail and was getting clipped to "Desc" by overflow:hidden. */}
+        <DescallBrand compact />
       </div>
 
       <div className="nav-rail-main">
