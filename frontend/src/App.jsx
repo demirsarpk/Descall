@@ -1833,6 +1833,14 @@ export default function App() {
       .finally(() => setMessagesLoading(false));
   }, [activeGroup?.id, t]);
 
+  // Sync the "ongoing call" banner for whichever group is currently open.
+  // The live push (group:call:banner-update) only reaches clients that were
+  // already connected and viewing that group when it fired — this catches
+  // everyone else (just opened the group, reconnected, missed the push).
+  useEffect(() => {
+    groupCall.setViewingGroupId(activeGroup?.id || null);
+  }, [activeGroup?.id, groupCall.setViewingGroupId]);
+
   useEffect(() => {
     if (me?.id) {
       fetchGroups();
