@@ -21,6 +21,7 @@ import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 import { getUser } from "../lib/storage";
 import useConnectionStats from "./useConnectionStats";
 import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
+import { acquireCallWakeLock, releaseCallWakeLock } from "../lib/callWakeLock";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -176,6 +177,17 @@ export function useCall(socket, callOccupancyRef = null) {
   const [peerConnectionState, setPeerConnectionState] = useState("idle");
   const [remoteMediaReady, setRemoteMediaReady] = useState(false);
   const [localStream, setLocalStream] = useState(null);
+
+  // Keep the screen awake / tab exempt from background throttling for as
+  // long as a call is ringing or active — screen lock and aggressive tab
+  // suspension are common causes of calls silently dropping on mobile.
+  useEffect(() => {
+    if (mode) {
+      acquireCallWakeLock({ title: "Descall call", artist: peer?.username || "" });
+    } else {
+      releaseCallWakeLock();
+    }
+  }, [mode, peer?.username]);
   const [remoteStream, setRemoteStream] = useState(null);
   const [remoteScreenStream, setRemoteScreenStream] = useState(null);
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
@@ -375,7 +387,7 @@ export function useCall(socket, callOccupancyRef = null) {
   }, []);
 
   const attachRemoteScreenTrack = useCallback((track, stream = null) => {
-    if (!track || track.kind !== "video") return;
+    if (!track || (track.kind !== "video" && track.kind !== "audio")) return;
     const screenStream = stream || new MediaStream([track]);
     setRemoteScreenStream((prev) => {
       const next = prev && prev !== screenStream
@@ -427,15 +439,27 @@ export function useCall(socket, callOccupancyRef = null) {
       }
 
       // A display stream can carry both its video and approved tab/system
-      // audio. Keep that audio with the screen stream so the presentation
-      // player can expose a dedicated volume control without mixing it into
-      // the participant microphone.
-      if (
+      // audio. Keep that audio with the screen stream (attached to the
+      // un-muted screen-share <video> element) instead of mixing it into
+      // the participant microphone audio element.
+      //
+      // The screen-audio and screen-video tracks can arrive in either
+      // order, so this can't only compare against an already-known
+      // `remoteScreenStreamRef` (that's still null the first time the audio
+      // track shows up before the video track). Fall back to the same
+      // "peer told us a screen share is starting, and this stream isn't the
+      // long-lived mic stream" signal `isRemoteScreenVideoTrack` already
+      // uses for video.
+      const isScreenAudioTrack =
         track?.kind === "audio" &&
-        raw &&
-        remoteScreenStreamRef.current &&
-        raw.id === remoteScreenStreamRef.current.id
-      ) {
+        Boolean(raw) &&
+        (
+          (remoteScreenStreamRef.current && raw.id === remoteScreenStreamRef.current.id) ||
+          (remoteScreenSharingRef.current &&
+            (!remoteStreamRef.current || raw.id !== remoteStreamRef.current.id))
+        );
+      if (isScreenAudioTrack) {
+        attachRemoteScreenTrack(track, raw);
         return;
       }
 
