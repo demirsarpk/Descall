@@ -716,6 +716,19 @@ function registerSocketHandlers(io) {
           shop.markGiftsNotified(pending.map((g) => g.inventoryId)).catch(() => {});
         })
         .catch((err) => console.warn("[shop] failed to deliver pending gifts:", err.message));
+
+      // Same deferred-delivery pattern for admin DesCoin grants that carried
+      // a message (the recipient was offline when the admin sent it).
+      descoin
+        .getUnnotifiedGrants(myId)
+        .then((pending) => {
+          if (!pending.length) return;
+          pending.forEach((grant) => {
+            socket.emit("descoin:gift", { amount: grant.amount, message: grant.message, from: grant.from });
+          });
+          descoin.markGrantsNotified(pending.map((g) => g.ledgerId)).catch(() => {});
+        })
+        .catch((err) => console.warn("[descoin] failed to deliver pending grants:", err.message));
     });
 
     socket.on("status:set", async ({ status } = {}) => {

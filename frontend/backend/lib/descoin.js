@@ -111,15 +111,24 @@ async function applyDelta(userId, delta) {
   throw new Error("BALANCE_UPDATE_CONFLICT");
 }
 
-async function writeLedger(userId, amount, reason, meta, balanceAfter) {
-  const { error } = await supabase.from("descoin_ledger").insert({
+async function writeLedger(userId, amount, reason, meta, balanceAfter, message = null) {
+  const insertRow = {
     user_id: userId,
     amount,
     reason,
     meta: meta || {},
     balance_after: balanceAfter,
-  });
+  };
+  // Admin grants carrying a message get the same deferred-popup treatment
+  // as item gifts: notified_at stays NULL until the recipient's socket has
+  // actually shown the celebratory popup (see socket/handlers.js on connect).
+  if (message) {
+    insertRow.message = message;
+    insertRow.notified_at = null;
+  }
+  const { data, error } = await supabase.from("descoin_ledger").insert(insertRow).select("id").maybeSingle();
   if (error) throw error;
+  return data?.id || null;
 }
 
 /**
@@ -129,10 +138,11 @@ async function writeLedger(userId, amount, reason, meta, balanceAfter) {
  * the delta before rethrowing — callers can trust that either both sides
  * of the change land, or neither does.
  */
-async function applyDeltaWithLedger(userId, delta, reason, meta) {
+async function applyDeltaWithLedger(userId, delta, reason, meta, message = null) {
   const balance = await applyDelta(userId, delta);
+  let ledgerId = null;
   try {
-    await writeLedger(userId, delta, reason, meta, balance);
+    ledgerId = await writeLedger(userId, delta, reason, meta, balance, message);
   } catch (ledgerError) {
     try {
       await applyDelta(userId, -delta);
@@ -144,22 +154,24 @@ async function applyDeltaWithLedger(userId, delta, reason, meta) {
     }
     throw ledgerError;
   }
-  return balance;
+  return { balance, ledgerId };
 }
 
-/** Uncapped credit — used for admin grants and purchase refunds only. */
-async function credit(userId, amount, reason, meta = {}) {
+/** Uncapped credit — used for admin grants and purchase refunds only. An optional
+ * `message` makes this behave like an item gift: it's stored on the ledger row and
+ * surfaced via a celebratory popup (delivered live or on next connect). */
+async function credit(userId, amount, reason, meta = {}, message = null) {
   const wholeAmount = Math.max(0, Math.floor(Number(amount) || 0));
-  if (wholeAmount <= 0) return { credited: 0, balance: await getBalance(userId) };
-  const balance = await applyDeltaWithLedger(userId, wholeAmount, reason, meta);
-  return { credited: wholeAmount, balance };
+  if (wholeAmount <= 0) return { credited: 0, balance: await getBalance(userId), ledgerId: null };
+  const { balance, ledgerId } = await applyDeltaWithLedger(userId, wholeAmount, reason, meta, message);
+  return { credited: wholeAmount, balance, ledgerId };
 }
 
 /** Debit for shop purchases / admin revokes. Throws INSUFFICIENT_BALANCE on overdraw. */
 async function debit(userId, amount, reason, meta = {}) {
   const wholeAmount = Math.max(0, Math.floor(Number(amount) || 0));
   if (wholeAmount <= 0) throw new Error("INVALID_AMOUNT");
-  const balance = await applyDeltaWithLedger(userId, -wholeAmount, reason, meta);
+  const { balance } = await applyDeltaWithLedger(userId, -wholeAmount, reason, meta);
   return { debited: wholeAmount, balance };
 }
 
@@ -192,7 +204,7 @@ async function creditCapped(userId, amount, reason, meta = {}) {
       return { credited: 0, capped, balance: await getBalance(userId) };
     }
 
-    const balance = await applyDeltaWithLedger(userId, room, reason, meta);
+    const { balance } = await applyDeltaWithLedger(userId, room, reason, meta);
     return { credited: room, capped: null, balance };
   });
 }
@@ -209,6 +221,47 @@ async function getLedger(userId, { limit = 50 } = {}) {
   return data || [];
 }
 
+/**
+ * Admin DesCoin grants that carried a message and haven't shown their
+ * celebratory popup yet — same deferred-delivery pattern as shop gifts
+ * (grantedBy offline at grant time, or predating this feature).
+ */
+async function getUnnotifiedGrants(userId) {
+  const { data, error } = await supabase
+    .from("descoin_ledger")
+    .select("id, amount, message, meta, created_at")
+    .eq("user_id", userId)
+    .eq("reason", "admin_grant")
+    .not("message", "is", null)
+    .is("notified_at", null)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  const rows = data || [];
+  if (!rows.length) return [];
+
+  const granterIds = [...new Set(rows.map((r) => r.meta?.by).filter(Boolean))];
+  const { data: granters } = granterIds.length
+    ? await supabase.from("users").select("id, username").in("id", granterIds)
+    : { data: [] };
+  const granterById = new Map((granters || []).map((u) => [u.id, u]));
+
+  return rows.map((row) => ({
+    ledgerId: row.id,
+    amount: row.amount,
+    message: row.message,
+    from: row.meta?.by ? granterById.get(row.meta.by) || null : null,
+  }));
+}
+
+async function markGrantsNotified(ledgerIds) {
+  if (!ledgerIds || !ledgerIds.length) return;
+  const { error } = await supabase
+    .from("descoin_ledger")
+    .update({ notified_at: new Date().toISOString() })
+    .in("id", ledgerIds);
+  if (error) throw error;
+}
+
 module.exports = {
   CAPS,
   GLOBAL_DAILY_CAP,
@@ -218,4 +271,6 @@ module.exports = {
   debit,
   creditCapped,
   getLedger,
+  getUnnotifiedGrants,
+  markGrantsNotified,
 };
