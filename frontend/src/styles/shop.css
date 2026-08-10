@@ -72,15 +72,139 @@
 }
 
 .shop-theme-swatch.theme-emerald {
-  background: linear-gradient(135deg, #031f13 0%, #0f3d24 55%, #2ecc71 100%);
+  background: linear-gradient(135deg, #08160f 0%, #183f2b 55%, #2dbe70 100%);
 }
 
 .shop-theme-swatch.theme-sakura {
-  background: linear-gradient(135deg, #1a1015 0%, #3d2531 55%, #ff8fab 100%);
+  background: linear-gradient(135deg, #15090d 0%, #3c1b26 55%, #f679a3 100%);
 }
 
 .shop-theme-swatch.theme-solar {
-  background: linear-gradient(135deg, #1a1207 0%, #3d2b0f 55%, #f9a826 100%);
+  background: linear-gradient(135deg, #161009 0%, #3e2d19 55%, #f6a831 100%);
+}
+
+/* ─── 24 additional premium themes (gradient / neon / glow) ─── */
+.shop-theme-swatch.theme-aurora {
+  background: linear-gradient(135deg, #091315 0%, #1a373d 55%, #a96af0 100%);
+}
+
+.shop-theme-swatch.theme-sunset {
+  background: linear-gradient(135deg, #150913 0%, #3d1a36 55%, #f59247 100%);
+}
+
+.shop-theme-swatch.theme-cottoncandy {
+  background: linear-gradient(135deg, #110a15 0%, #311c3b 55%, #f094f0 100%);
+}
+
+.shop-theme-swatch.theme-peach {
+  background: linear-gradient(135deg, #160b09 0%, #3e1e19 55%, #f59166 100%);
+}
+
+.shop-theme-swatch.theme-lavender {
+  background: linear-gradient(135deg, #0e0a15 0%, #271d3a 55%, #b190ea 100%);
+}
+
+.shop-theme-swatch.theme-mint {
+  background: linear-gradient(135deg, #091514 0%, #1b3c3a 55%, #5ce0bd 100%);
+}
+
+.shop-theme-swatch.theme-rosegold {
+  background: linear-gradient(135deg, #150e0a 0%, #3a271d 55%, #e88273 100%);
+}
+
+.shop-theme-swatch.theme-deepspace {
+  background: linear-gradient(135deg, #0a0916 0%, #1c183e 55%, #6e56e6 100%);
+}
+
+.shop-theme-swatch.theme-neontokyo {
+  background: linear-gradient(135deg, #0c0c13 0%, #222235 55%, #fb41b7 100%);
+}
+
+.shop-theme-swatch.theme-cyberpunk {
+  background: linear-gradient(135deg, #130c13 0%, #362136 55%, #fde12b 100%);
+}
+
+.shop-theme-swatch.theme-vaporwave {
+  background: linear-gradient(135deg, #130b13 0%, #372037 55%, #45daf7 100%);
+}
+
+.shop-theme-swatch.theme-neonjungle {
+  background: linear-gradient(135deg, #0c130d 0%, #223525 55%, #51f628 100%);
+}
+
+.shop-theme-swatch.theme-electricviolet {
+  background: linear-gradient(135deg, #0f0c13 0%, #2b2136 55%, #ab41fb 100%);
+}
+
+.shop-theme-swatch.theme-toxicgreen {
+  background: linear-gradient(135deg, #0f120c 0%, #2b3423 55%, #82fa19 100%);
+}
+
+.shop-theme-swatch.theme-neonblaze {
+  background: linear-gradient(135deg, #130d0c 0%, #362421 55%, #fb5d2d 100%);
+}
+
+.shop-theme-swatch.theme-hyperdrive {
+  background: linear-gradient(135deg, #0c0e13 0%, #212836 55%, #37a0fb 100%);
+}
+
+.shop-theme-swatch.theme-phoenixfire {
+  background: linear-gradient(135deg, #160c08 0%, #3f2117 55%, #f66631 100%);
+}
+
+.shop-theme-swatch.theme-frostbite {
+  background: linear-gradient(135deg, #091115 0%, #1a313d 55%, #5cccf5 100%);
+}
+
+.shop-theme-swatch.theme-voidwalker {
+  background: linear-gradient(135deg, #0a050f 0%, #261339 55%, #b73ff3 100%);
+}
+
+.shop-theme-swatch.theme-starlight {
+  background: linear-gradient(135deg, #090b16 0%, #191f3e 55%, #f6d25a 100%);
+}
+
+.shop-theme-swatch.theme-plasmastorm {
+  background: linear-gradient(135deg, #0b0816 0%, #1e173f 55%, #455df7 100%);
+}
+
+.shop-theme-swatch.theme-moltencore {
+  background: linear-gradient(135deg, #130706 0%, #3e1614 55%, #f33520 100%);
+}
+
+.shop-theme-swatch.theme-goldenhour {
+  background: linear-gradient(135deg, #150f09 0%, #3d2a1a 55%, #eeb94f 100%);
+}
+
+.shop-theme-swatch.theme-desertbloom {
+  background: linear-gradient(135deg, #150e0a 0%, #3a281d 55%, #dc7a56 100%);
+}
+
+/* Neon-family themes get a slightly stronger swatch glow to preview the effect */
+.shop-theme-swatch.theme-neontokyo,
+.shop-theme-swatch.theme-cyberpunk,
+.shop-theme-swatch.theme-vaporwave,
+.shop-theme-swatch.theme-neonjungle,
+.shop-theme-swatch.theme-electricviolet,
+.shop-theme-swatch.theme-toxicgreen,
+.shop-theme-swatch.theme-neonblaze,
+.shop-theme-swatch.theme-hyperdrive {
+  box-shadow: inset 0 0 22px rgba(255, 255, 255, 0.06);
+}
+
+/* Glow-family themes pulse gently even in the small shop preview */
+.shop-theme-swatch.theme-phoenixfire,
+.shop-theme-swatch.theme-frostbite,
+.shop-theme-swatch.theme-voidwalker,
+.shop-theme-swatch.theme-starlight,
+.shop-theme-swatch.theme-plasmastorm,
+.shop-theme-swatch.theme-moltencore {
+  animation: shop-theme-swatch-glow 2.6s ease-in-out infinite;
+}
+
+@keyframes shop-theme-swatch-glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.18) saturate(1.15); }
 }
 
 .shop-category-block h4 {
@@ -230,6 +354,16 @@
 .shop-rarity-rare { background: rgba(59, 130, 246, 0.18); color: #93c5fd; }
 .shop-rarity-epic { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
 .shop-rarity-legendary { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+.shop-rarity-mythic {
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(139, 92, 246, 0.25));
+  color: #fbcfe8;
+  animation: shop-mythic-shimmer 2.4s ease-in-out infinite;
+}
+
+@keyframes shop-mythic-shimmer {
+  0%, 100% { box-shadow: 0 0 0 rgba(236, 72, 153, 0); }
+  50% { box-shadow: 0 0 10px rgba(236, 72, 153, 0.45); }
+}
 
 .shop-item-desc {
   font-size: 12px;
