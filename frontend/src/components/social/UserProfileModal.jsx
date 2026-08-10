@@ -284,8 +284,10 @@ export default function UserProfileModal({
                 </div>
               </div>
 
-              {/* Spacer for avatar overlap */}
-              <div style={{ height: 44 }} />
+              {/* Spacer for avatar overlap — generous enough to also clear
+                  equipped avatar frames (132% overlay) and avatar effect
+                  rings (glow/pulse overflow), not just the bare avatar. */}
+              <div style={{ height: 60 }} />
 
               {/* Display name + @username + status */}
               <div style={{ marginBottom: 12 }}>

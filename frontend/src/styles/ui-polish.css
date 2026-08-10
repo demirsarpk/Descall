@@ -1661,7 +1661,9 @@
 }
 .uhc-body {
   display: flex;
-  gap: 12px;
+  /* Wide enough to clear equipped avatar frames/effect rings, which visually
+     overflow the avatar circle and would otherwise crowd the name text. */
+  gap: 22px;
   padding: 0 14px 14px;
   margin-top: -30px;
   align-items: flex-start;
