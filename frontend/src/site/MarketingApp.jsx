@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { X, ShieldCheck, ArrowLeft } from "lucide-react";
 import { Routes, Route, useLocation } from "react-router-dom";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 import LegalContentModal from "../components/legal/LegalContentModal";
@@ -59,6 +59,7 @@ function AuthModal({
   onLogin,
   onRegister,
   onGoogleLogin,
+  onVerify2fa,
   authLoading,
   authError,
 }) {
@@ -70,6 +71,15 @@ function AuthModal({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [legalModal, setLegalModal] = useState(null);
 
+  // Accounts with 2FA enabled don't get logged in directly — the server
+  // emails a one-time code and expects a follow-up verify call. This used to
+  // go nowhere: onLogin would resolve, no token would ever be set, and the
+  // modal just sat there looking like nothing had happened.
+  const [twoFa, setTwoFa] = useState(null); // { pendingToken, emailHint } | null
+  const [code, setCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [twoFaError, setTwoFaError] = useState("");
+
   useEffect(() => {
     if (!open) {
       setUsername("");
@@ -77,6 +87,9 @@ function AuthModal({
       setIsRegistering(false);
       setIsSubmitting(false);
       setTermsAccepted(false);
+      setTwoFa(null);
+      setCode("");
+      setTwoFaError("");
     }
   }, [open]);
 
@@ -86,10 +99,32 @@ function AuthModal({
     if (isRegistering && !termsAccepted) return;
     setIsSubmitting(true);
     try {
-      if (isRegistering) await onRegister?.({ username, password, termsAccepted: true });
-      else await onLogin?.({ username, password });
+      if (isRegistering) {
+        await onRegister?.({ username, password, termsAccepted: true });
+      } else {
+        const result = await onLogin?.({ username, password });
+        if (result?.requires2fa) {
+          setTwoFa({ pendingToken: result.pendingToken, emailHint: result.emailHint });
+          setCode("");
+          setTwoFaError("");
+        }
+      }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const submitCode = async (e) => {
+    e.preventDefault();
+    if (!code.trim() || verifying) return;
+    setVerifying(true);
+    setTwoFaError("");
+    try {
+      await onVerify2fa?.(twoFa.pendingToken, code.trim());
+    } catch (err) {
+      setTwoFaError(err?.message || t("Incorrect code."));
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -114,6 +149,38 @@ function AuthModal({
             <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
               <X size={20} />
             </button>
+            {twoFa ? (
+              <>
+                <h2>{t("Two-Factor Verification")}</h2>
+                <p>{t("Enter the code we sent to {email}", { email: twoFa.emailHint || t("your email") })}</p>
+                {(twoFaError || authError) && <div className="auth-error">{twoFaError || authError}</div>}
+                <form onSubmit={submitCode}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder={t("Verification code")}
+                    maxLength={8}
+                    autoFocus
+                    required
+                  />
+                  <button type="submit" disabled={verifying || !code.trim()}>
+                    {verifying ? t("Please wait...") : t("Verify")}
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  className="auth-switch"
+                  onClick={() => { setTwoFa(null); setCode(""); setTwoFaError(""); }}
+                >
+                  <ArrowLeft size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+                  {t("Back to login")}
+                </button>
+              </>
+            ) : (
+            <>
             <h2>{isRegistering ? t("Create Account") : t("Welcome Back")}</h2>
             <p>{isRegistering ? t("Join Descall today") : t("Sign in to your account")}</p>
             {authError && <div className="auth-error">{authError}</div>}
@@ -179,6 +246,8 @@ function AuthModal({
             >
               {isRegistering ? t("Already have an account? Sign in") : t("Need an account? Register")}
             </button>
+            </>
+            )}
           </motion.div>
           <LegalContentModal open={legalModal === "terms"} type="terms" onClose={() => setLegalModal(null)} />
           <LegalContentModal open={legalModal === "privacy"} type="privacy" onClose={() => setLegalModal(null)} />
@@ -204,6 +273,7 @@ export default function MarketingApp({
   onLogin,
   onRegister,
   onGoogleLogin,
+  onVerify2fa,
   authLoading,
   authError,
 }) {
@@ -224,7 +294,7 @@ export default function MarketingApp({
   }, [location.pathname]);
 
   const openAuth = () => setAuthOpen(true);
-  const authProps = { onLogin, onRegister, onGoogleLogin, authLoading, authError };
+  const authProps = { onLogin, onRegister, onGoogleLogin, onVerify2fa, authLoading, authError };
 
   return (
     <>

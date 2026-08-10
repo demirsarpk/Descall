@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { MessageCircle, UserPlus, Lock, Mail } from "lucide-react";
+import { MessageCircle, UserPlus, Lock, Mail, ShieldCheck, ArrowLeft } from "lucide-react";
 import GoogleSignInButton from "./auth/GoogleSignInButton";
 import { useT } from "../context/LocaleContext";
 import DescallBrand from "./brand/DescallBrand";
 import LegalContentModal from "./legal/LegalContentModal";
 
-export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, error }) {
+export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2fa, loading, error }) {
   const t = useT();
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
@@ -14,17 +14,45 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [legalModal, setLegalModal] = useState(null); // "terms" | "privacy" | null
 
+  // Accounts with 2FA enabled don't get logged in directly — the server
+  // emails a one-time code and expects a follow-up verify call. This used to
+  // go nowhere: onLogin would resolve, no token would ever be set, and the
+  // login screen just sat there looking like nothing had happened.
+  const [twoFa, setTwoFa] = useState(null); // { pendingToken, emailHint } | null
+  const [code, setCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [twoFaError, setTwoFaError] = useState("");
+
   const needsTerms = mode === "register" && !termsAccepted;
 
   const submit = async (event) => {
     event.preventDefault();
     if (!username.trim() || !password) return;
     if (mode === "login") {
-      await onLogin({ username: username.trim(), password });
+      const result = await onLogin({ username: username.trim(), password });
+      if (result?.requires2fa) {
+        setTwoFa({ pendingToken: result.pendingToken, emailHint: result.emailHint });
+        setCode("");
+        setTwoFaError("");
+      }
       return;
     }
     if (!termsAccepted) return;
     await onRegister({ username: username.trim(), password, termsAccepted: true });
+  };
+
+  const submitCode = async (event) => {
+    event.preventDefault();
+    if (!code.trim() || verifying) return;
+    setVerifying(true);
+    setTwoFaError("");
+    try {
+      await onVerify2fa(twoFa.pendingToken, code.trim());
+    } catch (err) {
+      setTwoFaError(err?.message || t("Incorrect code."));
+    } finally {
+      setVerifying(false);
+    }
   };
 
   return (
@@ -45,9 +73,52 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
         <div className="auth-logo-container">
           <DescallBrand />
           <h1 className="auth-title">{t("Descall")}</h1>
-          <p className="auth-subtitle">{t("Connect with friends through voice, video, and messaging")}</p>
+          <p className="auth-subtitle">
+            {twoFa
+              ? t("Enter the code we sent to {email}", { email: twoFa.emailHint || t("your email") })
+              : t("Connect with friends through voice, video, and messaging")}
+          </p>
         </div>
 
+        {twoFa ? (
+          <form onSubmit={submitCode} className="auth-form">
+            <div className="input-wrapper">
+              <ShieldCheck className="input-icon" size={20} />
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder={t("Verification code")}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                maxLength={8}
+                autoFocus
+                required
+              />
+            </div>
+
+            {(twoFaError || error) && <p className="error-message">{twoFaError || error}</p>}
+
+            <button type="submit" className="auth-submit" disabled={verifying || !code.trim()}>
+              {verifying ? <span>{t("Please wait...")}</span> : <span>{t("Verify")}</span>}
+            </button>
+
+            <button
+              type="button"
+              className="auth-tab"
+              style={{ width: "100%", justifyContent: "center", marginTop: 4 }}
+              onClick={() => {
+                setTwoFa(null);
+                setCode("");
+                setTwoFaError("");
+              }}
+            >
+              <ArrowLeft size={16} />
+              <span>{t("Back to login")}</span>
+            </button>
+          </form>
+        ) : (
+        <>
         <div className="auth-tabs">
           <button
             className={`auth-tab ${mode === "login" ? "active" : ""}`}
@@ -145,6 +216,8 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, 
         <p className="auth-footer">
           {t("By continuing, you agree to our Terms of Service")}
         </p>
+        </>
+        )}
       </motion.section>
 
       <LegalContentModal open={legalModal === "terms"} type="terms" onClose={() => setLegalModal(null)} />

@@ -6,7 +6,7 @@ import AppLayout from "./components/layout/AppLayout";
 import GroupInviteLanding from "./components/groups/GroupInviteLanding";
 import MarketingApp from "./site/MarketingApp";
 import SeoHead from "./site/SeoHead";
-import { getMe, login, loginWithGoogle, register } from "./api/auth";
+import { getMe, login, loginWithGoogle, register, verify2faLogin } from "./api/auth";
 import { getMyGroups, getGroupMessages } from "./api/groups";
 import {
   getMyGuilds,
@@ -1640,6 +1640,31 @@ export default function App() {
       setAuthError("");
       await verifyBackendEndpoint();
       const data = await login(payload);
+      // Accounts with 2FA enabled don't get a session token from /auth/login —
+      // the server instead emails a one-time code and expects a follow-up
+      // call to /auth/2fa/verify-login. Previously nothing surfaced this to
+      // the UI: handleLogin just kept going and called setToken(undefined),
+      // so the login screen looked like it silently did nothing.
+      if (data.requires2fa) {
+        return { requires2fa: true, pendingToken: data.pendingToken, emailHint: data.emailHint };
+      }
+      transportFallbackStepRef.current = 0;
+      setToken(data.token);
+      commitSessionUser(data.user);
+      return null;
+    } catch (error) {
+      setAuthError(error.message);
+      throw error;
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleVerify2fa = async (pendingToken, code) => {
+    try {
+      setAuthLoading(true);
+      setAuthError("");
+      const data = await verify2faLogin(pendingToken, code);
       transportFallbackStepRef.current = 0;
       setToken(data.token);
       commitSessionUser(data.user);
@@ -2360,6 +2385,7 @@ export default function App() {
             onLogin={handleLogin}
             onRegister={handleRegister}
             onGoogleLogin={handleGoogleLogin}
+            onVerify2fa={handleVerify2fa}
             loading={authLoading}
             error={authError}
           />
@@ -2373,6 +2399,7 @@ export default function App() {
           onLogin={handleLogin}
           onRegister={handleRegister}
           onGoogleLogin={handleGoogleLogin}
+          onVerify2fa={handleVerify2fa}
           authLoading={authLoading}
           authError={authError}
         />
