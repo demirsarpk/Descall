@@ -13,5 +13,5 @@ export const equipShopItem = (category, itemId) =>
 export const listAllShopItems = () => authedRequest("/api/admin/shop/items");
 export const giftShopItem = (userId, itemId, message) =>
   authedRequest("/api/admin/shop/gift", { method: "POST", body: { userId, itemId, message } });
-export const grantDesCoin = (userId, amount, reason) =>
-  authedRequest("/api/admin/descoin/grant", { method: "POST", body: { userId, amount, reason } });
+export const grantDesCoin = (userId, amount, reason, message) =>
+  authedRequest("/api/admin/descoin/grant", { method: "POST", body: { userId, amount, reason, message } });

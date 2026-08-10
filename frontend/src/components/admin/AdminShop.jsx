@@ -12,7 +12,23 @@ const CATEGORIES = [
   { id: "avatar_frame", label: "Avatar Frame" },
   { id: "profile_background", label: "Profile Background" },
   { id: "theme", label: "Premium Theme" },
+  { id: "profile_badge", label: "Profile Badge" },
+  { id: "profile_title", label: "Profile Title" },
+  { id: "name_effect", label: "Name Effect" },
+  { id: "avatar_effect", label: "Avatar Effect" },
+  { id: "chat_bubble", label: "Chat Bubble Skin" },
 ];
+
+// Categories that render from a small piece of metadata instead of an
+// image/SVG asset — the admin form skips the asset URL field for these.
+const METADATA_ONLY_CATEGORIES = new Set(["profile_badge", "profile_title", "name_effect", "avatar_effect", "chat_bubble"]);
+const EFFECT_KEY_CATEGORIES = new Set(["name_effect", "avatar_effect", "chat_bubble"]);
+
+const EFFECT_KEY_OPTIONS = {
+  name_effect: ["fire", "rainbow", "neon", "gold-shimmer", "ice", "void"],
+  avatar_effect: ["pulse", "orbit", "spark", "aurora", "flame", "frost"],
+  chat_bubble: ["glass", "neon-outline", "sunset", "carbon", "holo", "royal-purple"],
+};
 
 const RARITIES = ["common", "rare", "epic", "legendary"];
 
@@ -25,6 +41,9 @@ const EMPTY_DRAFT = {
   previewUrl: "",
   priceDescoin: "250",
   themeKey: "",
+  badgeIcon: "",
+  titleText: "",
+  effectKey: "",
   rarity: "common",
 };
 
@@ -58,6 +77,7 @@ export default function AdminShop() {
   const [coinTargetUser, setCoinTargetUser] = useState(null);
   const [coinAmount, setCoinAmount] = useState("100");
   const [coinReason, setCoinReason] = useState("");
+  const [coinMessage, setCoinMessage] = useState("");
   const [coinSending, setCoinSending] = useState(false);
   const [coinNotice, setCoinNotice] = useState("");
 
@@ -82,8 +102,13 @@ export default function AdminShop() {
 
   const handleCreateItem = async (e) => {
     e.preventDefault();
-    if (!draft.sku.trim() || !draft.name.trim() || !draft.assetUrl.trim()) return;
+    const isMetadataOnly = METADATA_ONLY_CATEGORIES.has(draft.category);
+    if (!draft.sku.trim() || !draft.name.trim()) return;
+    if (!isMetadataOnly && !draft.assetUrl.trim()) return;
     if (draft.category === "theme" && !draft.themeKey.trim()) return;
+    if (draft.category === "profile_badge" && !draft.badgeIcon.trim()) return;
+    if (draft.category === "profile_title" && !draft.titleText.trim()) return;
+    if (EFFECT_KEY_CATEGORIES.has(draft.category) && !draft.effectKey.trim()) return;
     setCreating(true);
     try {
       await adminFetch("/shop/items", {
@@ -93,10 +118,13 @@ export default function AdminShop() {
           name: draft.name.trim(),
           description: draft.description.trim() || null,
           category: draft.category,
-          assetUrl: draft.assetUrl.trim(),
-          previewUrl: draft.previewUrl.trim() || draft.assetUrl.trim(),
+          assetUrl: draft.assetUrl.trim() || undefined,
+          previewUrl: draft.previewUrl.trim() || draft.assetUrl.trim() || undefined,
           priceDescoin: Math.max(0, Math.round(Number(draft.priceDescoin) || 0)),
           themeKey: draft.category === "theme" ? draft.themeKey.trim() : undefined,
+          badgeIcon: draft.category === "profile_badge" ? draft.badgeIcon.trim() : undefined,
+          titleText: draft.category === "profile_title" ? draft.titleText.trim() : undefined,
+          effectKey: EFFECT_KEY_CATEGORIES.has(draft.category) ? draft.effectKey.trim() : undefined,
           rarity: draft.rarity,
         }),
       });
@@ -170,7 +198,10 @@ export default function AdminShop() {
     setCoinSending(true);
     setCoinNotice("");
     try {
-      const res = await grantDesCoin(coinTargetUser.id, parsed * sign, coinReason.trim() || null);
+      // A message only makes sense on a positive grant — it rides along as
+      // a celebratory popup for the recipient, just like gifting an item.
+      const message = sign > 0 ? coinMessage.trim() || null : null;
+      const res = await grantDesCoin(coinTargetUser.id, parsed * sign, coinReason.trim() || null, message);
       setCoinNotice(
         t("{name}'s new balance: {balance} DesCoin", {
           name: coinTargetUser.username,
@@ -178,6 +209,7 @@ export default function AdminShop() {
         })
       );
       setCoinReason("");
+      setCoinMessage("");
     } catch (err) {
       setCoinNotice(err.message || t("Failed to update DesCoin balance."));
     } finally {
@@ -286,12 +318,23 @@ export default function AdminShop() {
           </div>
 
           <div className="admin-shop-gift-field admin-shop-gift-field-wide">
-            <label>{t("Reason (optional)")}</label>
+            <label>{t("Reason (optional, internal audit only)")}</label>
             <input
               className="admin-input"
               placeholder={t("e.g. compensation, event reward…")}
               value={coinReason}
               onChange={(e) => setCoinReason(e.target.value)}
+            />
+          </div>
+
+          <div className="admin-shop-gift-field admin-shop-gift-field-wide">
+            <label>{t("Message to recipient (optional — shown in their popup)")}</label>
+            <textarea
+              className="admin-textarea"
+              rows={2}
+              placeholder={t("A note to include with the DesCoin gift…")}
+              value={coinMessage}
+              onChange={(e) => setCoinMessage(e.target.value)}
             />
           </div>
         </div>
@@ -423,7 +466,14 @@ export default function AdminShop() {
             <input className="admin-input" placeholder={t("Name")} value={draft.name}
               onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} required />
             <select className="admin-select" value={draft.category}
-              onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value, themeKey: e.target.value === "theme" ? d.themeKey : "" }))}>
+              onChange={(e) => setDraft((d) => ({
+                ...d,
+                category: e.target.value,
+                themeKey: "",
+                badgeIcon: "",
+                titleText: "",
+                effectKey: "",
+              }))}>
               {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
             </select>
             <select className="admin-select" value={draft.rarity}
@@ -443,10 +493,46 @@ export default function AdminShop() {
                 <option value="midnight">Midnight</option>
                 <option value="crimson">Crimson</option>
                 <option value="ocean">Ocean</option>
+                <option value="emerald">Emerald</option>
+                <option value="sakura">Sakura</option>
+                <option value="solar">Solar</option>
               </select>
             )}
-            <input className="admin-input admin-shop-gift-field-wide" placeholder={t("Image / SVG data URL")}
-              value={draft.assetUrl} onChange={(e) => setDraft((d) => ({ ...d, assetUrl: e.target.value }))} required />
+            {draft.category === "profile_badge" && (
+              <input
+                className="admin-input"
+                placeholder={t("Badge emoji (e.g. 👑)")}
+                value={draft.badgeIcon}
+                onChange={(e) => setDraft((d) => ({ ...d, badgeIcon: e.target.value }))}
+                required
+              />
+            )}
+            {draft.category === "profile_title" && (
+              <input
+                className="admin-input"
+                placeholder={t("Title text (e.g. 🔥 Elite)")}
+                value={draft.titleText}
+                onChange={(e) => setDraft((d) => ({ ...d, titleText: e.target.value }))}
+                required
+              />
+            )}
+            {EFFECT_KEY_CATEGORIES.has(draft.category) && (
+              <select
+                className="admin-select"
+                value={draft.effectKey}
+                onChange={(e) => setDraft((d) => ({ ...d, effectKey: e.target.value }))}
+                required
+              >
+                <option value="">{t("Select an effect key…")}</option>
+                {(EFFECT_KEY_OPTIONS[draft.category] || []).map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
+            )}
+            {!METADATA_ONLY_CATEGORIES.has(draft.category) && (
+              <input className="admin-input admin-shop-gift-field-wide" placeholder={t("Image / SVG data URL")}
+                value={draft.assetUrl} onChange={(e) => setDraft((d) => ({ ...d, assetUrl: e.target.value }))} required />
+            )}
             <textarea className="admin-textarea admin-shop-gift-field-wide" rows={2} placeholder={t("Description (optional)")}
               value={draft.description} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
           </div>
@@ -485,6 +571,18 @@ export default function AdminShop() {
                   <td>
                     {item.category === "theme" ? (
                       <div className={`shop-theme-swatch theme-${item.theme_key || "default"}`} style={{ width: 40, height: 28, borderRadius: 6 }} />
+                    ) : item.category === "profile_badge" ? (
+                      <span style={{ fontSize: 22 }}>{item.badge_icon}</span>
+                    ) : item.category === "profile_title" ? (
+                      <span className="admin-badge online" style={{ fontSize: 11 }}>{item.title_text}</span>
+                    ) : item.category === "name_effect" ? (
+                      <span className={`cosmetic-name-effect effect-${item.effect_key}`} style={{ fontSize: 13, fontWeight: 700 }}>Abc</span>
+                    ) : item.category === "avatar_effect" ? (
+                      <div style={{ position: "relative", width: 32, height: 32 }}>
+                        <div className={`cosmetic-avatar-effect effect-${item.effect_key}`} style={{ position: "absolute", inset: -6 }} />
+                      </div>
+                    ) : item.category === "chat_bubble" ? (
+                      <div className={`cosmetic-chat-bubble bubble-${item.effect_key}`} style={{ width: 40, height: 22, borderRadius: 8 }} />
                     ) : (
                       <img src={item.preview_url || item.asset_url} alt="" style={{ width: 40, height: 28, objectFit: "cover", borderRadius: 6 }} />
                     )}
@@ -494,6 +592,11 @@ export default function AdminShop() {
                     {item.category === "theme" && (
                       <span className="mono" style={{ marginLeft: 6, fontSize: 11, opacity: 0.6 }}>
                         <Sparkles size={11} style={{ verticalAlign: "-1px" }} /> {item.theme_key}
+                      </span>
+                    )}
+                    {item.effect_key && item.category !== "theme" && (
+                      <span className="mono" style={{ marginLeft: 6, fontSize: 11, opacity: 0.6 }}>
+                        <Sparkles size={11} style={{ verticalAlign: "-1px" }} /> {item.effect_key}
                       </span>
                     )}
                   </td>

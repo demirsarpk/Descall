@@ -1355,30 +1355,73 @@ router.get("/shop/items", async (_req, res) => {
   }
 });
 
-const SHOP_CATEGORIES = ["banner", "avatar_frame", "profile_background", "theme"];
+const SHOP_CATEGORIES = [
+  "banner",
+  "avatar_frame",
+  "profile_background",
+  "theme",
+  "profile_badge",
+  "profile_title",
+  "name_effect",
+  "avatar_effect",
+  "chat_bubble",
+];
+
+// Categories that render from a small piece of metadata rather than an
+// image/SVG asset — createItem/updateItem still write a placeholder
+// asset_url for these (never rendered) to satisfy the NOT NULL column.
+const METADATA_ONLY_CATEGORIES = new Set(["profile_badge", "profile_title", "name_effect", "avatar_effect", "chat_bubble"]);
 
 router.post("/shop/items", async (req, res) => {
   try {
-    const { sku, name, description, category, assetUrl, previewUrl, priceDescoin, themeKey, rarity, sortOrder } =
-      req.body || {};
-    if (!sku || !name || !category || !assetUrl || priceDescoin == null) {
-      return res.status(400).json({ error: "sku, name, category, assetUrl, and priceDescoin are required." });
+    const {
+      sku,
+      name,
+      description,
+      category,
+      assetUrl,
+      previewUrl,
+      priceDescoin,
+      themeKey,
+      badgeIcon,
+      titleText,
+      effectKey,
+      rarity,
+      sortOrder,
+    } = req.body || {};
+    if (!sku || !name || !category || priceDescoin == null) {
+      return res.status(400).json({ error: "sku, name, category, and priceDescoin are required." });
     }
     if (!SHOP_CATEGORIES.includes(category)) {
       return res.status(400).json({ error: "Invalid category." });
     }
+    if (!METADATA_ONLY_CATEGORIES.has(category) && !assetUrl) {
+      return res.status(400).json({ error: "assetUrl is required for this category." });
+    }
     if (category === "theme" && !themeKey) {
       return res.status(400).json({ error: "themeKey is required for theme items." });
+    }
+    if (category === "profile_badge" && !badgeIcon) {
+      return res.status(400).json({ error: "badgeIcon is required for profile_badge items." });
+    }
+    if (category === "profile_title" && !titleText) {
+      return res.status(400).json({ error: "titleText is required for profile_title items." });
+    }
+    if (["name_effect", "avatar_effect", "chat_bubble"].includes(category) && !effectKey) {
+      return res.status(400).json({ error: "effectKey is required for this category." });
     }
     const item = await shop.createItem({
       sku,
       name,
       description: description || null,
       category,
-      asset_url: assetUrl,
-      preview_url: previewUrl || null,
+      asset_url: assetUrl || "data:,",
+      preview_url: previewUrl || assetUrl || null,
       price_descoin: Math.max(0, Math.round(Number(priceDescoin))),
       theme_key: category === "theme" ? themeKey : null,
+      badge_icon: category === "profile_badge" ? badgeIcon : null,
+      title_text: category === "profile_title" ? titleText : null,
+      effect_key: ["name_effect", "avatar_effect", "chat_bubble"].includes(category) ? effectKey : null,
       rarity: rarity || "common",
       sort_order: Number(sortOrder) || 0,
     });
@@ -1392,7 +1435,20 @@ router.post("/shop/items", async (req, res) => {
 
 router.patch("/shop/items/:id", async (req, res) => {
   try {
-    const { name, description, active, priceDescoin, previewUrl, assetUrl, sortOrder, rarity, themeKey } = req.body || {};
+    const {
+      name,
+      description,
+      active,
+      priceDescoin,
+      previewUrl,
+      assetUrl,
+      sortOrder,
+      rarity,
+      themeKey,
+      badgeIcon,
+      titleText,
+      effectKey,
+    } = req.body || {};
     const fields = {};
     if (name != null) fields.name = name;
     if (description !== undefined) fields.description = description;
@@ -1403,6 +1459,9 @@ router.patch("/shop/items/:id", async (req, res) => {
     if (sortOrder != null) fields.sort_order = Number(sortOrder);
     if (rarity != null) fields.rarity = rarity;
     if (themeKey !== undefined) fields.theme_key = themeKey || null;
+    if (badgeIcon !== undefined) fields.badge_icon = badgeIcon || null;
+    if (titleText !== undefined) fields.title_text = titleText || null;
+    if (effectKey !== undefined) fields.effect_key = effectKey || null;
     const item = await shop.updateItem(req.params.id, fields);
     if (!item) return res.status(404).json({ error: "Item not found." });
     audit(req.user, "shop_item_update", item.id, fields);
@@ -1414,18 +1473,24 @@ router.patch("/shop/items/:id", async (req, res) => {
 });
 
 // Directly credit or debit a user's DesCoin balance (support / compensation).
+// A positive grant can carry an optional `message`, in which case it behaves
+// just like gifting an item: the recipient gets a real-time celebratory
+// popup naming the admin and showing their note (delivered on next connect
+// if they're offline right now), not just a silent balance bump.
 router.post("/descoin/grant", async (req, res) => {
   try {
-    const { userId, amount, reason } = req.body || {};
+    const { userId, amount, reason, message } = req.body || {};
     const parsedAmount = Math.round(Number(amount));
     if (!userId || !Number.isFinite(parsedAmount) || parsedAmount === 0) {
       return res.status(400).json({ error: "userId and a non-zero amount are required." });
     }
+    const cleanMessage = typeof message === "string" && message.trim() ? message.trim() : null;
+
     const result =
       parsedAmount > 0
-        ? await descoin.credit(userId, parsedAmount, "admin_grant", { by: req.user.id, reason: reason || null })
+        ? await descoin.credit(userId, parsedAmount, "admin_grant", { by: req.user.id, reason: reason || null }, cleanMessage)
         : await descoin.debit(userId, Math.abs(parsedAmount), "admin_revoke", { by: req.user.id, reason: reason || null });
-    audit(req.user, "descoin_grant", userId, { amount: parsedAmount, reason: reason || null });
+    audit(req.user, "descoin_grant", userId, { amount: parsedAmount, reason: reason || null, message: cleanMessage });
 
     const io = getIo(req);
     io?.to(`user:${userId}`)?.emit("descoin:balance", {
@@ -1433,6 +1498,22 @@ router.post("/descoin/grant", async (req, res) => {
       delta: parsedAmount,
       reason: parsedAmount > 0 ? "admin_grant" : "admin_revoke",
     });
+
+    // Only claim the popup as delivered if the recipient has a live socket
+    // right now — same online-check pattern as /shop/gift below — otherwise
+    // socket/handlers.js delivers it on their next connect.
+    if (cleanMessage && result.ledgerId) {
+      const isOnline = Boolean(io?.sockets?.adapter?.rooms?.get(`user:${userId}`)?.size);
+      if (io && isOnline) {
+        io.to(`user:${userId}`).emit("descoin:gift", {
+          amount: parsedAmount,
+          message: cleanMessage,
+          from: { id: req.user.id, username: req.user.username },
+        });
+        await descoin.markGrantsNotified([result.ledgerId]).catch(() => {});
+      }
+    }
+
     res.json({ success: true, balance: result.balance });
   } catch (err) {
     if (err.message === "INSUFFICIENT_BALANCE") {
