@@ -23,6 +23,7 @@ import { sampleConnectionStats } from "../lib/connectionStats";
 import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
 import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
+import { acquireCallWakeLock, releaseCallWakeLock } from "../lib/callWakeLock";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -173,6 +174,10 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
   const [incomingCall, setIncomingCall] = useState(null);
   const incomingCallRef = useRef(null);
   const activeGroupIdRef = useRef(null);
+  // Group currently open in the chat UI (may differ from activeGroupIdRef,
+  // which is only set while *this* client is actually in a call). Used to
+  // re-sync the "ongoing call" banner on reconnect — see onConnect below.
+  const viewingGroupIdRef = useRef(null);
   const pendingIceByUserRef = useRef(new Map()); // userId -> candidate[] before PC exists
   const [activeCallBanner, setActiveCallBanner] = useState(null); // { groupId, initiatorId, initiatorUsername, callType, participantCount }
   const [callSummaries, setCallSummaries] = useState({}); // groupId -> summary[]
@@ -215,6 +220,17 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
 
   useEffect(() => {
     isInCallRef.current = isInCall;
+  }, [isInCall]);
+
+  // Keep the screen awake / tab exempt from background throttling for as
+  // long as a group call is active — screen lock and aggressive tab
+  // suspension are common causes of calls silently dropping on mobile.
+  useEffect(() => {
+    if (isInCall) {
+      acquireCallWakeLock({ title: "Descall group call" });
+    } else {
+      releaseCallWakeLock();
+    }
   }, [isInCall]);
 
   // Poll real per-peer WebRTC stats (RTT, packet loss, jitter) so each
@@ -440,6 +456,14 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
   }, []);
 
   const setupPeerConnection = useCallback((pc, stream, userId, groupId) => {
+    // Callers always call pcMapRef.current.set(userId, peerData) immediately
+    // before invoking setupPeerConnection, so this is always the entry that
+    // owns `pc`. If this peer later fully reconnects with a brand new
+    // RTCPeerConnection, the old `pc` (and its handlers below) are closed
+    // and discarded together, so this reference never goes stale in a way
+    // that matters.
+    const peerData = pcMapRef.current.get(userId);
+
     stream.getTracks().forEach((t) => {
       t.enabled = true;
       pc.addTrack(t, stream);
@@ -466,10 +490,19 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         mainRemoteStream,
         participantHasCameraVideo,
       });
+      // Screen video and its (optional) approved tab/system audio can arrive
+      // in either order — don't only match against `peerData.screenStream`,
+      // which is still unset the first time the audio track shows up before
+      // the video track. Fall back to the same "peer told us a screen share
+      // is starting, and this isn't the peer's long-lived mic stream" signal
+      // `isRemoteScreenVideoTrack` already uses for video.
       const isScreenAudioTrack = Boolean(
         track.kind === "audio" &&
         rawStream &&
-        peerData?.screenStream?.id === rawStream.id
+        (
+          peerData?.screenStream?.id === rawStream.id ||
+          (peerExpectsScreen && (!mainRemoteStream || rawStream.id !== mainRemoteStream.id))
+        )
       );
 
       if (track.kind === "audio" && !isScreenAudioTrack) {
@@ -493,23 +526,33 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         });
       }
 
-      if (isScreenTrack) {
-        // Dedicated screen share stream — store separately on the participant
+      if (isScreenAudioTrack) {
+        // Merge into the peer's screen MediaStream so it plays through the
+        // un-muted screen-share <video> element instead of getting dropped
+        // (previously this track wasn't attached anywhere) or overwriting
+        // the participant's voice audio element.
+        const existingScreen = peerData?.screenStream || null;
+        let mergedScreenStream = incomingStream;
+        if (existingScreen && existingScreen !== incomingStream) {
+          try {
+            if (!existingScreen.getTracks().includes(track)) existingScreen.addTrack(track);
+            mergedScreenStream = existingScreen;
+          } catch {
+            mergedScreenStream = incomingStream;
+          }
+        }
         if (peerData) {
           peerData.expectScreenShare = false;
-          peerData.screenStream = incomingStream;
+          peerData.screenStream = mergedScreenStream;
         }
-        const applyScreenStream = () => {
+        const applyScreenAudio = () => {
           setParticipants((prev) => {
             if (userId === myIdRef.current) return prev;
             const exists = prev.find((p) => p.id === userId);
-            // Avoid re-render thrash (black flashes / FPS drops) when stream is unchanged
-            if (exists?.isScreenSharing && exists?.screenStream === incomingStream) {
-              return prev;
-            }
             if (exists) {
+              if (exists.screenStream === mergedScreenStream) return prev;
               return prev.map((p) => p.id === userId
-                ? { ...p, screenStream: incomingStream, isScreenSharing: true }
+                ? { ...p, screenStream: mergedScreenStream, isScreenSharing: true }
                 : p
               );
             }
@@ -517,7 +560,58 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
             return [...prev, {
               id: userId,
               stream: null,
-              screenStream: incomingStream,
+              screenStream: mergedScreenStream,
+              hasVideo: false,
+              hasAudio: false,
+              isScreenSharing: true,
+              username: storedUser?.username || storedUser?.displayName || "Member",
+              avatarUrl: storedUser?.avatar_url || null,
+            }];
+          });
+        };
+        applyScreenAudio();
+        chainTrackUnmute(track, applyScreenAudio);
+        return; // handled — don't fall through to the generic audio-participant branch below
+      }
+
+      if (isScreenTrack) {
+        // Dedicated screen share stream — store separately on the participant.
+        // Merge into any screen stream the (possibly earlier-arriving) screen
+        // audio track already created, instead of replacing it and silently
+        // dropping that audio track from the stream the UI renders.
+        const existingScreen = peerData?.screenStream || null;
+        let screenStream = incomingStream;
+        if (existingScreen && existingScreen !== incomingStream) {
+          try {
+            if (!existingScreen.getTracks().includes(track)) existingScreen.addTrack(track);
+            screenStream = existingScreen;
+          } catch {
+            screenStream = incomingStream;
+          }
+        }
+        if (peerData) {
+          peerData.expectScreenShare = false;
+          peerData.screenStream = screenStream;
+        }
+        const applyScreenStream = () => {
+          setParticipants((prev) => {
+            if (userId === myIdRef.current) return prev;
+            const exists = prev.find((p) => p.id === userId);
+            // Avoid re-render thrash (black flashes / FPS drops) when stream is unchanged
+            if (exists?.isScreenSharing && exists?.screenStream === screenStream) {
+              return prev;
+            }
+            if (exists) {
+              return prev.map((p) => p.id === userId
+                ? { ...p, screenStream, isScreenSharing: true }
+                : p
+              );
+            }
+            const storedUser = pcMapRef.current.get(userId)?.fromUser;
+            return [...prev, {
+              id: userId,
+              stream: null,
+              screenStream,
               hasVideo: false,
               hasAudio: false,
               isScreenSharing: true,
@@ -608,20 +702,76 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       }
     };
 
+    // Hard-remove a peer only after it's been unrecoverable for a while —
+    // a transient network blip (WiFi/cell handoff, brief packet loss, NAT
+    // rebind) commonly recovers within a few seconds and previously caused
+    // that person to suddenly vanish from the call ("bir anda atıyor") with
+    // no attempt to reconnect first.
+    const clearPeerCleanupTimer = () => {
+      if (peerData.cleanupTimer) {
+        clearTimeout(peerData.cleanupTimer);
+        peerData.cleanupTimer = null;
+      }
+    };
+    const schedulePeerCleanup = (delayMs) => {
+      clearPeerCleanupTimer();
+      peerData.cleanupTimer = setTimeout(() => {
+        const current = pcMapRef.current.get(userId);
+        if (!current || current.pc !== pc) return; // peer already replaced/removed
+        const stillBad = ["failed", "disconnected", "closed"].includes(pc.connectionState);
+        if (!stillBad) return;
+        pcMapRef.current.delete(userId);
+        remoteStreamsRef.current.delete(userId);
+        const audioEl = remoteAudioRefs.current.get(userId);
+        if (audioEl) {
+          try { audioEl.pause(); audioEl.srcObject = null; audioEl.remove(); } catch { /* ignore */ }
+          remoteAudioRefs.current.delete(userId);
+        }
+        try { pc.close(); } catch { /* ignore */ }
+        setParticipants((prev) => prev.filter((p) => p.id !== userId));
+      }, delayMs);
+    };
+
+    // One ICE-restart attempt per failure episode, resets once the peer
+    // reconnects so a later, separate drop can also be recovered from.
+    const attemptIceRestart = () => {
+      if (peerData.iceRestartAttempted) return;
+      peerData.iceRestartAttempted = true;
+      renegotiateWithPeerRef.current?.(userId, peerData, { iceRestart: true })?.catch?.(() => {});
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      const ice = pc.iceConnectionState;
+      if (ice === "connected" || ice === "completed") {
+        peerData.iceRestartAttempted = false;
+        clearPeerCleanupTimer();
+      } else if (ice === "disconnected") {
+        // Give the browser a few seconds to self-heal before intervening —
+        // most brief drops resolve on their own without a full restart.
+        schedulePeerCleanup(6000);
+        setTimeout(() => {
+          if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+            attemptIceRestart();
+          }
+        }, 3000);
+      } else if (ice === "failed") {
+        attemptIceRestart();
+        // Restart needs a moment to succeed before we give up on this peer.
+        schedulePeerCleanup(12000);
+      }
+    };
+
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "connected") {
+        peerData.iceRestartAttempted = false;
+        clearPeerCleanupTimer();
       } else if (pc.connectionState === "disconnected") {
-        // Don't delete participant on disconnected - they might reconnect
+        // Handled by oniceconnectionstatechange, which fires for the same
+        // underlying condition and already schedules a bounded cleanup.
       } else if (pc.connectionState === "failed") {
-        // Don't immediately delete on failed - might recover
-        // Only delete if no tracks are working
-        const remoteStream = remoteStreamsRef.current.get(userId);
-        if (!remoteStream || remoteStream.getTracks().length === 0) {
-          pcMapRef.current.delete(userId);
-          remoteStreamsRef.current.delete(userId);
-          setParticipants((prev) => prev.filter((p) => p.id !== userId));
-        }
+        schedulePeerCleanup(12000);
       } else if (pc.connectionState === "closed") {
+        clearPeerCleanupTimer();
         pcMapRef.current.delete(userId);
         remoteStreamsRef.current.delete(userId);
         setParticipants((prev) => prev.filter((p) => p.id !== userId));
@@ -863,7 +1013,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
   }, [cleanup]);
 
   /** Create+send offer to one peer; sets makingOffer for glare detection. */
-  const renegotiateWithPeer = useCallback(async (userId, peerData) => {
+  const renegotiateWithPeer = useCallback(async (userId, peerData, opts = {}) => {
     if (!peerData?.pc || !socketRef.current?.connected) return;
     if (peerData.pc.connectionState === "closed" || peerData.pc.signalingState === "closed") {
       return;
@@ -879,7 +1029,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     }
     peerData.makingOffer = true;
     try {
-      const offer = await peerData.pc.createOffer();
+      const offer = await peerData.pc.createOffer(opts.iceRestart ? { iceRestart: true } : undefined);
       await peerData.pc.setLocalDescription(offer);
       socketRef.current.emit("group:call:offer", {
         groupId: activeGroupId,
@@ -1159,12 +1309,35 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     [isScreenSharing, startScreenShare, stopScreenShare]
   );
 
+  // Ask the server whether a given group currently has an active call, and
+  // (re)apply the resulting banner. Call this whenever the chat UI opens or
+  // switches to a group — the live group:call:banner-update push only
+  // reaches clients that were connected *and* already knew about the group
+  // at the moment it fired, so a client that was offline, mid-reconnect, or
+  // simply hadn't opened that group chat yet would otherwise never learn an
+  // ongoing call exists until something else happens to re-trigger a push.
+  const checkGroupCallStatus = useCallback((groupId) => {
+    if (!groupId || !socketRef.current?.connected) return;
+    socketRef.current.emit("group:call:check", { groupId });
+  }, []);
+
+  // Track which group the chat UI currently has open so a socket reconnect
+  // can re-sync that group's banner (see onConnect below).
+  const setViewingGroupId = useCallback((groupId) => {
+    viewingGroupIdRef.current = groupId || null;
+    if (groupId) checkGroupCallStatus(groupId);
+  }, [checkGroupCallStatus]);
+
   useEffect(() => {
     if (!socket) return;
 
     const onConnect = () => {
       if (isInCallRef.current && activeGroupIdRef.current) {
         socket.emit("group:call:resume", { groupId: activeGroupIdRef.current });
+      } else if (viewingGroupIdRef.current) {
+        // Not in a call ourselves — re-sync in case someone else started or
+        // ended one in the group we're currently viewing while we were away.
+        socket.emit("group:call:check", { groupId: viewingGroupIdRef.current });
       }
     };
     const onIncoming = ({ groupId, fromUser, callType: type, groupName } = {}) => {
@@ -2152,6 +2325,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     incomingCall,
     activeCallBanner,
     dismissActiveBanner,
+    checkGroupCallStatus,
+    setViewingGroupId,
     callSummaries,
     remoteStreams: remoteStreamsRef,
     localVideoRef,
