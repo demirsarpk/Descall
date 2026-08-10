@@ -10,7 +10,7 @@ import {
   Shield,
 } from "lucide-react";
 
-/** Shared primary destinations for desktop rail + mobile dock. */
+/** Shared primary destinations for the left vertical nav rail. */
 export const MAIN_NAV_IDS = [
   "chat",
   "groups",
@@ -23,7 +23,6 @@ export const MAIN_NAV_IDS = [
 /** Icon stroke used everywhere in primary navigation. */
 export const NAV_ICON_STROKE = 1.75;
 export const NAV_ICON_SIZE = 22;
-export const NAV_ICON_SIZE_MOBILE = 22;
 
 export function buildMainNavItems(t) {
   return [
@@ -51,16 +50,4 @@ export function buildToolNavItems(t, { isAdmin = false } = {}) {
     });
   }
   return items;
-}
-
-/** Compact mobile dock — keep the densest, most-used destinations. */
-export function buildMobileDockItems(t) {
-  return [
-    { id: "chat", icon: MessageSquare, label: t("nav.chats") },
-    { id: "groups", icon: Users, label: t("nav.groups") },
-    { id: "play", icon: Crosshair, label: t("nav.play") },
-    { id: "friends", icon: UserPlus, label: t("nav.friends") },
-    { id: "calls", icon: Phone, label: t("nav.calls") },
-    { id: "activity", icon: Zap, label: t("Activity") },
-  ];
 }
