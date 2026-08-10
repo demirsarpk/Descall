@@ -1873,7 +1873,7 @@ html[data-bubble="minimal"] .message-bubble {
   50% { transform: rotate(12deg) scale(1.06); }
 }
 
-/* ── Legacy mobile tabs (replaced by .mobile-nav-dock) ── */
+/* ── Mobile bottom tabs (edge-to-edge; glass styles live in mobile.css) ── */
 .mobile-tab-bar {
   display: none;
 }
