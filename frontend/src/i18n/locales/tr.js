@@ -1967,6 +1967,7 @@ export const phrases = {
   "Sharing": "Paylaşım",
   "Your choices": "Seçimlerin",
   "Terms of Service": "Hizmet Şartları",
+  "I have read and agree to the": "Okudum ve kabul ediyorum:",
   "Acceptance": "Kabul",
   "Acceptable use": "Kabul edilebilir kullanım",
   "Availability": "Kullanılabilirlik",
