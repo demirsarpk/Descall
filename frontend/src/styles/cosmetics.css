@@ -1,0 +1,232 @@
+/* ============================================================================
+   Profile customization cosmetics: name effects, avatar effects, chat bubble
+   skins, badges, and title tags. Shared by the shop panel, admin catalog
+   preview, and every place equipped cosmetics actually render (profile card,
+   hover card, own messages).
+   ============================================================================ */
+
+/* ── Name effects (equipped on display names) ─────────────────────────── */
+
+.cosmetic-name-effect {
+  display: inline-block;
+  font-weight: 700;
+}
+
+.cosmetic-name-effect.effect-fire {
+  background: linear-gradient(90deg, #ff512f, #f09819, #ff512f);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: cosmetic-gradient-shift 2.4s linear infinite;
+}
+
+.cosmetic-name-effect.effect-rainbow {
+  background: linear-gradient(90deg, #ff0000, #ff9900, #33ff00, #00ffff, #3300ff, #ff00cc, #ff0000);
+  background-size: 300% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: cosmetic-gradient-shift 4s linear infinite;
+}
+
+.cosmetic-name-effect.effect-neon {
+  color: #4fd8ff;
+  text-shadow: 0 0 4px #4fd8ff, 0 0 10px #4fd8ff, 0 0 18px #00f2fe;
+  animation: cosmetic-neon-pulse 1.8s ease-in-out infinite;
+}
+
+.cosmetic-name-effect.effect-gold-shimmer {
+  background: linear-gradient(100deg, #a87b1f 20%, #f6d365 40%, #fff3c4 50%, #f6d365 60%, #a87b1f 80%);
+  background-size: 250% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: cosmetic-gradient-shift 2.6s linear infinite;
+}
+
+.cosmetic-name-effect.effect-ice {
+  background: linear-gradient(90deg, #8ecae6, #ffffff, #48cae4);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 8px rgba(142, 202, 230, 0.5);
+  animation: cosmetic-gradient-shift 3s ease-in-out infinite;
+}
+
+.cosmetic-name-effect.effect-void {
+  color: #d5b3ff;
+  text-shadow: 0 0 6px #6a0dad, 0 0 14px rgba(106, 13, 173, 0.6);
+  animation: cosmetic-void-flicker 3.2s steps(12) infinite;
+}
+
+@keyframes cosmetic-gradient-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@keyframes cosmetic-neon-pulse {
+  0%, 100% { opacity: 1; text-shadow: 0 0 4px #4fd8ff, 0 0 10px #4fd8ff, 0 0 18px #00f2fe; }
+  50% { opacity: 0.82; text-shadow: 0 0 2px #4fd8ff, 0 0 6px #4fd8ff, 0 0 10px #00f2fe; }
+}
+
+@keyframes cosmetic-void-flicker {
+  0%, 92%, 100% { opacity: 1; }
+  93% { opacity: 0.55; }
+  94% { opacity: 1; }
+  96% { opacity: 0.4; }
+  97% { opacity: 1; }
+}
+
+/* ── Avatar effects (animated ring/aura overlay, rendered behind the frame) ── */
+
+.cosmetic-avatar-effect {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cosmetic-avatar-effect.effect-pulse {
+  box-shadow: 0 0 0 3px rgba(88, 101, 242, 0.55);
+  animation: cosmetic-pulse-ring 1.8s ease-out infinite;
+}
+
+.cosmetic-avatar-effect.effect-orbit::before,
+.cosmetic-avatar-effect.effect-orbit::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px;
+  border-radius: 50%;
+  background: #4fd8ff;
+  box-shadow: 0 0 6px #4fd8ff;
+  animation: cosmetic-orbit-spin 3.2s linear infinite;
+}
+.cosmetic-avatar-effect.effect-orbit::after {
+  background: #ff8fab;
+  box-shadow: 0 0 6px #ff8fab;
+  animation-delay: -1.6s;
+  animation-direction: reverse;
+}
+
+.cosmetic-avatar-effect.effect-spark {
+  border: 2px dashed rgba(255, 221, 51, 0.85);
+  filter: drop-shadow(0 0 4px rgba(255, 221, 51, 0.65));
+  animation: cosmetic-spark-spin 2.4s linear infinite;
+}
+
+.cosmetic-avatar-effect.effect-aurora {
+  background: conic-gradient(from 0deg, #38ef7d, #4fd8ff, #ff8fab, #38ef7d);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: cosmetic-orbit-spin 6s linear infinite;
+  opacity: 0.9;
+}
+
+.cosmetic-avatar-effect.effect-flame {
+  background: conic-gradient(from 90deg, #ff5722, #ffc107, #ff5722, #8b0000, #ff5722);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  filter: blur(0.4px);
+  animation: cosmetic-flame-flicker 1.1s ease-in-out infinite;
+}
+
+.cosmetic-avatar-effect.effect-frost {
+  box-shadow: 0 0 0 3px rgba(142, 202, 230, 0.7), 0 0 12px rgba(72, 202, 228, 0.55);
+  animation: cosmetic-frost-shimmer 2.4s ease-in-out infinite;
+}
+
+@keyframes cosmetic-pulse-ring {
+  0% { box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.7); opacity: 1; }
+  70% { box-shadow: 0 0 0 10px rgba(88, 101, 242, 0); opacity: 0.4; }
+  100% { box-shadow: 0 0 0 2px rgba(88, 101, 242, 0); opacity: 1; }
+}
+
+@keyframes cosmetic-orbit-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes cosmetic-spark-spin {
+  0% { transform: rotate(0deg); opacity: 0.7; }
+  50% { opacity: 1; }
+  100% { transform: rotate(360deg); opacity: 0.7; }
+}
+
+@keyframes cosmetic-flame-flicker {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+@keyframes cosmetic-frost-shimmer {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+/* ── Chat bubble skins (applied to your own message bubbles) ──────────── */
+
+.cosmetic-chat-bubble.bubble-glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.cosmetic-chat-bubble.bubble-neon-outline {
+  background: rgba(79, 216, 255, 0.06);
+  border: 1.5px solid #4fd8ff;
+  box-shadow: 0 0 8px rgba(79, 216, 255, 0.45);
+}
+
+.cosmetic-chat-bubble.bubble-sunset {
+  background: linear-gradient(120deg, rgba(255, 81, 47, 0.28), rgba(240, 152, 25, 0.28));
+  border: 1px solid rgba(255, 152, 71, 0.4);
+}
+
+.cosmetic-chat-bubble.bubble-carbon {
+  background: repeating-linear-gradient(45deg, #1b1b1f 0, #1b1b1f 4px, #232327 4px, #232327 8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cosmetic-chat-bubble.bubble-holo {
+  background: linear-gradient(115deg, rgba(255, 0, 204, 0.22), rgba(79, 216, 255, 0.22), rgba(56, 239, 125, 0.22));
+  background-size: 200% auto;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  animation: cosmetic-gradient-shift 5s linear infinite;
+}
+
+.cosmetic-chat-bubble.bubble-royal-purple {
+  background: linear-gradient(120deg, rgba(75, 0, 130, 0.35), rgba(147, 112, 219, 0.28));
+  border: 1px solid rgba(147, 112, 219, 0.5);
+}
+
+/* ── Profile badges + title tags (shown next to / under a display name) ── */
+
+.cosmetic-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+  margin-left: 4px;
+  vertical-align: -2px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+
+.cosmetic-title-tag {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text-1);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-2);
+}

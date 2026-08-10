@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { resolveAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import { getStaticAvatarFrame, isAnimatedAvatarUrl } from "../../lib/gifAvatar";
+import { avatarEffectClass } from "./Cosmetics";
 
 const PALETTES = ["#5865f2", "#57f287", "#fee75c", "#eb459e", "#ed4245", "#9b59b6", "#3498db"];
 
@@ -149,6 +150,7 @@ export function Avatar({
 
   const showImage = Boolean(displaySrc) && !failed;
   const frameUrl = user?.equippedAvatarFrame?.asset_url || null;
+  const effectClass = avatarEffectClass(user);
 
   return (
     <motion.div
@@ -168,6 +170,7 @@ export function Avatar({
       whileHover={{ scale: onClick ? 1.06 : 1 }}
       role={onClick ? "button" : undefined}
     >
+      {effectClass && <div className={effectClass} aria-hidden />}
       <div
         className="ui-avatar-inner"
         style={{

@@ -8,6 +8,7 @@ import { getToken } from "../../lib/storage";
 import { getPresenceStatus } from "../../lib/presence";
 import ValorantBadge from "./ValorantBadge";
 import AdminBadge from "./AdminBadge";
+import { BadgeIcon, NameEffectText, TitleTag } from "../ui/Cosmetics";
 import { getUserValorant } from "../../api/riot";
 import { useT } from "../../context/LocaleContext";
 import { isUserAdmin } from "../../lib/userProfile";
@@ -296,13 +297,15 @@ export default function UserProfileModal({
                     lineHeight: 1.2,
                   }}
                 >
-                  {displayName}
+                  <NameEffectText user={profile}>{displayName}</NameEffectText>
+                  <BadgeIcon user={profile} />
                 </div>
                 {displayName !== displayUsername && (
                   <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
                     @{displayUsername}
                   </div>
                 )}
+                <TitleTag user={profile} />
                 {isUserAdmin(profile || { username: displayUsername }) && (
                   <AdminBadge
                     user={profile || { username: displayUsername, is_admin: true }}
