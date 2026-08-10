@@ -144,6 +144,45 @@ app.post("/api/test", (req, res) => {
   });
 });
 
+// Frontend build info, needed early — see the SPA-vs-API disambiguation
+// middleware immediately below, which must run *before* /groups, /friends,
+// and /calls are mounted (some of those routers have a real GET "/" handler
+// of their own, which would otherwise intercept a browser page navigation
+// before it ever reached the later catch-all).
+const distPath = path.join(__dirname, "..", "dist");
+const indexPath = path.join(distPath, "index.html");
+const hasFrontend = fs.existsSync(indexPath);
+
+// /groups, /friends, and /calls are mounted below as bare Express routers
+// for the API (e.g. GET /groups/my) *and* are real client-side SPA routes
+// (see src/lib/appRoutes.js) — a browser navigating straight to
+// https://descall.com/groups (typed URL, refresh, bookmark, shared link)
+// needs the app's index.html, not whatever (or nothing) that path's API
+// router does with a bare GET. Serve the SPA for those before the ambiguous
+// routers get a chance to intercept — real browser navigations are
+// distinguished from the app's own fetch()/XHR calls via Fetch Metadata's
+// Sec-Fetch-Mode: navigate and/or an Accept header that actually lists
+// text/html (fetch()'s default Accept is "*/*", never text/html, unless a
+// caller sets it explicitly).
+const AMBIGUOUS_APP_ROUTE_PREFIXES = ["/groups", "/friends", "/calls"];
+function isBrowserPageNavigation(req) {
+  if (req.get("sec-fetch-mode") === "navigate") return true;
+  const accept = req.get("accept") || "";
+  return accept.includes("text/html");
+}
+if (hasFrontend) {
+  app.get("*", (req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") return next();
+    const matchesAmbiguousRoute = AMBIGUOUS_APP_ROUTE_PREFIXES.some(
+      (prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`)
+    );
+    if (matchesAmbiguousRoute && isBrowserPageNavigation(req)) {
+      return res.sendFile(indexPath);
+    }
+    next();
+  });
+}
+
 // Register main routes (both with and without /api prefix)
 app.use("/auth", authRoutes);
 app.use("/admin", adminRoutes);
@@ -822,11 +861,10 @@ app.get(["/invite/:code", "/i/:code"], (req, res) => {
   return res.redirect(302, `/?invite=${encodeURIComponent(code)}`);
 });
 
-// Serve React frontend (Vite build output: frontend/dist)
-const distPath = path.join(__dirname, "..", "dist");
-const indexPath = path.join(distPath, "index.html");
-const hasFrontend = fs.existsSync(indexPath);
-
+// Serve React frontend (Vite build output: frontend/dist).
+// distPath / indexPath / hasFrontend, and the early SPA-vs-API
+// disambiguation for /groups, /friends, /calls, are set up above, before
+// those routers are mounted.
 const API_PREFIXES = [
   "/api", "/auth", "/admin", "/media", "/groups",
   "/friends", "/guilds", "/reactions", "/health", "/debug", "/lfg", "/calls", "/riot",

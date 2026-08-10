@@ -474,6 +474,40 @@ export default function App() {
     return normalized;
   }, []);
 
+  // Apply the account's equipped premium theme (or the plain dark/light
+  // choice) to the document as soon as we know it. Previously the only
+  // place that ever set data-theme from the equipped theme lived inside
+  // the Settings/Appearance panel's own effect, so a fresh login or page
+  // reload kept showing the default dark theme — looking exactly like
+  // nothing was equipped — until the user happened to open Settings,
+  // which is what actually corrected it. Themes were never really lost;
+  // they just weren't applied until something coincidentally mounted the
+  // one component watching for them.
+  useEffect(() => {
+    if (!me) return; // don't clobber the boot-cached theme before we know who's logged in
+    const themeKey = me?.equippedTheme?.theme_key || null;
+    try {
+      const raw =
+        localStorage.getItem("descall_user_settings") ||
+        localStorage.getItem("descall_settings") ||
+        "{}";
+      const settings = JSON.parse(raw);
+      // Keep the boot-time pre-paint cache (see main.jsx) in sync so the
+      // *next* page load/reload paints the right theme before React (and
+      // this effect) even runs, instead of flashing dark first.
+      const nextSettings = { ...settings, premiumThemeKey: themeKey };
+      const json = JSON.stringify(nextSettings);
+      localStorage.setItem("descall_user_settings", json);
+      localStorage.setItem("descall_settings", json);
+      document.documentElement.setAttribute(
+        "data-theme",
+        themeKey || (settings.darkMode === false ? "light" : "dark")
+      );
+    } catch {
+      if (themeKey) document.documentElement.setAttribute("data-theme", themeKey);
+    }
+  }, [me, me?.equippedTheme?.theme_key]);
+
   const applyProfileUpdate = useCallback((user) => {
     const normalized = normalizeUser(user);
     if (!normalized?.id) return;

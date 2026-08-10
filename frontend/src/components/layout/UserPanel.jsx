@@ -34,6 +34,7 @@ import ValorantBadge from "../social/ValorantBadge";
 import AdminBadge from "../social/AdminBadge";
 import ShopPanel from "../settings/ShopPanel";
 import { getShopCatalog, getShopInventory, equipShopItem } from "../../api/shop";
+import { NameEffectText, BadgeIcon, TitleTag } from "../ui/Cosmetics";
 
 /* ─── Helpers ─── */
 const SETTINGS_KEY = "descall_user_settings";
@@ -835,10 +836,12 @@ const UserPanel = forwardRef(function UserPanel({
                 </div>
                 <div className="us-hero-meta">
                   <h3 style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap" }}>
-                    {displayName || me?.username || "User"}
+                    <NameEffectText user={me}>{displayName || me?.username || "User"}</NameEffectText>
+                    <BadgeIcon user={me} />
                   </h3>
                   <span className="us-muted">@{me?.username?.toLowerCase() || "user"}</span>
                   <AdminBadge user={me} variant="chip" />
+                  <TitleTag user={me} />
                   {customStatus && <span className="us-status-pill">{customStatus}</span>}
                   {me?.valorant?.linked && (
                     <ValorantBadge valorant={me.valorant} compact />
