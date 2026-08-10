@@ -49,40 +49,12 @@
     padding: 0;
   }
 
-  /* Nav rail visible inside drawer */
+  /* Primary nav is the floating dock — drawer is list-only */
   .app-sidebar-shell .nav-rail {
-    display: flex;
-    flex-shrink: 0;
-    flex-direction: column;
-    align-items: center;
-    width: 60px;
-    height: 100%;
-    border-right: 1px solid var(--border-2);
-    padding-left: 0;
-    padding-right: 0;
+    display: none !important;
   }
 
-  .app-sidebar-shell .nav-rail-main,
-  .app-sidebar-shell .nav-rail-brand,
-  .app-sidebar-shell .nav-rail-bottom {
-    align-items: center;
-    width: 100%;
-    padding-left: 0;
-    padding-right: 0;
-  }
-
-  .app-sidebar-shell .brand-wordmark {
-    display: none;
-  }
-
-  .app-sidebar-shell .rail-btn {
-    width: 40px;
-    height: 40px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  /* List sidebar fills remaining drawer width */
+  /* List sidebar fills the drawer */
   .app-sidebar-shell .sidebar-secondary {
     position: relative;
     flex: 1;
@@ -284,35 +256,42 @@
 
 /* ─── Tablet ─── */
 @media (min-width: 769px) and (max-width: 1024px) {
+  :root {
+    --nav-rail-width: 68px;
+    --sidebar-width: 240px;
+  }
+
   .app-root {
-    grid-template-columns: 60px 240px 1fr;
+    grid-template-columns: var(--nav-rail-width) var(--sidebar-width) 1fr;
   }
 
   .app-root[data-view="servers"] {
-    grid-template-columns: 60px 72px 240px 1fr;
+    grid-template-columns: var(--nav-rail-width) 72px var(--sidebar-width) 1fr;
   }
 
   .nav-rail {
-    width: 60px;
     align-items: center;
+    padding-top: 12px;
   }
 
-  .nav-rail-main {
-    align-items: center;
-    padding: 0;
+  .nav-rail-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
   }
 
   .rail-btn {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
   }
 
   .sidebar-secondary {
-    width: 240px;
+    width: var(--sidebar-width);
   }
 
   .sidebar-inner {
-    width: 240px;
+    width: var(--sidebar-width);
   }
 
   .dm-item,
@@ -388,6 +367,15 @@
 
   .composer-container {
     padding: 8px 10px calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+
+  .mobile-nav-dock-label {
+    font-size: 8px;
+  }
+
+  .mobile-nav-dock-shell {
+    padding: 5px;
+    border-radius: 20px;
   }
 }
 
@@ -530,12 +518,12 @@
   }
 }
 
-/* Mobile bottom tab bar (primary nav) */
+/* Mobile floating glass dock (primary nav) */
 @media (max-width: 768px) {
   .app-root.is-mobile {
     height: var(--vv-height, 100dvh);
     max-height: var(--vv-height, 100dvh);
-    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--mobile-nav-dock-height) + env(safe-area-inset-bottom, 0px) + 18px);
     transition: padding-bottom 0.12s ease;
   }
 
@@ -552,55 +540,111 @@
     max-height: 100%;
   }
 
-  .mobile-tab-bar {
-    display: flex;
+  .app-root.is-mobile .mobile-nav-dock {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 280;
-    height: calc(60px + env(safe-area-inset-bottom, 0px));
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
-    background: color-mix(in srgb, var(--surface-1) 92%, transparent);
-    border-top: 1px solid var(--border-2);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    gap: 2px;
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    display: flex;
+    justify-content: center;
+    padding:
+      0
+      max(12px, env(safe-area-inset-left, 0px))
+      calc(10px + env(safe-area-inset-bottom, 0px))
+      max(12px, env(safe-area-inset-right, 0px));
+    pointer-events: none;
+    transition: transform 0.18s ease, opacity 0.18s ease;
   }
 
-  .mobile-tab {
+  .mobile-nav-dock-shell {
+    pointer-events: auto;
+    width: min(100%, 520px);
+    min-height: var(--mobile-nav-dock-height);
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 22px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+      var(--nav-glass-bg-strong);
+    border: 1px solid var(--nav-glass-border);
+    backdrop-filter: blur(var(--nav-glass-blur)) saturate(var(--nav-glass-saturate));
+    -webkit-backdrop-filter: blur(var(--nav-glass-blur)) saturate(var(--nav-glass-saturate));
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.1) inset,
+      0 14px 40px rgba(0, 0, 0, 0.38);
+  }
+
+  .mobile-nav-dock-btn {
     flex: 1;
+    min-width: 0;
+    min-height: 52px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 3px;
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--text-muted);
-    font-size: 10px;
-    font-weight: 600;
-    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    border-radius: 16px;
     cursor: pointer;
     padding: 6px 2px;
+    transition:
+      background 0.16s ease,
+      color 0.16s ease,
+      border-color 0.16s ease,
+      box-shadow 0.16s ease;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .mobile-tab.active {
-    color: var(--primary);
-    background: var(--primary-soft);
+  .mobile-nav-dock-icon {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 22px;
+  }
+
+  .mobile-nav-dock-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  .mobile-nav-dock-btn.active {
+    color: #eef1ff;
+    background: var(--nav-active-bg);
+    border-color: var(--nav-active-border);
+    box-shadow: var(--nav-active-shadow);
+  }
+
+  .mobile-nav-dock-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(120, 140, 255, 0.45);
+  }
+
+  /* Legacy class kept so older CSS/selectors don't break */
+  .mobile-tab-bar {
+    display: none !important;
   }
 
   .app-root.is-mobile .composer-container {
     padding-bottom: 4px;
   }
 
-  /* Conversation open: hide tab bar + drop its reserved gap so composer sits at bottom */
+  /* Conversation open: hide dock + drop reserved gap so composer sits at bottom */
   .app-root.is-mobile.in-conversation {
     padding-bottom: 0;
   }
 
-  .app-root.is-mobile.in-conversation .mobile-tab-bar {
+  .app-root.is-mobile.in-conversation .mobile-nav-dock {
     display: none !important;
   }
 
@@ -626,7 +670,7 @@
     max-height: var(--vv-height, 100dvh);
   }
 
-  html.kb-open .mobile-tab-bar {
+  html.kb-open .mobile-nav-dock {
     transform: translateY(110%);
     opacity: 0;
     pointer-events: none;

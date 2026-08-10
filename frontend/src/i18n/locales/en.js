@@ -208,6 +208,7 @@ export const nested = {
 export const phrases = {
   "Close": "Close",
   "You": "You",
+  "Primary navigation": "Primary navigation",
   "Medium": "Medium",
   "Appearance": "Appearance",
   "Notifications": "Notifications",

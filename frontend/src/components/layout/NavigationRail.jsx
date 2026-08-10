@@ -1,18 +1,48 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  MessageSquare, Users, Settings,
-  UserPlus, Phone, Shield, Plus, Zap, Crosshair
-} from "lucide-react";
+import { Settings } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { STATUS_META } from "../../lib/presence";
 import { getUser } from "../../lib/storage";
 import { resolveAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
 import DescallBrand from "../brand/DescallBrand";
+import {
+  buildMainNavItems,
+  buildToolNavItems,
+  NAV_ICON_SIZE,
+  NAV_ICON_STROKE,
+} from "./navConfig";
 
 const STATUS_OPTIONS = ["online", "idle", "dnd", "invisible"];
+
+function RailButton({
+  active = false,
+  className = "",
+  label,
+  onClick,
+  children,
+  ...rest
+}) {
+  return (
+    <motion.button
+      type="button"
+      className={`rail-btn ${active ? "active" : ""} ${className}`.trim()}
+      onClick={onClick}
+      whileHover={{ scale: 1.04 }}
+      whileTap={{ scale: 0.96 }}
+      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+      title={label}
+      aria-label={label}
+      aria-current={active ? "page" : undefined}
+      data-tooltip={label}
+      {...rest}
+    >
+      <span className="rail-btn-inner">{children}</span>
+    </motion.button>
+  );
+}
 
 export default function NavigationRail({
   activeView,
@@ -32,17 +62,8 @@ export default function NavigationRail({
   const avatarBtnRef = useRef(null);
   const menuRef = useRef(null);
 
-  const navItems = useMemo(
-    () => [
-      { id: "chat", icon: MessageSquare, label: t("nav.chats") },
-      { id: "groups", icon: Users, label: t("nav.groups") },
-      { id: "play", icon: Crosshair, label: t("nav.play") },
-      { id: "friends", icon: UserPlus, label: t("nav.friends") },
-      { id: "activity", icon: Zap, label: t("Activity") },
-      { id: "calls", icon: Phone, label: t("nav.calls") },
-    ],
-    [t]
-  );
+  const mainItems = useMemo(() => buildMainNavItems(t), [t]);
+  const toolItems = useMemo(() => buildToolNavItems(t, { isAdmin }), [t, isAdmin]);
 
   const statusKey = STATUS_META[myStatus] ? myStatus : "online";
 
@@ -68,11 +89,9 @@ export default function NavigationRail({
     const menuWidth = 220;
     const gap = 10;
     let left = rect.right + gap;
-    // If near right edge, flip left of avatar
     if (left + menuWidth > window.innerWidth - 8) {
       left = Math.max(8, rect.left - menuWidth - gap);
     }
-    // Anchor bottom of menu near avatar bottom
     const estimatedHeight = 260;
     let top = rect.bottom - estimatedHeight;
     if (top < 8) top = 8;
@@ -111,6 +130,12 @@ export default function NavigationRail({
       document.removeEventListener("keydown", onKey);
     };
   }, [statusOpen]);
+
+  const handleToolAction = (action) => {
+    if (action === "add") onAddClick?.();
+    else if (action === "settings") onUserClick?.();
+    else if (action === "admin") onAdminClick?.();
+  };
 
   const statusMenu = (
     <AnimatePresence>
@@ -158,7 +183,7 @@ export default function NavigationRail({
               onUserClick?.();
             }}
           >
-            <Settings size={15} />
+            <Settings size={15} strokeWidth={NAV_ICON_STROKE} />
             <span className="status-picker-label">{t("settings.title")}</span>
           </button>
         </motion.div>
@@ -167,65 +192,48 @@ export default function NavigationRail({
   );
 
   return (
-    <nav className="nav-rail">
+    <nav className="nav-rail" aria-label={t("Primary navigation")}>
       <div className="nav-rail-brand">
-        {/* Icon-only: the full "Descall" wordmark doesn't fit this 72px/60px
-            icon rail and was getting clipped to "Desc" by overflow:hidden. */}
-        <DescallBrand compact />
+        <div className="nav-rail-logo" aria-hidden="true">
+          <DescallBrand compact />
+        </div>
       </div>
 
       <div className="nav-rail-main">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.id;
+        <div className="nav-rail-group" role="group" aria-label={t("nav.chats")}>
+          {mainItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.id;
+            return (
+              <RailButton
+                key={item.id}
+                active={isActive}
+                label={item.label}
+                onClick={() => onViewChange(item.id)}
+              >
+                <Icon size={NAV_ICON_SIZE} strokeWidth={NAV_ICON_STROKE} />
+              </RailButton>
+            );
+          })}
+        </div>
 
-          return (
-            <motion.button
-              key={item.id}
-              className={`rail-btn ${isActive ? "active" : ""}`}
-              onClick={() => onViewChange(item.id)}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              title={item.label}
-            >
-              <Icon size={24} strokeWidth={2} />
-            </motion.button>
-          );
-        })}
+        <div className="nav-rail-divider" role="separator" aria-hidden="true" />
 
-        <div className="nav-rail-divider" />
-
-        <motion.button
-          className="rail-btn"
-          onClick={onAddClick}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title={t("Add New")}
-        >
-          <Plus size={24} strokeWidth={2} />
-        </motion.button>
-
-        <motion.button
-          className="rail-btn"
-          onClick={onUserClick}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          title={t("settings.title")}
-        >
-          <Settings size={24} strokeWidth={2} />
-        </motion.button>
-
-        {isAdmin && (
-          <motion.button
-            className="rail-btn admin-btn"
-            onClick={onAdminClick}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            title={t("admin.title")}
-          >
-            <Shield size={24} strokeWidth={2} />
-          </motion.button>
-        )}
+        <div className="nav-rail-group" role="group" aria-label={t("settings.title")}>
+          {toolItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <RailButton
+                key={item.id}
+                className={item.action === "admin" ? "admin-btn" : ""}
+                label={item.label}
+                onClick={() => handleToolAction(item.action)}
+              >
+                <Icon size={NAV_ICON_SIZE} strokeWidth={NAV_ICON_STROKE} />
+              </RailButton>
+            );
+          })}
+        </div>
       </div>
 
       <div className="nav-rail-bottom">
@@ -235,6 +243,7 @@ export default function NavigationRail({
           className="rail-user-panel"
           onClick={() => setStatusOpen((v) => !v)}
           title={`${t(statusKey === "dnd" ? "Do Not Disturb" : STATUS_META[statusKey]?.label || "Online")} — ${t("change status")}`}
+          aria-label={`${resolveDisplayName(railUser || me) || t("You")} — ${t("change status")}`}
           aria-haspopup="menu"
           aria-expanded={statusOpen}
         >

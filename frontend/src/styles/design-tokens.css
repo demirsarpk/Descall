@@ -104,11 +104,29 @@
   --line-relaxed: 1.6;
 
   /* 📦 Sizing — Discord-inspired dimensions */
-  --nav-rail-width: 72px;
+  --nav-rail-width: 76px;
   --sidebar-width: 280px;
   --sidebar-collapsed: 0px;
   --header-height: 52px;
   --composer-height: 64px;
+  --mobile-nav-dock-height: 64px;
+
+  /* 🪟 Navigation glass */
+  --nav-glass-bg: rgba(22, 24, 30, 0.72);
+  --nav-glass-bg-strong: rgba(18, 20, 26, 0.82);
+  --nav-glass-border: rgba(255, 255, 255, 0.08);
+  --nav-glass-highlight: rgba(255, 255, 255, 0.045);
+  --nav-glass-blur: 18px;
+  --nav-glass-saturate: 1.35;
+  --nav-active-bg: linear-gradient(
+    160deg,
+    rgba(99, 122, 255, 0.42) 0%,
+    rgba(72, 92, 230, 0.28) 100%
+  );
+  --nav-active-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 6px 16px rgba(70, 90, 220, 0.22);
+  --nav-active-border: rgba(150, 170, 255, 0.28);
 
   /* ✨ Transitions — Smooth animations */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -162,6 +180,20 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.16);
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.24);
+
+  --nav-glass-bg: rgba(255, 255, 255, 0.72);
+  --nav-glass-bg-strong: rgba(255, 255, 255, 0.84);
+  --nav-glass-border: rgba(0, 0, 0, 0.08);
+  --nav-glass-highlight: rgba(255, 255, 255, 0.55);
+  --nav-active-bg: linear-gradient(
+    160deg,
+    rgba(88, 101, 242, 0.28) 0%,
+    rgba(72, 92, 230, 0.18) 100%
+  );
+  --nav-active-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.55) inset,
+    0 6px 16px rgba(70, 90, 220, 0.14);
+  --nav-active-border: rgba(88, 101, 242, 0.28);
 
   --bg: var(--surface-0);
   --bg-soft: var(--surface-1);

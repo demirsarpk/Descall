@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, X, MessageSquare, Users, Phone, Activity, Settings, Crosshair } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import NavigationRail from "./NavigationRail";
+import MobileNavDock from "./MobileNavDock";
 import ServerSidebar from "./ServerSidebar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
@@ -283,20 +284,23 @@ export default function AppLayout({
         )}
       </AnimatePresence>
 
-      {/* Sidebar shell: nav rail + list sidebar (same components as desktop) */}
+      {/* Sidebar shell: desktop rail + list sidebar. On mobile the rail is
+          replaced by MobileNavDock; the drawer only carries the list panel. */}
       <div className={`app-sidebar-shell${mobileDrawerOpen ? " open" : ""}`}>
-        <NavigationRail
-          activeView={activeView}
-          onViewChange={handleViewChange}
-          onAdminClick={onAdminClick}
-          onUserClick={openUserPanel}
-          onAddClick={handleAddClick}
-          onVoiceClick={handleVoiceClick}
-          me={me}
-          isAdmin={isAdmin}
-          myStatus={myStatus}
-          onStatusChange={onStatusChange}
-        />
+        {!isMobile && (
+          <NavigationRail
+            activeView={activeView}
+            onViewChange={handleViewChange}
+            onAdminClick={onAdminClick}
+            onUserClick={openUserPanel}
+            onAddClick={handleAddClick}
+            onVoiceClick={handleVoiceClick}
+            me={me}
+            isAdmin={isAdmin}
+            myStatus={myStatus}
+            onStatusChange={onStatusChange}
+          />
+        )}
 
         {activeView === "play" ? null : activeView === "activity" ? (
           <ActivitySidebar
@@ -425,57 +429,13 @@ export default function AppLayout({
         )}
       </AnimatePresence>
 
-      {isMobile && !userPanelOpen && !inConversation && (
-        <nav className="mobile-tab-bar" aria-label={t("Primary")}>
-          <button
-            type="button"
-            className={`mobile-tab ${activeView === "chat" ? "active" : ""}`}
-            onClick={() => handleViewChange("chat")}
-          >
-            <MessageSquare size={20} />
-            <span>{t("Chat")}</span>
-          </button>
-          <button
-            type="button"
-            className={`mobile-tab ${activeView === "friends" ? "active" : ""}`}
-            onClick={() => handleViewChange("friends")}
-          >
-            <Users size={20} />
-            <span>{t("Friends")}</span>
-          </button>
-          <button
-            type="button"
-            className={`mobile-tab ${activeView === "play" ? "active" : ""}`}
-            onClick={() => handleViewChange("play")}
-          >
-            <Crosshair size={20} />
-            <span>{t("Play")}</span>
-          </button>
-          <button
-            type="button"
-            className={`mobile-tab ${activeView === "calls" ? "active" : ""}`}
-            onClick={() => handleViewChange("calls")}
-          >
-            <Phone size={20} />
-            <span>{t("Calls")}</span>
-          </button>
-          <button
-            type="button"
-            className={`mobile-tab ${activeView === "activity" ? "active" : ""}`}
-            onClick={() => handleViewChange("activity")}
-          >
-            <Activity size={20} />
-            <span>{t("Activity")}</span>
-          </button>
-          <button
-            type="button"
-            className="mobile-tab"
-            onClick={openUserPanel}
-          >
-            <Settings size={20} />
-            <span>{t("You")}</span>
-          </button>
-        </nav>
+      {isMobile && (
+        <MobileNavDock
+          activeView={activeView}
+          onViewChange={handleViewChange}
+          onSettingsClick={openUserPanel}
+          hidden={userPanelOpen || inConversation}
+        />
       )}
     </div>
   );
