@@ -58,6 +58,10 @@ services:
         value: "true"
       - key: APP_ENV
         value: production
+      - key: PUBLIC_APP_URL
+        value: https://descall.com
+      - key: SITE_URL
+        value: https://descall.com
       - key: VITE_API_BASE_URL
         value: https://des-call.onrender.com
       - key: RESEND_API_KEY

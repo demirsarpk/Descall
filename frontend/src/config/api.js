@@ -1,8 +1,12 @@
 // API URL configuration
 // Priority: Electron → always production; else env > window override > production fallback
+//
+// Hybrid hosting: the Vite SPA can be served from Vercel (or any static CDN),
+// while the Express + Socket.IO API/realtime process stays on Render.
+// PRODUCTION_URL is the long-lived API origin — not the marketing/SPA host.
 const PRODUCTION_URL = "https://des-call.onrender.com";
 // Retired hosts that must never be used (old Render service names)
-const DEAD_API_HOSTS = ["descall-qzkg.onrender.com"];
+const DEAD_API_HOSTS = ["descall-qzkg.onrender.com", "descall-nru2.onrender.com"];
 
 function isDeadApiUrl(url) {
   try {
