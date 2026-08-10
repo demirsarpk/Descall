@@ -5,13 +5,14 @@ import {
   Search, Plus, Settings, Hash,
   ChevronDown, Bell, UserPlus, X, User, Users, Megaphone,
   MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus, RefreshCw, MessageSquarePlus, Star, Bug, Lightbulb, ChevronDown as ChevronDownIcon,
-  Link2,
+  Link2, Sparkles, Loader2, UsersRound,
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { addMemberToGroup } from "../../api/groups";
+import { getFriendSuggestions } from "../../api/friends";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { isVisiblyOnline } from "../../lib/presence";
 import CallsView from "../calls/CallsView";
@@ -92,6 +93,10 @@ export default function ServerSidebar({
   const [announcements, setAnnouncements] = useState([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(false);
   const [selectedGroupMembers, setSelectedGroupMembers] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState("");
+  const [sentUsernames, setSentUsernames] = useState(() => new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackType, setFeedbackType] = useState('suggestion');
@@ -124,6 +129,7 @@ export default function ServerSidebar({
     const onFriendSent = ({ to } = {}) => {
       setAddSuccess(to ? t("Request sent to {to}", { to }) : t("Request sent."));
       setTimeout(() => setAddSuccess(""), 3000);
+      if (to) setSentUsernames((prev) => new Set(prev).add(to));
     };
     socket.on("friend:error", onFriendError);
     socket.on("friend:request:sent", onFriendSent);
@@ -153,6 +159,32 @@ export default function ServerSidebar({
       fetchAnnouncements();
     }
   }, [showAnnouncements]);
+
+  const fetchSuggestions = async () => {
+    setSuggestionsLoading(true);
+    setSuggestionsError("");
+    try {
+      const data = await getFriendSuggestions(14);
+      setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
+    } catch (err) {
+      setSuggestionsError(err.message || t("Failed to load suggestions"));
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showAddModal && addTab === "quickadd") {
+      fetchSuggestions();
+    }
+  }, [showAddModal, addTab]);
+
+  const handleQuickAdd = (username) => {
+    if (!username || sentUsernames.has(username)) return;
+    socket?.emit("friend:request", { toUsername: username });
+    // Optimistic — friend:request:sent / friend:error confirm or roll this back.
+    setSentUsernames((prev) => new Set(prev).add(username));
+  };
 
   const handleAddFriend = async () => {
     if (!friendUsername.trim()) return;
@@ -470,6 +502,7 @@ export default function ServerSidebar({
               onAcceptFriend={onAcceptFriend}
               onDeclineFriend={onDeclineFriend}
               isMobile={isMobile}
+              onQuickAdd={() => { setAddTab("quickadd"); setShowAddModal(true); }}
             />
           )}
 
@@ -519,6 +552,9 @@ export default function ServerSidebar({
                 </div>
 
                 <div className="add-modal-tabs">
+                  <button className={`add-modal-tab ${addTab === "quickadd" ? "active" : ""}`} onClick={() => { setAddTab("quickadd"); setAddError(""); setAddSuccess(""); }}>
+                    <Sparkles size={16} /> {t("Quick Add")}
+                  </button>
                   <button className={`add-modal-tab ${addTab === "friend" ? "active" : ""}`} onClick={() => { setAddTab("friend"); setAddError(""); setAddSuccess(""); }}>
                     <User size={16} /> {t("Add Friend")}
                   </button>
@@ -528,6 +564,77 @@ export default function ServerSidebar({
                 </div>
 
                 <div className="add-modal-body">
+                  {addTab === "quickadd" && (
+                    <div className="quick-add-panel">
+                      <p className="quick-add-intro">
+                        {t("People you may know — ranked by mutual friends and shared groups.")}
+                      </p>
+                      {suggestionsLoading ? (
+                        <div className="quick-add-loading">
+                          <Loader2 size={22} className="spin" />
+                          <span>{t("Finding people you may know...")}</span>
+                        </div>
+                      ) : suggestionsError ? (
+                        <div className="quick-add-empty">
+                          <span>{suggestionsError}</span>
+                          <button type="button" className="add-modal-btn" onClick={fetchSuggestions}>
+                            <RefreshCw size={14} /> {t("Try again")}
+                          </button>
+                        </div>
+                      ) : suggestions.length === 0 ? (
+                        <div className="quick-add-empty">
+                          <UsersRound size={28} style={{ opacity: 0.5 }} />
+                          <span>{t("No suggestions right now — check back after you join a few groups or make some friends.")}</span>
+                        </div>
+                      ) : (
+                        <div className="quick-add-list">
+                          {suggestions.map((s) => {
+                            const sent = sentUsernames.has(s.username);
+                            return (
+                              <motion.div
+                                key={s.id}
+                                className="quick-add-card"
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.18 }}
+                              >
+                                <Avatar user={s} size={40} />
+                                <div className="quick-add-card-meta">
+                                  <span className="quick-add-card-name">{s.displayName || s.username}</span>
+                                  {s.reason === "mutual" ? (
+                                    <span className="quick-add-card-badge mutual">
+                                      <UsersRound size={11} />
+                                      {t("{count} mutual friends", { count: s.mutualFriends })}
+                                    </span>
+                                  ) : s.reason === "group" ? (
+                                    <span className="quick-add-card-badge group">
+                                      <Hash size={11} />
+                                      {t("{count} shared groups", { count: s.sharedGroups })}
+                                    </span>
+                                  ) : (
+                                    <span className="quick-add-card-badge suggested">
+                                      <Sparkles size={11} />
+                                      {t("Suggested for you")}
+                                    </span>
+                                  )}
+                                </div>
+                                <motion.button
+                                  type="button"
+                                  className={`quick-add-btn ${sent ? "sent" : ""}`}
+                                  whileTap={{ scale: 0.94 }}
+                                  disabled={sent}
+                                  onClick={() => handleQuickAdd(s.username)}
+                                >
+                                  {sent ? <Check size={15} /> : <UserPlus size={15} />}
+                                  {sent ? t("Sent") : t("Add")}
+                                </motion.button>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {addTab === "friend" && (
                     <>
                       <label className="add-modal-label">{t("Enter a username to add")}</label>
@@ -1690,7 +1797,7 @@ function GroupRowFront({
   );
 }
 
-function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend, isMobile }) {
+function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend, isMobile, onQuickAdd }) {
   const t = useT();
   const safeFriends = Array.isArray(friends) ? friends : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
@@ -1714,6 +1821,19 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
             marginRight: 6,
           }}>
             {pendingRequests.length}
+          </span>
+        )}
+        {onQuickAdd && (
+          <span
+            role="button"
+            tabIndex={0}
+            title={t("Quick Add")}
+            aria-label={t("Quick Add")}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickAdd(); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onQuickAdd(); } }}
+            className="friends-quick-add-btn"
+          >
+            <Sparkles size={13} />
           </span>
         )}
         <SectionChevron expanded={expanded} />
