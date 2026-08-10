@@ -387,6 +387,136 @@ router.get("/mutual/:username", requireAuth, async (req, res) => {
   }
 });
 
+// Quick-add suggestions: ranks people by mutual friends and shared groups
+// (friends-of-friends and fellow group members are the closest thing this
+// app has to "nearby" — there's no real geolocation), then tops the list up
+// with a handful of random active users so the panel is never empty for a
+// brand-new account with no connections yet.
+router.get("/suggestions", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const limit = Math.min(30, Math.max(1, parseInt(req.query.limit, 10) || 12));
+
+    const [{ data: relRows, error: relError }, blockedIds, { data: blockedByRows }] = await Promise.all([
+      supabase
+        .from("friendships")
+        .select("user_id, friend_id, status")
+        .or(`user_id.eq.${userId},friend_id.eq.${userId}`),
+      getBlockedList(userId),
+      supabase.from("users").select("id").contains("blocked_users", [userId]),
+    ]);
+    if (relError) {
+      console.error("[Friends] suggestions relationship query error:", relError);
+      return res.status(500).json({ error: "Failed to load suggestions" });
+    }
+
+    const excluded = new Set([userId, ...blockedIds, ...((blockedByRows || []).map((r) => r.id))]);
+    const myFriendIds = new Set();
+    for (const row of relRows || []) {
+      const other = row.user_id === userId ? row.friend_id : row.user_id;
+      if (!other) continue;
+      excluded.add(other); // any existing relationship (accepted or pending, either direction)
+      if (row.status === "accepted") myFriendIds.add(other);
+    }
+
+    // Score candidates: mutual friends (friends-of-friends) weighted highest,
+    // shared groups next, so the closest social connections surface first.
+    const scoreById = new Map(); // id -> { mutualFriends, sharedGroups }
+    const bump = (id, key) => {
+      if (excluded.has(id)) return;
+      if (!scoreById.has(id)) scoreById.set(id, { mutualFriends: 0, sharedGroups: 0 });
+      scoreById.get(id)[key] += 1;
+    };
+
+    if (myFriendIds.size > 0) {
+      const friendIdList = [...myFriendIds];
+      const { data: fofRows } = await supabase
+        .from("friendships")
+        .select("user_id, friend_id")
+        .eq("status", "accepted")
+        .or(`user_id.in.(${friendIdList.join(",")}),friend_id.in.(${friendIdList.join(",")})`);
+      for (const row of fofRows || []) {
+        if (myFriendIds.has(row.user_id)) bump(row.friend_id, "mutualFriends");
+        else if (myFriendIds.has(row.friend_id)) bump(row.user_id, "mutualFriends");
+      }
+    }
+
+    const { data: myGroupRows } = await supabase
+      .from("group_members")
+      .select("group_id")
+      .eq("user_id", userId);
+    const myGroupIds = (myGroupRows || []).map((r) => r.group_id).filter(Boolean);
+    if (myGroupIds.length > 0) {
+      const { data: coMemberRows } = await supabase
+        .from("group_members")
+        .select("user_id")
+        .in("group_id", myGroupIds)
+        .neq("user_id", userId);
+      for (const row of coMemberRows || []) bump(row.user_id, "sharedGroups");
+    }
+
+    const ranked = [...scoreById.entries()]
+      .map(([id, s]) => ({ id, ...s, weight: s.mutualFriends * 3 + s.sharedGroups }))
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, limit);
+
+    let filler = [];
+    if (ranked.length < limit) {
+      const excludeAll = new Set([...excluded, ...ranked.map((r) => r.id)]);
+      const { data: randomPool } = await supabase
+        .from("users")
+        .select("id, username, avatar_url, display_name, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      const candidates = (randomPool || []).filter((u) => !excludeAll.has(u.id));
+      for (let i = candidates.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+      }
+      filler = candidates.slice(0, limit - ranked.length).map((u) => ({
+        id: u.id,
+        mutualFriends: 0,
+        sharedGroups: 0,
+        weight: 0,
+      }));
+    }
+
+    const combined = [...ranked, ...filler];
+    if (combined.length === 0) return res.json({ suggestions: [] });
+
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select("id, username, avatar_url, display_name")
+      .in("id", combined.map((c) => c.id));
+    if (usersError) {
+      console.error("[Friends] suggestions user fetch error:", usersError);
+      return res.status(500).json({ error: "Failed to load suggestions" });
+    }
+    const userById = new Map((users || []).map((u) => [u.id, u]));
+
+    const suggestions = combined
+      .map((c) => {
+        const u = userById.get(c.id);
+        if (!u) return null;
+        return {
+          id: u.id,
+          username: u.username,
+          displayName: u.display_name || null,
+          avatarUrl: u.avatar_url || null,
+          mutualFriends: c.mutualFriends,
+          sharedGroups: c.sharedGroups,
+          reason: c.mutualFriends > 0 ? "mutual" : c.sharedGroups > 0 ? "group" : "suggested",
+        };
+      })
+      .filter(Boolean);
+
+    res.json({ suggestions });
+  } catch (err) {
+    console.error("[Friends] suggestions error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ─── Blocking ────────────────────────────────────────────────────────
 // Blocking a user severs the friendship and silently prevents DMs, direct
 // calls, and future friend requests in both directions (see lib/blocking.js
