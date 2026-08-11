@@ -42,6 +42,7 @@ const { trackOffer, markAnswered, isActiveDmCall, finalizeCall } = require("../l
 const { isBlockedEitherWay } = require("../lib/blocking");
 const shop = require("../lib/shop");
 const descoin = require("../lib/descoin");
+const { touchLastSeen } = require("../lib/presenceTouch");
 const { screenShareSessions } = require("../runtime/sharedState");
 
 // Basic anti-farm guards that don't belong in the ledger caps themselves:
@@ -653,6 +654,9 @@ function registerSocketHandlers(io) {
     socket.join(`user:${myId}`);
     socketToUser.set(socket.id, myId);
     socket.data.activeDmPeer = null;
+
+    // Durable activity timestamp for admin "recently active" boards.
+    touchLastSeen(myId).catch(() => {});
 
     setupAdminSocket(io, socket);
 
@@ -1843,6 +1847,7 @@ function registerSocketHandlers(io) {
       const p = presence.get(myId);
       if (p?.username) usernameById.set(myId, p.username);
       lastSeenByUserId.set(myId, new Date().toISOString());
+      touchLastSeen(myId, { force: true }).catch(() => {});
       presence.delete(myId);
       broadcastUsers(io);
       notifyAdminRoom(io, { type: "presence", online: presence.size });

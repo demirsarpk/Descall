@@ -27,6 +27,7 @@ import { useT } from "../../context/LocaleContext";
 
 const TABS = [
   { id: "overview", label: "admin.overview", icon: BarChart3 },
+  { id: "members", label: "admin.members", icon: UserCheck },
   { id: "activity", label: "admin.activity", icon: ActivityIcon },
   { id: "engagement", label: "admin.engagement", icon: Zap },
   { id: "growth", label: "admin.growth", icon: TrendingUp },
@@ -183,6 +184,13 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityLastUpdated, setActivityLastUpdated] = useState(null);
   const [activitySubTab, setActivitySubTab] = useState("registrations"); // "registrations" | "online"
+
+  // Member pulse — recently active + newly joined (durable last_seen)
+  const [newlyJoinedMembers, setNewlyJoinedMembers] = useState([]);
+  const [recentlyActiveMembers, setRecentlyActiveMembers] = useState([]);
+  const [memberPulseLoading, setMemberPulseLoading] = useState(false);
+  const [memberPulseUpdated, setMemberPulseUpdated] = useState(null);
+  const [memberPulseOnlineCount, setMemberPulseOnlineCount] = useState(0);
   
   // Engagement States - User interaction stats
   const [engagementStats, setEngagementStats] = useState(null);
@@ -278,64 +286,47 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
     setErrorUsers(d?.usersWithErrors || []);
   }, []);
 
+  const loadMemberPulse = useCallback(async () => {
+    setMemberPulseLoading(true);
+    try {
+      const d = await adminFetch("/member-pulse?limit=40");
+      const joined = Array.isArray(d?.newlyJoined) ? d.newlyJoined : [];
+      const active = Array.isArray(d?.recentlyActive) ? d.recentlyActive : [];
+      setNewlyJoinedMembers(joined);
+      setRecentlyActiveMembers(active);
+      setMemberPulseOnlineCount(Number(d?.onlineCount) || 0);
+      setMemberPulseUpdated(new Date());
+
+      const now = Date.now();
+      const dayMs = 24 * 60 * 60 * 1000;
+      setRecentRegistrations(
+        joined.filter((u) => u.created_at && now - new Date(u.created_at).getTime() <= dayMs)
+      );
+      setRecentOnlineUsers(
+        active.filter(
+          (u) => u.isOnline || (u.last_seen && now - new Date(u.last_seen).getTime() <= dayMs)
+        )
+      );
+      setActivityLastUpdated(new Date());
+    } catch (e) {
+      console.error("[ADMIN] Failed to load member pulse:", e);
+      throw e;
+    } finally {
+      setMemberPulseLoading(false);
+    }
+  }, []);
+
   // Load activity data - recent registrations and online users (last 24h)
   const loadActivity = useCallback(async () => {
     setActivityLoading(true);
     try {
-      console.log("[ADMIN] Loading activity data...");
-      
-      // Fetch all users (high limit for accurate 24h activity)
-      const d = await adminFetch("/users?limit=500");
-      console.log("[ADMIN] Users data:", d);
-      
-      const allUsers = d.users || [];
-      console.log("[ADMIN] Total users:", allUsers.length);
-      
-      const now = new Date();
-      const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      
-      // Filter registrations in last 24h
-      const recentRegs = allUsers
-        .filter(u => {
-          if (!u.created_at) return false;
-          const createdDate = new Date(u.created_at);
-          return createdDate >= last24h;
-        })
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      
-      console.log("[ADMIN] Recent registrations (24h):", recentRegs.length);
-      
-      // Get ALL currently online users (isOnline flag) + recently active
-      const currentlyOnline = allUsers.filter(u => u.isOnline === true);
-      console.log("[ADMIN] Currently online:", currentlyOnline.length);
-      
-      // Filter users who were active in last 24h (including online now)
-      const recentActive = allUsers
-        .filter(u => {
-          if (!u.last_seen) return false;
-          const lastSeenDate = new Date(u.last_seen);
-          return lastSeenDate >= last24h;
-        })
-        .sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
-      
-      console.log("[ADMIN] Recent active (24h):", recentActive.length);
-      
-      // Merge online users with recent active (remove duplicates)
-      const onlineIds = new Set(currentlyOnline.map(u => u.id));
-      const mergedOnline = [
-        ...currentlyOnline,
-        ...recentActive.filter(u => !onlineIds.has(u.id))
-      ];
-      
-      setRecentRegistrations(recentRegs);
-      setRecentOnlineUsers(mergedOnline);
-      setActivityLastUpdated(new Date());
+      await loadMemberPulse();
     } catch (e) {
       console.error("[ADMIN] Failed to load activity:", e);
     } finally {
       setActivityLoading(false);
     }
-  }, []);
+  }, [loadMemberPulse]);
 
   // Load engagement stats - user interactions
   const loadEngagement = useCallback(async () => {
@@ -555,6 +546,9 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
   }, [loadStats]);
 
   useEffect(() => {
+    if (tab === "overview" || tab === "members") {
+      loadMemberPulse().catch((e) => setErr(e.message));
+    }
     if (tab === "users") loadAllUsers().catch((e) => setErr(e.message));
     if (tab === "activity") loadActivity().catch((e) => setErr(e.message));
     if (tab === "engagement") loadEngagement().catch((e) => setErr(e.message));
@@ -567,18 +561,18 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
     if (tab === "announcements") loadAnnouncements().catch((e) => setErr(e.message));
     if (tab === "casino") loadCasinoData().catch((e) => setErr(e.message));
     // feedback and errors tabs use their own components with internal loading
-  }, [tab, loadAllUsers, loadActivity, loadEngagement, loadGrowth, loadTopUsers, loadMessages, loadDm, loadAudit, loadSystem, loadAnnouncements]);
+  }, [tab, loadMemberPulse, loadAllUsers, loadActivity, loadEngagement, loadGrowth, loadTopUsers, loadMessages, loadDm, loadAudit, loadSystem, loadAnnouncements]);
 
-  // Auto-refresh activity every hour
+  // Auto-refresh members / activity while those tabs are open
   useEffect(() => {
-    if (tab !== "activity") return;
-    
+    if (tab !== "activity" && tab !== "members" && tab !== "overview") return;
+
     const interval = setInterval(() => {
-      loadActivity().catch(console.error);
-    }, 60 * 60 * 1000); // Every hour
-    
+      loadMemberPulse().catch(console.error);
+    }, 60 * 1000); // Every minute while watching live presence
+
     return () => clearInterval(interval);
-  }, [tab, loadActivity]);
+  }, [tab, loadMemberPulse]);
 
   // Auto-refresh engagement every hour
   useEffect(() => {
@@ -778,15 +772,273 @@ function getTimeAgo(date, t) {
                 </div>
               </div>
             )}
-            <RippleButton type="button" onClick={() => act(loadStats)} disabled={busy}>
-              {t("Refresh")}
-            </RippleButton>
+            <div className="admin-overview-actions">
+              <RippleButton type="button" onClick={() => act(loadStats)} disabled={busy}>
+                {t("Refresh")}
+              </RippleButton>
+              <RippleButton
+                type="button"
+                onClick={() => act(loadMemberPulse)}
+                disabled={memberPulseLoading}
+              >
+                {memberPulseLoading ? t("Loading...") : t("Refresh members")}
+              </RippleButton>
+            </div>
+
+            <div className="member-pulse-grid overview-member-pulse">
+              <div className="member-pulse-panel">
+                <div className="member-pulse-panel-head">
+                  <Wifi size={18} />
+                  <div>
+                    <h3>{t("Recently active")}</h3>
+                    <p>
+                      {t("Online now")}: {memberPulseOnlineCount}
+                    </p>
+                  </div>
+                </div>
+                {recentlyActiveMembers.length === 0 ? (
+                  <div className="empty-state compact">
+                    <p>{t("No recent activity yet")}</p>
+                  </div>
+                ) : (
+                  <ul className="member-pulse-list">
+                    {recentlyActiveMembers.slice(0, 8).map((user) => (
+                      <li key={user.id} className={user.isOnline ? "is-online" : ""}>
+                        <Avatar user={user} name={user.displayName || user.username} size={32} />
+                        <div className="member-pulse-meta">
+                          <span className="member-pulse-name">
+                            {user.displayName || user.username}
+                            {user.isOnline && (
+                              <span className="online-indicator">● {t("Online Now")}</span>
+                            )}
+                          </span>
+                          <span className="member-pulse-date">
+                            {user.last_seen
+                              ? `${getTimeAgo(new Date(user.last_seen), t)} · ${new Date(user.last_seen).toLocaleString()}`
+                              : t("Never active")}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <button type="button" className="member-pulse-more" onClick={() => setTab("members")}>
+                  {t("Open members board")}
+                </button>
+              </div>
+
+              <div className="member-pulse-panel">
+                <div className="member-pulse-panel-head">
+                  <UserCheck size={18} />
+                  <div>
+                    <h3>{t("Newly joined")}</h3>
+                    <p>{t("Latest account names")}</p>
+                  </div>
+                </div>
+                {newlyJoinedMembers.length === 0 ? (
+                  <div className="empty-state compact">
+                    <p>{t("No new members yet")}</p>
+                  </div>
+                ) : (
+                  <ul className="member-pulse-list">
+                    {newlyJoinedMembers.slice(0, 8).map((user) => (
+                      <li key={user.id}>
+                        <Avatar user={user} name={user.displayName || user.username} size={32} />
+                        <div className="member-pulse-meta">
+                          <span className="member-pulse-name">
+                            {user.displayName || user.username}
+                          </span>
+                          <span className="member-pulse-date">
+                            {user.created_at
+                              ? `${getTimeAgo(new Date(user.created_at), t)} · ${new Date(user.created_at).toLocaleString()}`
+                              : "—"}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <button type="button" className="member-pulse-more" onClick={() => setTab("members")}>
+                  {t("See all new members")}
+                </button>
+              </div>
+            </div>
+
             {snapshot && (
               <div className="admin-live">
                 <h3>{t("Live socket snapshot")}</h3>
                 <pre className="admin-pre">{JSON.stringify(snapshot, null, 2)}</pre>
               </div>
             )}
+          </section>
+        )}
+
+        {tab === "members" && (
+          <section className="admin-section admin-members-section">
+            <div className="activity-header">
+              <div className="activity-title-section">
+                <h2>{t("Members board")}</h2>
+                <p className="activity-subtitle">
+                  {t("See who is active with exact times, and who just joined by name")}
+                </p>
+              </div>
+              <div className="activity-stats-grid">
+                <div className="activity-stat-card online">
+                  <div className="stat-icon-wrapper">
+                    <Wifi size={24} />
+                  </div>
+                  <div className="stat-content">
+                    <span className="stat-number">{memberPulseOnlineCount}</span>
+                    <span className="stat-label">{t("Online Now")}</span>
+                  </div>
+                </div>
+                <div className="activity-stat-card registrations">
+                  <div className="stat-icon-wrapper">
+                    <UserCheck size={24} />
+                  </div>
+                  <div className="stat-content">
+                    <span className="stat-number">{newlyJoinedMembers.length}</span>
+                    <span className="stat-label">{t("Newest members")}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="activity-toolbar">
+              <div className="last-updated">
+                <Clock size={14} />
+                <span>
+                  {t("Last updated")}:{" "}
+                  {memberPulseUpdated ? memberPulseUpdated.toLocaleTimeString() : t("Never")}
+                </span>
+              </div>
+              <RippleButton
+                type="button"
+                onClick={() => act(loadMemberPulse)}
+                disabled={memberPulseLoading}
+                className="refresh-btn"
+              >
+                <RefreshCw size={16} className={memberPulseLoading ? "spin" : ""} />
+                {memberPulseLoading ? t("Loading...") : t("Refresh Now")}
+              </RippleButton>
+            </div>
+
+            <div className="member-pulse-grid">
+              <div className="member-pulse-panel">
+                <div className="member-pulse-panel-head">
+                  <Wifi size={18} />
+                  <div>
+                    <h3>{t("Recently active")}</h3>
+                    <p>{t("Name + last active date")}</p>
+                  </div>
+                </div>
+                {recentlyActiveMembers.length === 0 ? (
+                  <div className="empty-state">
+                    <WifiOff size={48} className="empty-icon" />
+                    <h3>{t("No Online Activity")}</h3>
+                    <p>{t("No recent activity yet")}</p>
+                  </div>
+                ) : (
+                  <div className="activity-timeline">
+                    {recentlyActiveMembers.map((user, index) => {
+                      const seenAt = user.last_seen ? new Date(user.last_seen) : null;
+                      return (
+                        <motion.div
+                          key={user.id}
+                          className={`timeline-item ${user.isOnline ? "online-now" : ""}`}
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: Math.min(index * 0.03, 0.3) }}
+                        >
+                          <div className={`timeline-marker ${user.isOnline ? "online" : "offline"}`}>
+                            {user.isOnline ? <Wifi size={14} /> : <Clock size={14} />}
+                          </div>
+                          <div className="timeline-content">
+                            <div className="user-info">
+                              <Avatar user={user} name={user.displayName || user.username} size={36} />
+                              <div className="user-details">
+                                <span className="username">
+                                  {user.displayName || user.username}
+                                  {user.isOnline && (
+                                    <span className="online-indicator">● {t("Online Now")}</span>
+                                  )}
+                                </span>
+                                <span className="user-id">@{user.username}</span>
+                              </div>
+                            </div>
+                            <div className="time-info">
+                              <span className={`time-badge ${user.isOnline ? "online" : ""}`}>
+                                {user.isOnline
+                                  ? t("Currently Online")
+                                  : seenAt
+                                  ? getTimeAgo(seenAt, t)
+                                  : t("Never active")}
+                              </span>
+                              <span className="exact-time">
+                                {seenAt ? seenAt.toLocaleString() : "—"}
+                              </span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="member-pulse-panel">
+                <div className="member-pulse-panel-head">
+                  <UserCheck size={18} />
+                  <div>
+                    <h3>{t("Newly joined")}</h3>
+                    <p>{t("Newest accounts by join date")}</p>
+                  </div>
+                </div>
+                {newlyJoinedMembers.length === 0 ? (
+                  <div className="empty-state">
+                    <Users size={48} className="empty-icon" />
+                    <h3>{t("No New Registrations")}</h3>
+                    <p>{t("No new members yet")}</p>
+                  </div>
+                ) : (
+                  <div className="activity-timeline">
+                    {newlyJoinedMembers.map((user, index) => {
+                      const joinedAt = user.created_at ? new Date(user.created_at) : null;
+                      return (
+                        <motion.div
+                          key={user.id}
+                          className="timeline-item"
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: Math.min(index * 0.03, 0.3) }}
+                        >
+                          <div className="timeline-marker registration">
+                            <UserCheck size={14} />
+                          </div>
+                          <div className="timeline-content">
+                            <div className="user-info">
+                              <Avatar user={user} name={user.displayName || user.username} size={36} />
+                              <div className="user-details">
+                                <span className="username">{user.displayName || user.username}</span>
+                                <span className="user-id">@{user.username}</span>
+                              </div>
+                            </div>
+                            <div className="time-info">
+                              <span className="time-badge">
+                                {joinedAt ? getTimeAgo(joinedAt, t) : "—"}
+                              </span>
+                              <span className="exact-time">
+                                {joinedAt ? joinedAt.toLocaleString() : "—"}
+                              </span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </section>
         )}
 
@@ -910,8 +1162,8 @@ function getTimeAgo(date, t) {
                             <div className="user-info">
                               <Avatar user={user} name={user.username} size={36} />
                               <div className="user-details">
-                                <span className="username">{user.username}</span>
-                                <span className="user-id">{user.id.slice(0, 8)}...</span>
+                                <span className="username">{user.displayName || user.username}</span>
+                                <span className="user-id">@{user.username}</span>
                               </div>
                             </div>
                             <div className="time-info">
@@ -964,12 +1216,12 @@ function getTimeAgo(date, t) {
                               <Avatar user={user} name={user.username} size={36} />
                               <div className="user-details">
                                 <span className="username">
-                                  {user.username}
+                                  {user.displayName || user.username}
                                   {isCurrentlyOnline && (
                                     <span className="online-indicator">● {t("Online Now")}</span>
                                   )}
                                 </span>
-                                <span className="user-id">{user.id.slice(0, 8)}...</span>
+                                <span className="user-id">@{user.username}</span>
                               </div>
                             </div>
                             <div className="time-info">

@@ -513,6 +513,191 @@
   opacity: 0.7;
 }
 
+/* ── Member pulse boards (recently active + newly joined) ── */
+.admin-overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+
+.member-pulse-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+@media (max-width: 960px) {
+  .member-pulse-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.member-pulse-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  min-height: 220px;
+}
+
+.member-pulse-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.member-pulse-panel-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f4f6fb;
+}
+
+.member-pulse-panel-head p {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: rgba(244, 246, 251, 0.48);
+}
+
+.member-pulse-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-pulse-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+}
+
+.member-pulse-list li.is-online {
+  border-color: rgba(10, 132, 255, 0.28);
+  background: rgba(10, 132, 255, 0.08);
+}
+
+.member-pulse-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.member-pulse-name {
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: #f4f6fb;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.member-pulse-date {
+  font-size: 0.72rem;
+  color: rgba(244, 246, 251, 0.45);
+}
+
+.member-pulse-more {
+  align-self: flex-start;
+  margin-top: auto;
+  border: 0;
+  background: transparent;
+  color: #0a84ff;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 0;
+}
+
+.member-pulse-more:hover {
+  text-decoration: underline;
+}
+
+.empty-state.compact {
+  padding: 18px 8px;
+  text-align: left;
+}
+
+.empty-state.compact p {
+  margin: 0;
+  color: rgba(244, 246, 251, 0.5);
+  font-size: 0.85rem;
+}
+
+.timeline-item.online-now {
+  border-color: rgba(10, 132, 255, 0.22);
+}
+
+.timeline-marker.offline {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(244, 246, 251, 0.55);
+}
+
+.online-indicator {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #30d158;
+}
+
+.time-badge.online {
+  background: rgba(48, 209, 88, 0.14);
+  color: #30d158;
+}
+
+.timeline-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.time-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.time-badge {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(244, 246, 251, 0.72);
+}
+
+.exact-time {
+  font-size: 0.68rem;
+  color: rgba(244, 246, 251, 0.42);
+  white-space: nowrap;
+}
+
 /* ── Activity timeline / lists ── */
 .activity-content,
 .activity-timeline,

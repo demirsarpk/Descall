@@ -92,7 +92,9 @@ router.get("/users", async (req, res) => {
     const from = page * limit;
     const to = from + limit - 1;
 
-    let query = supabase.from("users").select("id, username, created_at, avatar_url, is_admin", { count: "exact" });
+    let query = supabase
+      .from("users")
+      .select("id, username, display_name, created_at, avatar_url, is_admin, last_seen", { count: "exact" });
     if (q) {
       query = query.ilike("username", `%${q}%`);
     }
@@ -105,14 +107,20 @@ router.get("/users", async (req, res) => {
       if (isAdmin) state.userRoles.set(u.id, "admin");
       else if (state.userRoles.get(u.id) === "admin") state.userRoles.set(u.id, "user");
       const role = isAdmin ? "admin" : (state.userRoles.get(u.id) || "user");
+      const lastSeen =
+        state.userLastLoginAt.get(u.id) ||
+        state.lastSeenByUserId.get(u.id) ||
+        u.last_seen ||
+        null;
       return {
         ...u,
+        displayName: u.display_name || u.username,
         is_admin: isAdmin,
         isOnline: state.presence.has(u.id),
-        last_seen: state.userLastLoginAt.get(u.id) || u.last_seen || null,
+        last_seen: lastSeen,
         banned: state.bannedUserIds.has(u.id),
         role,
-        lastLoginAt: state.userLastLoginAt.get(u.id) || null,
+        lastLoginAt: lastSeen,
         onlineMsTotal: state.userOnlineAccumMs.get(u.id) || 0,
       };
     });
@@ -120,6 +128,102 @@ router.get("/users", async (req, res) => {
     res.json({ users: rows, total: count ?? rows.length, page, limit });
   } catch (e) {
     res.status(500).json({ error: "Failed to list users." });
+  }
+});
+
+/** Recently active + newly joined boards for the admin panel. */
+router.get("/member-pulse", async (req, res) => {
+  try {
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || "40", 10) || 40));
+
+    const [joinedRes, activeRes] = await Promise.all([
+      supabase
+        .from("users")
+        .select("id, username, display_name, avatar_url, created_at, last_seen, is_admin")
+        .order("created_at", { ascending: false })
+        .limit(limit),
+      supabase
+        .from("users")
+        .select("id, username, display_name, avatar_url, created_at, last_seen, is_admin")
+        .not("last_seen", "is", null)
+        .order("last_seen", { ascending: false })
+        .limit(limit),
+    ]);
+
+    if (joinedRes.error) return res.status(500).json({ error: joinedRes.error.message });
+    if (activeRes.error) return res.status(500).json({ error: activeRes.error.message });
+
+    const enrich = (u) => {
+      const lastSeen =
+        state.userLastLoginAt.get(u.id) ||
+        state.lastSeenByUserId.get(u.id) ||
+        u.last_seen ||
+        null;
+      const p = state.presence.get(u.id);
+      return {
+        id: u.id,
+        username: u.username,
+        display_name: u.display_name || null,
+        displayName: u.display_name || u.username,
+        avatar_url: u.avatar_url || p?.avatar_url || null,
+        created_at: u.created_at || null,
+        last_seen: lastSeen,
+        is_admin: Boolean(u.is_admin) || u.username === "admin",
+        isOnline: Boolean(p),
+        status: p?.status || "offline",
+      };
+    };
+
+    const newlyJoined = (joinedRes.data || []).map(enrich);
+
+    const byId = new Map();
+    for (const [id, p] of state.presence.entries()) {
+      byId.set(id, {
+        id,
+        username: p.username || state.usernameById.get(id) || "?",
+        display_name: null,
+        displayName: p.username || state.usernameById.get(id) || "?",
+        avatar_url: p.avatar_url || null,
+        created_at: null,
+        last_seen: state.userLastLoginAt.get(id) || new Date().toISOString(),
+        is_admin: state.userRoles.get(id) === "admin" || p.username === "admin",
+        isOnline: true,
+        status: p.status || "online",
+      });
+    }
+    for (const row of (activeRes.data || []).map(enrich)) {
+      const existing = byId.get(row.id);
+      if (existing) {
+        byId.set(row.id, {
+          ...row,
+          ...existing,
+          display_name: row.display_name || existing.display_name,
+          displayName: row.displayName || existing.displayName,
+          avatar_url: row.avatar_url || existing.avatar_url,
+          created_at: row.created_at || existing.created_at,
+          last_seen: existing.last_seen || row.last_seen,
+          isOnline: true,
+        });
+      } else {
+        byId.set(row.id, row);
+      }
+    }
+
+    const recentlyActive = [...byId.values()].sort((a, b) => {
+      if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+      const ta = a.last_seen ? new Date(a.last_seen).getTime() : 0;
+      const tb = b.last_seen ? new Date(b.last_seen).getTime() : 0;
+      return tb - ta;
+    }).slice(0, limit);
+
+    res.json({
+      newlyJoined,
+      recentlyActive,
+      onlineCount: state.presence.size,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to load member pulse." });
   }
 });
 
