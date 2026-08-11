@@ -25,22 +25,58 @@ function RailButton({
   children,
   ...rest
 }) {
+  const btnRef = useRef(null);
+  const [tip, setTip] = useState(null);
+
+  const showTip = () => {
+    const el = btnRef.current;
+    if (!el || !label) return;
+    const rect = el.getBoundingClientRect();
+    setTip({
+      top: rect.top + rect.height / 2,
+      left: rect.right + 12,
+    });
+  };
+
+  const hideTip = () => setTip(null);
+
   return (
-    <motion.button
-      type="button"
-      className={`rail-btn ${active ? "active" : ""} ${className}`.trim()}
-      onClick={onClick}
-      whileHover={{ scale: 1.04 }}
-      whileTap={{ scale: 0.96 }}
-      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-      title={label}
-      aria-label={label}
-      aria-current={active ? "page" : undefined}
-      data-tooltip={label}
-      {...rest}
-    >
-      <span className="rail-btn-inner">{children}</span>
-    </motion.button>
+    <>
+      <motion.button
+        ref={btnRef}
+        type="button"
+        className={`rail-btn ${active ? "active" : ""} ${className}`.trim()}
+        onClick={onClick}
+        onMouseEnter={showTip}
+        onMouseLeave={hideTip}
+        onFocus={showTip}
+        onBlur={hideTip}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.96 }}
+        transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+        aria-label={label}
+        aria-current={active ? "page" : undefined}
+        data-tooltip={label}
+        {...rest}
+      >
+        <span className="rail-btn-inner">{children}</span>
+      </motion.button>
+      {typeof document !== "undefined" &&
+        tip &&
+        createPortal(
+          <motion.div
+            className="rail-tooltip"
+            role="tooltip"
+            style={{ top: tip.top, left: tip.left }}
+            initial={{ opacity: 0, x: -4 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.12, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {label}
+          </motion.div>,
+          document.body
+        )}
+    </>
   );
 }
 

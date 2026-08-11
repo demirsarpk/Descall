@@ -252,6 +252,13 @@ select {
   box-shadow: var(--shadow-md);
 }
 
+/* Rail buttons use a portal tooltip — hide the clipped CSS one */
+.rail-btn[data-tooltip]:hover::after,
+.rail-btn[data-tooltip]::after {
+  content: none !important;
+  display: none !important;
+}
+
 /* 🧩 Skeleton */
 .skeleton,
 .skeleton-line {

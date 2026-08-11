@@ -119,13 +119,16 @@
   --nav-glass-saturate: 1.35;
   --nav-active-bg: linear-gradient(
     160deg,
-    rgba(99, 122, 255, 0.42) 0%,
-    rgba(72, 92, 230, 0.28) 100%
+    rgba(110, 132, 255, 0.52) 0%,
+    rgba(72, 92, 230, 0.34) 100%
   );
   --nav-active-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.12) inset,
-    0 6px 16px rgba(70, 90, 220, 0.22);
-  --nav-active-border: rgba(150, 170, 255, 0.28);
+    0 1px 0 rgba(255, 255, 255, 0.16) inset,
+    0 0 0 1px rgba(150, 170, 255, 0.18),
+    0 0 18px rgba(90, 120, 255, 0.45),
+    0 8px 22px rgba(70, 90, 220, 0.32);
+  --nav-active-border: rgba(170, 190, 255, 0.42);
+  --nav-active-glow: drop-shadow(0 0 8px rgba(140, 165, 255, 0.65));
 
   /* ✨ Transitions — Smooth animations */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -186,13 +189,16 @@
   --nav-glass-highlight: rgba(255, 255, 255, 0.55);
   --nav-active-bg: linear-gradient(
     160deg,
-    rgba(88, 101, 242, 0.28) 0%,
-    rgba(72, 92, 230, 0.18) 100%
+    rgba(88, 101, 242, 0.34) 0%,
+    rgba(72, 92, 230, 0.22) 100%
   );
   --nav-active-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.55) inset,
-    0 6px 16px rgba(70, 90, 220, 0.14);
-  --nav-active-border: rgba(88, 101, 242, 0.28);
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 0 0 1px rgba(88, 101, 242, 0.18),
+    0 0 16px rgba(88, 101, 242, 0.28),
+    0 8px 20px rgba(70, 90, 220, 0.18);
+  --nav-active-border: rgba(88, 101, 242, 0.4);
+  --nav-active-glow: drop-shadow(0 0 6px rgba(88, 101, 242, 0.45));
 
   --bg: var(--surface-0);
   --bg-soft: var(--surface-1);

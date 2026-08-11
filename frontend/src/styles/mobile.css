@@ -313,6 +313,16 @@
     border-radius: 13px;
   }
 
+  .nav-rail-logo .descall-brand {
+    width: 28px;
+    height: 28px;
+  }
+
+  .nav-rail-logo .descall-brand svg {
+    width: 28px;
+    height: 28px;
+  }
+
   .rail-btn {
     width: 42px;
     height: 42px;
