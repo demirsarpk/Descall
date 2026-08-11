@@ -2199,6 +2199,47 @@ export const phrases = {
   "Revoke DesCoin": "DesCoin geri al",
   "{name}'s new balance: {balance} DesCoin": "{name} adlı kullanıcının yeni bakiyesi: {balance} DesCoin",
   "Failed to update DesCoin balance.": "DesCoin bakiyesi güncellenemedi.",
+
+  // SEO / Discord-alternative marketing
+  "Discord alternative": "Discord alternatifi",
+  "Discord alternatives": "Discord alternatifleri",
+  "vs Discord": "Discord’a karşı",
+  "Alternatives": "Alternatifler",
+  "For gamers": "Oyuncular için",
+  "Türkiye": "Türkiye",
+  "Blog": "Blog",
+  "Sitemap": "Site haritası",
+  "Start free": "Ücretsiz başla",
+  "Why Descall": "Neden Descall",
+  "Explore features": "Özellikleri keşfet",
+  "Frequently asked questions": "Sık sorulan sorular",
+  "Ready to try a lighter Discord alternative?": "Daha hafif bir Discord alternatifini denemeye hazır mısın?",
+  "Create a free Descall account — chat, voice, screen share, and Valorant LFG in one place.":
+    "Ücretsiz bir Descall hesabı oluştur — sohbet, ses, ekran paylaşımı ve Valorant LFG tek yerde.",
+  "The free Discord alternative for friends and gamers — real-time chat, HD voice & video, screen share, and Valorant LFG without Nitro paywalls.":
+    "Arkadaşlar ve oyuncular için ücretsiz Discord alternatifi — gerçek zamanlı sohbet, HD ses & görüntü, ekran paylaşımı ve Nitro duvarı olmadan Valorant LFG.",
+  "Why choose this Discord alternative?": "Neden bu Discord alternatifini seçmelisin?",
+  "Descall keeps the parts you love — chat, calls, screen share — and drops the bloat. Built for friend groups and gaming squads who want a lighter daily driver.":
+    "Descall sevdiğin kısımları korur — sohbet, aramalar, ekran paylaşımı — ve şişkinliği atar. Daha hafif bir günlük deneyim isteyen arkadaş grupları ve oyun ekipleri için.",
+  "Descall vs Discord — quick take": "Descall vs Discord — kısa özet",
+  "Need mega-servers and bots? Discord still wins. Need free voice, screen share, and Valorant LFG for people you actually know? Descall is the Discord alternative built for that.":
+    "Dev sunucular ve botlar mı lazım? Discord hâlâ önde. Gerçekten tanıdığın insanlarla ücretsiz ses, ekran paylaşımı ve Valorant LFG mi istiyorsun? Descall bunun için tasarlandı.",
+  "Full comparison": "Tam karşılaştırma",
+  "Read the blog": "Blogu oku",
+  "Descall vs Discord": "Descall vs Discord",
+  "Features of a modern Discord alternative": "Modern bir Discord alternatifinin özellikleri",
+  "Everything friend groups and gamers need day to day — messaging, calls, screen share, LFG — without turning your PC into a second operating system.":
+    "Arkadaş grupları ve oyuncuların her gün ihtiyacı olan her şey — mesajlaşma, aramalar, ekran paylaşımı, LFG — bilgisayarını ikinci bir işletim sistemine çevirmeden.",
+  "Product": "Ürün",
+  "Try Descall": "Descall’ı dene",
+  "Try Descall free": "Descall’ı ücretsiz dene",
+  "Compare with Discord": "Discord ile karşılaştır",
+  "Learn more": "Daha fazla",
+  "Best for gamers": "Oyuncular için en iyisi",
+  "Türkiye / Turkish": "Türkiye / Türkçe",
+  "Leave Nitro guide": "Nitro’dan çıkış rehberi",
+  "LFG guide": "LFG rehberi",
+  "← Back to blog": "← Bloga dön",
 };
 
 const locale = { nested, phrases };

@@ -9,8 +9,9 @@ export function buildOrganizationLd() {
     "@type": "Organization",
     name: SITE_NAME,
     url: absoluteUrl("/"),
-    logo: absoluteUrl("/favicon.svg"),
+    logo: absoluteUrl("/og-default.svg"),
     sameAs: ["https://github.com/demirrsarppkurtlarr/Descall"],
+    description: "Free Discord alternative for chat, voice, screen share, and Valorant LFG.",
   };
 }
 
@@ -34,14 +35,17 @@ export function buildSoftwareApplicationLd() {
     "@type": "SoftwareApplication",
     name: SITE_NAME,
     applicationCategory: "CommunicationApplication",
-    operatingSystem: "Windows, Web",
+    operatingSystem: "Windows, Web, Android",
     url: absoluteUrl("/"),
     downloadUrl: absoluteUrl("/download"),
+    description:
+      "Descall is a free Discord alternative with messaging, group calls, screen share, and Valorant LFG.",
     offers: {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
     },
+    aggregateRating: undefined,
   };
 }
 
@@ -57,6 +61,72 @@ export function buildFaqLd(faqs) {
         text: f.a,
       },
     })),
+  };
+}
+
+export function buildBreadcrumbLd(crumbs = []) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: crumbs.map((c, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: c.label,
+      item: c.to ? absoluteUrl(c.to) : undefined,
+    })),
+  };
+}
+
+export function buildArticleLd({ title, description, path, datePublished, dateModified }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: title,
+    description,
+    mainEntityOfPage: absoluteUrl(path),
+    datePublished: datePublished || new Date().toISOString().slice(0, 10),
+    dateModified: dateModified || datePublished || new Date().toISOString().slice(0, 10),
+    author: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: absoluteUrl("/"),
+    },
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      logo: {
+        "@type": "ImageObject",
+        url: absoluteUrl("/og-default.svg"),
+      },
+    },
+    image: [absoluteUrl("/og-default.svg")],
+  };
+}
+
+/** SoftwareApplication marked as alternative to Discord for rich results context. */
+export function buildDiscordAlternativeAppLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: SITE_NAME,
+    applicationCategory: "CommunicationApplication",
+    operatingSystem: "Windows, Web, Android",
+    url: absoluteUrl("/discord-alternative"),
+    downloadUrl: absoluteUrl("/download"),
+    description:
+      "Free Discord alternative for real-time chat, group voice/video, screen share, and Valorant LFG.",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
+    featureList: [
+      "Real-time messaging",
+      "Group voice and video calls",
+      "Screen share",
+      "Valorant LFG",
+      "Windows desktop app",
+    ],
   };
 }
 

@@ -1,51 +1,116 @@
 import { Link } from "react-router-dom";
+import SeoLandingShell from "../components/SeoLandingShell";
+import { buildBreadcrumbLd, buildFaqLd, buildDiscordAlternativeAppLd } from "../JsonLd";
+import { COMPARE_FAQ, COMPARE_ROWS } from "../content/discordSeoContent";
 import { useT } from "../../context/LocaleContext";
 
-const ROWS = [
-  { feature: "Real-time chat", descall: "Yes", discord: "Yes" },
-  { feature: "Group voice & video", descall: "Yes", discord: "Yes" },
-  { feature: "Screen share", descall: "Yes", discord: "Yes" },
-  { feature: "Desktop app", descall: "Windows + web", discord: "All major platforms" },
-  { feature: "Servers / communities", descall: "Groups-focused", discord: "Servers & channels" },
-  { feature: "Price", descall: "Free", discord: "Free + Nitro" },
+const crumbs = [
+  { label: "Home", to: "/" },
+  { label: "Compare", to: "/alternatives" },
+  { label: "Descall vs Discord", to: "/compare/discord" },
 ];
 
-export default function CompareDiscordPage() {
+export default function CompareDiscordPage({ onSignIn }) {
   const t = useT();
+
   return (
-    <section className="mkt-section" style={{ marginTop: 12 }}>
-      <h2>Descall vs Discord</h2>
-      <p className="lead">
-        {t(
-          "Compare Descall and Discord for chat, voice, video, and screen share — a lighter alternative for friends and groups."
-        )}
-      </p>
-      <table className="mkt-table">
-        <thead>
-          <tr>
-            <th>{t("Features")}</th>
-            <th>Descall</th>
-            <th>Discord</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ROWS.map((row) => (
-            <tr key={row.feature}>
-              <td>{t(row.feature)}</td>
-              <td>{t(row.descall)}</td>
-              <td>{t(row.discord)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="mkt-cta-row" style={{ marginTop: 28 }}>
-        <Link to="/download" className="mkt-btn mkt-btn-primary">
-          {t("Download")} Descall
+    <SeoLandingShell
+      breadcrumbs={crumbs}
+      kicker="Descall vs Discord"
+      title={t("Descall vs Discord — which Discord alternative fits your group?")}
+      lead={t(
+        "An honest Descall vs Discord comparison for chat, voice, video, screen share, LFG, desktop apps, and pricing. Use this when evaluating Descall as a Discord alternative in 2026."
+      )}
+      faq={COMPARE_FAQ}
+      jsonLd={[
+        buildBreadcrumbLd(crumbs),
+        buildFaqLd(COMPARE_FAQ),
+        buildDiscordAlternativeAppLd(),
+      ]}
+      primaryCta={
+        <button type="button" className="mkt-btn mkt-btn-primary" onClick={onSignIn}>
+          {t("Try Descall free")}
+        </button>
+      }
+      secondaryCta={
+        <Link to="/discord-alternative" className="mkt-btn mkt-btn-soft">
+          {t("Discord alternative overview")}
         </Link>
-        <Link to="/features" className="mkt-btn mkt-btn-ghost">
-          {t("Features")}
-        </Link>
-      </div>
-    </section>
+      }
+    >
+      <section className="seo-section">
+        <h2>{t("Quick verdict")}</h2>
+        <div className="seo-verdict">
+          <p>
+            <strong>Descall</strong>{" "}
+            {t(
+              "wins if you want a lighter Discord alternative for friends, group voice, screen share, and Valorant LFG — with free core features."
+            )}
+          </p>
+          <p>
+            <strong>Discord</strong>{" "}
+            {t(
+              "still wins for massive community servers, bots, and the widest platform matrix. Many groups run both: Discord for public communities, Descall for the squad."
+            )}
+          </p>
+        </div>
+      </section>
+
+      <section className="seo-section">
+        <h2>{t("Feature-by-feature comparison")}</h2>
+        <div className="seo-table-wrap">
+          <table className="mkt-table">
+            <thead>
+              <tr>
+                <th>{t("Feature")}</th>
+                <th>Descall</th>
+                <th>Discord</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARE_ROWS.map((row) => (
+                <tr key={row.feature}>
+                  <td>{t(row.feature)}</td>
+                  <td>{t(row.descall)}</td>
+                  <td>{t(row.discord)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="seo-section">
+        <h2>{t("Where Descall is the better Discord alternative")}</h2>
+        <ul className="seo-bullets">
+          <li>{t("Friend-group chat and voice without Nitro friction")}</li>
+          <li>{t("Built-in Valorant LFG instead of fragile bot setups")}</li>
+          <li>{t("Screen-share quality controls tuned for calls")}</li>
+          <li>{t("Modern UI focused on speed, not endless server chrome")}</li>
+        </ul>
+      </section>
+
+      <section className="seo-section">
+        <h2>{t("Where Discord still leads")}</h2>
+        <ul className="seo-bullets">
+          <li>{t("Huge public communities and stage-style events")}</li>
+          <li>{t("Mature bot / integration ecosystem")}</li>
+          <li>{t("Broader native client coverage historically")}</li>
+        </ul>
+      </section>
+
+      <section className="seo-section">
+        <h2>{t("How to migrate a friend group")}</h2>
+        <ol className="seo-steps">
+          <li>{t("Create a Descall group and invite your core squad.")}</li>
+          <li>{t("Pin the Download link for Windows / Android users.")}</li>
+          <li>{t("Move nightly voice + LFG to Descall for two weeks.")}</li>
+          <li>{t("Keep Discord only for communities you still need.")}</li>
+        </ol>
+        <p className="seo-note">
+          <Link to="/blog/leave-nitro-keep-voice-chat">{t("Read the full migration guide")}</Link>
+        </p>
+      </section>
+    </SeoLandingShell>
   );
 }

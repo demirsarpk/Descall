@@ -1901,6 +1901,47 @@ export const phrases = {
   "Revoke DesCoin": "Revoke DesCoin",
   "{name}'s new balance: {balance} DesCoin": "{name}'s new balance: {balance} DesCoin",
   "Failed to update DesCoin balance.": "Failed to update DesCoin balance.",
+
+  // SEO / Discord-alternative marketing (identity map — TR locale carries translations)
+  "Discord alternative": "Discord alternative",
+  "Discord alternatives": "Discord alternatives",
+  "vs Discord": "vs Discord",
+  "Alternatives": "Alternatives",
+  "For gamers": "For gamers",
+  "Türkiye": "Türkiye",
+  "Blog": "Blog",
+  "Sitemap": "Sitemap",
+  "Start free": "Start free",
+  "Why Descall": "Why Descall",
+  "Explore features": "Explore features",
+  "Frequently asked questions": "Frequently asked questions",
+  "Ready to try a lighter Discord alternative?": "Ready to try a lighter Discord alternative?",
+  "Create a free Descall account — chat, voice, screen share, and Valorant LFG in one place.":
+    "Create a free Descall account — chat, voice, screen share, and Valorant LFG in one place.",
+  "The free Discord alternative for friends and gamers — real-time chat, HD voice & video, screen share, and Valorant LFG without Nitro paywalls.":
+    "The free Discord alternative for friends and gamers — real-time chat, HD voice & video, screen share, and Valorant LFG without Nitro paywalls.",
+  "Why choose this Discord alternative?": "Why choose this Discord alternative?",
+  "Descall keeps the parts you love — chat, calls, screen share — and drops the bloat. Built for friend groups and gaming squads who want a lighter daily driver.":
+    "Descall keeps the parts you love — chat, calls, screen share — and drops the bloat. Built for friend groups and gaming squads who want a lighter daily driver.",
+  "Descall vs Discord — quick take": "Descall vs Discord — quick take",
+  "Need mega-servers and bots? Discord still wins. Need free voice, screen share, and Valorant LFG for people you actually know? Descall is the Discord alternative built for that.":
+    "Need mega-servers and bots? Discord still wins. Need free voice, screen share, and Valorant LFG for people you actually know? Descall is the Discord alternative built for that.",
+  "Full comparison": "Full comparison",
+  "Read the blog": "Read the blog",
+  "Descall vs Discord": "Descall vs Discord",
+  "Features of a modern Discord alternative": "Features of a modern Discord alternative",
+  "Everything friend groups and gamers need day to day — messaging, calls, screen share, LFG — without turning your PC into a second operating system.":
+    "Everything friend groups and gamers need day to day — messaging, calls, screen share, LFG — without turning your PC into a second operating system.",
+  "Product": "Product",
+  "Try Descall": "Try Descall",
+  "Try Descall free": "Try Descall free",
+  "Compare with Discord": "Compare with Discord",
+  "Learn more": "Learn more",
+  "Best for gamers": "Best for gamers",
+  "Türkiye / Turkish": "Türkiye / Turkish",
+  "Leave Nitro guide": "Leave Nitro guide",
+  "LFG guide": "LFG guide",
+  "← Back to blog": "← Back to blog",
 };
 
 const locale = { nested, phrases };
