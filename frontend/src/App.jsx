@@ -38,7 +38,7 @@ import {
 import audioManager, { initAudioManager, setEquippedSoundPack } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
 import { subscribeWebPush } from "./lib/webPushSubscription";
-import { requestNativePushPermission } from "./lib/nativePush";
+import { requestNativePushPermission, syncNativePushToken, isNativePushPlatform } from "./lib/nativePush";
 import { useToast } from "./context/ToastContext";
 import { useLocale } from "./context/LocaleContext";
 import { t as tRuntime } from "./i18n/runtime";
@@ -313,6 +313,14 @@ export default function App() {
   const callOccupancyRef = useRef({ dmMode: null, groupActive: false });
   const call = useCall(socketApi, callOccupancyRef);
   const groupCall = useGroupCall(socketApi, me?.id, callOccupancyRef);
+  const callRef = useRef(call);
+  const groupCallRef = useRef(groupCall);
+  useEffect(() => {
+    callRef.current = call;
+  }, [call]);
+  useEffect(() => {
+    groupCallRef.current = groupCall;
+  }, [groupCall]);
 
   useEffect(() => {
     callOccupancyRef.current = {
@@ -684,6 +692,13 @@ export default function App() {
     const nativePermission = await requestNativePushPermission();
     if (nativePermission) {
       setNotifPermission(nativePermission);
+      if (nativePermission === "granted") {
+        syncNativePushToken().catch(() => {});
+      }
+      // Native platforms still benefit from web-push when running as PWA/WebView hybrid.
+      if (nativePermission === "granted" && !isNativePushPlatform()) {
+        subscribeWebPush().catch(() => {});
+      }
       return;
     }
     const result = await notificationService.requestPermission();
@@ -698,6 +713,12 @@ export default function App() {
 
   useEffect(() => {
     if (!me?.id || notifPermission !== "granted") return;
+    if (isNativePushPlatform()) {
+      syncNativePushToken().catch((error) => {
+        console.warn("[NativePush] Token sync failed:", error?.message || error);
+      });
+      return;
+    }
     subscribeWebPush().catch((error) => {
       console.warn("[WebPush] Subscription sync failed:", error.message);
     });
@@ -2116,7 +2137,7 @@ export default function App() {
       if (!data || typeof data !== "object") return;
       const type = data.type;
 
-      if (type === "dm" || type === "missed-call") {
+      if (type === "dm" || type === "missed-call" || type === "call") {
         const peerId = data.conversationId || data.fromId;
         if (!peerId) return;
         const friend =
@@ -2143,6 +2164,14 @@ export default function App() {
           return n;
         });
         socketRef.current?.emit("group:join", groupId);
+        if (type === "group-call" && (data.action === "join" || data.action === "answer" || data.action === "accept")) {
+          window.setTimeout(() => {
+            const banner = groupCallRef.current?.activeCallBanner;
+            if (banner?.groupId === groupId) {
+              groupCallRef.current?.joinActiveCall?.(banner);
+            }
+          }, 400);
+        }
         return;
       }
 
@@ -2161,8 +2190,65 @@ export default function App() {
       }
     };
 
+    const onCallAction = (event) => {
+      const detail = event?.detail || {};
+      const action = detail.action;
+      if (action === "accept" || action === "answer") {
+        if (detail.groupId) {
+          const ic = groupCallRef.current?.incomingCall;
+          if (ic?.groupId === detail.groupId) {
+            groupCallRef.current?.acceptGroupCall?.(ic.groupId, ic.callType, ic.fromUser);
+            return;
+          }
+          const banner = groupCallRef.current?.activeCallBanner;
+          if (banner?.groupId === detail.groupId) {
+            groupCallRef.current?.joinActiveCall?.(banner);
+          }
+          return;
+        }
+        callRef.current?.acceptIncoming?.();
+        return;
+      }
+      if (action === "decline") {
+        if (detail.groupId) {
+          const ic = groupCallRef.current?.incomingCall;
+          if (ic) {
+            groupCallRef.current?.declineCall?.(ic.groupId, ic.fromUser?.id, ic.fromUser, ic.callType);
+          }
+          return;
+        }
+        callRef.current?.declineIncoming?.();
+      }
+    };
+
+    const onSwMessage = (event) => {
+      const data = event?.data;
+      if (!data || data.type !== "descall:notification-click") return;
+      window.dispatchEvent(new CustomEvent("descall:notification-click", { detail: data }));
+      if (data.action === "answer" || data.action === "accept" || data.action === "join" || data.action === "decline") {
+        window.dispatchEvent(
+          new CustomEvent("descall:call-action", {
+            detail: {
+              ...data,
+              action: data.action === "decline" ? "decline" : "accept",
+            },
+          })
+        );
+      }
+    };
+
     window.addEventListener("descall:notification-click", onNotifClick);
-    return () => window.removeEventListener("descall:notification-click", onNotifClick);
+    window.addEventListener("descall:call-action", onCallAction);
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", onSwMessage);
+    }
+    return () => {
+      window.removeEventListener("descall:notification-click", onNotifClick);
+      window.removeEventListener("descall:call-action", onCallAction);
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("message", onSwMessage);
+      }
+    };
     // handleOpenDm closes over dmUnread/dmByUserId — rebind when those change
   }, [dmUnread, dmByUserId]);
 
@@ -2882,13 +2968,8 @@ export default function App() {
           onGroupVoiceCall={() => {
             if (!activeGroup || !groupCall) return;
             if (groupCall.isInCall && groupCall.activeGroupId === activeGroup.id) return;
-            const banner = groupCall.activeCallBanner;
-            if (banner?.groupId === activeGroup.id) {
-              groupCall.joinActiveCall(banner);
-            } else {
-              const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
-              groupCall.startGroupCall(activeGroup.id, "voice", memberIds);
-            }
+            const memberIds = activeGroup.memberIds || activeGroup.members?.map((m) => m.id) || [];
+            groupCall.joinOrStartVoiceRoom?.(activeGroup.id, memberIds, groupCall.activeCallBanner);
           }}
           onGroupVideoCall={() => {
             if (!activeGroup || !groupCall) return;
@@ -2902,6 +2983,10 @@ export default function App() {
             }
           }}
           activeCallBanner={groupCall?.activeCallBanner}
+          isInGroupVoiceRoom={Boolean(
+            groupCall?.isInCall && activeGroup && groupCall.activeGroupId === activeGroup.id
+          )}
+          onLeaveVoiceRoom={() => groupCall?.leaveCall?.()}
           onJoinActiveCall={() => {
             if (!activeGroup || !groupCall?.activeCallBanner) return;
             groupCall.joinActiveCall(groupCall.activeCallBanner);

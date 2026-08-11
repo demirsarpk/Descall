@@ -30,7 +30,22 @@ const CAPS = {
 };
 
 const GLOBAL_DAILY_CAP = 400;
-const UNCAPPED_REASONS = new Set(["admin_grant", "admin_revoke", "shop_purchase"]);
+const UNCAPPED_REASONS = new Set([
+  "admin_grant",
+  "admin_revoke",
+  "shop_purchase",
+  "referral_invite",
+  "referral_welcome",
+  "daily_claim",
+  "streak_bonus",
+]);
+
+/** Base DesCoin for claiming the daily reward. Streak bonus stacks on top. */
+const DAILY_CLAIM_BASE = 40;
+const DAILY_STREAK_BONUS_PER_DAY = 5;
+const DAILY_STREAK_BONUS_CAP = 50;
+const REFERRAL_INVITER_REWARD = 100;
+const REFERRAL_INVITEE_REWARD = 50;
 
 /**
  * creditCapped() reads the user's recent ledger sums, decides how much room
@@ -262,10 +277,136 @@ async function markGrantsNotified(ledgerIds) {
   if (error) throw error;
 }
 
+function utcDateString(d = new Date()) {
+  return d.toISOString().slice(0, 10);
+}
+
+function yesterdayUtcDateString(d = new Date()) {
+  const y = new Date(d.getTime() - 24 * 3600_000);
+  return y.toISOString().slice(0, 10);
+}
+
+/**
+ * Snapshot of daily claim + activity progress for the shop retention card.
+ */
+async function getDailyStatus(userId) {
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("descoin_balance, descoin_streak, descoin_last_daily_claim")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw error;
+
+  const today = utcDateString();
+  const lastClaim = user?.descoin_last_daily_claim || null;
+  const claimedToday = lastClaim === today;
+  const streak = Number(user?.descoin_streak) || 0;
+  const nextStreak = claimedToday
+    ? streak
+    : lastClaim === yesterdayUtcDateString()
+      ? streak + 1
+      : 1;
+  const streakBonus = Math.min(
+    DAILY_STREAK_BONUS_CAP,
+    Math.max(0, (claimedToday ? streak : nextStreak) - 1) * DAILY_STREAK_BONUS_PER_DAY
+  );
+  const claimAmount = DAILY_CLAIM_BASE + (claimedToday ? streakBonus : Math.min(
+    DAILY_STREAK_BONUS_CAP,
+    Math.max(0, nextStreak - 1) * DAILY_STREAK_BONUS_PER_DAY
+  ));
+
+  const [voiceToday, messageToday, screenshareToday, globalToday] = await Promise.all([
+    sumCreditsSince(userId, todayStartIso(), "voice_activity"),
+    sumCreditsSince(userId, todayStartIso(), "message_activity"),
+    sumCreditsSince(userId, todayStartIso(), "screenshare_activity"),
+    sumCreditsSince(userId, todayStartIso()),
+  ]);
+
+  return {
+    balance: user?.descoin_balance ?? 0,
+    streak,
+    lastClaimDate: lastClaim,
+    claimedToday,
+    claimAmount: claimedToday ? 0 : claimAmount,
+    baseAmount: DAILY_CLAIM_BASE,
+    streakBonus: claimedToday ? 0 : Math.min(
+      DAILY_STREAK_BONUS_CAP,
+      Math.max(0, nextStreak - 1) * DAILY_STREAK_BONUS_PER_DAY
+    ),
+    goals: {
+      voice: { earned: voiceToday, cap: CAPS.voice_activity.perDay },
+      message: { earned: messageToday, cap: CAPS.message_activity.perDay },
+      screenshare: { earned: screenshareToday, cap: CAPS.screenshare_activity.perDay },
+      global: { earned: globalToday, cap: GLOBAL_DAILY_CAP },
+    },
+  };
+}
+
+/**
+ * Claim once-per-UTC-day DesCoin. Continues streak if yesterday was claimed.
+ */
+async function claimDaily(userId) {
+  return withUserQueue(userId, async () => {
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("descoin_streak, descoin_last_daily_claim")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) throw error;
+
+    const today = utcDateString();
+    const lastClaim = user?.descoin_last_daily_claim || null;
+    if (lastClaim === today) {
+      const status = await getDailyStatus(userId);
+      return { claimed: false, alreadyClaimed: true, ...status };
+    }
+
+    const prevStreak = Number(user?.descoin_streak) || 0;
+    const nextStreak = lastClaim === yesterdayUtcDateString() ? prevStreak + 1 : 1;
+    const streakBonus = Math.min(
+      DAILY_STREAK_BONUS_CAP,
+      Math.max(0, nextStreak - 1) * DAILY_STREAK_BONUS_PER_DAY
+    );
+    const amount = DAILY_CLAIM_BASE + streakBonus;
+
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({
+        descoin_streak: nextStreak,
+        descoin_last_daily_claim: today,
+      })
+      .eq("id", userId);
+    if (updateError) throw updateError;
+
+    const result = await credit(userId, amount, "daily_claim", {
+      streak: nextStreak,
+      base: DAILY_CLAIM_BASE,
+      streakBonus,
+    });
+
+    return {
+      claimed: true,
+      alreadyClaimed: false,
+      credited: result.credited,
+      balance: result.balance,
+      streak: nextStreak,
+      claimAmount: 0,
+      baseAmount: DAILY_CLAIM_BASE,
+      streakBonus,
+      goals: (await getDailyStatus(userId)).goals,
+      claimedToday: true,
+      lastClaimDate: today,
+    };
+  });
+}
+
 module.exports = {
   CAPS,
   GLOBAL_DAILY_CAP,
   UNCAPPED_REASONS,
+  DAILY_CLAIM_BASE,
+  REFERRAL_INVITER_REWARD,
+  REFERRAL_INVITEE_REWARD,
   getBalance,
   credit,
   debit,
@@ -273,4 +414,6 @@ module.exports = {
   getLedger,
   getUnnotifiedGrants,
   markGrantsNotified,
+  getDailyStatus,
+  claimDaily,
 };

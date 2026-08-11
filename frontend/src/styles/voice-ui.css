@@ -344,3 +344,89 @@
 .end-call-btn:active {
   transform: scale(0.95);
 }
+
+/* Persistent group voice hangout strip */
+.voice-room-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: linear-gradient(180deg, rgba(35, 165, 90, 0.08), transparent);
+}
+.voice-room-bar.is-live {
+  background: linear-gradient(180deg, rgba(35, 165, 90, 0.16), rgba(35, 165, 90, 0.04));
+}
+.voice-room-bar.is-joined {
+  background: linear-gradient(180deg, rgba(88, 101, 242, 0.18), rgba(88, 101, 242, 0.04));
+}
+.voice-room-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.voice-room-bar-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: #23a55a;
+  background: rgba(35, 165, 90, 0.15);
+  flex-shrink: 0;
+}
+.voice-room-bar.is-joined .voice-room-bar-icon {
+  color: #aab0ff;
+  background: rgba(88, 101, 242, 0.2);
+}
+.voice-room-bar-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.voice-room-bar-copy strong {
+  font-size: 13px;
+  line-height: 1.2;
+}
+.voice-room-bar-copy span {
+  font-size: 11px;
+  color: var(--text-muted, #98a2b3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.voice-room-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.voice-room-bar-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #98a2b3);
+}
+.voice-room-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.voice-room-bar-btn.join {
+  background: #23a55a;
+  color: #fff;
+}
+.voice-room-bar-btn.leave {
+  background: rgba(237, 66, 69, 0.18);
+  color: #ed4245;
+}

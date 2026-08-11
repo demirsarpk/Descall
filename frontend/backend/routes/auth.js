@@ -162,7 +162,57 @@ function validatePassword(password) {
 /**
  * Personal invite loop: when a new user registers with invitedBy=<username>,
  * auto-accept friendship so both land with a real connection (not a pending ask).
+ * First successful link also pays DesCoin to inviter + invitee (once per invitee).
  */
+async function grantReferralDesCoin(inviterId, inviteeId, io) {
+  const descoin = require("../lib/descoin");
+  const inviterAmount = descoin.REFERRAL_INVITER_REWARD;
+  const inviteeAmount = descoin.REFERRAL_INVITEE_REWARD;
+
+  const { error: insertError } = await supabase.from("referral_rewards").insert({
+    inviter_id: inviterId,
+    invitee_id: inviteeId,
+    inviter_amount: inviterAmount,
+    invitee_amount: inviteeAmount,
+  });
+  // Unique(invitee_id) — already rewarded this user.
+  if (insertError) {
+    if (insertError.code === "23505") return { rewarded: false };
+    console.warn("[AUTH] referral_rewards insert failed:", insertError.message);
+    return { rewarded: false };
+  }
+
+  await supabase.from("users").update({ referred_by: inviterId }).eq("id", inviteeId).is("referred_by", null);
+
+  const [inviterCredit, inviteeCredit] = await Promise.all([
+    descoin.credit(inviterId, inviterAmount, "referral_invite", { inviteeId }),
+    descoin.credit(inviteeId, inviteeAmount, "referral_welcome", { inviterId }),
+  ]);
+
+  if (io) {
+    try {
+      io.to(`user:${inviterId}`).emit("descoin:balance", {
+        balance: inviterCredit.balance,
+        delta: inviterCredit.credited,
+        reason: "referral_invite",
+      });
+      io.to(`user:${inviteeId}`).emit("descoin:balance", {
+        balance: inviteeCredit.balance,
+        delta: inviteeCredit.credited,
+        reason: "referral_welcome",
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return {
+    rewarded: true,
+    inviterAmount,
+    inviteeAmount,
+  };
+}
+
 async function applyFriendInvite(newUserId, invitedByRaw, io) {
   const invitedBy = String(invitedByRaw || "")
     .trim()
@@ -188,50 +238,64 @@ async function applyFriendInvite(newUserId, invitedByRaw, io) {
       `and(user_id.eq.${newUserId},friend_id.eq.${inviter.id}),and(user_id.eq.${inviter.id},friend_id.eq.${newUserId})`
     );
 
-  if ((existingRows || []).some((r) => r.status === "accepted")) {
-    return { linked: true, inviterUsername: inviter.username, inviterId: inviter.id };
-  }
+  const alreadyFriends = (existingRows || []).some((r) => r.status === "accepted");
 
-  if (existingRows?.length) {
-    await supabase
-      .from("friendships")
-      .delete()
-      .or(
-        `and(user_id.eq.${newUserId},friend_id.eq.${inviter.id}),and(user_id.eq.${inviter.id},friend_id.eq.${newUserId})`
-      );
-  }
+  if (!alreadyFriends) {
+    if (existingRows?.length) {
+      await supabase
+        .from("friendships")
+        .delete()
+        .or(
+          `and(user_id.eq.${newUserId},friend_id.eq.${inviter.id}),and(user_id.eq.${inviter.id},friend_id.eq.${newUserId})`
+        );
+    }
 
-  const { error: insertError } = await supabase.from("friendships").insert({
-    user_id: newUserId,
-    friend_id: inviter.id,
-    status: "accepted",
-  });
+    const { error: insertError } = await supabase.from("friendships").insert({
+      user_id: newUserId,
+      friend_id: inviter.id,
+      status: "accepted",
+    });
 
-  if (insertError) {
-    console.warn("[AUTH] invite friendship insert failed:", insertError.message);
-    return { linked: false, inviterUsername: inviter.username, inviterId: inviter.id };
-  }
+    if (insertError) {
+      console.warn("[AUTH] invite friendship insert failed:", insertError.message);
+      return { linked: false, inviterUsername: inviter.username, inviterId: inviter.id };
+    }
 
-  try {
-    const { friends: friendsMap } = require("../runtime/sharedState");
-    if (!friendsMap.has(newUserId)) friendsMap.set(newUserId, new Set());
-    if (!friendsMap.has(inviter.id)) friendsMap.set(inviter.id, new Set());
-    friendsMap.get(newUserId).add(inviter.id);
-    friendsMap.get(inviter.id).add(newUserId);
-  } catch {
-    /* ignore runtime sync */
-  }
-
-  if (io) {
     try {
-      io.to(`user:${newUserId}`).emit("friend:accepted", { by: { id: inviter.id, username: inviter.username } });
-      io.to(`user:${inviter.id}`).emit("friend:accepted", { by: { id: newUserId } });
+      const { friends: friendsMap } = require("../runtime/sharedState");
+      if (!friendsMap.has(newUserId)) friendsMap.set(newUserId, new Set());
+      if (!friendsMap.has(inviter.id)) friendsMap.set(inviter.id, new Set());
+      friendsMap.get(newUserId).add(inviter.id);
+      friendsMap.get(inviter.id).add(newUserId);
     } catch {
-      /* ignore */
+      /* ignore runtime sync */
+    }
+
+    if (io) {
+      try {
+        io.to(`user:${newUserId}`).emit("friend:accepted", { by: { id: inviter.id, username: inviter.username } });
+        io.to(`user:${inviter.id}`).emit("friend:accepted", { by: { id: newUserId } });
+      } catch {
+        /* ignore */
+      }
     }
   }
 
-  return { linked: true, inviterUsername: inviter.username, inviterId: inviter.id };
+  let reward = { rewarded: false };
+  try {
+    reward = await grantReferralDesCoin(inviter.id, newUserId, io);
+  } catch (err) {
+    console.warn("[AUTH] referral DesCoin reward failed:", err?.message || err);
+  }
+
+  return {
+    linked: true,
+    inviterUsername: inviter.username,
+    inviterId: inviter.id,
+    referralRewarded: Boolean(reward.rewarded),
+    referralInviterAmount: reward.inviterAmount || 0,
+    referralInviteeAmount: reward.inviteeAmount || 0,
+  };
 }
 
 router.post("/register", async (req, res) => {

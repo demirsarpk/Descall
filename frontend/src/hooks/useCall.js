@@ -23,6 +23,7 @@ import { getUser } from "../lib/storage";
 import useConnectionStats from "./useConnectionStats";
 import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
 import { acquireCallWakeLock, releaseCallWakeLock } from "../lib/callWakeLock";
+import { startDesCoinHeartbeat } from "../lib/descoinHeartbeat";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -189,6 +190,17 @@ export function useCall(socket, callOccupancyRef = null) {
       releaseCallWakeLock();
     }
   }, [mode, peer?.username]);
+
+  useEffect(() => {
+    if (mode !== "active" || !peer?.id) return undefined;
+    return startDesCoinHeartbeat({
+      getSocket: () => socketRef.current,
+      getLocalStream: () => localStreamRef.current,
+      isActive: () => modeRef.current === "active",
+      isScreenSharing: () => Boolean(screenSharingRef.current),
+      getContext: () => ({ context: "dm", peerId: peerRef.current?.id }),
+    });
+  }, [mode, peer?.id]);
   const [remoteStream, setRemoteStream] = useState(null);
   const [remoteScreenStream, setRemoteScreenStream] = useState(null);
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);

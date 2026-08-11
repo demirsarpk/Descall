@@ -48,6 +48,8 @@ export default function AppLayout({
   friendNotice,
   activeCallBanner,
   onJoinActiveCall,
+  onLeaveVoiceRoom,
+  isInGroupVoiceRoom = false,
   onDismissActiveBanner,
   friendRequests,
   onAcceptFriend,
@@ -405,6 +407,8 @@ export default function AppLayout({
         onSettings={openUserPanel}
         activeCallBanner={activeCallBanner}
         onJoinActiveCall={onJoinActiveCall}
+        onLeaveVoiceRoom={onLeaveVoiceRoom}
+        isInGroupVoiceRoom={isInGroupVoiceRoom}
         onDismissActiveBanner={onDismissActiveBanner}
         activity={{ ...activity, me }}
         friends={friends}

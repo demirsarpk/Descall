@@ -20,6 +20,7 @@ import GroupInviteModal from "../groups/GroupInviteModal";
 import { markFeedbackSubmitted } from "../../lib/feedbackNudge";
 import { useLocale, useT } from "../../context/LocaleContext";
 import AdminBadge from "../social/AdminBadge";
+import InviteCard from "../friends/InviteCard";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -1862,6 +1863,11 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
       </button>
 
       <SidebarSectionContent expanded={expanded}>
+            {me?.username && (
+              <div style={{ padding: "8px 10px 4px" }}>
+                <InviteCard username={me.username} compact />
+              </div>
+            )}
             {pendingRequests.length > 0 && (
               <div className="friend-category">
                 <span className="category-label" style={{ color: "var(--warning)" }}>
@@ -2007,11 +2013,6 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                 <strong>{t("No friends yet")}</strong>
                 <span>{t("Share your invite link — friends join free and connect with you instantly.")}</span>
                 <div className="sidebar-empty-friends-actions">
-                  {me?.username && (
-                    <button type="button" className="mkt-btn mkt-btn-primary" onClick={onShareInvite}>
-                      {t("Copy invite link")}
-                    </button>
-                  )}
                   <button type="button" className="mkt-btn mkt-btn-soft" onClick={onQuickAdd}>
                     {t("Add friend")}
                   </button>

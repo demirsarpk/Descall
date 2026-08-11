@@ -48,7 +48,11 @@ export default function ActiveCallBanner({ banner, onJoin, onDismiss }) {
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="call-banner-title">
-              {isVideo ? t("Video call") : t("Voice call")}
+              {banner.hangout
+                ? t("Voice Room")
+                : isVideo
+                  ? t("Video call")
+                  : t("Voice call")}
             </div>
             <div className="call-banner-meta">
               <span className="call-banner-live">{durationLabel}</span>
