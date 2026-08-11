@@ -12,9 +12,17 @@
  */
 
 import { getSoundSettings, setSoundSettings } from "./storage";
+import {
+  isKnownSoundPack,
+  playSoundPackCue,
+  startSoundPackLoop,
+  unlockSoundPackAudio,
+} from "./soundPackSynth";
 
 // Detect Electron environment
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
+
+const SYNTH_TYPES = new Set(["message", "notification", "incomingCall", "outgoingCall", "callStart"]);
 
 // Get correct sound path based on environment
 function getSoundPath(filename) {
@@ -60,11 +68,14 @@ class AudioManager {
     this.lastPlayed = new Map();
     this.isBackgrounded = false;
     this.preloadComplete = false;
+    this.soundPackKey = null;
+    this.synthLoops = new Map();
 
     // Bind methods
     this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
     this.handleWindowBlur = this.handleWindowBlur.bind(this);
     this.handleWindowFocus = this.handleWindowFocus.bind(this);
+    this.unlockAudio = this.unlockAudio.bind(this);
   }
 
   /**
@@ -96,7 +107,72 @@ class AudioManager {
     }
 
     this.preloadComplete = true;
+
+    // Unlock Web Audio on first gesture (required for catalog synth packs)
+    if (typeof window !== "undefined") {
+      window.addEventListener("pointerdown", this.unlockAudio, { once: true, passive: true });
+      window.addEventListener("keydown", this.unlockAudio, { once: true, passive: true });
+    }
+
     console.log("[AudioManager] Initialized with", Object.keys(this.sounds).length, "sounds");
+  }
+
+  async unlockAudio() {
+    await unlockSoundPackAudio();
+  }
+
+  /**
+   * Equip a catalog sound_pack effect_key (or null to use default MP3s).
+   */
+  setSoundPack(effectKey) {
+    const next = isKnownSoundPack(effectKey) ? effectKey : null;
+    if (this.soundPackKey === next) return;
+    // Stop pack-based loops before switching
+    this.synthLoops.forEach((stop) => {
+      try {
+        stop();
+      } catch {
+        /* ignore */
+      }
+    });
+    this.synthLoops.clear();
+    this.soundPackKey = next;
+  }
+
+  getSoundPack() {
+    return this.soundPackKey;
+  }
+
+  effectiveVolume(override) {
+    if (override !== undefined) return override;
+    return this.isBackgrounded
+      ? this.settings.volume * this.settings.backgroundVolume
+      : this.settings.volume;
+  }
+
+  playSynth(type, { loop = false, volume } = {}) {
+    const pack = this.soundPackKey;
+    if (!pack) return false;
+    const vol = this.effectiveVolume(volume);
+    const role = type === "callStart" ? "outgoingCall" : type;
+
+    if (loop) {
+      if (this.synthLoops.has(type)) return true;
+      // Prefer synth ringtone; also stop HTML5 loop of same type
+      try {
+        this.sounds[type]?.pause?.();
+      } catch {
+        /* ignore */
+      }
+      const stop = startSoundPackLoop(pack, role, vol);
+      this.synthLoops.set(type, stop);
+      this.activeLoops.add(type);
+      return true;
+    }
+
+    const ok = playSoundPackCue(pack, role, vol);
+    if (ok && COOLDOWNS[type]) this.lastPlayed.set(type, Date.now());
+    return ok;
   }
 
   /**
@@ -213,6 +289,14 @@ class AudioManager {
     // Check if we can play
     if (!loop && !this.canPlay(type)) return false;
 
+    // Catalog sound packs: unique Web Audio voices per effect_key
+    if (this.soundPackKey && SYNTH_TYPES.has(type)) {
+      void unlockSoundPackAudio();
+      const synthOk = this.playSynth(type, { loop, volume });
+      if (synthOk) return true;
+      // fall through to MP3 defaults if synth fails
+    }
+
     // Check if already playing (for looping sounds)
     if (loop && this.activeLoops.has(type)) {
       // Already playing, just ensure it's not paused
@@ -275,6 +359,17 @@ class AudioManager {
    * @param {string} type - Sound type to stop
    */
   stop(type) {
+    const synthStop = this.synthLoops.get(type);
+    if (synthStop) {
+      try {
+        synthStop();
+      } catch {
+        /* ignore */
+      }
+      this.synthLoops.delete(type);
+      this.activeLoops.delete(type);
+    }
+
     const audio = this.sounds[type];
     if (!audio) return;
 
@@ -403,3 +498,8 @@ export const setSoundVolume = (volume) => audioManager.setVolume(volume);
 export const getAudioSettings = () => audioManager.getSettings();
 export const initAudioManager = (customSounds) => audioManager.init(customSounds);
 export const destroyAudioManager = () => audioManager.destroy();
+export const setEquippedSoundPack = (effectKey) => audioManager.setSoundPack(effectKey);
+export const previewSoundPack = (effectKey, volume) => {
+  void unlockSoundPackAudio();
+  return playSoundPackCue(effectKey, "preview", volume ?? audioManager.getSettings().volume);
+};

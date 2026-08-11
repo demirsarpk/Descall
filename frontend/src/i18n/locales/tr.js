@@ -304,6 +304,7 @@ export const phrases = {
   "Admin": "Yönetici",
   "Actions": "İşlemler",
   "Preview": "Önizleme",
+  "Preview sound": "Sesi dinle",
   "No users found": "Kullanıcı bulunamadı",
   "Bet": "Bahis",
   "Overview": "Genel Bakış",

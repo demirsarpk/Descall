@@ -303,6 +303,7 @@ export const phrases = {
   "Admin": "Admin",
   "Actions": "Actions",
   "Preview": "Preview",
+  "Preview sound": "Preview sound",
   "No users found": "No users found",
   "Bet": "Bet",
   "Overview": "Overview",

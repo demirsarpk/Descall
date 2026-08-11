@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Coins, Phone, ShoppingBag, Sparkles, Volume2, Zap } from "lucide-react";
+import { CheckCircle2, Coins, Phone, Play, ShoppingBag, Sparkles, Volume2, Zap } from "lucide-react";
 import RippleButton from "../ui/RippleButton";
 import { getShopCatalog, getShopInventory, purchaseShopItem, equipShopItem } from "../../api/shop";
+import { previewSoundPack } from "../../lib/audioManager";
 import { useT } from "../../context/LocaleContext";
 
 /** Short tab labels — same pattern as admin top nav. */
@@ -90,10 +91,23 @@ function ShopItemPreview({ category, item, t }) {
   }
   if (category === "sound_pack") {
     return (
-      <div className="shop-sound-pack-preview">
+      <button
+        type="button"
+        className="shop-sound-pack-preview"
+        title={t("Preview sound")}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          previewSoundPack(item.effect_key);
+        }}
+      >
         <Volume2 size={22} />
         <span>{item.effect_key}</span>
-      </div>
+        <span className="shop-sound-pack-play">
+          <Play size={12} fill="currentColor" />
+          {t("Preview")}
+        </span>
+      </button>
     );
   }
   if (category === "typing_flare") {

@@ -35,7 +35,7 @@ import {
   patchGroupMessagesAvatar,
   resolveDisplayName,
 } from "./lib/userProfile";
-import audioManager, { initAudioManager } from "./lib/audioManager";
+import audioManager, { initAudioManager, setEquippedSoundPack } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
 import { subscribeWebPush } from "./lib/webPushSubscription";
 import { requestNativePushPermission } from "./lib/nativePush";
@@ -516,7 +516,7 @@ export default function App() {
     }
   }, [me, me?.equippedTheme?.theme_key]);
 
-  // Keep equipped sound-pack theme available to the notification/call audio layer.
+  // Equip catalog sound pack into the audio layer (unique Web Audio voices per key).
   useEffect(() => {
     const key = me?.equippedSoundPack?.effect_key || "";
     try {
@@ -525,6 +525,7 @@ export default function App() {
     } catch {
       /* ignore */
     }
+    setEquippedSoundPack(key || null);
   }, [me?.equippedSoundPack?.effect_key]);
 
   const applyProfileUpdate = useCallback((user) => {
