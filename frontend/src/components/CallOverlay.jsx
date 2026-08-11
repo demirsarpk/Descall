@@ -303,8 +303,13 @@ export default function CallOverlay({ call, groupCall, me }) {
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
+  // Prefer the explicit remoteScreenSharing flag, but also recover when a
+  // live screen stream is present without the socket signal (merge regression
+  // / late signaling) so tab audio still mounts on the dedicated <audio>.
   const remoteScreenSharers = isDm
-    ? (call?.remoteScreenSharing && streamHasLiveVideo(call?.remoteScreenStream) && call?.peer
+    ? ((call?.remoteScreenSharing || streamHasLiveVideo(call?.remoteScreenStream)) &&
+      streamHasLiveVideo(call?.remoteScreenStream) &&
+      call?.peer
         ? [{
             id: call.peer.id,
             username: call.peer.username,
@@ -1185,7 +1190,9 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
   // Keep refs to both the normal and expanded video elements so we can set srcObject on each
   const normalVideoRef = useRef(null);
   const expandedVideoRef = useRef(null);
+  const screenAudioRef = useRef(null);
   const prevSharerCountRef = useRef(0);
+  const [aspectKey, setAspectKey] = useState("0x0");
 
   // When a new sharer appears (dual screen share), auto-focus the newest one
   useEffect(() => {
@@ -1209,21 +1216,29 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     ? (isDm ? call?.screenStream : groupCall?.screenStream)
     : (activeSharer?.stream ?? null);
 
+  const liveAspect = isDm ? call?.screenShareAspect : groupCall?.screenShareAspect;
+
+  // Remount video when capture rotates (portrait → landscape) so layout/object-fit refresh
+  useEffect(() => {
+    const track = screenStream?.getVideoTracks?.()[0];
+    const settings = track?.getSettings?.() || {};
+    const w = liveAspect?.width || settings.width || 0;
+    const h = liveAspect?.height || settings.height || 0;
+    if (w && h) setAspectKey(`${w}x${h}`);
+  }, [screenStream, liveAspect?.width, liveAspect?.height]);
+
   const attachStream = useCallback((el, stream) => {
     if (!el) return;
-    el.volume = Math.max(0, Math.min(1, Number(screenShareVolume) / 100));
+    // Video elements are always muted — dedicated <audio> owns screen sound
+    // (avoids mid-call autoplay blocks that silently drop tab/system audio).
+    el.muted = true;
     if (!stream) {
       if (el.srcObject) el.srcObject = null;
       return;
     }
-    // Only reassign srcObject when the stream reference actually changes —
-    // reassigning the same stream causes the browser to reload the video
-    // element producing a black flash on every React render.
     if (el.srcObject !== stream) {
       el.srcObject = stream;
     }
-    // If any video track is still muted (ICE not yet connected), chain onunmute
-    // so we don't clobber useGroupCall's applyScreenStream handler.
     const videoTracks = stream.getVideoTracks();
     const playWhenReady = () => el.play().catch(() => {});
     if (videoTracks.some((t) => t.muted || t.readyState !== "live")) {
@@ -1240,7 +1255,40 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
       });
     }
     playWhenReady();
-  }, [screenShareVolume]);
+  }, []);
+
+  const screenAudioTrackCount = screenStream?.getAudioTracks?.()?.filter((t) => t.readyState !== "ended").length || 0;
+
+  // Dedicated screen-share audio element (remote only). Rebind when audio
+  // tracks appear later on the same capture stream — common on mobile.
+  useEffect(() => {
+    const audioEl = screenAudioRef.current;
+    if (!audioEl) return;
+    const isLocal = Boolean(activeSharer?.isLocal);
+    const volume = Math.max(0, Math.min(1, Number(screenShareVolume) / 100));
+    audioEl.volume = volume;
+    audioEl.muted = isLocal || !screenStream || screenAudioTrackCount === 0;
+    if (isLocal || !screenStream || screenAudioTrackCount === 0) {
+      if (audioEl.srcObject) audioEl.srcObject = null;
+      return;
+    }
+    // Force re-assign so browsers pick up newly added audio tracks.
+    audioEl.srcObject = null;
+    audioEl.srcObject = screenStream;
+    const play = () => audioEl.play().catch(() => {});
+    play();
+    screenStream.getAudioTracks().forEach((t) => {
+      const prev = t.onunmute;
+      t.onunmute = (ev) => {
+        try {
+          if (typeof prev === "function") prev.call(t, ev);
+        } catch {
+          /* ignore */
+        }
+        play();
+      };
+    });
+  }, [screenStream, screenAudioTrackCount, screenShareVolume, activeSharer?.isLocal, activeSharer?.id]);
 
   // Re-attach via callback ref so remounts from key=sharerId always bind the stream
   const normalVideoCallbackRef = useCallback((el) => {
@@ -1253,13 +1301,6 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     expandedVideoRef.current = el;
     if (el) attachStream(el, screenStream);
   }, [screenStream, attachStream]);
-
-  useEffect(() => {
-    const volume = Math.max(0, Math.min(1, Number(screenShareVolume) / 100));
-    for (const video of [normalVideoRef.current, expandedVideoRef.current]) {
-      if (video) video.volume = volume;
-    }
-  }, [screenShareVolume, screenStream]);
 
   const sharerLabel = activeSharer
     ? (activeSharer.isLocal ? t("Your Screen") : t("{name}'s Screen", { name: activeSharer.username }))
@@ -1319,13 +1360,16 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
         }}
         onClick={() => setScreenExpanded((v) => !v)}
       >
-        {/* key forces remount when switching sharers — prevents stuck black frames */}
+        {/* Hidden audio carries remote screen/tab sound with adjustable volume */}
+        <audio ref={screenAudioRef} autoPlay playsInline style={{ display: "none" }} />
+
+        {/* key remounts on sharer change OR orientation flip (portrait↔landscape) */}
         <video
-          key={activeSharer?.id || "none"}
+          key={`${activeSharer?.id || "none"}-${aspectKey}`}
           ref={normalVideoCallbackRef}
           autoPlay
           playsInline
-          muted={Boolean(activeSharer?.isLocal)}
+          muted
           style={{
             width: "100%",
             height: "100%",
@@ -1443,11 +1487,11 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             onClick={(e) => { e.stopPropagation(); setScreenExpanded(false); }}
           >
             <video
-              key={`exp-${activeSharer?.id || "none"}`}
+              key={`exp-${activeSharer?.id || "none"}-${aspectKey}`}
               ref={expandedVideoCallbackRef}
               autoPlay
               playsInline
-              muted={Boolean(activeSharer?.isLocal)}
+              muted
               style={{
                 width: "100%",
                 height: "100%",
@@ -1819,25 +1863,15 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose, narrow = false }) {
         </div>
       </div>
 
-      {/* Arrow — desktop only (fixed sheet on mobile has no anchor) */}
-      {!narrow && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: -7,
-            left: "50%",
-            width: 14,
-            height: 14,
-            background: "#1e2026",
-            border: "1px solid rgba(255,255,255,0.09)",
-            borderTop: "none",
-            borderLeft: "none",
-            transform: "translateX(-50%) rotate(45deg)",
-            transformOrigin: "center",
-            pointerEvents: "none",
-          }}
-        />
-      )}
+      {/* Arrow pointing down to the button */}
+      <div style={{
+        position: "absolute", bottom: -7, left: "50%",
+        width: 14, height: 14, background: "#1e2026",
+        border: "1px solid rgba(255,255,255,0.09)",
+        borderTop: "none", borderLeft: "none",
+        transform: "translateX(-50%) rotate(45deg)",
+        transformOrigin: "center",
+      }} />
     </motion.div>
   );
 }

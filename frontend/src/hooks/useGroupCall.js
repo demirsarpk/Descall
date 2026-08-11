@@ -527,22 +527,21 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       }
 
       if (isScreenAudioTrack) {
-        // Merge into the peer's screen MediaStream so it plays through the
-        // un-muted screen-share <video> element instead of getting dropped
-        // (previously this track wasn't attached anywhere) or overwriting
-        // the participant's voice audio element.
+        // Merge into the peer's screen MediaStream. Clone to a NEW stream so
+        // React rebinds the dedicated <audio> when audio arrives after video.
+        // Do NOT clear expectScreenShare until video is attached — audio-first
+        // clearing used to mis-route the later screen video track.
         const existingScreen = peerData?.screenStream || null;
-        let mergedScreenStream = incomingStream;
-        if (existingScreen && existingScreen !== incomingStream) {
-          try {
-            if (!existingScreen.getTracks().includes(track)) existingScreen.addTrack(track);
-            mergedScreenStream = existingScreen;
-          } catch {
-            mergedScreenStream = incomingStream;
-          }
-        }
+        const tracks = [];
+        const push = (t) => {
+          if (!t || t.readyState === "ended" || tracks.includes(t)) return;
+          tracks.push(t);
+        };
+        if (existingScreen) existingScreen.getTracks().forEach(push);
+        if (incomingStream) incomingStream.getTracks().forEach(push);
+        push(track);
+        const mergedScreenStream = new MediaStream(tracks);
         if (peerData) {
-          peerData.expectScreenShare = false;
           peerData.screenStream = mergedScreenStream;
         }
         const applyScreenAudio = () => {
@@ -550,7 +549,13 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
             if (userId === myIdRef.current) return prev;
             const exists = prev.find((p) => p.id === userId);
             if (exists) {
-              if (exists.screenStream === mergedScreenStream) return prev;
+              if (
+                exists.screenStream === mergedScreenStream &&
+                (exists.screenStream?.getAudioTracks?.()?.length || 0) ===
+                  mergedScreenStream.getAudioTracks().length
+              ) {
+                return prev;
+              }
               return prev.map((p) => p.id === userId
                 ? { ...p, screenStream: mergedScreenStream, isScreenSharing: true }
                 : p
@@ -583,11 +588,18 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         let screenStream = incomingStream;
         if (existingScreen && existingScreen !== incomingStream) {
           try {
-            if (!existingScreen.getTracks().includes(track)) existingScreen.addTrack(track);
-            screenStream = existingScreen;
+            const merged = new MediaStream([
+              ...existingScreen.getTracks().filter((t) => t.readyState !== "ended"),
+              ...incomingStream.getTracks().filter((t) => t.readyState !== "ended" && !existingScreen.getTracks().includes(t)),
+            ]);
+            if (!merged.getTracks().includes(track) && track.readyState !== "ended") merged.addTrack(track);
+            screenStream = merged;
           } catch {
             screenStream = incomingStream;
           }
+        } else if (existingScreen && existingScreen === incomingStream) {
+          // Same object — clone so React notices new tracks.
+          screenStream = new MediaStream(existingScreen.getTracks().filter((t) => t.readyState !== "ended"));
         }
         if (peerData) {
           peerData.expectScreenShare = false;

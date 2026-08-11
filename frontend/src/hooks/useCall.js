@@ -8,7 +8,8 @@ import {
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
   resolveScreenCaptureSize,
-  GROUP_SCREEN_DEFAULT_QUALITY,
+  screenBitrateForPeerCount,
+  DM_SCREEN_DEFAULT_QUALITY,
   isRemoteScreenVideoTrack,
 } from "../lib/webrtcScreenShare";
 import { useToast } from "../context/ToastContext";
@@ -388,12 +389,26 @@ export function useCall(socket, callOccupancyRef = null) {
 
   const attachRemoteScreenTrack = useCallback((track, stream = null) => {
     if (!track || (track.kind !== "video" && track.kind !== "audio")) return;
-    const screenStream = stream || new MediaStream([track]);
+    // Always build a fresh MediaStream so React re-renders when audio arrives
+    // after video on the same underlying capture stream (mobile especially
+    // won't rebind <audio srcObject> if the object identity is unchanged).
     setRemoteScreenStream((prev) => {
-      const next = prev && prev !== screenStream
-        ? new MediaStream([...prev.getTracks().filter((item) => item !== track), track])
-        : screenStream;
+      const tracks = [];
+      const push = (t) => {
+        if (!t || t.readyState === "ended" || tracks.includes(t)) return;
+        tracks.push(t);
+      };
+      if (prev) prev.getTracks().forEach(push);
+      if (stream) stream.getTracks().forEach(push);
+      push(track);
+      const next = new MediaStream(tracks);
       remoteScreenStreamRef.current = next;
+      // If we got a live screen track without the socket signal, still flip
+      // the sharing flag so CallOverlay mounts the dedicated <audio>.
+      if (!remoteScreenSharingRef.current) {
+        remoteScreenSharingRef.current = true;
+        setRemoteScreenSharing(true);
+      }
       return next;
     });
 
@@ -404,10 +419,14 @@ export function useCall(socket, callOccupancyRef = null) {
         const remaining = prev.getTracks().filter((item) => item !== track && item.readyState !== "ended");
         const next = remaining.length ? new MediaStream(remaining) : null;
         remoteScreenStreamRef.current = next;
+        if (!next) {
+          remoteScreenSharingRef.current = false;
+          setRemoteScreenSharing(false);
+        }
         return next;
       });
     };
-  }, []);
+  }, [])
 
   const setupPeerConnection = useCallback((pc, stream, isInitiator) => {
     setPeerConnectionState("connecting");
