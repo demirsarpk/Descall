@@ -1,4 +1,4 @@
-const LOGO_SRC = "/brand/descall-logo.png";
+const LOGO_SRC = "/brand/descall-logo.png?v=photo1";
 
 export default function DescallBrand({ compact = false, className = "" }) {
   return (
