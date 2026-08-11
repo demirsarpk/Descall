@@ -1,6 +1,6 @@
 import React from "react";
 import { AbsoluteFill, Sequence } from "remotion";
-import { UIZoom, CameraMove } from "../components/UIZoom";
+import { UIZoom } from "../components/UIZoom";
 import { AnimatedText } from "../components/AnimatedText";
 import {
   AccentRing,
@@ -15,27 +15,13 @@ export const FeatureScene: React.FC<{
   src: string;
   copy: string;
   accent?: string;
-  camera?: CameraMove;
   chips?: Array<{ label: string; x: number; y: number; delay?: number }>;
   mode?: "card" | "float" | "full";
-}> = ({ src, copy, accent, camera, chips = [], mode = "card" }) => {
+}> = ({ src, copy, accent, chips = [], mode = "card" }) => {
   return (
     <AbsoluteFill>
       <AccentRing delay={1} />
-      <UIZoom
-        src={src}
-        mode={mode}
-        camera={
-          camera ?? {
-            scaleFrom: 1.02,
-            scaleTo: 1.06,
-            x: 0.5,
-            y: 0.4,
-            panX: 6,
-            panY: 10,
-          }
-        }
-      />
+      <UIZoom src={src} mode={mode} />
       <SparkDust />
       {chips.map((c) => (
         <FeatureChip key={c.label + c.x} {...c} />

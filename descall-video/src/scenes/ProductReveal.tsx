@@ -13,18 +13,7 @@ export const ProductReveal: React.FC = () => {
   return (
     <AbsoluteFill>
       <AccentRing delay={2} />
-      <UIZoom
-        src="images/frames/app-direct.png"
-        mode="card"
-        camera={{
-          scaleFrom: 1.02,
-          scaleTo: 1.06,
-          x: 0.58,
-          y: 0.38,
-          panX: -10,
-          panY: 8,
-        }}
-      />
+      <UIZoom src="images/frames/app-direct.png" mode="card" />
       <LightSweep at={1} />
       <AnimatedText
         text="Meet Descall."

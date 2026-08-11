@@ -1,9 +1,9 @@
 /**
- * Descall Reel v2 — refined cinematic cut
+ * Descall Reel v4 — no camera zoom / no edge crop
  * 24s @ 30fps = 720 frames
  *
- * Camera language: micro Ken Burns only (≤6% scale travel).
- * No aggressive zoom in/out.
+ * UI frames are always shown with object-fit: contain.
+ * No zoom in, zoom out, or pan that clips edges.
  */
 export const FPS = 30;
 export const WIDTH = 1080;

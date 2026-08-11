@@ -15,18 +15,7 @@ export const Hook: React.FC = () => {
   return (
     <AbsoluteFill>
       <AccentRing />
-      <UIZoom
-        src="images/frames/app-open-dm.png"
-        mode="float"
-        camera={{
-          scaleFrom: 1.04,
-          scaleTo: 1.08,
-          x: 0.52,
-          y: 0.4,
-          panX: 8,
-          panY: 12,
-        }}
-      />
+      <UIZoom src="images/frames/app-open-dm.png" mode="float" />
       <SparkDust />
       <FeatureChip label="DesCoin" x={70} y={220} delay={10} />
       <FeatureChip label="GIF · Calls" x={680} y={1480} delay={16} />
