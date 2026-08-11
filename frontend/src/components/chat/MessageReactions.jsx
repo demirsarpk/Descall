@@ -12,7 +12,8 @@ export default function MessageReactions({
   reactions = [], 
   currentUserId,
   socket,
-  onReact
+  onReact,
+  burstKey = null,
 }) {
   const t = useT();
   const [showPicker, setShowPicker] = useState(false);
@@ -85,13 +86,15 @@ export default function MessageReactions({
   };
 
   return (
-    <div className="message-reactions">
+    <div className={`message-reactions${burstKey ? ` cosmetic-reaction-burst burst-${burstKey}` : ""}`}>
       {/* Existing reactions */}
       <div className="reactions-list">
         {Object.entries(groupedReactions).map(([emoji, data]) => (
           <motion.button
             key={emoji}
-            className={`reaction-chip ${data.hasMine ? "reaction-mine" : ""}`}
+            className={`reaction-chip ${data.hasMine ? "reaction-mine" : ""}${
+              data.hasMine && burstKey ? ` burst-chip-${burstKey}` : ""
+            }`}
             onClick={() => handleReactionClick(emoji)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}

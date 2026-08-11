@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Coins, ShoppingBag } from "lucide-react";
+import { CheckCircle2, Coins, Phone, ShoppingBag, Sparkles, Volume2, Zap } from "lucide-react";
 import RippleButton from "../ui/RippleButton";
 import { getShopCatalog, getShopInventory, purchaseShopItem, equipShopItem } from "../../api/shop";
 import { useT } from "../../context/LocaleContext";
@@ -15,6 +15,12 @@ const CATEGORY_LABEL = {
   name_effect: "Name Effects",
   avatar_effect: "Avatar Effects",
   chat_bubble: "Chat Bubble Skins",
+  presence_flare: "Presence Flares",
+  profile_aura: "Profile Auras",
+  sound_pack: "Sound Packs",
+  typing_flare: "Typing Flares",
+  reaction_burst: "Reaction Bursts",
+  call_overlay: "Call Overlays",
 };
 
 const CATEGORY_ORDER = [
@@ -27,6 +33,12 @@ const CATEGORY_ORDER = [
   "name_effect",
   "avatar_effect",
   "chat_bubble",
+  "presence_flare",
+  "profile_aura",
+  "sound_pack",
+  "typing_flare",
+  "reaction_burst",
+  "call_overlay",
 ];
 
 export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
@@ -101,6 +113,12 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
     if (category === "name_effect") return equipped?.nameEffectId;
     if (category === "avatar_effect") return equipped?.avatarEffectId;
     if (category === "chat_bubble") return equipped?.chatBubbleId;
+    if (category === "presence_flare") return equipped?.presenceFlareId;
+    if (category === "profile_aura") return equipped?.profileAuraId;
+    if (category === "sound_pack") return equipped?.soundPackId;
+    if (category === "typing_flare") return equipped?.typingFlareId;
+    if (category === "reaction_burst") return equipped?.reactionBurstId;
+    if (category === "call_overlay") return equipped?.callOverlayId;
     return null;
   };
 
@@ -118,7 +136,7 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
         </div>
       </div>
       <p className="shop-panel-intro">
-        {t("Earn DesCoin by talking in calls, messaging, and sharing your screen — then spend it on banners, avatar frames, backgrounds, and premium themes.")}
+        {t("Earn DesCoin by talking in calls, messaging, and sharing your screen — then spend it on banners, frames, auras, flares, sound packs, and more.")}
       </p>
 
       {notice && <p className="us-inline-notice" style={{ margin: "-6px 0 4px" }}>{notice}</p>}
@@ -158,6 +176,34 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
                       ) : category === "chat_bubble" ? (
                         <div className={`cosmetic-chat-bubble bubble-${item.effect_key} shop-bubble-preview`}>
                           {t("Hey there!")}
+                        </div>
+                      ) : category === "presence_flare" ? (
+                        <div className="shop-presence-flare-preview">
+                          <span className={`status-badge status-online cosmetic-presence-flare flare-${item.effect_key}`} />
+                        </div>
+                      ) : category === "profile_aura" ? (
+                        <div className={`shop-profile-aura-preview cosmetic-profile-aura aura-${item.effect_key}`}>
+                          <Sparkles size={18} />
+                        </div>
+                      ) : category === "sound_pack" ? (
+                        <div className="shop-sound-pack-preview">
+                          <Volume2 size={22} />
+                          <span>{item.effect_key}</span>
+                        </div>
+                      ) : category === "typing_flare" ? (
+                        <div className={`shop-typing-flare-preview cosmetic-typing-flare typing-${item.effect_key}`}>
+                          <span className="typing-dot" />
+                          <span className="typing-dot" />
+                          <span className="typing-dot" />
+                        </div>
+                      ) : category === "reaction_burst" ? (
+                        <div className={`shop-reaction-burst-preview cosmetic-reaction-burst burst-${item.effect_key}`}>
+                          <span>🔥</span>
+                          <Zap size={14} />
+                        </div>
+                      ) : category === "call_overlay" ? (
+                        <div className={`shop-call-overlay-preview cosmetic-call-overlay overlay-${item.effect_key}`}>
+                          <Phone size={18} />
                         </div>
                       ) : (
                         <img src={item.preview_url || item.asset_url} alt={item.name} loading="lazy" />

@@ -34,6 +34,8 @@ function streamHasLiveVideo(stream) {
 
 export default function CallOverlay({ call, groupCall, me }) {
   const t = useT();
+  const callOverlayKey = me?.equippedCallOverlay?.effect_key || null;
+  const callOverlayClass = callOverlayKey ? `cosmetic-call-overlay overlay-${callOverlayKey}` : "";
   const [minimized, setMinimized] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -183,7 +185,7 @@ export default function CallOverlay({ call, groupCall, me }) {
     return (
       <>
         <motion.div
-          className="call-overlay-minimized"
+          className={`call-overlay-minimized ${callOverlayClass}`.trim()}
           initial={{ opacity: 0, y: 60, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 60, scale: 0.9 }}
@@ -336,7 +338,7 @@ export default function CallOverlay({ call, groupCall, me }) {
     {remoteAudio}
     <motion.div
       data-call-overlay="true"
-      className="call-overlay-root"
+      className={`call-overlay-root ${callOverlayClass}`.trim()}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

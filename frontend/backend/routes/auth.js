@@ -86,6 +86,12 @@ function authUserPayload(user, extra = {}) {
     equippedNameEffect: extra.equippedNameEffect || null,
     equippedAvatarEffect: extra.equippedAvatarEffect || null,
     equippedChatBubble: extra.equippedChatBubble || null,
+    equippedPresenceFlare: extra.equippedPresenceFlare || null,
+    equippedProfileAura: extra.equippedProfileAura || null,
+    equippedSoundPack: extra.equippedSoundPack || null,
+    equippedTypingFlare: extra.equippedTypingFlare || null,
+    equippedReactionBurst: extra.equippedReactionBurst || null,
+    equippedCallOverlay: extra.equippedCallOverlay || null,
   };
 }
 
@@ -102,6 +108,12 @@ async function resolveEquippedExtra(userId) {
     equippedNameEffect: equipped.nameEffect || null,
     equippedAvatarEffect: equipped.avatarEffect || null,
     equippedChatBubble: equipped.chatBubble || null,
+    equippedPresenceFlare: equipped.presenceFlare || null,
+    equippedProfileAura: equipped.profileAura || null,
+    equippedSoundPack: equipped.soundPack || null,
+    equippedTypingFlare: equipped.typingFlare || null,
+    equippedReactionBurst: equipped.reactionBurst || null,
+    equippedCallOverlay: equipped.callOverlay || null,
   };
 }
 
@@ -590,6 +602,12 @@ router.get("/me", requireAuth, async (req, res) => {
         equippedNameEffect: equipped.nameEffect || null,
         equippedAvatarEffect: equipped.avatarEffect || null,
         equippedChatBubble: equipped.chatBubble || null,
+        equippedPresenceFlare: equipped.presenceFlare || null,
+        equippedProfileAura: equipped.profileAura || null,
+        equippedSoundPack: equipped.soundPack || null,
+        equippedTypingFlare: equipped.typingFlare || null,
+        equippedReactionBurst: equipped.reactionBurst || null,
+        equippedCallOverlay: equipped.callOverlay || null,
         descoinBalance: Number(user.descoin_balance) || 0,
       },
     });
@@ -628,6 +646,12 @@ router.get("/users/:userId", requireAuth, async (req, res) => {
         equippedNameEffect: equipped.nameEffect || null,
         equippedAvatarEffect: equipped.avatarEffect || null,
         equippedChatBubble: equipped.chatBubble || null,
+        equippedPresenceFlare: equipped.presenceFlare || null,
+        equippedProfileAura: equipped.profileAura || null,
+        equippedSoundPack: equipped.soundPack || null,
+        equippedTypingFlare: equipped.typingFlare || null,
+        equippedReactionBurst: equipped.reactionBurst || null,
+        equippedCallOverlay: equipped.callOverlay || null,
       },
     });
   } catch (err) {

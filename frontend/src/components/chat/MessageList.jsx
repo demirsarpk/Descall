@@ -663,6 +663,7 @@ function MessageBubble({
             reactions={reactions}
             currentUserId={currentUserId}
             socket={socket}
+            burstKey={isOwn ? me?.equippedReactionBurst?.effect_key || null : null}
           />
         )}
 

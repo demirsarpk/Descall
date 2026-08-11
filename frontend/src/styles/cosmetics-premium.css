@@ -1,0 +1,439 @@
+/* ============================================================================
+   Premium interactive cosmetics — typing flares, reaction bursts, call overlays.
+   Each effect_key is hand-tuned; avoid generic one-size styles.
+   ============================================================================ */
+
+/* ── Typing flares ─────────────────────────────────────────────────────── */
+
+.cosmetic-typing-flare .typing-dot {
+  background: var(--primary, #5865f2);
+  box-shadow: 0 0 6px var(--primary, #5865f2);
+}
+
+.cosmetic-typing-flare.typing-neon-pulse .typing-dot {
+  background: #4fd8ff;
+  box-shadow: 0 0 8px #4fd8ff, 0 0 16px rgba(79, 216, 255, 0.55);
+  animation: premium-typing-neon 1.1s ease-in-out infinite;
+}
+.cosmetic-typing-flare.typing-neon-pulse .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.cosmetic-typing-flare.typing-neon-pulse .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+.cosmetic-typing-flare.typing-liquid-mercury .typing-dot {
+  background: linear-gradient(180deg, #f8fafc, #94a3b8);
+  border-radius: 40% 60% 55% 45%;
+  box-shadow: 0 0 10px rgba(226, 232, 240, 0.55);
+  animation: premium-typing-mercury 1.4s ease-in-out infinite;
+}
+
+.cosmetic-typing-flare.typing-aurora-wave .typing-dot {
+  background: linear-gradient(90deg, #38ef7d, #4fd8ff, #ff8fab);
+  box-shadow: 0 0 10px rgba(79, 216, 255, 0.45);
+}
+
+.typing-indicator-shell.typing-shell-aurora-wave {
+  background: linear-gradient(90deg, rgba(56, 239, 125, 0.12), rgba(79, 216, 255, 0.12), rgba(255, 143, 171, 0.12)) !important;
+  border-color: rgba(79, 216, 255, 0.28) !important;
+}
+
+.cosmetic-typing-flare.typing-ember-cascade .typing-dot {
+  background: radial-gradient(circle at 30% 30%, #fde047, #ea580c 70%);
+  box-shadow: 0 0 10px rgba(234, 88, 12, 0.65);
+  animation: premium-typing-ember 1.2s ease-in-out infinite;
+}
+
+.cosmetic-typing-flare.typing-crystal-chime .typing-dot {
+  background: linear-gradient(135deg, #e0f2fe, #38bdf8);
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  border-radius: 0;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.55);
+}
+
+.cosmetic-typing-flare.typing-void-signal .typing-dot {
+  background: #a78bfa;
+  box-shadow: 2px 0 #6d28d9, -2px 0 #c084fc;
+  animation: premium-typing-glitch 1.5s steps(8) infinite;
+}
+
+.cosmetic-typing-flare.typing-golden-morse .typing-dot {
+  background: #fbbf24;
+  width: 8px !important;
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.65);
+  animation: premium-typing-morse 1.6s steps(2) infinite;
+}
+.cosmetic-typing-flare.typing-golden-morse .typing-dot:nth-child(2) {
+  width: 14px !important;
+  animation-delay: 0.2s;
+}
+
+.cosmetic-typing-flare.typing-cyber-hex .typing-dot {
+  background: #22d3ee;
+  clip-path: polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%);
+  border-radius: 0;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.55);
+}
+
+.cosmetic-typing-flare.typing-sakura-drift .typing-dot {
+  background: #f9a8d4;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-25deg);
+  box-shadow: 0 0 8px rgba(244, 114, 182, 0.5);
+  animation: premium-typing-petal 1.8s ease-in-out infinite;
+}
+
+.cosmetic-typing-flare.typing-plasma-arc .typing-dot {
+  background: radial-gradient(circle, #f472b6, #22d3ee);
+  box-shadow: 0 0 10px #f472b6, 0 0 16px #22d3ee;
+  animation: premium-typing-plasma 1s ease-in-out infinite;
+}
+
+.cosmetic-typing-flare.typing-frost-breathe .typing-dot {
+  background: #bae6fd;
+  box-shadow: 0 0 12px rgba(186, 230, 253, 0.7);
+  animation: premium-typing-frost 2s ease-in-out infinite;
+}
+
+.cosmetic-typing-flare.typing-royal-ink .typing-dot {
+  background: radial-gradient(circle at 40% 30%, #e9d5ff, #6d28d9);
+  box-shadow: 0 4px 10px rgba(109, 40, 217, 0.45);
+  animation: premium-typing-ink 1.5s ease-in-out infinite;
+}
+
+.cosmetic-typing-flare.typing-quantum-blink .typing-dot {
+  background: #818cf8;
+  box-shadow: 0 0 10px #6366f1;
+  animation: premium-typing-quantum 1.3s ease-in-out infinite;
+}
+
+.cosmetic-typing-flare.typing-mosaic-tap .typing-dot {
+  background: conic-gradient(from 0deg, #f472b6, #22d3ee, #a3e635, #f472b6);
+  border-radius: 3px;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.25);
+}
+
+.cosmetic-typing-flare.typing-starfall .typing-dot {
+  background: #f8fafc;
+  box-shadow: 0 0 8px #fff, 0 8px 12px rgba(255, 255, 255, 0.35);
+  animation: premium-typing-starfall 1.4s linear infinite;
+}
+
+.cosmetic-typing-flare.typing-holo-ribbon .typing-dot {
+  background: linear-gradient(90deg, #ff00cc, #4fd8ff, #38ef7d, #ff00cc);
+  background-size: 200% auto;
+  animation: premium-typing-holo 2s linear infinite;
+  box-shadow: 0 0 10px rgba(255, 0, 204, 0.4);
+}
+
+@keyframes premium-typing-neon {
+  0%, 100% { transform: translateY(0); opacity: 0.7; }
+  50% { transform: translateY(-5px); opacity: 1; }
+}
+@keyframes premium-typing-mercury {
+  0%, 100% { border-radius: 40% 60% 55% 45%; transform: scale(1); }
+  50% { border-radius: 60% 40% 45% 55%; transform: scale(1.15); }
+}
+@keyframes premium-typing-ember {
+  0%, 100% { transform: translateY(0) scale(1); filter: brightness(1); }
+  50% { transform: translateY(-6px) scale(1.2); filter: brightness(1.3); }
+}
+@keyframes premium-typing-glitch {
+  0%, 90%, 100% { opacity: 1; transform: translateX(0); }
+  92% { opacity: 0.4; transform: translateX(2px); }
+  94% { opacity: 1; transform: translateX(-2px); }
+}
+@keyframes premium-typing-morse {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.25; }
+}
+@keyframes premium-typing-petal {
+  0%, 100% { transform: rotate(-25deg) translateY(0); }
+  50% { transform: rotate(-10deg) translateY(-5px); }
+}
+@keyframes premium-typing-plasma {
+  0%, 100% { filter: hue-rotate(0deg); transform: scale(1); }
+  50% { filter: hue-rotate(40deg); transform: scale(1.2); }
+}
+@keyframes premium-typing-frost {
+  0%, 100% { opacity: 0.55; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+@keyframes premium-typing-ink {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(3px) scaleY(1.35); }
+}
+@keyframes premium-typing-quantum {
+  0%, 40%, 100% { opacity: 1; transform: scale(1); }
+  45% { opacity: 0; transform: scale(0.2); }
+  55% { opacity: 0; transform: scale(0.2) translateX(8px); }
+  60% { opacity: 1; transform: scale(1.1); }
+}
+@keyframes premium-typing-starfall {
+  0% { transform: translateY(-4px); opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { transform: translateY(4px); opacity: 0.4; }
+}
+@keyframes premium-typing-holo {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* ── Reaction bursts ───────────────────────────────────────────────────── */
+
+.cosmetic-reaction-burst .reaction-chip.reaction-mine {
+  position: relative;
+  overflow: visible;
+}
+
+.burst-chip-nova-pop {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35), 0 0 16px rgba(255, 214, 10, 0.45) !important;
+  animation: premium-burst-nova 0.7s ease-out;
+}
+.burst-chip-glass-shatter {
+  border: 1px solid rgba(226, 232, 240, 0.55) !important;
+  box-shadow: 0 0 14px rgba(148, 163, 184, 0.45) !important;
+  animation: premium-burst-shatter 0.65s ease-out;
+}
+.burst-chip-confetti-storm {
+  box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.4), 0 0 12px rgba(250, 204, 21, 0.35) !important;
+  animation: premium-burst-confetti 0.8s ease-out;
+}
+.burst-chip-ripple-ink {
+  box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.45);
+  animation: premium-burst-ripple 0.9s ease-out;
+}
+.burst-chip-ember-bloom {
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.55) !important;
+  background: linear-gradient(135deg, rgba(154, 52, 18, 0.35), rgba(249, 115, 22, 0.2)) !important;
+}
+.burst-chip-frost-crack {
+  border: 1px solid rgba(186, 230, 253, 0.65) !important;
+  box-shadow: inset 0 0 10px rgba(56, 189, 248, 0.25), 0 0 10px rgba(186, 230, 253, 0.35) !important;
+}
+.burst-chip-neon-stamp {
+  border: 1.5px solid #4fd8ff !important;
+  box-shadow: 0 0 12px rgba(79, 216, 255, 0.55) !important;
+  animation: premium-burst-stamp 0.45s ease-out;
+}
+.burst-chip-void-implode {
+  box-shadow: 0 0 18px rgba(109, 40, 217, 0.6) !important;
+  animation: premium-burst-void 0.7s ease-in-out;
+}
+.burst-chip-prism-split {
+  background: linear-gradient(115deg, rgba(255, 0, 204, 0.2), rgba(79, 216, 255, 0.2), rgba(56, 239, 125, 0.2)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+}
+.burst-chip-gold-rain {
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.5) !important;
+  border: 1px solid rgba(250, 204, 21, 0.45) !important;
+}
+.burst-chip-pixel-burst {
+  image-rendering: pixelated;
+  box-shadow: 3px 0 #22d3ee, -3px 0 #f472b6 !important;
+}
+.burst-chip-petal-burst {
+  box-shadow: 0 0 12px rgba(244, 114, 182, 0.45) !important;
+  border-radius: 999px !important;
+}
+.burst-chip-thunderclap {
+  box-shadow: 0 0 0 2px #fde047, 0 0 18px rgba(250, 204, 21, 0.65) !important;
+  animation: premium-burst-thunder 0.55s ease-out;
+}
+.burst-chip-soft-bloom {
+  box-shadow: 0 0 12px rgba(196, 181, 253, 0.4) !important;
+  background: rgba(196, 181, 253, 0.15) !important;
+}
+.burst-chip-holo-flash {
+  background: linear-gradient(115deg, rgba(255, 0, 204, 0.22), rgba(79, 216, 255, 0.22)) !important;
+  animation: premium-typing-holo 2.4s linear infinite;
+}
+.burst-chip-magnetic-pulse {
+  animation: premium-burst-magnetic 0.85s ease-out;
+}
+
+@keyframes premium-burst-nova {
+  0% { transform: scale(0.7); box-shadow: 0 0 0 0 rgba(255, 214, 10, 0.7); }
+  100% { transform: scale(1); }
+}
+@keyframes premium-burst-shatter {
+  0% { transform: scale(1.2) rotate(-2deg); filter: brightness(1.4); }
+  100% { transform: scale(1) rotate(0); filter: brightness(1); }
+}
+@keyframes premium-burst-confetti {
+  0% { transform: scale(0.8) rotate(-6deg); }
+  40% { transform: scale(1.12) rotate(3deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes premium-burst-ripple {
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.55); }
+  100% { box-shadow: 0 0 0 12px rgba(99, 102, 241, 0); }
+}
+@keyframes premium-burst-stamp {
+  0% { transform: scale(1.35); filter: brightness(1.5); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+@keyframes premium-burst-void {
+  0% { transform: scale(1); filter: blur(0); }
+  45% { transform: scale(0.55); filter: blur(1px); }
+  100% { transform: scale(1); filter: blur(0); }
+}
+@keyframes premium-burst-thunder {
+  0% { filter: brightness(2); transform: scale(1.2); }
+  100% { filter: brightness(1); transform: scale(1); }
+}
+@keyframes premium-burst-magnetic {
+  0% { transform: scale(1.25); }
+  50% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* Shop previews */
+.shop-typing-flare-preview,
+.shop-reaction-burst-preview,
+.shop-call-overlay-preview {
+  width: 100%;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 12px;
+}
+
+.shop-typing-flare-preview .typing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.shop-reaction-burst-preview {
+  font-size: 22px;
+  color: #f4f6fb;
+}
+
+.shop-call-overlay-preview {
+  color: #f4f6fb;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Call overlays ─────────────────────────────────────────────────────── */
+
+.cosmetic-call-overlay.overlay-midnight-ops {
+  background:
+    linear-gradient(180deg, rgba(8, 15, 30, 0.96), rgba(12, 20, 40, 0.98)),
+    repeating-linear-gradient(90deg, transparent 0 22px, rgba(251, 191, 36, 0.04) 22px 23px) !important;
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.18);
+}
+.cosmetic-call-overlay.overlay-neon-stadium {
+  background:
+    radial-gradient(ellipse at top, rgba(236, 72, 153, 0.22), transparent 55%),
+    radial-gradient(ellipse at bottom, rgba(34, 211, 238, 0.18), transparent 55%),
+    #0b0f18 !important;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.28);
+}
+.cosmetic-call-overlay.overlay-glass-atrium {
+  background:
+    linear-gradient(160deg, rgba(226, 232, 240, 0.12), rgba(15, 23, 42, 0.92)),
+    #101522 !important;
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.2);
+}
+.cosmetic-call-overlay.overlay-ember-theater {
+  background:
+    radial-gradient(ellipse at bottom, rgba(234, 88, 12, 0.28), transparent 50%),
+    linear-gradient(180deg, #1a0a08, #0c0706) !important;
+  box-shadow: inset 0 0 80px rgba(234, 88, 12, 0.12);
+}
+.cosmetic-call-overlay.overlay-arctic-bridge {
+  background:
+    linear-gradient(180deg, #0b1f33, #0f172a),
+    radial-gradient(circle at 20% 0%, rgba(56, 189, 248, 0.2), transparent 40%) !important;
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.22);
+}
+.cosmetic-call-overlay.overlay-void-chamber {
+  background:
+    radial-gradient(circle at center, rgba(76, 29, 149, 0.35), transparent 45%),
+    #05050a !important;
+  box-shadow: inset 0 0 120px rgba(109, 40, 217, 0.2);
+}
+.cosmetic-call-overlay.overlay-royal-lounge {
+  background:
+    linear-gradient(160deg, rgba(88, 28, 135, 0.35), rgba(15, 10, 20, 0.96)),
+    #120816 !important;
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.22);
+}
+.cosmetic-call-overlay.overlay-cyber-deck {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(34, 211, 238, 0.04) 3px 4px),
+    linear-gradient(180deg, #061018, #12061a) !important;
+  box-shadow: inset 0 0 0 1px rgba(244, 114, 182, 0.25);
+}
+.cosmetic-call-overlay.overlay-golden-hall {
+  background:
+    radial-gradient(ellipse at top, rgba(250, 204, 21, 0.18), transparent 50%),
+    linear-gradient(180deg, #1c1408, #0c0a07) !important;
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.28);
+}
+.cosmetic-call-overlay.overlay-aurora-dome {
+  background:
+    radial-gradient(ellipse at 30% 0%, rgba(56, 239, 125, 0.2), transparent 40%),
+    radial-gradient(ellipse at 70% 0%, rgba(167, 139, 250, 0.22), transparent 42%),
+    #071018 !important;
+}
+.cosmetic-call-overlay.overlay-carbon-cockpit {
+  background:
+    repeating-linear-gradient(45deg, #111 0 2px, #171717 2px 4px),
+    #0a0a0a !important;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.2);
+}
+.cosmetic-call-overlay.overlay-sakura-suite {
+  background:
+    radial-gradient(ellipse at top right, rgba(244, 114, 182, 0.22), transparent 45%),
+    linear-gradient(180deg, #1a1016, #120c10) !important;
+  box-shadow: inset 0 0 0 1px rgba(251, 207, 232, 0.18);
+}
+.cosmetic-call-overlay.overlay-plasma-arena {
+  background:
+    linear-gradient(120deg, rgba(219, 39, 119, 0.2), transparent 40%),
+    linear-gradient(300deg, rgba(34, 211, 238, 0.2), transparent 40%),
+    #0a0c14 !important;
+  box-shadow: inset 0 0 0 1px rgba(244, 114, 182, 0.3), inset 0 0 0 2px rgba(34, 211, 238, 0.15);
+}
+.cosmetic-call-overlay.overlay-ocean-bridge {
+  background:
+    radial-gradient(ellipse at bottom, rgba(14, 165, 233, 0.25), transparent 55%),
+    linear-gradient(180deg, #041525, #071a28) !important;
+}
+.cosmetic-call-overlay.overlay-mosaic-stage {
+  background:
+    radial-gradient(circle at 10% 20%, rgba(244, 114, 182, 0.15), transparent 25%),
+    radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.15), transparent 25%),
+    #101218 !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+.cosmetic-call-overlay.overlay-titan-forge {
+  background:
+    radial-gradient(ellipse at bottom, rgba(234, 88, 12, 0.32), transparent 50%),
+    linear-gradient(180deg, #161210, #0a0806) !important;
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.28), inset 0 -40px 80px rgba(234, 88, 12, 0.12);
+}
+
+.cosmetic-call-overlay.overlay-midnight-ops .call-control-bar,
+.cosmetic-call-overlay.overlay-neon-stadium .call-control-bar,
+.cosmetic-call-overlay.overlay-glass-atrium .call-control-bar,
+.cosmetic-call-overlay.overlay-ember-theater .call-control-bar,
+.cosmetic-call-overlay.overlay-arctic-bridge .call-control-bar,
+.cosmetic-call-overlay.overlay-void-chamber .call-control-bar,
+.cosmetic-call-overlay.overlay-royal-lounge .call-control-bar,
+.cosmetic-call-overlay.overlay-cyber-deck .call-control-bar,
+.cosmetic-call-overlay.overlay-golden-hall .call-control-bar,
+.cosmetic-call-overlay.overlay-aurora-dome .call-control-bar,
+.cosmetic-call-overlay.overlay-carbon-cockpit .call-control-bar,
+.cosmetic-call-overlay.overlay-sakura-suite .call-control-bar,
+.cosmetic-call-overlay.overlay-plasma-arena .call-control-bar,
+.cosmetic-call-overlay.overlay-ocean-bridge .call-control-bar,
+.cosmetic-call-overlay.overlay-mosaic-stage .call-control-bar,
+.cosmetic-call-overlay.overlay-titan-forge .call-control-bar {
+  backdrop-filter: blur(14px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}

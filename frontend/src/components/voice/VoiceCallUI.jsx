@@ -17,6 +17,7 @@ import { useT } from "../../context/LocaleContext";
 export default function VoiceCallUI({ 
   call, 
   peer, 
+  me,
   isMuted, 
   isCameraOn, 
   isScreenSharing,
@@ -28,6 +29,7 @@ export default function VoiceCallUI({
   onMinimize
 }) {
   const t = useT();
+  const overlayKey = me?.equippedCallOverlay?.effect_key;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [volume, setVolume] = useState(100);

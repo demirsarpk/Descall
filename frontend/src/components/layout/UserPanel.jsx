@@ -423,6 +423,12 @@ const UserPanel = forwardRef(function UserPanel({
       nameEffectId: me?.equippedNameEffect?.id || null,
       avatarEffectId: me?.equippedAvatarEffect?.id || null,
       chatBubbleId: me?.equippedChatBubble?.id || null,
+      presenceFlareId: me?.equippedPresenceFlare?.id || null,
+      profileAuraId: me?.equippedProfileAura?.id || null,
+      soundPackId: me?.equippedSoundPack?.id || null,
+      typingFlareId: me?.equippedTypingFlare?.id || null,
+      reactionBurstId: me?.equippedReactionBurst?.id || null,
+      callOverlayId: me?.equippedCallOverlay?.id || null,
     }),
     [
       me?.equippedBanner?.id,
@@ -434,6 +440,12 @@ const UserPanel = forwardRef(function UserPanel({
       me?.equippedNameEffect?.id,
       me?.equippedAvatarEffect?.id,
       me?.equippedChatBubble?.id,
+      me?.equippedPresenceFlare?.id,
+      me?.equippedProfileAura?.id,
+      me?.equippedSoundPack?.id,
+      me?.equippedTypingFlare?.id,
+      me?.equippedReactionBurst?.id,
+      me?.equippedCallOverlay?.id,
     ]
   );
 

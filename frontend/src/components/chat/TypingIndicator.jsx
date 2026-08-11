@@ -15,10 +15,11 @@ const DOT_VARIANTS = {
   }),
 };
 
-function TypingDots() {
+function TypingDots({ flareKey }) {
   return (
     <span
       aria-hidden
+      className={flareKey ? `cosmetic-typing-flare typing-${flareKey}` : undefined}
       style={{ display: "inline-flex", alignItems: "center", gap: 3, marginRight: 6 }}
     >
       {[0, 1, 2].map((i) => (
@@ -27,13 +28,14 @@ function TypingDots() {
           custom={i}
           variants={DOT_VARIANTS}
           animate="animate"
+          className="typing-dot"
           style={{
             display: "inline-block",
             width: 6,
             height: 6,
             borderRadius: "50%",
-            background: "var(--primary, #5865f2)",
-            boxShadow: "0 0 6px var(--primary, #5865f2)",
+            background: flareKey ? undefined : "var(--primary, #5865f2)",
+            boxShadow: flareKey ? undefined : "0 0 6px var(--primary, #5865f2)",
           }}
         />
       ))}
@@ -41,7 +43,7 @@ function TypingDots() {
   );
 }
 
-export default function TypingIndicator({ names = [] }) {
+export default function TypingIndicator({ names = [], flareKey = null }) {
   const t = useT();
   if (!names.length) return null;
 
@@ -63,6 +65,7 @@ export default function TypingIndicator({ names = [] }) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 8, scale: 0.96 }}
         transition={{ type: "spring", stiffness: 380, damping: 28 }}
+        className={flareKey ? `typing-indicator-shell typing-shell-${flareKey}` : undefined}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -74,7 +77,7 @@ export default function TypingIndicator({ names = [] }) {
           maxWidth: "fit-content",
         }}
       >
-        <TypingDots />
+        <TypingDots flareKey={flareKey} />
         <span
           style={{
             fontSize: 12,
