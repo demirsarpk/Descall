@@ -1,0 +1,10 @@
+node_modules/
+.remotion/
+dist/
+out/
+*.log
+.DS_Store
+public/images/hires/
+public/video/*.webm
+public/audio/*.wav
+output/descall-reel-v1.mp4

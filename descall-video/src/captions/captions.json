@@ -1,0 +1,163 @@
+[
+  {
+    "id": 1,
+    "start": 0,
+    "end": 1.6500000000000001,
+    "text": "Discord, but different.",
+    "words": [
+      {
+        "word": "Discord,",
+        "start": 0,
+        "end": 0.6
+      },
+      {
+        "word": "but",
+        "start": 0.6,
+        "end": 1.2
+      },
+      {
+        "word": "different.",
+        "start": 1.2,
+        "end": 1.7999999999999998
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "start": 1.8,
+    "end": 4.05,
+    "text": "Meet Descall.",
+    "words": [
+      {
+        "word": "Meet",
+        "start": 1.8,
+        "end": 3
+      },
+      {
+        "word": "Descall.",
+        "start": 3,
+        "end": 4.2
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "start": 4.2,
+    "end": 7.6499999999999995,
+    "text": "Cosmetics that show.",
+    "words": [
+      {
+        "word": "Cosmetics",
+        "start": 4.2,
+        "end": 5.4
+      },
+      {
+        "word": "that",
+        "start": 5.4,
+        "end": 6.6
+      },
+      {
+        "word": "show.",
+        "start": 6.6,
+        "end": 7.8
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "start": 7.8,
+    "end": 11.049999999999999,
+    "text": "Friends. Calls. Done.",
+    "words": [
+      {
+        "word": "Friends.",
+        "start": 7.8,
+        "end": 8.933333333333334
+      },
+      {
+        "word": "Calls.",
+        "start": 8.933333333333334,
+        "end": 10.066666666666666
+      },
+      {
+        "word": "Done.",
+        "start": 10.066666666666666,
+        "end": 11.2
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "start": 11.2,
+    "end": 14.85,
+    "text": "Make it yours.",
+    "words": [
+      {
+        "word": "Make",
+        "start": 11.2,
+        "end": 12.466666666666667
+      },
+      {
+        "word": "it",
+        "start": 12.466666666666667,
+        "end": 13.733333333333333
+      },
+      {
+        "word": "yours.",
+        "start": 13.733333333333333,
+        "end": 15
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "start": 15,
+    "end": 18.450000000000003,
+    "text": "Free. Fast. Yours.",
+    "words": [
+      {
+        "word": "Free.",
+        "start": 15,
+        "end": 16.2
+      },
+      {
+        "word": "Fast.",
+        "start": 16.2,
+        "end": 17.400000000000002
+      },
+      {
+        "word": "Yours.",
+        "start": 17.400000000000002,
+        "end": 18.6
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "start": 18.6,
+    "end": 21.85,
+    "text": "Start free at descall.com",
+    "words": [
+      {
+        "word": "Start",
+        "start": 18.6,
+        "end": 19.450000000000003
+      },
+      {
+        "word": "free",
+        "start": 19.450000000000003,
+        "end": 20.3
+      },
+      {
+        "word": "at",
+        "start": 20.3,
+        "end": 21.15
+      },
+      {
+        "word": "descall.com",
+        "start": 21.15,
+        "end": 22
+      }
+    ]
+  }
+]
