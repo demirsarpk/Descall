@@ -9,6 +9,8 @@ import JsonLd, {
   buildFaqLd,
 } from "../JsonLd";
 import { COMPARE_FAQ } from "../content/discordSeoContent";
+import SeoProductPreview from "../components/SeoProductPreview";
+import SeoRelatedLinks from "../components/SeoRelatedLinks";
 
 const HIGHLIGHTS = [
   { icon: MessageCircle, title: "Real-time Chat", desc: "Instant DMs and groups with typing indicators" },
@@ -68,8 +70,11 @@ export default function HomePage({ onSignIn }) {
           {" · "}
           <Link to="/alternatives">{t("Discord alternatives")}</Link>
           {" · "}
+          <Link to="/apps-like-discord">{t("Apps like Discord")}</Link>
+          {" · "}
           <Link to="/best-discord-alternative-for-gamers">{t("For gamers")}</Link>
         </p>
+        <SeoProductPreview caption={t("Descall — free Discord alternative UI preview")} />
       </motion.section>
 
       <section className="mkt-section">
@@ -115,6 +120,18 @@ export default function HomePage({ onSignIn }) {
           </Link>
         </div>
       </section>
+
+      <SeoRelatedLinks
+        title="Popular Discord alternative searches"
+        links={[
+          { to: "/discord-alternative", label: "Best free Discord alternative" },
+          { to: "/discord-replacement", label: "Discord replacement" },
+          { to: "/discord-alternative-for-lfg", label: "LFG platform" },
+          { to: "/discord-alternative-for-voice-chat", label: "Voice chat alternative" },
+          { to: "/discord-alternative-for-communities", label: "Community chat platform" },
+          { to: "/discord-alternative-turkey", label: "Discord alternatifi (TR)" },
+        ]}
+      />
     </>
   );
 }

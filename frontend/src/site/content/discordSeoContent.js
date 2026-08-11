@@ -5,9 +5,16 @@ export const COMPARE_ROWS = [
   { feature: "Group voice & video", descall: "Yes — WebRTC + TURN", discord: "Yes" },
   { feature: "Screen share quality control", descall: "Yes — presets & restart-safe", discord: "Yes" },
   { feature: "Valorant LFG / party finder", descall: "Built-in Play tab + Riot link", discord: "Bots / external tools" },
+  { feature: "Friends, presence & status", descall: "Yes", discord: "Yes" },
+  { feature: "Push notifications", descall: "Web / desktop / mobile FCM", discord: "Yes" },
   { feature: "Desktop app", descall: "Windows installer + web + Android", discord: "All major platforms" },
-  { feature: "Cosmetic shop (no paywall for core)", descall: "DesCoin cosmetics; core free", discord: "Nitro unlocks extras" },
+  { feature: "Mobile", descall: "Android APK + mobile web (+ iOS PWA)", discord: "Native iOS/Android" },
+  { feature: "Encryption", descall: "TLS + secure WebRTC in transit", discord: "TLS + secure voice" },
+  { feature: "Account security", descall: "Password, Google, optional 2FA", discord: "Password, OAuth, 2FA" },
+  { feature: "Moderation basics", descall: "Block, invites, group ownership", discord: "Deep roles & permissions" },
+  { feature: "Cosmetic shop (core free)", descall: "DesCoin cosmetics; core free", discord: "Nitro unlocks extras" },
   { feature: "Servers & channels", descall: "Groups-first (guilds expanding)", discord: "Mature server model" },
+  { feature: "Bots & integrations", descall: "Not a bot marketplace (yet)", discord: "Huge ecosystem" },
   { feature: "Price for chat + calls", descall: "Free", discord: "Free + Nitro upsell" },
   { feature: "Focus", descall: "Friends, LFG, lightweight calls", discord: "Huge communities + ecosystem" },
 ];
@@ -32,6 +39,10 @@ export const COMPARE_FAQ = [
   {
     q: "Is Descall free?",
     a: "Yes. Messaging, voice, video, and screen share are free. Optional cosmetics use DesCoin — they do not gate core communication.",
+  },
+  {
+    q: "Does Descall support end-to-end encrypted messages?",
+    a: "Descall encrypts traffic in transit (TLS / secure WebRTC). It does not currently market full E2E message encryption like a sealed messenger — we stay accurate about that.",
   },
 ];
 
@@ -95,6 +106,33 @@ export const BLOG_POSTS = [
     tags: ["Discord alternative", "Comparison"],
   },
   {
+    slug: "best-discord-alternatives-2026",
+    path: "/blog/best-discord-alternatives-2026",
+    title: "Best Discord alternatives in 2026 — honest shortlist",
+    description:
+      "Best Discord alternatives in 2026 for friends, voice, and LFG — how Descall, Discord, Guilded, and others actually compare.",
+    date: "2026-08-11",
+    tags: ["Discord alternatives", "Roundup"],
+  },
+  {
+    slug: "apps-like-discord",
+    path: "/blog/apps-like-discord",
+    title: "Apps like Discord — what to use instead in 2026",
+    description:
+      "Apps like Discord explained by job-to-be-done: friend voice, communities, or pure voice servers — and where Descall fits.",
+    date: "2026-08-11",
+    tags: ["Apps like Discord", "Comparison"],
+  },
+  {
+    slug: "discord-competitors",
+    path: "/blog/discord-competitors",
+    title: "Discord competitors in 2026 — who actually competes",
+    description:
+      "Map of Discord competitors in 2026: lighter friend apps, gaming suites, and voice classics — plus where Descall competes honestly.",
+    date: "2026-08-11",
+    tags: ["Discord competitors", "Market"],
+  },
+  {
     slug: "best-discord-alternative-for-lfg",
     path: "/blog/best-discord-alternative-for-lfg",
     title: "Best Discord alternative for Valorant LFG",
@@ -112,4 +150,31 @@ export const BLOG_POSTS = [
     date: "2026-08-11",
     tags: ["Pricing", "Migration"],
   },
+  {
+    slug: "discord-alternative-for-communities-guide",
+    path: "/blog/discord-alternative-for-communities-guide",
+    title: "Discord alternative for communities — practical guide",
+    description:
+      "How small communities pick a Discord alternative: groups, invites, voice hangouts, and when to stay on Discord.",
+    date: "2026-08-11",
+    tags: ["Communities", "Guide"],
+  },
+  {
+    slug: "voice-chat-alternative-to-discord",
+    path: "/blog/voice-chat-alternative-to-discord",
+    title: "Voice chat alternative to Discord — free calls guide",
+    description:
+      "Looking for a voice chat alternative to Discord? How Descall handles free WebRTC calls, screen share, and gaming nights.",
+    date: "2026-08-11",
+    tags: ["Voice", "Guide"],
+  },
+];
+
+/** Default related links for blog posts → pillar cluster */
+export const BLOG_RELATED = [
+  { to: "/discord-alternative", label: "Discord alternative hub" },
+  { to: "/compare/discord", label: "Descall vs Discord" },
+  { to: "/alternatives", label: "All alternatives" },
+  { to: "/apps-like-discord", label: "Apps like Discord" },
+  { to: "/download", label: "Download Descall" },
 ];

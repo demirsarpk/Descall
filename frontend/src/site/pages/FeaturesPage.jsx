@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useT } from "../../context/LocaleContext";
 import JsonLd, { buildBreadcrumbLd, buildSoftwareApplicationLd } from "../JsonLd";
+import SeoRelatedLinks from "../components/SeoRelatedLinks";
 
 const FEATURES = [
   {
@@ -43,7 +44,7 @@ const FEATURES = [
   {
     icon: Shield,
     title: "Account security",
-    desc: "Encryption in transit, optional 2FA, and Google sign-in for a safer Discord alternative.",
+    desc: "Encryption in transit (TLS / secure WebRTC), optional 2FA, and Google sign-in.",
   },
 ];
 
@@ -59,7 +60,7 @@ export default function FeaturesPage() {
       <JsonLd data={[buildBreadcrumbLd(crumbs), buildSoftwareApplicationLd()]} />
       <section className="mkt-section seo-features" style={{ marginTop: 12 }}>
         <div className="mkt-kicker">{t("Product")}</div>
-        <h2>{t("Features of a modern Discord alternative")}</h2>
+        <h1 className="seo-page-h1">{t("Features of a modern Discord alternative")}</h1>
         <p className="lead">
           {t(
             "Everything friend groups and gamers need day to day — messaging, calls, screen share, LFG — without turning your PC into a second operating system."
@@ -94,6 +95,15 @@ export default function FeaturesPage() {
             {t("FAQ")}
           </Link>
         </div>
+        <SeoRelatedLinks
+          title="Explore by use case"
+          links={[
+            { to: "/discord-alternative-for-voice-chat", label: "Voice chat alternative" },
+            { to: "/discord-alternative-for-lfg", label: "LFG platform" },
+            { to: "/discord-alternative-for-communities", label: "Communities" },
+            { to: "/compare/discord", label: "Descall vs Discord" },
+          ]}
+        />
       </section>
     </>
   );

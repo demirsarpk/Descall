@@ -16,16 +16,15 @@ export function buildOrganizationLd() {
 }
 
 export function buildWebSiteLd() {
+  // No SearchAction — FAQ does not expose a public search endpoint.
+  // Misleading SearchAction hurts rich-result trust.
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: SITE_NAME,
+    alternateName: ["Descall App", "Descall Chat"],
     url: absoluteUrl("/"),
-    potentialAction: {
-      "@type": "SearchAction",
-      target: `${absoluteUrl("/faq")}?q={search_term_string}`,
-      "query-input": "required name=search_term_string",
-    },
+    inLanguage: ["en", "tr"],
   };
 }
 
@@ -104,14 +103,14 @@ export function buildArticleLd({ title, description, path, datePublished, dateMo
 }
 
 /** SoftwareApplication marked as alternative to Discord for rich results context. */
-export function buildDiscordAlternativeAppLd() {
+export function buildDiscordAlternativeAppLd(path = "/discord-alternative") {
   return {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: SITE_NAME,
     applicationCategory: "CommunicationApplication",
     operatingSystem: "Windows, Web, Android",
-    url: absoluteUrl("/discord-alternative"),
+    url: absoluteUrl(path),
     downloadUrl: absoluteUrl("/download"),
     description:
       "Free Discord alternative for real-time chat, group voice/video, screen share, and Valorant LFG.",
@@ -126,6 +125,7 @@ export function buildDiscordAlternativeAppLd() {
       "Screen share",
       "Valorant LFG",
       "Windows desktop app",
+      "Android APK",
     ],
   };
 }

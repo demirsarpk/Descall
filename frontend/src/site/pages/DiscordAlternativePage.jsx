@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { Check, Zap, Users, Gamepad2, Monitor } from "lucide-react";
 import SeoLandingShell from "../components/SeoLandingShell";
+import SeoProductPreview from "../components/SeoProductPreview";
+import SeoRelatedLinks from "../components/SeoRelatedLinks";
 import {
   buildBreadcrumbLd,
   buildFaqLd,
@@ -41,6 +43,9 @@ export default function DiscordAlternativePage({ onSignIn }) {
         <Link to="/compare/discord" className="mkt-btn mkt-btn-soft">
           {t("Compare with Discord")}
         </Link>
+      }
+      heroExtra={
+        <SeoProductPreview caption={t("Descall UI — chat, voice calls, and LFG in one app")} />
       }
     >
       <section className="seo-section">
@@ -131,23 +136,21 @@ export default function DiscordAlternativePage({ onSignIn }) {
         </div>
       </section>
 
-      <section className="seo-section">
-        <h2>{t("Related Discord alternative guides")}</h2>
-        <ul className="seo-link-list">
-          <li>
-            <Link to="/alternatives">{t("All Discord alternatives — hub")}</Link>
-          </li>
-          <li>
-            <Link to="/best-discord-alternative-for-gamers">{t("Best Discord alternative for gamers")}</Link>
-          </li>
-          <li>
-            <Link to="/discord-alternative-turkey">{t("Discord alternatifi (Türkiye)")}</Link>
-          </li>
-          <li>
-            <Link to="/blog">{t("Descall blog")}</Link>
-          </li>
-        </ul>
-      </section>
+      <SeoRelatedLinks
+        title="Related Discord alternative guides"
+        links={[
+          { to: "/alternatives", label: "All Discord alternatives — hub" },
+          { to: "/apps-like-discord", label: "Apps like Discord" },
+          { to: "/discord-replacement", label: "Discord replacement" },
+          { to: "/best-discord-alternative-for-gamers", label: "Best Discord alternative for gamers" },
+          { to: "/discord-alternative-for-lfg", label: "Discord alternative for LFG" },
+          { to: "/discord-alternative-for-communities", label: "For communities" },
+          { to: "/discord-alternative-for-voice-chat", label: "Voice chat alternative" },
+          { to: "/discord-alternative-for-friends", label: "For friends" },
+          { to: "/discord-alternative-turkey", label: "Discord alternatifi (Türkiye)" },
+          { to: "/blog", label: "Descall blog" },
+        ]}
+      />
     </SeoLandingShell>
   );
 }

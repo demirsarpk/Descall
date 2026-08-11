@@ -6,6 +6,7 @@ export const DEFAULT_ORIGIN = "https://descall.com";
 export const DEFAULT_OG_IMAGE = "/og-default.svg";
 export const SUPPORTED_LOCALES = ["en", "tr"];
 
+/** Runtime origin (API / preview hosts). Prefer this only for non-SEO needs. */
 export function siteOrigin() {
   try {
     if (typeof window !== "undefined" && window.location?.origin) {
@@ -18,8 +19,16 @@ export function siteOrigin() {
   return DEFAULT_ORIGIN;
 }
 
+/**
+ * Canonical public origin for SEO (canonical, OG, JSON-LD, hreflang).
+ * Always descall.com — never preview/onrender hosts — so Google consolidates signals.
+ */
+export function canonicalOrigin() {
+  return DEFAULT_ORIGIN;
+}
+
 export function absoluteUrl(path = "/") {
-  const origin = siteOrigin();
+  const origin = canonicalOrigin();
   if (!path || path === "/") return `${origin}/`;
   return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
 }
@@ -28,11 +37,12 @@ export function absoluteUrl(path = "/") {
 export const PUBLIC_ROUTES = [
   {
     path: "/",
-    title: "Descall — Free Discord alternative for chat, voice & LFG",
+    title: "Descall — Free Discord Alternative for Chat, Voice & LFG",
     description:
-      "Descall is a free Discord alternative with real-time chat, group voice/video, screen share, Valorant LFG, and a Windows desktop app — lighter for friends and gamers.",
+      "Descall is a free Discord alternative with real-time chat, group voice/video, screen share, Valorant LFG, and Windows/Android apps — built for friends and gamers.",
     changefreq: "daily",
     priority: "1.0",
+    keywords: "discord alternative, descall, free voice chat, valorant lfg",
   },
   {
     path: "/download",
@@ -52,35 +62,96 @@ export const PUBLIC_ROUTES = [
   },
   {
     path: "/discord-alternative",
-    title: "Best Free Discord Alternative (2026) — Descall",
+    title: "Best Free Discord Alternative for Friends & Gamers | Descall",
     description:
-      "Looking for a Discord alternative? Descall offers free chat, voice, video, screen share, and Valorant LFG without Nitro — built for friends and gaming groups.",
+      "Descall is a free Discord alternative with real-time chat, HD voice/video, screen share, and Valorant LFG — no Nitro paywall on core features. Start free.",
+    h1: "The best free Discord alternative for friends & gamers",
     changefreq: "weekly",
     priority: "0.95",
+    keywords: "discord alternative, best discord alternative, free discord alternative",
   },
   {
     path: "/alternatives",
-    title: "Discord Alternatives in 2026 — Why teams pick Descall",
+    title: "Best Discord Alternatives in 2026 — Compare Apps Like Discord",
     description:
-      "Compare Discord alternatives for chat and voice. See why Descall is a lighter, free Discord alternative for friend groups, LFG, and screen share.",
+      "Compare Discord alternatives and apps like Discord for chat, voice, and LFG. See why friend groups pick Descall as a lighter free option.",
+    h1: "Discord alternatives worth switching to",
     changefreq: "weekly",
     priority: "0.9",
+    keywords: "discord alternatives, apps like discord, best discord alternatives 2026",
   },
   {
     path: "/compare/discord",
-    title: "Descall vs Discord — Honest comparison (2026)",
+    title: "Descall vs Discord (2026) — Feature Comparison & Verdict",
     description:
-      "Descall vs Discord: chat, voice, video, screen share, LFG, desktop apps, and pricing. See when Descall is the better Discord alternative.",
+      "Side-by-side Descall vs Discord: voice, messaging, LFG, screen share, privacy, mobile, desktop, and pricing. Honest verdict for friend groups.",
+    h1: "Descall vs Discord — which Discord alternative fits your group?",
     changefreq: "weekly",
     priority: "0.95",
+    keywords: "descall vs discord, discord vs descall, discord alternative comparison",
   },
   {
     path: "/best-discord-alternative-for-gamers",
-    title: "Best Discord Alternative for Gamers — Descall LFG",
+    title: "Best Discord Alternative for Gamers & Valorant LFG | Descall",
     description:
-      "Best Discord alternative for gamers: Descall combines voice chat, screen share, and built-in Valorant LFG so squads can queue without Nitro.",
+      "Discord alternative for gamers: free voice, screen share, and built-in Valorant LFG so squads queue without Nitro or bot hell.",
     changefreq: "weekly",
     priority: "0.9",
+    keywords: "discord alternative for gamers, gaming chat alternative, valorant lfg",
+  },
+  {
+    path: "/discord-alternative-for-communities",
+    title: "Discord Alternative for Communities | Descall Groups",
+    description:
+      "Community chat platform without server sprawl. Descall is a Discord alternative for private communities — groups, presence, voice, and free core chat.",
+    changefreq: "weekly",
+    priority: "0.88",
+    keywords: "discord alternative for communities, community chat platform",
+  },
+  {
+    path: "/discord-alternative-for-lfg",
+    title: "Discord Alternative for LFG — Valorant Lobbies | Descall",
+    description:
+      "LFG app built into a Discord alternative: Play tab lobbies, party codes, Riot Name#TAG link, then jump straight into voice.",
+    changefreq: "weekly",
+    priority: "0.9",
+    keywords: "discord alternative for lfg, lfg app, lfg platform, valorant lfg",
+  },
+  {
+    path: "/discord-alternative-for-voice-chat",
+    title: "Voice Chat Alternative to Discord — Free Calls | Descall",
+    description:
+      "Free voice chat alternative to Discord with WebRTC calls, screen share quality presets, and no Nitro paywall on talking to friends.",
+    changefreq: "weekly",
+    priority: "0.88",
+    keywords: "voice chat alternative to discord, discord alternative for voice chat",
+  },
+  {
+    path: "/discord-alternative-for-friends",
+    title: "Discord Alternative for Friends — DMs, Groups & Voice",
+    description:
+      "Discord alternative for friends: DMs, groups, presence, and free voice/video. Skip server admin — keep the people you actually call.",
+    changefreq: "weekly",
+    priority: "0.88",
+    keywords: "discord alternative for friends, group chat alternative to discord",
+  },
+  {
+    path: "/apps-like-discord",
+    title: "Apps Like Discord (2026) — Websites & Platforms Compared",
+    description:
+      "Looking for apps like Discord, websites like Discord, or platforms like Discord? Compare options and see when Descall is the better free pick.",
+    changefreq: "weekly",
+    priority: "0.9",
+    keywords: "apps like discord, websites like discord, platforms like discord",
+  },
+  {
+    path: "/discord-replacement",
+    title: "Discord Replacement for Friend Groups | Switch to Descall",
+    description:
+      "Need a Discord replacement for nightly voice and DMs? Migrate your friend group to Descall in two weeks — keep Discord only for mega-servers.",
+    changefreq: "weekly",
+    priority: "0.88",
+    keywords: "discord replacement, alternative to discord, switch from discord",
   },
   {
     path: "/discord-alternative-turkey",
@@ -89,38 +160,88 @@ export const PUBLIC_ROUTES = [
       "Discord alternatifi mi arıyorsun? Descall: ücretsiz sohbet, sesli arama, ekran paylaşımı ve Valorant LFG. Türkçe arayüz, Windows ve Android.",
     changefreq: "weekly",
     priority: "0.9",
+    lang: "tr",
+    keywords: "discord alternatifi, discord alternatifleri, ücretsiz sesli sohbet",
   },
   {
     path: "/blog",
-    title: "Descall Blog — Discord alternatives, LFG & voice chat",
+    title: "Descall Blog — Discord Alternatives, LFG & Voice Chat Guides",
     description:
-      "Guides on Discord alternatives, Valorant LFG, voice chat, and migrating friend groups to Descall.",
+      "Practical guides on Discord alternatives, Discord competitors, Valorant LFG, voice chat, and migrating friend groups to Descall.",
     changefreq: "weekly",
     priority: "0.8",
   },
   {
     path: "/blog/discord-vs-descall",
-    title: "Discord vs Descall (2026) — Which should your group use?",
+    title: "Discord vs Descall (2026) — Which Should Your Group Use?",
     description:
       "Honest Discord vs Descall comparison for chat, voice, screen share, LFG, and pricing — when a lighter Discord alternative wins.",
     changefreq: "monthly",
     priority: "0.85",
+    ogType: "article",
   },
   {
     path: "/blog/best-discord-alternative-for-lfg",
-    title: "Best Discord Alternative for Valorant LFG",
+    title: "Best Discord Alternative for Valorant LFG | Descall Blog",
     description:
       "Why gamers choose Descall as a Discord alternative for LFG: Play tab lobbies, party codes, and Riot Name#TAG linking.",
     changefreq: "monthly",
     priority: "0.85",
+    ogType: "article",
   },
   {
     path: "/blog/leave-nitro-keep-voice-chat",
-    title: "Leave Nitro. Keep voice chat. — Descall migration guide",
+    title: "Leave Nitro. Keep Voice Chat. — Migration Guide",
     description:
       "Move your friend group off Discord Nitro habits to a free Discord alternative with voice, video, and screen share.",
     changefreq: "monthly",
     priority: "0.8",
+    ogType: "article",
+  },
+  {
+    path: "/blog/best-discord-alternatives-2026",
+    title: "Best Discord Alternatives in 2026 — Honest Shortlist",
+    description:
+      "Best Discord alternatives in 2026 for friends, voice, and LFG — how Descall, Discord, Guilded, and others actually compare.",
+    changefreq: "monthly",
+    priority: "0.85",
+    ogType: "article",
+  },
+  {
+    path: "/blog/apps-like-discord",
+    title: "Apps Like Discord — What to Use Instead in 2026",
+    description:
+      "Apps like Discord explained by job-to-be-done: friend voice, communities, or pure voice servers — and where Descall fits.",
+    changefreq: "monthly",
+    priority: "0.85",
+    ogType: "article",
+  },
+  {
+    path: "/blog/discord-competitors",
+    title: "Discord Competitors in 2026 — Who Actually Competes",
+    description:
+      "Map of Discord competitors in 2026: lighter friend apps, gaming suites, and voice classics — plus where Descall competes honestly.",
+    changefreq: "monthly",
+    priority: "0.85",
+    ogType: "article",
+  },
+  {
+    path: "/blog/discord-alternative-for-communities-guide",
+    title: "Discord Alternative for Communities — Practical Guide",
+    description:
+      "How small communities pick a Discord alternative: groups, invites, voice hangouts, and when to stay on Discord.",
+    changefreq: "monthly",
+    priority: "0.8",
+    ogType: "article",
+  },
+  {
+    path: "/blog/voice-chat-alternative-to-discord",
+    title: "Voice Chat Alternative to Discord — Free Calls Guide",
+    description:
+      "Looking for a voice chat alternative to Discord? How Descall handles free WebRTC calls, screen share, and gaming nights.",
+    changefreq: "monthly",
+    priority: "0.8",
+    ogType: "article",
   },
   {
     path: "/faq",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, ShieldCheck, ArrowLeft } from "lucide-react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 import LegalContentModal from "../components/legal/LegalContentModal";
 import DownloadPage from "../components/download/DownloadPage";
@@ -23,6 +23,7 @@ import DiscordAlternativePage from "./pages/DiscordAlternativePage";
 import AlternativesPage from "./pages/AlternativesPage";
 import DiscordAlternativeGamersPage from "./pages/DiscordAlternativeGamersPage";
 import DiscordAlternativeTurkeyPage from "./pages/DiscordAlternativeTurkeyPage";
+import DiscordAlternativeNichePage from "./pages/DiscordAlternativeNichePage";
 import BlogIndexPage from "./pages/BlogIndexPage";
 import BlogPostPage from "./pages/BlogPostPage";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -346,9 +347,30 @@ export default function MarketingApp({
           element={withLayout(DiscordAlternativeGamersPage, openAuth)}
         />
         <Route
+          path="/discord-alternative-for-communities"
+          element={withLayout(DiscordAlternativeNichePage, openAuth)}
+        />
+        <Route
+          path="/discord-alternative-for-lfg"
+          element={withLayout(DiscordAlternativeNichePage, openAuth)}
+        />
+        <Route
+          path="/discord-alternative-for-voice-chat"
+          element={withLayout(DiscordAlternativeNichePage, openAuth)}
+        />
+        <Route
+          path="/discord-alternative-for-friends"
+          element={withLayout(DiscordAlternativeNichePage, openAuth)}
+        />
+        <Route path="/apps-like-discord" element={withLayout(DiscordAlternativeNichePage, openAuth)} />
+        <Route path="/discord-replacement" element={withLayout(DiscordAlternativeNichePage, openAuth)} />
+        <Route
           path="/discord-alternative-turkey"
           element={withLayout(DiscordAlternativeTurkeyPage, openAuth)}
         />
+        {/* Keyword URL aliases → canonical landings (no duplicate content) */}
+        <Route path="/discord-alternatives" element={<Navigate to="/alternatives" replace />} />
+        <Route path="/best-discord-alternative" element={<Navigate to="/discord-alternative" replace />} />
         <Route path="/blog" element={withLayout(BlogIndexPage, openAuth)} />
         <Route path="/blog/:slug" element={withLayout(BlogPostPage, openAuth)} />
         <Route path="*" element={withLayout(NotFoundPage, openAuth)} />

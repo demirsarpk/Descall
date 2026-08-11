@@ -33,7 +33,10 @@ assert.ok(locs.includes("https://des-call.onrender.com/blog/discord-vs-descall")
 // Fictional locale alternates and invite spam must stay out of the default pages set
 assert.ok(!pages.some((p) => p.alternates?.length));
 assert.ok(!locs.some((l) => l.includes("invite=") || l.includes("announcement=")));
-assert.ok(pages.length >= 18);
+assert.ok(locs.includes("https://des-call.onrender.com/apps-like-discord"));
+assert.ok(locs.includes("https://des-call.onrender.com/discord-replacement"));
+assert.ok(locs.includes("https://des-call.onrender.com/discord-alternative-for-lfg"));
+assert.ok(pages.length >= 28);
 
 const fakeReq = {
   protocol: "https",
