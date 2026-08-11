@@ -54,7 +54,8 @@ export default function DiscordAlternativeGamersPage({ onSignIn }) {
             "Free core — cosmetics optional",
           ].map((item) => (
             <li key={item}>
-              <span>✓</span> {t(item)}
+              <Check size={16} aria-hidden />
+              <span>{t(item)}</span>
             </li>
           ))}
         </ul>
