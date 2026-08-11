@@ -132,8 +132,10 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
   const [notice, setNotice] = useState("");
   const [activeCategory, setActiveCategory] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    // Full loading flash unmounts the grid and resets .us-main-scroll to top.
+    // Only show it on the first open — refresh after buy/equip stays silent.
+    if (!silent) setLoading(true);
     try {
       const [{ items: catalog }, { inventory: inv }] = await Promise.all([getShopCatalog(), getShopInventory()]);
       setItems(catalog || []);
@@ -141,13 +143,29 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
     } catch (_) {
       // best-effort
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const preserveShopScroll = useCallback(async (action) => {
+    const scrollEl = document.querySelector(".us-main-scroll");
+    const scrollTop = scrollEl?.scrollTop ?? 0;
+    try {
+      return await action();
+    } finally {
+      const restore = () => {
+        if (scrollEl) scrollEl.scrollTop = scrollTop;
+      };
+      restore();
+      requestAnimationFrame(restore);
+      setTimeout(restore, 0);
+      setTimeout(restore, 50);
+    }
+  }, []);
 
   const ownedItemIds = useMemo(() => new Set(inventory.map((i) => i.itemId)), [inventory]);
 
@@ -183,9 +201,17 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
     setBusyItemId(item.id);
     setNotice("");
     try {
-      await purchaseShopItem(item.id);
-      await load();
-      await onEquippedChange?.(null, null);
+      await preserveShopScroll(async () => {
+        await purchaseShopItem(item.id);
+        // Optimistic own so the card flips to Equip without a loading flash.
+        setInventory((prev) =>
+          prev.some((row) => row.itemId === item.id)
+            ? prev
+            : [...prev, { itemId: item.id, item }]
+        );
+        await load({ silent: true });
+        await onEquippedChange?.(null, null);
+      });
     } catch (err) {
       setNotice(err.message || t("Purchase failed. Please try again."));
     } finally {
@@ -196,8 +222,10 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
   const handleEquip = async (item, isEquipped) => {
     setBusyItemId(item.id);
     try {
-      await equipShopItem(item.category, isEquipped ? null : item.id);
-      await onEquippedChange?.(item.category, isEquipped ? null : item.id);
+      await preserveShopScroll(async () => {
+        await equipShopItem(item.category, isEquipped ? null : item.id);
+        await onEquippedChange?.(item.category, isEquipped ? null : item.id);
+      });
     } catch (_) {
       // best-effort
     } finally {
@@ -225,7 +253,7 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
   };
 
   return (
-    <motion.div className="shop-panel" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+    <motion.div className="shop-panel" initial={false} animate={{ opacity: 1, y: 0 }}>
       <div className="shop-panel-header-row">
         <h3>
           <ShoppingBag size={18} style={{ verticalAlign: "-3px", marginRight: 6 }} />
