@@ -45,16 +45,21 @@
   display: block;
 }
 
-/* Frame sits in a square larger than the avatar; inset centering avoids
-   transform:translate(-50%,-50%) fighting Framer Motion transforms. */
+/* Frame sits in a square larger than the avatar (~132%).
+   IMPORTANT: <img> is a replaced element — inset + width/height:auto uses the
+   SVG's intrinsic size (often 256px), which blows the ring up over the whole
+   profile card. Always set an explicit width/height relative to .ui-avatar. */
 .ui-avatar-frame-overlay {
   position: absolute;
   z-index: 2;
-  /* Match previous 132% size with inset centering (no translate transform). */
-  inset: -16%;
-  width: auto;
-  height: auto;
+  top: 50%;
+  left: 50%;
+  width: 132%;
+  height: 132%;
   max-width: none;
+  max-height: none;
+  /* Transform on the <img> itself is safe; Framer Motion only owns the parent. */
+  transform: translate(-50%, -50%);
   pointer-events: none;
   object-fit: contain;
   object-position: center;

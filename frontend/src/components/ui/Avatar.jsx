@@ -232,6 +232,11 @@ export function Avatar({
           alt=""
           draggable={false}
           aria-hidden
+          style={{
+            // Explicit px size — never fall back to the SVG intrinsic 256×256.
+            width: Math.round(size * 1.32),
+            height: Math.round(size * 1.32),
+          }}
         />
       )}
     </motion.div>
