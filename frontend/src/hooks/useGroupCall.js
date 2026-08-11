@@ -1203,7 +1203,12 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       
       const screenTrack = stream.getVideoTracks()[0];
       const screenAudioTrack = stream.getAudioTracks()[0];
-      await optimizeScreenShareTrack(screenTrack, { width, height, fps: frameRate });
+      await optimizeScreenShareTrack(screenTrack, {
+        width,
+        height,
+        fps: frameRate,
+        contentHint: effectiveQuality.contentHint || "motion",
+      });
       if (screenTrack.readyState !== "live") {
         stream.getTracks().forEach((t) => t.stop());
         return;

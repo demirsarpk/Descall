@@ -1066,7 +1066,12 @@ export function useCall(socket, callOccupancyRef = null) {
       }
 
       const screenTrack = screenStream.getVideoTracks()[0];
-      await optimizeScreenShareTrack(screenTrack, { width, height, fps });
+      await optimizeScreenShareTrack(screenTrack, {
+        width,
+        height,
+        fps,
+        contentHint: effectiveQuality.contentHint || "motion",
+      });
       if (screenTrack.readyState !== "live") {
         screenStream.getTracks().forEach((t) => t.stop());
         return;

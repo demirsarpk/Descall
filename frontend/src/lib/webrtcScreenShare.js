@@ -15,12 +15,46 @@ export const DM_SCREEN_DEFAULT_QUALITY = {
   contentHint: "motion",
 };
 
+/** Named presets for the quality panel (resolution + fps + contentHint). */
+export const SCREEN_QUALITY_PRESETS = {
+  smooth: {
+    id: "smooth",
+    resolution: "480p",
+    fps: 20,
+    contentHint: "motion",
+  },
+  balanced: {
+    id: "balanced",
+    resolution: "720p",
+    fps: 24,
+    contentHint: "motion",
+  },
+  high: {
+    id: "high",
+    resolution: "1080p",
+    fps: 30,
+    contentHint: "motion",
+  },
+  ultra: {
+    id: "ultra",
+    resolution: "1440p",
+    fps: 30,
+    contentHint: "motion",
+  },
+  text: {
+    id: "text",
+    resolution: "1080p",
+    fps: 20,
+    contentHint: "detail",
+  },
+};
+
 const RESOLUTION_MAP = {
   "480p": { width: 854, height: 480 },
   "720p": { width: 1280, height: 720 },
   "1080p": { width: 1920, height: 1080 },
-  "1440p": { width: 1920, height: 1080 },
-  "2160p": { width: 1920, height: 1080 },
+  "1440p": { width: 2560, height: 1440 },
+  "2160p": { width: 3840, height: 2160 },
   custom: { width: 1280, height: 720 },
 };
 
@@ -37,27 +71,48 @@ export function resolveScreenCaptureSize(quality = {}, opts = {}) {
   const key = quality.resolution || "720p";
   const size = RESOLUTION_MAP[key] || RESOLUTION_MAP["720p"];
   const peerCount = Math.max(1, opts.peerCount || 1);
-  // DM can sustain 30 FPS; group mesh caps lower to protect encode budget
-  const hardCap = opts.maxFps ?? (peerCount <= 2 ? 30 : 24);
+  // DM can sustain 60 FPS; group mesh caps lower to protect encode budget
+  const hardCap = opts.maxFps ?? (peerCount <= 2 ? 60 : 24);
   const fps = Math.min(Math.max(Number(quality.fps) || (peerCount <= 2 ? 30 : 20), 10), hardCap);
   return { ...size, fps };
 }
 
 export function screenBitrateForPeerCount(peerCount, resolution = "720p") {
   const n = Math.max(1, peerCount || 1);
-  const base =
-    resolution === "480p"
-      ? 900_000
-      : resolution === "1080p"
-        ? n <= 2
-          ? 3_500_000
-          : 2_200_000
-        : n <= 2
-          ? 2_200_000
-          : 1_400_000;
+  let base = 2_200_000;
+  if (resolution === "480p") base = 900_000;
+  else if (resolution === "720p") base = n <= 2 ? 2_200_000 : 1_400_000;
+  else if (resolution === "1080p") base = n <= 2 ? 3_500_000 : 2_200_000;
+  else if (resolution === "1440p") base = n <= 2 ? 6_000_000 : 3_000_000;
+  else if (resolution === "2160p") base = n <= 2 ? 10_000_000 : 4_000_000;
+
   if (n >= 5) return Math.min(base, 900_000);
-  if (n >= 3) return Math.min(base, 1_400_000);
+  if (n >= 3) return Math.min(base, 1_600_000);
   return base;
+}
+
+/** Human-readable Mbps estimate for the quality panel. */
+export function estimateScreenShareMbps(quality = {}, peerCount = 2) {
+  const bps = screenBitrateForPeerCount(peerCount, quality.resolution || "720p");
+  const fpsBoost = Math.min(1.35, Math.max(0.75, (Number(quality.fps) || 24) / 24));
+  const detailBoost = quality.contentHint === "detail" || quality.contentHint === "text" ? 1.1 : 1;
+  return Math.round((bps * fpsBoost * detailBoost) / 100_000) / 10;
+}
+
+export function matchScreenQualityPreset(quality = {}) {
+  const res = quality.resolution || "720p";
+  const fps = Number(quality.fps) || 24;
+  const hint = quality.contentHint === "detail" || quality.contentHint === "text" ? "detail" : "motion";
+  for (const preset of Object.values(SCREEN_QUALITY_PRESETS)) {
+    if (
+      preset.resolution === res &&
+      Number(preset.fps) === fps &&
+      (preset.contentHint === "detail" ? "detail" : "motion") === hint
+    ) {
+      return preset.id;
+    }
+  }
+  return "custom";
 }
 
 /**
@@ -68,7 +123,18 @@ export async function optimizeScreenShareTrack(track, { fps, contentHint = "moti
   if (!track || track.kind !== "video") return;
   try {
     if ("contentHint" in track) {
-      track.contentHint = contentHint === "detail" ? "detail" : "motion";
+      // Prefer "text" when requested (sharp UI/code); fall back to detail/motion
+      if (contentHint === "text") {
+        try {
+          track.contentHint = "text";
+        } catch {
+          track.contentHint = "detail";
+        }
+      } else if (contentHint === "detail") {
+        track.contentHint = "detail";
+      } else {
+        track.contentHint = "motion";
+      }
     }
   } catch {
     /* ignore */

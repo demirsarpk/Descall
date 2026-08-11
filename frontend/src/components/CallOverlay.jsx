@@ -530,7 +530,7 @@ export default function CallOverlay({ call, groupCall, me }) {
               >
                 <Monitor size={narrowViewport ? 19 : 22} />
               </CircleBtn>
-              {!narrowViewport && (screenSharing || showScreenQuality) && (
+              {(screenSharing || showScreenQuality) && (
                 <button
                   type="button"
                   title={t("Screen quality")}
@@ -540,8 +540,8 @@ export default function CallOverlay({ call, groupCall, me }) {
                     setShowScreenQuality((v) => !v);
                   }}
                   style={{
-                    width: 28,
-                    height: 28,
+                    width: narrowViewport ? 32 : 28,
+                    height: narrowViewport ? 32 : 28,
                     borderRadius: 8,
                     border: "1px solid rgba(255,255,255,0.12)",
                     background: showScreenQuality ? "rgba(88,101,242,0.35)" : "rgba(0,0,0,0.35)",
@@ -553,7 +553,7 @@ export default function CallOverlay({ call, groupCall, me }) {
                     flexShrink: 0,
                   }}
                 >
-                  <SlidersHorizontal size={14} />
+                  <SlidersHorizontal size={narrowViewport ? 15 : 14} />
                 </button>
               )}
               <ScreenShareQualityPanel
