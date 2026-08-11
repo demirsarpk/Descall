@@ -1,8 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { MessageCircle, Mic, Video, MonitorUp } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
-import { Funnel } from "../analytics";
+import { Funnel, getFeatureFlag, getFeatureFlagPayload } from "../analytics";
 import JsonLd, {
   buildOrganizationLd,
   buildSoftwareApplicationLd,
@@ -19,14 +19,28 @@ const HIGHLIGHTS = [
 export default function HomePage({ onSignIn, onSignUp }) {
   const t = useT();
   const openRegister = onSignUp || onSignIn;
+  const [heroVariant, setHeroVariant] = useState("control");
+  const [heroPayload, setHeroPayload] = useState(null);
 
   useEffect(() => {
-    Funnel.landingView({ page: "home", path: "/" });
+    const variant = getFeatureFlag("hero_cta_variant", "control");
+    const payload = getFeatureFlagPayload("hero_cta_variant", null);
+    setHeroVariant(typeof variant === "string" ? variant : "control");
+    setHeroPayload(payload && typeof payload === "object" ? payload : null);
+    Funnel.landingView({ page: "home", path: "/", hero_cta_variant: variant });
   }, []);
 
   const trackCta = (placement, label) => {
-    Funnel.ctaClick({ page: "home", placement, label, intent: "register" });
+    Funnel.ctaClick({
+      page: "home",
+      placement,
+      label,
+      intent: "register",
+      hero_cta_variant: heroVariant,
+    });
   };
+
+  const heroCtaLabel = heroPayload?.cta ? String(heroPayload.cta) : t("Start free");
 
   return (
     <>
@@ -37,9 +51,11 @@ export default function HomePage({ onSignIn, onSignUp }) {
           <span className="mkt-brand-word">Descall</span>
         </h1>
         <p>
-          {t(
-            "The ultimate chat application for your desktop. Fast, secure, and beautifully designed."
-          )}
+          {heroPayload?.sub
+            ? String(heroPayload.sub)
+            : t(
+                "The ultimate chat application for your desktop. Fast, secure, and beautifully designed."
+              )}
         </p>
         <div className="mkt-cta-row">
           <button
@@ -50,7 +66,7 @@ export default function HomePage({ onSignIn, onSignUp }) {
               openRegister?.({ mode: "register", source: "home_hero" });
             }}
           >
-            {t("Start free")}
+            {heroCtaLabel}
           </button>
           <Link
             to="/download"

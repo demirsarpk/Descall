@@ -44,10 +44,19 @@ export function initAnalytics() {
     try {
       posthog.init(phKey, {
         api_host: posthogHost(),
+        ui_host: "https://eu.posthog.com",
         person_profiles: "identified_only",
         capture_pageview: false, // we send $pageview ourselves with SPA routes
         capture_pageleave: true,
+        capture_exceptions: true,
         persistence: "localStorage+cookie",
+        // Project settings enable replay/surveys; keep client aligned.
+        disable_session_recording: false,
+        session_recording: {
+          maskAllInputs: true,
+          recordCrossOriginIframes: false,
+        },
+        advanced_disable_feature_flags_on_first_load: false,
         loaded: (ph) => {
           posthogReady = true;
           // Attach UTM / ref once for session correlation
@@ -162,6 +171,37 @@ export function resetAnalyticsUser() {
     if (posthogReady || posthogKey()) posthog.reset();
   } catch {
     /* ignore */
+  }
+}
+
+/** Multivariate / boolean flags (client-evaluated). Safe no-op when PostHog is off. */
+export function getFeatureFlag(key, fallback = false) {
+  if (!key) return fallback;
+  try {
+    if (!(posthogReady || posthogKey())) return fallback;
+    const value = posthog.getFeatureFlag(key);
+    return value == null ? fallback : value;
+  } catch {
+    return fallback;
+  }
+}
+
+export function getFeatureFlagPayload(key, fallback = null) {
+  if (!key) return fallback;
+  try {
+    if (!(posthogReady || posthogKey())) return fallback;
+    const payload = posthog.getFeatureFlagPayload(key);
+    if (payload == null) return fallback;
+    if (typeof payload === "string") {
+      try {
+        return JSON.parse(payload);
+      } catch {
+        return payload;
+      }
+    }
+    return payload;
+  } catch {
+    return fallback;
   }
 }
 
