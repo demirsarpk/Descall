@@ -316,6 +316,8 @@ export default function AppLayout({
             onRefresh={onRefresh}
             onAddFriend={() => handleAddClick("friend")}
             onFriendSelect={handleDmSelect}
+            /* Full-page on mobile (not a drawer) — X returns to chats like Play. */
+            onMobileClose={isMobile ? () => handleViewChange("chat") : undefined}
           />
         ) : (
           <ServerSidebar
