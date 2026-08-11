@@ -2240,6 +2240,23 @@ export const phrases = {
   "Leave Nitro guide": "Nitro’dan çıkış rehberi",
   "LFG guide": "LFG rehberi",
   "← Back to blog": "← Bloga dön",
+  "Start free": "Ücretsiz başla",
+  "Create free account": "Ücretsiz hesap oluştur",
+  "Discord alternative": "Discord alternatifi",
+  "Discord alternative for friends": "Arkadaşlar için Discord alternatifi",
+  "Copy invite link": "Davet linkini kopyala",
+  "Invite link copied": "Davet linki kopyalandı",
+  "Could not copy invite link": "Davet linki kopyalanamadı",
+  "Share your invite link — friends join free and connect with you instantly.":
+    "Davet linkini paylaş — arkadaşların ücretsiz katılır ve anında bağlanırsınız.",
+  "Add friend": "Arkadaş ekle",
+  "Invited by @{username}": "@{username} tarafından davet edildin",
+  "Join {name} on Descall — free chat, voice, and calls.":
+    "{name} ile Descall’da buluş — ücretsiz sohbet, ses ve arama.",
+  "Fastest path: continue with Google, then you’re in.":
+    "En hızlı yol: Google ile devam et, hemen içeri gir.",
+  "or": "veya",
+  "Turkey": "Türkiye",
 };
 
 const locale = { nested, phrases };

@@ -22,10 +22,13 @@ export function verify2faLogin(pendingToken, code) {
   });
 }
 
-export function loginWithGoogle(credential) {
+export function loginWithGoogle(credential, extra = {}) {
+  const payload = { credential };
+  if (extra?.invitedBy) payload.invitedBy = extra.invitedBy;
+  if (extra?.termsAccepted) payload.termsAccepted = true;
   return httpRequest(API_ROUTES.google, {
     method: "POST",
-    body: JSON.stringify({ credential }),
+    body: JSON.stringify(payload),
   });
 }
 

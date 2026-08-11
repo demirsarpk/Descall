@@ -159,9 +159,84 @@ function validatePassword(password) {
   return null;
 }
 
+/**
+ * Personal invite loop: when a new user registers with invitedBy=<username>,
+ * auto-accept friendship so both land with a real connection (not a pending ask).
+ */
+async function applyFriendInvite(newUserId, invitedByRaw, io) {
+  const invitedBy = String(invitedByRaw || "")
+    .trim()
+    .replace(/^@/, "");
+  if (!newUserId || !invitedBy || invitedBy.length < 2 || invitedBy.length > 24) {
+    return { linked: false };
+  }
+
+  const { data: inviter, error } = await supabase
+    .from("users")
+    .select("id, username")
+    .ilike("username", invitedBy)
+    .maybeSingle();
+
+  if (error || !inviter || inviter.id === newUserId) {
+    return { linked: false };
+  }
+
+  const { data: existingRows } = await supabase
+    .from("friendships")
+    .select("id, status")
+    .or(
+      `and(user_id.eq.${newUserId},friend_id.eq.${inviter.id}),and(user_id.eq.${inviter.id},friend_id.eq.${newUserId})`
+    );
+
+  if ((existingRows || []).some((r) => r.status === "accepted")) {
+    return { linked: true, inviterUsername: inviter.username, inviterId: inviter.id };
+  }
+
+  if (existingRows?.length) {
+    await supabase
+      .from("friendships")
+      .delete()
+      .or(
+        `and(user_id.eq.${newUserId},friend_id.eq.${inviter.id}),and(user_id.eq.${inviter.id},friend_id.eq.${newUserId})`
+      );
+  }
+
+  const { error: insertError } = await supabase.from("friendships").insert({
+    user_id: newUserId,
+    friend_id: inviter.id,
+    status: "accepted",
+  });
+
+  if (insertError) {
+    console.warn("[AUTH] invite friendship insert failed:", insertError.message);
+    return { linked: false, inviterUsername: inviter.username, inviterId: inviter.id };
+  }
+
+  try {
+    const { friends: friendsMap } = require("../runtime/sharedState");
+    if (!friendsMap.has(newUserId)) friendsMap.set(newUserId, new Set());
+    if (!friendsMap.has(inviter.id)) friendsMap.set(inviter.id, new Set());
+    friendsMap.get(newUserId).add(inviter.id);
+    friendsMap.get(inviter.id).add(newUserId);
+  } catch {
+    /* ignore runtime sync */
+  }
+
+  if (io) {
+    try {
+      io.to(`user:${newUserId}`).emit("friend:accepted", { by: { id: inviter.id, username: inviter.username } });
+      io.to(`user:${inviter.id}`).emit("friend:accepted", { by: { id: newUserId } });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return { linked: true, inviterUsername: inviter.username, inviterId: inviter.id };
+}
+
 router.post("/register", async (req, res) => {
   try {
-    const { username, password, email: rawEmail, termsAccepted } = req.body ?? {};
+    const { username, password, email: rawEmail, termsAccepted, invitedBy } = req.body ?? {};
 
     if (!termsAccepted) {
       return res.status(400).json({ error: "You must accept the Terms of Service and Privacy Policy to register." });
@@ -237,11 +312,18 @@ router.post("/register", async (req, res) => {
       emailSent = Boolean(result?.sent);
     }
 
+    const invite = await applyFriendInvite(newUser.id, invitedBy, req.app.get("io")).catch((err) => {
+      console.warn("[AUTH] invite apply failed:", err?.message);
+      return { linked: false };
+    });
+
     return res.status(201).json({
       message: "User registered successfully.",
       user: { id: newUser.id, username: newUser.username, avatarUrl: newUser.avatar_url || null },
       needsEmailVerification: Boolean(email),
       verificationEmailSent: emailSent,
+      invitedBy: invite.inviterUsername || null,
+      inviteLinked: Boolean(invite.linked),
     });
   } catch (err) {
     return res.status(500).json({ error: "Internal server error." });
@@ -432,6 +514,7 @@ router.post("/google", async (req, res) => {
     }
 
     const credential = req.body?.credential;
+    const invitedBy = req.body?.invitedBy;
     if (!credential || typeof credential !== "string") {
       return res.status(400).json({ error: "Google credential is required." });
     }
@@ -445,6 +528,7 @@ router.post("/google", async (req, res) => {
       return res.status(401).json({ error: "Invalid Google token." });
     }
 
+    let isNewUser = false;
     const googleId = payload.sub;
     const email = payload.email ? String(payload.email).trim().toLowerCase() : null;
     const emailVerified = Boolean(payload.email_verified);
@@ -541,6 +625,15 @@ router.post("/google", async (req, res) => {
         return res.status(500).json({ error: `Failed to create Google user.${hint}` });
       }
       user = created;
+      isNewUser = true;
+    }
+
+    let invite = { linked: false };
+    if (isNewUser) {
+      invite = await applyFriendInvite(user.id, invitedBy, req.app.get("io")).catch((err) => {
+        console.warn("[AUTH] Google invite apply failed:", err?.message);
+        return { linked: false };
+      });
     }
 
     const { session } = await createSession(user.id, {
@@ -555,6 +648,9 @@ router.post("/google", async (req, res) => {
       token,
       sessionId: session.id,
       user: authUserPayload(user, await resolveEquippedExtra(user.id)),
+      isNewUser,
+      invitedBy: invite.inviterUsername || null,
+      inviteLinked: Boolean(invite.linked),
     });
   } catch (err) {
     console.error("[AUTH] Google login error:", err);

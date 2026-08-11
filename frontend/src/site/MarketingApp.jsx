@@ -1,15 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, ShieldCheck, ArrowLeft } from "lucide-react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { X, ArrowLeft } from "lucide-react";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 import LegalContentModal from "../components/legal/LegalContentModal";
 import DownloadPage from "../components/download/DownloadPage";
 import "../components/download/DownloadPage.css";
 import { useT } from "../context/LocaleContext";
+import {
+  persistInviteRef,
+  peekInviteRef,
+  readInviteRefFromLocation,
+} from "../lib/referral";
+import { Funnel, initAnalytics, trackPageView } from "./analytics";
 import MarketingLayout from "./MarketingLayout";
 import SeoHead from "./SeoHead";
-import { initAnalytics, trackPageView } from "./analytics";
 import HomePage from "./pages/HomePage";
 import FeaturesPage from "./pages/FeaturesPage";
 import FaqPage from "./pages/FaqPage";
@@ -69,9 +74,12 @@ function AuthModal({
   onVerify2fa,
   authLoading,
   authError,
+  initialMode = "login",
+  authSource = "modal",
+  inviteRef = "",
 }) {
   const t = useT();
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(initialMode === "register");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
@@ -79,11 +87,7 @@ function AuthModal({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [legalModal, setLegalModal] = useState(null);
 
-  // Accounts with 2FA enabled don't get logged in directly — the server
-  // emails a one-time code and expects a follow-up verify call. This used to
-  // go nowhere: onLogin would resolve, no token would ever be set, and the
-  // modal just sat there looking like nothing had happened.
-  const [twoFa, setTwoFa] = useState(null); // { pendingToken, emailHint } | null
+  const [twoFa, setTwoFa] = useState(null);
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [twoFaError, setTwoFaError] = useState("");
@@ -93,14 +97,27 @@ function AuthModal({
       setUsername("");
       setPassword("");
       setEmail("");
-      setIsRegistering(false);
       setIsSubmitting(false);
       setTermsAccepted(false);
       setTwoFa(null);
       setCode("");
       setTwoFaError("");
+      return;
     }
-  }, [open]);
+    setIsRegistering(initialMode === "register");
+    Funnel.registerStart({
+      mode: initialMode === "register" ? "register" : "login",
+      source: authSource,
+      has_invite: Boolean(inviteRef),
+      invited_by: inviteRef || undefined,
+    });
+  }, [open, initialMode, authSource, inviteRef]);
+
+  const withInvite = (payload = {}) => {
+    const ref = inviteRef || peekInviteRef();
+    if (ref) return { ...payload, invitedBy: ref };
+    return payload;
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -110,12 +127,14 @@ function AuthModal({
     try {
       if (isRegistering) {
         const trimmedEmail = email.trim();
-        await onRegister?.({
-          username,
-          password,
-          termsAccepted: true,
-          ...(trimmedEmail ? { email: trimmedEmail } : {}),
-        });
+        await onRegister?.(
+          withInvite({
+            username,
+            password,
+            termsAccepted: true,
+            ...(trimmedEmail ? { email: trimmedEmail } : {}),
+          })
+        );
       } else {
         const result = await onLogin?.({ username, password });
         if (result?.requires2fa) {
@@ -188,95 +207,121 @@ function AuthModal({
                 <button
                   type="button"
                   className="auth-switch"
-                  onClick={() => { setTwoFa(null); setCode(""); setTwoFaError(""); }}
+                  onClick={() => {
+                    setTwoFa(null);
+                    setCode("");
+                    setTwoFaError("");
+                  }}
                 >
                   <ArrowLeft size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />
                   {t("Back to login")}
                 </button>
               </>
             ) : (
-            <>
-            <h2>{isRegistering ? t("Create Account") : t("Welcome Back")}</h2>
-            <p>{isRegistering ? t("Join Descall today") : t("Sign in to your account")}</p>
-            {authError && <div className="auth-error">{authError}</div>}
-            <GoogleSignInButton
-              disabled={isSubmitting || authLoading}
-              onCredential={async (credential) => {
-                setIsSubmitting(true);
-                try {
-                  await onGoogleLogin?.(credential);
-                } finally {
-                  setIsSubmitting(false);
-                }
-              }}
-            />
-            <form onSubmit={submit}>
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder={t("Username")}
-                autoComplete="username"
-                required
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t("Password")}
-                autoComplete={isRegistering ? "new-password" : "current-password"}
-                required
-              />
-              {isRegistering && (
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t("Email (optional)")}
-                  autoComplete="email"
-                  maxLength={254}
-                />
-              )}
-              {isRegistering && (
-                <p className="mkt-auth-field-hint">
-                  {t("Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings.")}
+              <>
+                <h2>{isRegistering ? t("Create Account") : t("Welcome Back")}</h2>
+                <p>
+                  {isRegistering
+                    ? inviteRef
+                      ? t("Join {name} on Descall — free chat, voice, and calls.", { name: inviteRef })
+                      : t("Join Descall today")
+                    : t("Sign in to your account")}
                 </p>
-              )}
-              {isRegistering && (
-                <div className="legal-consent">
-                  <input
-                    id="mkt-auth-terms-checkbox"
-                    type="checkbox"
-                    checked={termsAccepted}
-                    onChange={(e) => setTermsAccepted(e.target.checked)}
-                  />
-                  <label htmlFor="mkt-auth-terms-checkbox">
-                    {t("I have read and agree to the")}{" "}
-                    <button type="button" className="legal-consent-link" onClick={() => setLegalModal("terms")}>
-                      {t("Terms of Service")}
-                    </button>{" "}
-                    {t("and")}{" "}
-                    <button type="button" className="legal-consent-link" onClick={() => setLegalModal("privacy")}>
-                      {t("Privacy Policy")}
-                    </button>
-                    .
-                  </label>
+                {inviteRef && isRegistering && (
+                  <div className="mkt-invite-banner" role="status">
+                    {t("Invited by @{username}", { username: inviteRef })}
+                  </div>
+                )}
+                {authError && <div className="auth-error">{authError}</div>}
+                {isRegistering && (
+                  <div className="legal-consent">
+                    <input
+                      id="mkt-auth-terms-checkbox"
+                      type="checkbox"
+                      checked={termsAccepted}
+                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                    />
+                    <label htmlFor="mkt-auth-terms-checkbox">
+                      {t("I have read and agree to the")}{" "}
+                      <button type="button" className="legal-consent-link" onClick={() => setLegalModal("terms")}>
+                        {t("Terms of Service")}
+                      </button>{" "}
+                      {t("and")}{" "}
+                      <button type="button" className="legal-consent-link" onClick={() => setLegalModal("privacy")}>
+                        {t("Privacy Policy")}
+                      </button>
+                      .
+                    </label>
+                  </div>
+                )}
+                <GoogleSignInButton
+                  disabled={isSubmitting || authLoading || (isRegistering && !termsAccepted)}
+                  onCredential={async (credential) => {
+                    if (isRegistering && !termsAccepted) return;
+                    setIsSubmitting(true);
+                    try {
+                      await onGoogleLogin?.(credential, withInvite({ termsAccepted: isRegistering }));
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                />
+                {isRegistering && (
+                  <p className="mkt-auth-field-hint mkt-auth-google-hint">
+                    {t("Fastest path: continue with Google, then you’re in.")}
+                  </p>
+                )}
+                <div className="mkt-auth-divider" aria-hidden>
+                  <span>{t("or")}</span>
                 </div>
-              )}
-              <button
-                type="submit"
-                disabled={isSubmitting || authLoading || (isRegistering && !termsAccepted)}
-              >
-                {isRegistering ? t("Create Account") : t("Sign In")}
-              </button>
-            </form>
-            <button
-              type="button"
-              className="auth-switch"
-              onClick={() => setIsRegistering((v) => !v)}
-            >
-              {isRegistering ? t("Already have an account? Sign in") : t("Need an account? Register")}
-            </button>
-            </>
+                <form onSubmit={submit}>
+                  <input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder={t("Username")}
+                    autoComplete="username"
+                    required
+                  />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t("Password")}
+                    autoComplete={isRegistering ? "new-password" : "current-password"}
+                    required
+                  />
+                  {isRegistering && (
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={t("Email (optional)")}
+                      autoComplete="email"
+                      maxLength={254}
+                    />
+                  )}
+                  {isRegistering && (
+                    <p className="mkt-auth-field-hint">
+                      {t(
+                        "Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings."
+                      )}
+                    </p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || authLoading || (isRegistering && !termsAccepted)}
+                  >
+                    {isRegistering ? t("Create Account") : t("Sign In")}
+                  </button>
+                </form>
+                <button
+                  type="button"
+                  className="auth-switch"
+                  onClick={() => setIsRegistering((v) => !v)}
+                >
+                  {isRegistering ? t("Already have an account? Sign in") : t("Need an account? Register")}
+                </button>
+              </>
             )}
           </motion.div>
           <LegalContentModal open={legalModal === "terms"} type="terms" onClose={() => setLegalModal(null)} />
@@ -289,8 +334,12 @@ function AuthModal({
 
 function withLayout(Page, openAuth, pageProps = {}) {
   return (
-    <MarketingLayout onSignIn={openAuth}>
-      <Page onSignIn={openAuth} {...pageProps} />
+    <MarketingLayout onSignIn={openAuth} onSignUp={(opts) => openAuth({ mode: "register", ...opts })}>
+      <Page
+        onSignIn={openAuth}
+        onSignUp={(opts) => openAuth({ mode: "register", ...opts })}
+        {...pageProps}
+      />
     </MarketingLayout>
   );
 }
@@ -308,7 +357,11 @@ export default function MarketingApp({
   authError,
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState("login");
+  const [authSource, setAuthSource] = useState("modal");
+  const [inviteRef, setInviteRef] = useState(() => peekInviteRef());
 
   useEffect(() => {
     initAnalytics();
@@ -323,15 +376,75 @@ export default function MarketingApp({
     return enableMarketingScroll();
   }, [location.pathname]);
 
-  const openAuth = () => setAuthOpen(true);
-  const authProps = { onLogin, onRegister, onGoogleLogin, onVerify2fa, authLoading, authError };
+  // Capture ?ref= / invite attribution + deep-link auth modes
+  useEffect(() => {
+    const fromUrl = readInviteRefFromLocation(location.search);
+    if (fromUrl) {
+      persistInviteRef(fromUrl);
+      setInviteRef(fromUrl);
+      Funnel.inviteLanding({ invited_by: fromUrl, path: location.pathname });
+    } else {
+      const peeked = peekInviteRef();
+      if (peeked) setInviteRef(peeked);
+    }
+
+    const params = new URLSearchParams(location.search);
+    const authParam = (params.get("auth") || "").toLowerCase();
+    const path = location.pathname;
+
+    if (path === "/register" || authParam === "register" || authParam === "signup" || fromUrl) {
+      setAuthMode("register");
+      setAuthSource(fromUrl ? "invite_link" : path === "/register" ? "register_route" : "query");
+      setAuthOpen(true);
+    } else if (path === "/login" || authParam === "login" || authParam === "signin") {
+      setAuthMode("login");
+      setAuthSource(path === "/login" ? "login_route" : "query");
+      setAuthOpen(true);
+    }
+  }, [location.pathname, location.search]);
+
+  const openAuth = useCallback((opts = {}) => {
+    const mode = opts.mode === "register" || opts.mode === "signup" ? "register" : "login";
+    setAuthMode(mode);
+    setAuthSource(opts.source || "cta");
+    setAuthOpen(true);
+    Funnel.ctaClick({
+      page: location.pathname,
+      placement: opts.source || "cta",
+      label: mode === "register" ? "start_free" : "sign_in",
+      intent: mode,
+    });
+  }, [location.pathname]);
+
+  const closeAuth = useCallback(() => {
+    setAuthOpen(false);
+    if (location.pathname === "/register" || location.pathname === "/login") {
+      navigate("/", { replace: true });
+    } else if (location.search.includes("auth=")) {
+      const params = new URLSearchParams(location.search);
+      params.delete("auth");
+      const next = params.toString();
+      navigate({ pathname: location.pathname, search: next ? `?${next}` : "" }, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  const authProps = {
+    onLogin,
+    onRegister,
+    onGoogleLogin,
+    onVerify2fa,
+    authLoading,
+    authError,
+  };
 
   return (
     <>
       <SeoHead />
       <Routes>
-        <Route path="/download" element={<DownloadPage {...authProps} />} />
+        <Route path="/download" element={<DownloadPage {...authProps} onOpenRegister={() => openAuth({ mode: "register", source: "download" })} />} />
         <Route path="/" element={withLayout(HomePage, openAuth)} />
+        <Route path="/register" element={withLayout(HomePage, openAuth)} />
+        <Route path="/login" element={withLayout(HomePage, openAuth)} />
         <Route path="/features" element={withLayout(FeaturesPage, openAuth)} />
         <Route path="/faq" element={withLayout(FaqPage, openAuth)} />
         <Route path="/security" element={withLayout(SecurityPage, openAuth)} />
@@ -368,14 +481,20 @@ export default function MarketingApp({
           path="/discord-alternative-turkey"
           element={withLayout(DiscordAlternativeTurkeyPage, openAuth)}
         />
-        {/* Keyword URL aliases → canonical landings (no duplicate content) */}
         <Route path="/discord-alternatives" element={<Navigate to="/alternatives" replace />} />
         <Route path="/best-discord-alternative" element={<Navigate to="/discord-alternative" replace />} />
         <Route path="/blog" element={withLayout(BlogIndexPage, openAuth)} />
         <Route path="/blog/:slug" element={withLayout(BlogPostPage, openAuth)} />
         <Route path="*" element={withLayout(NotFoundPage, openAuth)} />
       </Routes>
-      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} {...authProps} />
+      <AuthModal
+        open={authOpen}
+        onClose={closeAuth}
+        initialMode={authMode}
+        authSource={authSource}
+        inviteRef={inviteRef}
+        {...authProps}
+      />
     </>
   );
 }

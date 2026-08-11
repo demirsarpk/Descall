@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NavLink, Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useLocale, useT } from "../context/LocaleContext";
-import DescallBrand from "../components/brand/DescallBrand";
+import { Funnel } from "./analytics";
 import "./site.css";
 
 const NAV = [
@@ -10,16 +10,24 @@ const NAV = [
   { to: "/discord-alternative", label: "Discord alternative" },
   { to: "/compare/discord", label: "vs Discord" },
   { to: "/download", label: "Download" },
-  { to: "/blog", label: "Blog" },
   { to: "/faq", label: "FAQ" },
 ];
 
-export default function MarketingLayout({ children, onSignIn }) {
+export default function MarketingLayout({ children, onSignIn, onSignUp }) {
   const t = useT();
   const { locale, setLocale } = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const closeMenu = () => setMenuOpen(false);
+  const openRegister = () => {
+    Funnel.ctaClick({ page: "nav", placement: "header", label: "start_free", intent: "register" });
+    (onSignUp || onSignIn)?.({ mode: "register", source: "header" });
+  };
+  const openLogin = () => {
+    Funnel.ctaClick({ page: "nav", placement: "header", label: "sign_in", intent: "login" });
+    onSignIn?.({ mode: "login", source: "header" });
+  };
+
   const nav = (
     <nav
       id="marketing-navigation"
@@ -36,6 +44,16 @@ export default function MarketingLayout({ children, onSignIn }) {
           {t(item.label)}
         </NavLink>
       ))}
+      <button
+        type="button"
+        className="mkt-mobile-download mkt-btn mkt-btn-primary"
+        onClick={() => {
+          closeMenu();
+          openRegister();
+        }}
+      >
+        {t("Start free")}
+      </button>
       <Link to="/download" onClick={closeMenu} className="mkt-mobile-download">
         {t("Download")}
       </Link>
@@ -56,17 +74,21 @@ export default function MarketingLayout({ children, onSignIn }) {
 
       <header className="mkt-header">
         <Link to="/" className="mkt-brand" aria-label="Descall home">
-          <DescallBrand />
+          <img src="/icon.png" alt="" width={32} height={32} />
+          <span>Descall</span>
         </Link>
         {nav}
         <div className="mkt-header-actions">
           <div className="mkt-desktop-language">
             <LanguageToggle locale={locale} setLocale={setLocale} />
           </div>
-          <button type="button" className="mkt-btn mkt-btn-ghost" onClick={onSignIn}>
+          <button type="button" className="mkt-btn mkt-btn-ghost" onClick={openLogin}>
             {t("Sign In")}
           </button>
-          <Link to="/download" className="mkt-btn mkt-btn-primary">
+          <button type="button" className="mkt-btn mkt-btn-primary" onClick={openRegister}>
+            {t("Start free")}
+          </button>
+          <Link to="/download" className="mkt-btn mkt-btn-soft mkt-header-download">
             {t("Download")}
           </Link>
           <button
@@ -86,28 +108,16 @@ export default function MarketingLayout({ children, onSignIn }) {
 
       <footer className="mkt-footer">
         <div className="mkt-footer-brand">
-          <DescallBrand />
+          <img src="/icon.png" alt="" width={24} height={24} />
+          <strong>Descall</strong>
         </div>
         <div className="mkt-footer-links">
-          <Link to="/discord-alternative">{t("Discord alternative")}</Link>
-          <Link to="/alternatives">{t("Alternatives")}</Link>
-          <Link to="/apps-like-discord">{t("Apps like Discord")}</Link>
-          <Link to="/compare/discord">{t("vs Discord")}</Link>
-          <Link to="/discord-replacement">{t("Discord replacement")}</Link>
-          <Link to="/best-discord-alternative-for-gamers">{t("For gamers")}</Link>
-          <Link to="/discord-alternative-for-lfg">{t("LFG")}</Link>
-          <Link to="/discord-alternative-for-communities">{t("Communities")}</Link>
-          <Link to="/discord-alternative-for-voice-chat">{t("Voice chat")}</Link>
-          <Link to="/discord-alternative-for-friends">{t("For friends")}</Link>
-          <Link to="/discord-alternative-turkey">{t("Türkiye")}</Link>
-          <Link to="/blog">{t("Blog")}</Link>
-          <Link to="/features">{t("Features")}</Link>
           <Link to="/privacy">{t("Privacy Policy")}</Link>
           <Link to="/terms">{t("Terms")}</Link>
           <Link to="/contact">{t("Contact")}</Link>
-          <Link to="/security">{t("Security")}</Link>
-          <Link to="/about">{t("About")}</Link>
-          <a href="/sitemap.html">{t("Sitemap")}</a>
+          <Link to="/compare/discord">vs Discord</Link>
+          <Link to="/discord-alternative-turkey">{t("Turkey")}</Link>
+          <a href="/sitemap.html">Sitemap</a>
         </div>
         <p className="mkt-footer-copy">{t("© 2026 Descall. All rights reserved.")}</p>
       </footer>

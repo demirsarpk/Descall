@@ -68,7 +68,7 @@ const platforms = [
   },
 ];
 
-export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authLoading, authError }) {
+export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authLoading, authError, onOpenRegister }) {
   const t = useT();
   const features = FEATURE_DEFS.map((f) => ({ ...f, title: t(f.title), desc: t(f.desc) }));
   const stats = STAT_DEFS.map((s) => ({ ...s, label: t(s.label) }));
@@ -80,6 +80,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
   const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [legalModal, setLegalModal] = useState(null);
   const [releaseError, setReleaseError] = useState(null);
@@ -506,14 +507,16 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
             {authError && <div className="auth-error">{authError}</div>}
 
             <GoogleSignInButton
-              disabled={isSubmitting || authLoading}
+              disabled={isSubmitting || authLoading || (isRegistering && !termsAccepted)}
               onCredential={async (credential) => {
+                if (isRegistering && !termsAccepted) return;
                 setIsSubmitting(true);
                 try {
-                  await onGoogleLogin?.(credential);
+                  await onGoogleLogin?.(credential, { termsAccepted: isRegistering });
                   setShowLogin(false);
                   setUsername('');
                   setPassword('');
+                  setEmail('');
                 } catch {
                   /* App sets authError */
                 } finally {
@@ -532,7 +535,13 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
               setIsSubmitting(true);
               try {
                 if (isRegistering) {
-                  await onRegister?.({ username, password, termsAccepted: true });
+                  const trimmedEmail = email.trim();
+                  await onRegister?.({
+                    username,
+                    password,
+                    termsAccepted: true,
+                    ...(trimmedEmail ? { email: trimmedEmail } : {}),
+                  });
                 } else {
                   await onLogin?.({ username, password });
                 }
@@ -540,6 +549,7 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                 setShowLogin(false);
                 setUsername('');
                 setPassword('');
+                setEmail('');
                 setTermsAccepted(false);
               } catch (err) {
                 // Keep modal open to show error
@@ -568,6 +578,20 @@ export default function DownloadPage({ onLogin, onRegister, onGoogleLogin, authL
                   required
                 />
               </div>
+
+              {isRegistering && (
+                <div className="form-group">
+                  <label>{t("Email (optional)")}</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={t("Email (optional)")}
+                    autoComplete="email"
+                    maxLength={254}
+                  />
+                </div>
+              )}
               
               {isRegistering && (
                 <div className="legal-consent">
