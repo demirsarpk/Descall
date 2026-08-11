@@ -355,6 +355,7 @@ export default function MessageList({
                   onReply={onReply}
                   highlight={trimmedSearch}
                   chatBubbleKey={isOwn ? me?.equippedChatBubble?.effect_key || null : null}
+                  reactionBurstKey={isOwn ? me?.equippedReactionBurst?.effect_key || null : null}
                 />
               ))}
             </div>
@@ -393,6 +394,7 @@ function MessageBubble({
   onReply,
   highlight = "",
   chatBubbleKey = null,
+  reactionBurstKey = null,
 }) {
   const t = useT();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -663,7 +665,7 @@ function MessageBubble({
             reactions={reactions}
             currentUserId={currentUserId}
             socket={socket}
-            burstKey={isOwn ? me?.equippedReactionBurst?.effect_key || null : null}
+            burstKey={isOwn ? reactionBurstKey : null}
           />
         )}
 
