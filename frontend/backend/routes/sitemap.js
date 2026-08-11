@@ -19,9 +19,20 @@
  *   GET /sitemap-announcements.xml
  */
 
+const path = require("path");
+const { pathToFileURL } = require("url");
 const express = require("express");
 
 const router = express.Router();
+
+let _sitemapHtmlModulePromise = null;
+function loadSitemapHtmlModule() {
+  if (!_sitemapHtmlModulePromise) {
+    const modPath = path.join(__dirname, "../../src/site/buildSitemapHtml.js");
+    _sitemapHtmlModulePromise = import(pathToFileURL(modPath).href);
+  }
+  return _sitemapHtmlModulePromise;
+}
 
 // Canonical public host for ALL sitemap/robots output.
 // Never emit request Host / onrender / http — Search Console must see one HTTPS origin.
@@ -250,72 +261,17 @@ ${children
 `;
 }
 
-const SITEMAP_XSL = `<?xml version="1.0" encoding="UTF-8"?>
-<xsl:stylesheet version="1.0"
-  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-  xmlns:s="http://www.sitemaps.org/schemas/sitemap/0.9"
-  xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
-  exclude-result-prefixes="s image">
-  <xsl:output method="html" encoding="UTF-8" indent="yes"/>
-  <xsl:template match="/">
-    <html lang="en">
-      <head>
-        <meta charset="utf-8"/>
-        <title>Descall Sitemap</title>
-        <style>
-          :root { color-scheme: dark; }
-          body { font-family: Inter, system-ui, sans-serif; background:#0b0c10; color:#f2f3f5; margin:0; padding:32px; }
-          h1 { font-size: 28px; margin: 0 0 8px; }
-          p { color:#949ba4; margin: 0 0 24px; }
-          table { width:100%; border-collapse: collapse; background:#1e1f22; border-radius:12px; overflow:hidden; }
-          th, td { text-align:left; padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.06); font-size:14px; }
-          th { color:#b5bac1; font-weight:600; background:#17181c; }
-          a { color:#7b89ff; text-decoration:none; }
-          a:hover { text-decoration:underline; }
-          .meta { font-size:12px; color:#949ba4; }
-        </style>
-      </head>
-      <body>
-        <h1>Descall Sitemap</h1>
-        <p>XML sitemap rendered for humans. Machine-readable version is served as application/xml.</p>
-        <xsl:choose>
-          <xsl:when test="s:sitemapindex">
-            <table>
-              <tr><th>Sitemap</th><th>Last modified</th></tr>
-              <xsl:for-each select="s:sitemapindex/s:sitemap">
-                <tr>
-                  <td><a href="{s:loc}"><xsl:value-of select="s:loc"/></a></td>
-                  <td class="meta"><xsl:value-of select="s:lastmod"/></td>
-                </tr>
-              </xsl:for-each>
-            </table>
-          </xsl:when>
-          <xsl:otherwise>
-            <table>
-              <tr><th>URL</th><th>Priority</th><th>Change</th><th>Last modified</th></tr>
-              <xsl:for-each select="s:urlset/s:url">
-                <tr>
-                  <td><a href="{s:loc}"><xsl:value-of select="s:loc"/></a></td>
-                  <td class="meta"><xsl:value-of select="s:priority"/></td>
-                  <td class="meta"><xsl:value-of select="s:changefreq"/></td>
-                  <td class="meta"><xsl:value-of select="s:lastmod"/></td>
-                </tr>
-              </xsl:for-each>
-            </table>
-          </xsl:otherwise>
-        </xsl:choose>
-      </body>
-    </html>
-  </xsl:template>
-</xsl:stylesheet>
-`;
-
-router.get("/sitemap.xsl", (_req, res) => {
-  res.set({
-    "Content-Type": "application/xslt+xml; charset=utf-8",
-    "Cache-Control": "public, max-age=86400",
-  });
-  res.send(SITEMAP_XSL);
+router.get("/sitemap.xsl", async (_req, res) => {
+  try {
+    const { SITEMAP_XSL } = await loadSitemapHtmlModule();
+    res.set({
+      "Content-Type": "application/xslt+xml; charset=utf-8",
+      "Cache-Control": "public, max-age=86400",
+    });
+    return res.send(SITEMAP_XSL);
+  } catch (err) {
+    return res.status(500).type("text/plain").send(err?.message || "xsl unavailable");
+  }
 });
 
 router.get("/robots.txt", (req, res) => {
@@ -397,73 +353,29 @@ router.get("/sitemap-pages.xml", (req, res) => {
 router.get("/sitemap-invites.xml", (_req, res) => sendXml(res, buildUrlset([])));
 router.get("/sitemap-announcements.xml", (_req, res) => sendXml(res, buildUrlset([])));
 
-router.get("/sitemap.html", (req, res) => {
-  const origin = siteOrigin(req);
-  const pages = staticPages(origin);
-
-  const section = (title, items) => `
-    <section>
-      <h2>${xmlEscape(title)} <span class="count">${items.length}</span></h2>
-      <ul>
-        ${items
-          .map(
-            (p) => `<li>
-              <a href="${xmlEscape(p.loc)}">${xmlEscape(p.title || p.loc)}</a>
-              <span class="meta">${xmlEscape(p.lastmod)}</span>
-            </li>`
-          )
-          .join("")}
-      </ul>
-    </section>`;
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Descall Sitemap</title>
-  <meta name="description" content="Human-readable sitemap for Descall public marketing pages." />
-  <meta name="robots" content="index,follow" />
-  <link rel="canonical" href="${xmlEscape(origin)}/sitemap.html" />
-  <style>
-    :root { color-scheme: dark; --bg:#0b0c10; --card:#1e1f22; --text:#f2f3f5; --muted:#949ba4; --accent:#7b89ff; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: Inter, system-ui, sans-serif; background:
-      radial-gradient(90% 60% at 50% -10%, rgba(88,101,242,.25), transparent 55%), var(--bg);
-      color: var(--text); min-height: 100vh; }
-    main { max-width: 880px; margin: 0 auto; padding: 48px 20px 80px; }
-    h1 { font-size: clamp(28px, 5vw, 40px); margin: 0 0 8px; letter-spacing: -0.03em; }
-    .lead { color: var(--muted); margin: 0 0 28px; line-height: 1.5; }
-    .links { display:flex; flex-wrap:wrap; gap:10px; margin-bottom: 32px; }
-    .links a { background: var(--card); color: var(--accent); padding: 8px 12px; border-radius: 999px;
-      text-decoration:none; border:1px solid rgba(255,255,255,.08); font-size: 13px; font-weight: 600; }
-    section { background: var(--card); border: 1px solid rgba(255,255,255,.06); border-radius: 16px;
-      padding: 18px 20px; margin-bottom: 16px; }
-    h2 { margin: 0 0 12px; font-size: 16px; display:flex; align-items:center; gap:8px; }
-    .count { background: rgba(88,101,242,.2); color:#c5ccff; font-size:11px; padding:2px 8px; border-radius:999px; }
-    ul { list-style:none; margin:0; padding:0; }
-    li { display:flex; justify-content:space-between; gap:12px; padding:10px 0; border-top:1px solid rgba(255,255,255,.05); }
-    li:first-child { border-top:none; }
-    a { color: var(--accent); text-decoration:none; word-break: break-all; }
-    a:hover { text-decoration: underline; }
-    .meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Descall sitemap</h1>
-    <p class="lead">Indexable marketing routes only. Machine-readable XML: <a href="/sitemap.xml">/sitemap.xml</a>. Invites and private app UI are excluded.</p>
-    <div class="links">
-      <a href="/sitemap.xml">Sitemap index</a>
-      <a href="/sitemap-pages.xml">Pages XML</a>
-      <a href="/robots.txt">robots.txt</a>
-    </div>
-    ${section("Core pages", pages)}
-  </main>
-</body>
-</html>`;
-
-  return sendHtml(res, html);
+router.get("/sitemap.html", async (req, res) => {
+  try {
+    const origin = siteOrigin(req);
+    const pages = staticPages(origin).filter((p) => !String(p.loc || "").endsWith("/sitemap.html"));
+    const { buildHumanSitemapHtml } = await loadSitemapHtmlModule();
+    const routes = pages.map((p) => {
+      let pathname = "/";
+      try {
+        pathname = new URL(p.loc).pathname || "/";
+      } catch {
+        pathname = "/";
+      }
+      return {
+        path: pathname,
+        title: p.title,
+        description: "",
+      };
+    });
+    const html = buildHumanSitemapHtml({ origin, routes, lang: "en" });
+    return sendHtml(res, html);
+  } catch (err) {
+    return res.status(500).type("text/plain").send(err?.message || "sitemap html unavailable");
+  }
 });
 
 router.get("/api/sitemap/stats", async (req, res) => {

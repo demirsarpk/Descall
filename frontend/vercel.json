@@ -48,6 +48,20 @@
         { "key": "Cache-Control", "value": "public, max-age=300, stale-while-revalidate=600" },
         { "key": "X-Content-Type-Options", "value": "nosniff" }
       ]
+    },
+    {
+      "source": "/sitemap.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=300, stale-while-revalidate=600" },
+        { "key": "Content-Type", "value": "text/html; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/sitemap.xsl",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Content-Type", "value": "application/xslt+xml; charset=utf-8" }
+      ]
     }
   ]
 }

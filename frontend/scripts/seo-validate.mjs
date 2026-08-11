@@ -133,7 +133,13 @@ if (checkDist) {
   if (!fs.existsSync(dist)) {
     fail("dist/ missing — run build first");
   } else {
-    for (const name of ["robots.txt", "sitemap.xml", "sitemap-pages.xml", "sitemap.html"]) {
+    for (const name of [
+      "robots.txt",
+      "sitemap.xml",
+      "sitemap-pages.xml",
+      "sitemap.html",
+      "sitemap.xsl",
+    ]) {
       const file = path.join(dist, name);
       if (!fs.existsSync(file)) {
         fail(`Missing dist/${name} — run generate-seo-files`);
@@ -146,6 +152,15 @@ if (checkDist) {
       if (/http:\/\/descall\.com/i.test(body)) {
         fail(`dist/${name} contains http://descall.com`);
       }
+    }
+
+    const humanSitemap = fs.readFileSync(path.join(dist, "sitemap.html"), "utf8");
+    if (!humanSitemap.includes('class="card"') || !humanSitemap.includes("Outfit")) {
+      fail("dist/sitemap.html looks unstyled — expected branded card layout");
+    }
+    const pagesXmlBody = fs.readFileSync(path.join(dist, "sitemap-pages.xml"), "utf8");
+    if (!pagesXmlBody.includes('href="/sitemap.xsl"')) {
+      fail("sitemap-pages.xml missing xml-stylesheet → /sitemap.xsl");
     }
 
     const pagesXml = fs.readFileSync(path.join(dist, "sitemap-pages.xml"), "utf8");

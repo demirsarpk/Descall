@@ -12,6 +12,9 @@ const distDir = path.join(root, "dist");
 const SITE = "https://descall.com";
 
 const { PUBLIC_ROUTES } = await import(pathToFileURL(path.join(root, "src/site/seoConfig.js")).href);
+const { buildHumanSitemapHtml, SITEMAP_XSL } = await import(
+  pathToFileURL(path.join(root, "src/site/buildSitemapHtml.js")).href
+);
 
 function xmlEscape(value) {
   return String(value ?? "")
@@ -99,6 +102,7 @@ function buildPagesSitemap() {
   </url>`);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.join("\n")}
 </urlset>
@@ -110,6 +114,7 @@ function buildSitemapIndex() {
   const child = `${SITE}/sitemap-pages.xml`;
   assertHttpsDescall(child);
   return `<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
     <loc>${xmlEscape(child)}</loc>
@@ -120,34 +125,11 @@ function buildSitemapIndex() {
 }
 
 function buildSitemapHtml() {
-  const routes = PUBLIC_ROUTES.filter((r) => !r.noindex);
-  const items = routes
-    .map((r) => {
-      const loc = r.path === "/" ? `${SITE}/` : `${SITE}${r.path}`;
-      return `<li><a href="${xmlEscape(loc)}">${xmlEscape(r.title)}</a></li>`;
-    })
-    .join("\n");
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Descall Sitemap</title>
-  <meta name="description" content="Human-readable sitemap for Descall public marketing pages." />
-  <meta name="robots" content="index,follow" />
-  <link rel="canonical" href="${SITE}/sitemap.html" />
-</head>
-<body>
-  <main>
-    <h1>Descall sitemap</h1>
-    <p>Indexable marketing routes. Machine-readable: <a href="/sitemap.xml">/sitemap.xml</a>.</p>
-    <ul>
-${items}
-    </ul>
-  </main>
-</body>
-</html>
-`;
+  return buildHumanSitemapHtml({
+    origin: SITE,
+    routes: PUBLIC_ROUTES.filter((r) => !r.noindex),
+    lang: "en",
+  });
 }
 
 function main() {
@@ -182,12 +164,14 @@ function main() {
   fs.writeFileSync(path.join(distDir, "sitemap.xml"), index, "utf8");
   fs.writeFileSync(path.join(distDir, "sitemap-pages.xml"), pages, "utf8");
   fs.writeFileSync(path.join(distDir, "sitemap.html"), html, "utf8");
+  fs.writeFileSync(path.join(distDir, "sitemap.xsl"), SITEMAP_XSL, "utf8");
 
-  // Also refresh public/robots.txt source for consistency
+  // Also refresh public/ copies so Vite copies them on next builds too
   fs.writeFileSync(path.join(root, "public/robots.txt"), robots, "utf8");
+  fs.writeFileSync(path.join(root, "public/sitemap.xsl"), SITEMAP_XSL, "utf8");
 
   console.log(
-    `[generate-seo-files] wrote robots.txt + sitemap index/pages/html (${PUBLIC_ROUTES.length} routes) → ${SITE}`
+    `[generate-seo-files] wrote robots.txt + sitemap index/pages/html/xsl (${PUBLIC_ROUTES.length} routes) → ${SITE}`
   );
 }
 
