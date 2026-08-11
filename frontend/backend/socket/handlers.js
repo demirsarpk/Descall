@@ -463,10 +463,17 @@ async function loadFriendsFromDB(userId) {
     if (usersError) console.error("[FRIENDS] loadFriendsFromDB users fetch error:", usersError);
 
     const friendSet = new Set();
+    // Keep every accepted friendship id even if a profile row is missing —
+    // otherwise a partial users query silently drops chats from the sidebar.
+    for (const id of friendIds) friendSet.add(id);
     for (const u of (users || [])) {
-      friendSet.add(u.id);
-      usernameById.set(u.id, u.username);
+      if (u?.username) usernameById.set(u.id, u.username);
       cacheUserProfile(u);
+    }
+    if ((users || []).length < friendIds.length) {
+      console.warn(
+        `[FRIENDS] Profile rows ${ (users || []).length }/${friendIds.length} for user ${userId}`
+      );
     }
 
     friends.set(userId, friendSet);
