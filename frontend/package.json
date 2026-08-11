@@ -34,6 +34,7 @@
     "@capacitor/core": "^8.5.0",
     "@capacitor/push-notifications": "^8.1.2",
     "@supabase/supabase-js": "^2.39.0",
+    "@vercel/analytics": "^2.0.1",
     "auto-launch": "^5.0.6",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
