@@ -225,11 +225,20 @@ export default function AppLayout({
     !(isMobile && inConversation);
 
   const handleAddClick = (tab) => {
-    if (tab === "friend" || tab === "group") setAddTab(tab);
-    else if (activeView === "groups") setAddTab("group");
-    else if (activeView === "friends") setAddTab("friend");
-    else setAddTab("friend");
+    const nextTab =
+      tab === "friend" || tab === "group" || tab === "quickadd"
+        ? tab
+        : activeView === "groups"
+          ? "group"
+          : "friend";
+    setAddTab(nextTab);
     setShowAddModal(true);
+    // Activity replaces ServerSidebar (where the Add Friend modal lives).
+    // Switch to Friends so the modal can mount — otherwise the CTA is a no-op.
+    if (activeView === "activity") {
+      setActiveView("friends");
+      if (isMobile) setMobileDrawerOpen(true);
+    }
   };
 
   const handleVoiceClick = () => {

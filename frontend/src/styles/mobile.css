@@ -115,25 +115,23 @@
 
   /*
    * Activity (mobile): full-width page = nav rail + Activity sidebar.
-   * Tab-bar reserve already lives on .app-root padding-bottom — do not pad again.
-   *
-   * Height must use a flex track (not % of an auto grid row). When chat-panel
-   * is display:none, % heights collapse and the rail/sidebar stop above a
-   * black void under the profile icon.
+   * Pin the shell to the content box above the fixed tab bar so % heights
+   * resolve (flex + height:auto left a black void under the rail on iOS).
    */
   .app-root.is-mobile[data-view="activity"] {
-    display: flex !important;
-    flex-direction: column;
+    position: relative;
+    display: block !important;
     grid-template-columns: none !important;
     background: var(--surface-1);
   }
 
   .app-root.is-mobile[data-view="activity"] .app-sidebar-shell {
-    position: relative;
-    top: auto;
-    left: auto;
-    bottom: auto;
-    flex: 1 1 auto;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* Match .app-root.is-mobile padding-bottom (tab bar reserve). */
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     width: 100%;
     max-width: 100%;
     height: auto;
@@ -142,6 +140,7 @@
     transform: none !important;
     box-shadow: none;
     z-index: 40;
+    padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: 0;
     display: flex;
     flex-direction: row;
@@ -150,10 +149,10 @@
   }
 
   .app-root.is-mobile[data-view="activity"] .app-sidebar-shell .nav-rail {
-    /* Defeat base 100vh — stretch to the flex shell height instead. */
-    height: auto !important;
+    /* Fill the absolutely sized shell — same edge-to-edge look as other pages. */
+    height: 100% !important;
     max-height: none !important;
-    min-height: 100%;
+    min-height: 0;
     align-self: stretch;
     background:
       linear-gradient(180deg, var(--nav-glass-highlight), transparent 28%),
@@ -165,8 +164,8 @@
     display: flex;
     flex: 1;
     min-width: 0;
-    min-height: 100%;
-    height: auto !important;
+    min-height: 0;
+    height: 100% !important;
     max-height: none !important;
     align-self: stretch;
     background: var(--surface-1);
@@ -175,9 +174,9 @@
   .app-root.is-mobile[data-view="activity"] .app-sidebar-shell .sidebar-inner,
   .app-root.is-mobile[data-view="activity"] .app-sidebar-shell .activity-sidebar {
     width: 100%;
-    height: auto !important;
+    height: 100% !important;
     max-height: none !important;
-    min-height: 100%;
+    min-height: 0;
     align-self: stretch;
     display: flex;
     flex-direction: column;
@@ -733,6 +732,10 @@
     padding-bottom: 0;
     height: var(--vv-height, 100dvh);
     max-height: var(--vv-height, 100dvh);
+  }
+
+  html.kb-open .app-root.is-mobile[data-view="activity"] .app-sidebar-shell {
+    bottom: 0;
   }
 
   html.kb-open .mobile-tab-bar {
