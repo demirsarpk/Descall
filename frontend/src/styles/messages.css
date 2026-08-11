@@ -117,12 +117,12 @@
   margin-right: 0;
 }
 
-/* Media stays inside the bubble — give a definite width so % children can't
-   expand past max-width / intrinsic GIF dimensions. */
+/* Media stays inside the bubble — definite pixel width so intrinsic GIF
+   sizes cannot stretch the bubble across the chat column. */
 .message-bubble.has-media,
 .message-bubble.has-media-only {
-  width: min(320px, 70%);
-  max-width: min(360px, 72%);
+  width: 280px;
+  max-width: calc(100% - 8px);
   min-width: 0;
 }
 
