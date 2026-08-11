@@ -258,7 +258,7 @@ router.get("/list", requireAuth, async (req, res) => {
 
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, username, avatar_url")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, is_admin")
       .in("id", friendIds);
 
     if (usersError) {
@@ -269,7 +269,19 @@ router.get("/list", requireAuth, async (req, res) => {
     const formattedFriends = (users || []).map((u) => ({
       id: u.id,
       username: u.username,
+      displayName: u.display_name || null,
+      display_name: u.display_name || null,
       avatarUrl: u.avatar_url || null,
+      avatar_url: u.avatar_url || null,
+      bio: u.bio || null,
+      customStatus: u.custom_status || null,
+      custom_status: u.custom_status || null,
+      bannerUrl: u.banner_url || null,
+      banner_url: u.banner_url || null,
+      updated_at: u.updated_at || null,
+      is_admin: Boolean(u.is_admin),
+      isAdmin: Boolean(u.is_admin),
+      status: "offline",
     }));
 
     res.json({ friends: formattedFriends });
@@ -300,7 +312,7 @@ router.get("/requests", requireAuth, async (req, res) => {
     const senderIds = rows.map((r) => r.user_id);
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, username, avatar_url")
+      .select("id, username, avatar_url, display_name, updated_at")
       .in("id", senderIds);
 
     if (usersError) {
@@ -311,7 +323,11 @@ router.get("/requests", requireAuth, async (req, res) => {
     const formattedRequests = (users || []).map((u) => ({
       id: u.id,
       username: u.username,
+      displayName: u.display_name || null,
+      display_name: u.display_name || null,
       avatarUrl: u.avatar_url || null,
+      avatar_url: u.avatar_url || null,
+      updated_at: u.updated_at || null,
     }));
 
     res.json({ requests: formattedRequests });
