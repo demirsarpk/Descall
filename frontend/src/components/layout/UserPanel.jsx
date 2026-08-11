@@ -842,18 +842,20 @@ const UserPanel = forwardRef(function UserPanel({
                     user={{ ...me, avatarUrl: avatarUrl || me?.avatarUrl }}
                     animate="always"
                   />
-                  <span className="us-hero-status">
-                    <StatusBadge status={myStatus === "invisible" ? "offline" : myStatus} />
-                  </span>
+                  <StatusBadge
+                    status={myStatus === "invisible" ? "offline" : myStatus}
+                  />
                 </div>
                 <div className="us-hero-meta">
-                  <h3 style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap" }}>
+                  <h3 style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: "4px 6px" }}>
                     <NameEffectText user={me}>{displayName || me?.username || "User"}</NameEffectText>
                     <BadgeIcon user={me} />
                   </h3>
                   <span className="us-muted">@{me?.username?.toLowerCase() || "user"}</span>
-                  <AdminBadge user={me} variant="chip" />
-                  <TitleTag user={me} />
+                  <div className="user-profile-badges">
+                    <TitleTag user={me} />
+                    <AdminBadge user={me} variant="chip" />
+                  </div>
                   {customStatus && <span className="us-status-pill">{customStatus}</span>}
                   {me?.valorant?.linked && (
                     <ValorantBadge valorant={me.valorant} compact />

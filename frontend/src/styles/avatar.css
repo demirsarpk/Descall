@@ -1,0 +1,172 @@
+/* Avatar stack — keep photo, effect ring, and frame perfectly concentric */
+
+.ui-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  isolation: isolate;
+  overflow: visible;
+  line-height: 0;
+}
+
+.ui-avatar-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-avatar-letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-weight: 700;
+  font-size: 0.42em;
+  line-height: 1;
+  color: #fff;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.ui-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  display: block;
+}
+
+/* Frame sits in a square larger than the avatar; inset centering avoids
+   transform:translate(-50%,-50%) fighting Framer Motion transforms. */
+.ui-avatar-frame-overlay {
+  position: absolute;
+  z-index: 2;
+  /* Match previous 132% size with inset centering (no translate transform). */
+  inset: -16%;
+  width: auto;
+  height: auto;
+  max-width: none;
+  pointer-events: none;
+  object-fit: contain;
+  object-position: center;
+  user-select: none;
+}
+
+/* Profile modal / hover / settings avatar shells */
+.profile-avatar-shell,
+.uhc-avatar-wrap,
+.us-hero-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  line-height: 0;
+}
+
+.profile-avatar-shell {
+  /* No padding box — padding made the cutout ring feel off-center vs effects.
+     Use an even outline ring instead so avatar/effect/frame share one center. */
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 0 3px var(--surface-1, #1e1f22);
+}
+
+.profile-avatar-shell .status-badge,
+.us-hero-avatar .status-badge,
+.us-hero-status .status-badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+}
+
+/* Profile modal card chrome */
+.user-profile-card {
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.user-profile-card-top {
+  position: relative;
+  overflow: visible;
+}
+
+.user-profile-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: none;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.user-profile-close:hover {
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.user-profile-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.user-profile-name-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-0);
+  line-height: 1.2;
+}
+
+.user-profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.user-profile-badges .cosmetic-title-tag,
+.user-profile-badges .dsc-admin-badge--chip {
+  margin-top: 0;
+}
+
+.user-profile-status-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.user-profile-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

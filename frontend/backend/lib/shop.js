@@ -30,6 +30,21 @@ const EQUIP_COLUMN_BY_CATEGORY = {
 const ITEM_COLUMNS =
   "id, sku, name, description, category, asset_url, preview_url, price_cents, currency, price_descoin, theme_key, badge_icon, title_text, effect_key, active, rarity, sort_order, created_at";
 
+/** Browsers reject the non-standard `;utf8` data-URI parameter — normalize. */
+function normalizeAssetUrl(url) {
+  if (typeof url !== "string") return url;
+  return url.replace(/^data:image\/svg\+xml;utf8,/i, "data:image/svg+xml;charset=utf-8,");
+}
+
+function normalizeItem(item) {
+  if (!item) return item;
+  return {
+    ...item,
+    asset_url: normalizeAssetUrl(item.asset_url),
+    preview_url: normalizeAssetUrl(item.preview_url),
+  };
+}
+
 async function listActiveItems() {
   const { data, error } = await supabase
     .from("shop_items")
@@ -37,7 +52,7 @@ async function listActiveItems() {
     .eq("active", true)
     .order("sort_order", { ascending: true });
   if (error) throw error;
-  return data || [];
+  return (data || []).map(normalizeItem);
 }
 
 async function listAllItems() {
@@ -46,7 +61,7 @@ async function listAllItems() {
     .select(ITEM_COLUMNS)
     .order("sort_order", { ascending: true });
   if (error) throw error;
-  return data || [];
+  return (data || []).map(normalizeItem);
 }
 
 async function getItemById(itemId) {
@@ -57,24 +72,32 @@ async function getItemById(itemId) {
     .eq("id", itemId)
     .maybeSingle();
   if (error) throw error;
-  return data || null;
+  return normalizeItem(data || null);
 }
 
 async function createItem(fields) {
-  const { data, error } = await supabase.from("shop_items").insert(fields).select(ITEM_COLUMNS).single();
+  const payload = {
+    ...fields,
+    asset_url: normalizeAssetUrl(fields.asset_url),
+    preview_url: normalizeAssetUrl(fields.preview_url),
+  };
+  const { data, error } = await supabase.from("shop_items").insert(payload).select(ITEM_COLUMNS).single();
   if (error) throw error;
-  return data;
+  return normalizeItem(data);
 }
 
 async function updateItem(itemId, fields) {
+  const payload = { ...fields };
+  if ("asset_url" in payload) payload.asset_url = normalizeAssetUrl(payload.asset_url);
+  if ("preview_url" in payload) payload.preview_url = normalizeAssetUrl(payload.preview_url);
   const { data, error } = await supabase
     .from("shop_items")
-    .update(fields)
+    .update(payload)
     .eq("id", itemId)
     .select(ITEM_COLUMNS)
     .maybeSingle();
   if (error) throw error;
-  return data;
+  return normalizeItem(data);
 }
 
 async function getUserInventory(userId) {
@@ -95,7 +118,7 @@ async function getUserInventory(userId) {
     .select(ITEM_COLUMNS)
     .in("id", itemIds);
   if (itemsError) throw itemsError;
-  const itemById = new Map((items || []).map((i) => [i.id, i]));
+  const itemById = new Map((items || []).map((i) => [i.id, normalizeItem(i)]));
 
   return rows.map((row) => ({
     id: row.id,
@@ -256,7 +279,7 @@ async function getEquippedCosmeticsForUser(userId) {
   if (!ids.length) return { ...EMPTY_EQUIPPED };
 
   const { data: shopRows } = await supabase.from("shop_items").select(ITEM_COLUMNS).in("id", ids);
-  const byId = new Map((shopRows || []).map((i) => [i.id, i]));
+  const byId = new Map((shopRows || []).map((i) => [i.id, normalizeItem(i)]));
   return {
     avatarFrame: byId.get(user.equipped_avatar_frame_id) || null,
     banner: byId.get(user.equipped_banner_id) || null,
