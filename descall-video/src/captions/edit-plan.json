@@ -1,0 +1,19 @@
+{
+  "timeline": [
+    { "start": 0.3, "end": 2.1, "scene": "HOOK", "copy": "Tired of Discord?" },
+    { "start": 2.35, "end": 4.1, "scene": "HOOK", "copy": "Discord, but different." },
+    { "start": 4.4, "end": 6.1, "scene": "PRODUCT", "copy": "Meet Descall." },
+    { "start": 6.4, "end": 8.5, "scene": "PRODUCT", "copy": "Chat, voice, and video — free." },
+    { "start": 8.85, "end": 10.6, "scene": "CHAT", "copy": "Real conversations." },
+    { "start": 11.05, "end": 12.9, "scene": "CHAT", "copy": "Cosmetics that actually show." },
+    { "start": 13.45, "end": 15.2, "scene": "SOCIAL", "copy": "Friends without the clutter." },
+    { "start": 15.6, "end": 17.4, "scene": "SOCIAL", "copy": "HD calls in one tap." },
+    { "start": 17.85, "end": 19.9, "scene": "LOOK", "copy": "Themes, frames, and titles." },
+    { "start": 20.2, "end": 21.9, "scene": "LOOK", "copy": "Make your profile yours." },
+    { "start": 22.25, "end": 24.0, "scene": "PAYOFF", "copy": "No Nitro paywall." },
+    { "start": 24.55, "end": 26.5, "scene": "PAYOFF", "copy": "Free. Fast. Built for friends." },
+    { "start": 27.2, "end": 28.9, "scene": "CTA", "copy": "Start free today." },
+    { "start": 29.4, "end": 31.1, "scene": "CTA", "copy": "descall.com" }
+  ],
+  "notes": ["v5: flashy FX removed; 14 caption/VO lines over 32s"]
+}
