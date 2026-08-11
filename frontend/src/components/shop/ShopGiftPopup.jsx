@@ -18,6 +18,9 @@ const CATEGORY_LABEL = {
   presence_flare: "Presence Flare",
   profile_aura: "Profile Aura",
   sound_pack: "Sound Pack",
+  typing_flare: "Typing Flare",
+  reaction_burst: "Reaction Burst",
+  call_overlay: "Call Overlay",
 };
 
 /**

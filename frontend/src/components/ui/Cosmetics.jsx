@@ -58,3 +58,21 @@ export function profileAuraClass(user) {
 export function soundPackKey(user) {
   return user?.equippedSoundPack?.effect_key || null;
 }
+
+/** CSS class for typing-indicator flare, or "" if unequipped. */
+export function typingFlareClass(user) {
+  const effectKey = user?.equippedTypingFlare?.effect_key;
+  return effectKey ? `cosmetic-typing-flare typing-${effectKey}` : "";
+}
+
+/** CSS class for reaction burst style, or "" if unequipped. */
+export function reactionBurstClass(user) {
+  const effectKey = user?.equippedReactionBurst?.effect_key;
+  return effectKey ? `cosmetic-reaction-burst burst-${effectKey}` : "";
+}
+
+/** CSS class for call overlay theme, or "" if unequipped. */
+export function callOverlayClass(user) {
+  const effectKey = user?.equippedCallOverlay?.effect_key;
+  return effectKey ? `cosmetic-call-overlay overlay-${effectKey}` : "";
+}

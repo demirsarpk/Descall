@@ -1472,6 +1472,9 @@ const SHOP_CATEGORIES = [
   "presence_flare",
   "profile_aura",
   "sound_pack",
+  "typing_flare",
+  "reaction_burst",
+  "call_overlay",
 ];
 
 // Categories that render from a small piece of metadata rather than an
@@ -1486,6 +1489,9 @@ const METADATA_ONLY_CATEGORIES = new Set([
   "presence_flare",
   "profile_aura",
   "sound_pack",
+  "typing_flare",
+  "reaction_burst",
+  "call_overlay",
 ]);
 const EFFECT_KEY_CATEGORIES = new Set([
   "name_effect",
@@ -1494,6 +1500,9 @@ const EFFECT_KEY_CATEGORIES = new Set([
   "presence_flare",
   "profile_aura",
   "sound_pack",
+  "typing_flare",
+  "reaction_burst",
+  "call_overlay",
 ]);
 
 router.post("/shop/items", async (req, res) => {

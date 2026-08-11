@@ -22,6 +22,9 @@ const EQUIP_COLUMN_BY_CATEGORY = {
   presence_flare: "equipped_presence_flare_id",
   profile_aura: "equipped_profile_aura_id",
   sound_pack: "equipped_sound_pack_id",
+  typing_flare: "equipped_typing_flare_id",
+  reaction_burst: "equipped_reaction_burst_id",
+  call_overlay: "equipped_call_overlay_id",
 };
 
 const ITEM_COLUMNS =
@@ -203,7 +206,8 @@ async function equipItem(userId, category, itemId) {
 const EQUIPPED_USER_COLUMNS =
   "equipped_avatar_frame_id, equipped_banner_id, equipped_background_id, equipped_theme_id, " +
   "equipped_badge_id, equipped_title_id, equipped_name_effect_id, equipped_avatar_effect_id, equipped_chat_bubble_id, " +
-  "equipped_presence_flare_id, equipped_profile_aura_id, equipped_sound_pack_id";
+  "equipped_presence_flare_id, equipped_profile_aura_id, equipped_sound_pack_id, " +
+  "equipped_typing_flare_id, equipped_reaction_burst_id, equipped_call_overlay_id";
 
 const EMPTY_EQUIPPED = {
   avatarFrame: null,
@@ -218,6 +222,9 @@ const EMPTY_EQUIPPED = {
   presenceFlare: null,
   profileAura: null,
   soundPack: null,
+  typingFlare: null,
+  reactionBurst: null,
+  callOverlay: null,
 };
 
 /** Resolves one user's equip slots (all cosmetic categories) into full item records. */
@@ -242,6 +249,9 @@ async function getEquippedCosmeticsForUser(userId) {
     user.equipped_presence_flare_id,
     user.equipped_profile_aura_id,
     user.equipped_sound_pack_id,
+    user.equipped_typing_flare_id,
+    user.equipped_reaction_burst_id,
+    user.equipped_call_overlay_id,
   ].filter(Boolean);
   if (!ids.length) return { ...EMPTY_EQUIPPED };
 
@@ -260,6 +270,9 @@ async function getEquippedCosmeticsForUser(userId) {
     presenceFlare: byId.get(user.equipped_presence_flare_id) || null,
     profileAura: byId.get(user.equipped_profile_aura_id) || null,
     soundPack: byId.get(user.equipped_sound_pack_id) || null,
+    typingFlare: byId.get(user.equipped_typing_flare_id) || null,
+    reactionBurst: byId.get(user.equipped_reaction_burst_id) || null,
+    callOverlay: byId.get(user.equipped_call_overlay_id) || null,
   };
 }
 
@@ -285,6 +298,9 @@ async function getEquippedForUsers(userIds) {
       presenceFlareId: u.equipped_presence_flare_id,
       profileAuraId: u.equipped_profile_aura_id,
       soundPackId: u.equipped_sound_pack_id,
+      typingFlareId: u.equipped_typing_flare_id,
+      reactionBurstId: u.equipped_reaction_burst_id,
+      callOverlayId: u.equipped_call_overlay_id,
     });
   });
   return map;

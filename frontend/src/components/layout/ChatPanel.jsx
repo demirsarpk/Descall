@@ -472,7 +472,10 @@ export default function ChatPanel({
                 transition={{ duration: 0.18 }}
                 style={{ padding: "0 16px 4px", overflow: "hidden" }}
               >
-                <TypingIndicator names={typingNames} />
+                <TypingIndicator
+                  names={typingNames}
+                  flareKey={me?.equippedTypingFlare?.effect_key || null}
+                />
               </motion.div>
             )}
           </AnimatePresence>
