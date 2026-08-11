@@ -158,6 +158,8 @@ export function Avatar({
       style={{
         width: size,
         height: size,
+        minWidth: size,
+        minHeight: size,
         fontSize: size,
       }}
       onClick={onClick}
@@ -166,7 +168,16 @@ export function Avatar({
       whileHover={{ scale: onClick ? 1.06 : 1 }}
       role={onClick ? "button" : undefined}
     >
-      {effectClass && <div className={effectClass} aria-hidden />}
+      {effectClass && (
+        <div
+          className={effectClass}
+          aria-hidden
+          style={{
+            // Pixel insets stay concentric at every avatar size (avoids % subpixel drift).
+            inset: -Math.max(6, Math.round(size * 0.12)),
+          }}
+        />
+      )}
       <div
         className="ui-avatar-inner"
         style={{
