@@ -1,5 +1,6 @@
 # Served as a fallback if Express robots route is unavailable.
 # Production truth: frontend/backend/routes/sitemap.js → GET /robots.txt
+# Canonical host: https://descall.com
 
 User-agent: *
 Allow: /
@@ -12,6 +13,12 @@ Allow: /privacy
 Allow: /terms
 Allow: /contact
 Allow: /compare/
+Allow: /discord-alternative
+Allow: /discord-alternative-turkey
+Allow: /best-discord-alternative-for-gamers
+Allow: /alternatives
+Allow: /blog
+Allow: /blog/
 Allow: /sitemap.xml
 Allow: /sitemap-pages.xml
 Allow: /sitemap.html
@@ -29,4 +36,4 @@ Disallow: /i/
 Disallow: /debug/
 Disallow: /health
 
-Sitemap: https://des-call.onrender.com/sitemap.xml
+Sitemap: https://descall.com/sitemap.xml

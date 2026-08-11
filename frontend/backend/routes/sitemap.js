@@ -86,17 +86,25 @@ function sendHtml(res, body) {
   return res.status(200).send(body);
 }
 
-/** Canonical public marketing pages — must match client routes in src/site/. */
+/** Canonical public marketing pages — must match client routes in src/site/seoConfig.js. */
 function staticPages(origin) {
   const now = new Date().toISOString();
   const pages = [
-    { path: "/", title: "Descall — Messages, voice & screen share", changefreq: "daily", priority: "1.0" },
-    { path: "/download", title: "Download Descall Desktop", changefreq: "weekly", priority: "0.9" },
-    { path: "/features", title: "Descall Features", changefreq: "weekly", priority: "0.8" },
-    { path: "/faq", title: "Descall FAQ", changefreq: "weekly", priority: "0.7" },
+    { path: "/", title: "Descall — Free Discord alternative for chat, voice & LFG", changefreq: "daily", priority: "1.0" },
+    { path: "/download", title: "Download Descall — Discord alternative for Windows & Android", changefreq: "weekly", priority: "0.9" },
+    { path: "/features", title: "Descall Features — Chat, calls, screen share & LFG", changefreq: "weekly", priority: "0.85" },
+    { path: "/discord-alternative", title: "Best Free Discord Alternative (2026) — Descall", changefreq: "weekly", priority: "0.95" },
+    { path: "/alternatives", title: "Discord Alternatives in 2026 — Why teams pick Descall", changefreq: "weekly", priority: "0.9" },
+    { path: "/compare/discord", title: "Descall vs Discord — Honest comparison (2026)", changefreq: "weekly", priority: "0.95" },
+    { path: "/best-discord-alternative-for-gamers", title: "Best Discord Alternative for Gamers — Descall LFG", changefreq: "weekly", priority: "0.9" },
+    { path: "/discord-alternative-turkey", title: "Türkiye için Discord Alternatifi — Descall", changefreq: "weekly", priority: "0.9" },
+    { path: "/blog", title: "Descall Blog — Discord alternatives, LFG & voice chat", changefreq: "weekly", priority: "0.8" },
+    { path: "/blog/discord-vs-descall", title: "Discord vs Descall (2026)", changefreq: "monthly", priority: "0.85" },
+    { path: "/blog/best-discord-alternative-for-lfg", title: "Best Discord Alternative for Valorant LFG", changefreq: "monthly", priority: "0.85" },
+    { path: "/blog/leave-nitro-keep-voice-chat", title: "Leave Nitro. Keep voice chat.", changefreq: "monthly", priority: "0.8" },
+    { path: "/faq", title: "Descall FAQ — Discord alternative questions answered", changefreq: "weekly", priority: "0.75" },
     { path: "/security", title: "Descall Security", changefreq: "monthly", priority: "0.6" },
-    { path: "/about", title: "About Descall", changefreq: "monthly", priority: "0.6" },
-    { path: "/compare/discord", title: "Descall vs Discord", changefreq: "monthly", priority: "0.7" },
+    { path: "/about", title: "About Descall — Building a lighter Discord alternative", changefreq: "monthly", priority: "0.65" },
     { path: "/privacy", title: "Descall Privacy Policy", changefreq: "monthly", priority: "0.5" },
     { path: "/terms", title: "Descall Terms of Service", changefreq: "monthly", priority: "0.5" },
     { path: "/contact", title: "Contact Descall", changefreq: "monthly", priority: "0.5" },
@@ -309,6 +317,12 @@ Allow: /privacy
 Allow: /terms
 Allow: /contact
 Allow: /compare/
+Allow: /discord-alternative
+Allow: /discord-alternative-turkey
+Allow: /best-discord-alternative-for-gamers
+Allow: /alternatives
+Allow: /blog
+Allow: /blog/
 Allow: /sitemap.xml
 Allow: /sitemap-pages.xml
 Allow: /sitemap.html

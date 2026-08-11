@@ -7,10 +7,11 @@ import "./site.css";
 
 const NAV = [
   { to: "/features", label: "Features" },
+  { to: "/discord-alternative", label: "Discord alternative" },
+  { to: "/compare/discord", label: "vs Discord" },
   { to: "/download", label: "Download" },
+  { to: "/blog", label: "Blog" },
   { to: "/faq", label: "FAQ" },
-  { to: "/security", label: "Security" },
-  { to: "/about", label: "About" },
 ];
 
 export default function MarketingLayout({ children, onSignIn }) {
@@ -88,11 +89,18 @@ export default function MarketingLayout({ children, onSignIn }) {
           <DescallBrand />
         </div>
         <div className="mkt-footer-links">
+          <Link to="/discord-alternative">{t("Discord alternative")}</Link>
+          <Link to="/alternatives">{t("Alternatives")}</Link>
+          <Link to="/compare/discord">{t("vs Discord")}</Link>
+          <Link to="/best-discord-alternative-for-gamers">{t("For gamers")}</Link>
+          <Link to="/discord-alternative-turkey">{t("Türkiye")}</Link>
+          <Link to="/blog">{t("Blog")}</Link>
           <Link to="/privacy">{t("Privacy Policy")}</Link>
           <Link to="/terms">{t("Terms")}</Link>
           <Link to="/contact">{t("Contact")}</Link>
-          <Link to="/compare/discord">vs Discord</Link>
-          <a href="/sitemap.html">Sitemap</a>
+          <Link to="/security">{t("Security")}</Link>
+          <Link to="/about">{t("About")}</Link>
+          <a href="/sitemap.html">{t("Sitemap")}</a>
         </div>
         <p className="mkt-footer-copy">{t("© 2026 Descall. All rights reserved.")}</p>
       </footer>

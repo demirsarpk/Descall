@@ -19,6 +19,12 @@ import TermsPage from "./pages/TermsPage";
 import AboutPage from "./pages/AboutPage";
 import ContactPage from "./pages/ContactPage";
 import CompareDiscordPage from "./pages/CompareDiscordPage";
+import DiscordAlternativePage from "./pages/DiscordAlternativePage";
+import AlternativesPage from "./pages/AlternativesPage";
+import DiscordAlternativeGamersPage from "./pages/DiscordAlternativeGamersPage";
+import DiscordAlternativeTurkeyPage from "./pages/DiscordAlternativeTurkeyPage";
+import BlogIndexPage from "./pages/BlogIndexPage";
+import BlogPostPage from "./pages/BlogPostPage";
 import NotFoundPage from "./pages/NotFoundPage";
 
 function enableMarketingScroll() {
@@ -332,7 +338,19 @@ export default function MarketingApp({
         <Route path="/terms" element={withLayout(TermsPage, openAuth)} />
         <Route path="/about" element={withLayout(AboutPage, openAuth)} />
         <Route path="/contact" element={withLayout(ContactPage, openAuth)} />
+        <Route path="/discord-alternative" element={withLayout(DiscordAlternativePage, openAuth)} />
+        <Route path="/alternatives" element={withLayout(AlternativesPage, openAuth)} />
         <Route path="/compare/discord" element={withLayout(CompareDiscordPage, openAuth)} />
+        <Route
+          path="/best-discord-alternative-for-gamers"
+          element={withLayout(DiscordAlternativeGamersPage, openAuth)}
+        />
+        <Route
+          path="/discord-alternative-turkey"
+          element={withLayout(DiscordAlternativeTurkeyPage, openAuth)}
+        />
+        <Route path="/blog" element={withLayout(BlogIndexPage, openAuth)} />
+        <Route path="/blog/:slug" element={withLayout(BlogPostPage, openAuth)} />
         <Route path="*" element={withLayout(NotFoundPage, openAuth)} />
       </Routes>
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} {...authProps} />
