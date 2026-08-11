@@ -14,10 +14,24 @@ export const AnimatedText: React.FC<{
   size?: number;
   bottom?: number;
   delay?: number;
-}> = ({ text, accentWord, size = 64, bottom = 220, delay = 0 }) => {
+  variant?: "hero" | "caption";
+}> = ({
+  text,
+  accentWord,
+  size = 58,
+  bottom = 230,
+  delay = 0,
+  variant = "hero",
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const words = text.split(" ");
+
+  const plate = spring({
+    frame: Math.max(0, frame - delay),
+    fps,
+    config: { damping: 20, stiffness: 120 },
+  });
 
   return (
     <AbsoluteFill
@@ -25,8 +39,8 @@ export const AnimatedText: React.FC<{
         justifyContent: "flex-end",
         alignItems: "center",
         paddingBottom: bottom,
-        paddingLeft: 48,
-        paddingRight: 48,
+        paddingLeft: 40,
+        paddingRight: 40,
         pointerEvents: "none",
       }}
     >
@@ -35,42 +49,51 @@ export const AnimatedText: React.FC<{
           display: "flex",
           flexWrap: "wrap",
           justifyContent: "center",
-          columnGap: "0.42em",
-          rowGap: "0.18em",
-          maxWidth: 920,
-          padding: "18px 28px",
-          borderRadius: 28,
-          background: "linear-gradient(180deg, rgba(6,5,14,0.18), rgba(6,5,14,0.55))",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+          columnGap: "0.38em",
+          rowGap: "0.12em",
+          maxWidth: 940,
+          padding: variant === "hero" ? "20px 30px" : "12px 22px",
+          borderRadius: variant === "hero" ? 30 : 999,
+          background:
+            variant === "hero"
+              ? "linear-gradient(180deg, rgba(8,6,18,0.25), rgba(8,6,18,0.62))"
+              : "rgba(8,6,18,0.55)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 24px 70px rgba(0,0,0,0.4)",
+          backdropFilter: "blur(14px)",
+          transform: `translateY(${interpolate(plate, [0, 1], [16, 0])}px)`,
+          opacity: plate,
         }}
       >
         {words.map((word, i) => {
-          const local = Math.max(0, frame - delay - i * 2);
+          const local = Math.max(0, frame - delay - 4 - i * 2);
           const s = spring({
             frame: local,
             fps,
-            config: { damping: 16, stiffness: 160, mass: 0.6 },
+            config: { damping: 18, stiffness: 150, mass: 0.55 },
           });
-          const y = interpolate(s, [0, 1], [22, 0]);
-          const op = interpolate(s, [0, 1], [0, 1]);
           const clean = word.replace(/[.,!]/g, "");
           const isAccent =
             accentWord &&
-            clean.toLowerCase() === accentWord.replace(/[.,!]/g, "").toLowerCase();
+            clean.toLowerCase() ===
+              accentWord.replace(/[.,!]/g, "").toLowerCase();
 
           return (
             <span
               key={`${word}-${i}`}
               style={{
-                fontFamily: "Inter, Geist, SF Pro Display, Helvetica Neue, sans-serif",
-                fontWeight: 750,
+                fontFamily:
+                  "Inter, Geist, SF Pro Display, Helvetica Neue, sans-serif",
+                fontWeight: 740,
                 fontSize: size,
-                letterSpacing: -1.1,
+                letterSpacing: -1.2,
                 lineHeight: 1.12,
                 color: isAccent ? BRAND.accent : BRAND.text,
-                transform: `translateY(${y}px) scale(${interpolate(s, [0, 1], [0.92, 1])})`,
-                opacity: op,
-                textShadow: "0 12px 36px rgba(0,0,0,0.75)",
+                transform: `translateY(${interpolate(s, [0, 1], [18, 0])}px) scale(${interpolate(s, [0, 1], [0.94, 1])})`,
+                opacity: s,
+                textShadow: isAccent
+                  ? `0 0 28px rgba(139,155,255,0.45), 0 12px 36px rgba(0,0,0,0.7)`
+                  : "0 12px 36px rgba(0,0,0,0.7)",
                 whiteSpace: "pre",
               }}
             >
@@ -96,24 +119,23 @@ export const Subtitle: React.FC<{
       style={{
         justifyContent: "flex-end",
         alignItems: "center",
-        paddingBottom: 160,
+        paddingBottom: 150,
         pointerEvents: "none",
       }}
     >
       <div
         style={{
           opacity: s,
-          transform: `translateY(${interpolate(s, [0, 1], [12, 0])}px)`,
-          background: "rgba(8,6,16,0.55)",
+          transform: `translateY(${interpolate(s, [0, 1], [10, 0])}px)`,
+          background: "rgba(8,6,16,0.5)",
           backdropFilter: "blur(12px)",
           border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: 999,
-          padding: "14px 28px",
+          padding: "12px 24px",
           color: BRAND.muted,
           fontFamily: "Inter, Geist, sans-serif",
           fontWeight: 560,
-          fontSize: 28,
-          letterSpacing: 0.2,
+          fontSize: 26,
         }}
       >
         {text}
