@@ -9,27 +9,18 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { AnimatedText } from "../components/AnimatedText";
-import {
-  AccentRing,
-  AmbientOrbs,
-  ConfettiBurst,
-  EffectStack,
-  SoftTransition,
-} from "../components/Effects";
+import { CaptionLines } from "../components/CaptionLines";
+import { SoftTransition } from "../components/Effects";
 import { SoundEffect } from "../components/Transition";
-import { BRAND } from "../editPlan";
+import { BRAND, EDIT_PLAN } from "../editPlan";
+
+const scene = EDIT_PLAN[6];
 
 export const CTA: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const s = spring({ frame, fps, config: { damping: 18, stiffness: 100 } });
-  const logoScale = interpolate(s, [0, 1], [0.82, 1]);
-  const glow = interpolate(frame, [0, 50, 140], [0.22, 0.65, 0.4], {
-    extrapolateRight: "clamp",
-  });
-  const ringPulse = 1 + Math.sin(frame / 12) * 0.035;
-  const spin = (frame * 2) % 360;
+  const logoScale = interpolate(s, [0, 1], [0.88, 1]);
 
   return (
     <AbsoluteFill
@@ -39,32 +30,6 @@ export const CTA: React.FC = () => {
         background: `radial-gradient(900px 720px at 50% 42%, #1b1538 0%, ${BRAND.bg} 62%, #010105 100%)`,
       }}
     >
-      <AmbientOrbs intensity={1.5} />
-      <AccentRing />
-      <EffectStack heavy />
-      <ConfettiBurst delay={4} />
-      <ConfettiBurst delay={22} />
-      <div
-        style={{
-          position: "absolute",
-          width: 620 * ringPulse,
-          height: 620 * ringPulse,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, rgba(139,155,255,${glow}), transparent 70%)`,
-          filter: "blur(8px)",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          width: 340,
-          height: 340,
-          borderRadius: "50%",
-          background: `conic-gradient(from ${spin}deg, #8b9bff, #d0a4ff, #7ef0d0, #8b9bff)`,
-          filter: "blur(20px)",
-          opacity: 0.45,
-        }}
-      />
       <div
         style={{
           transform: `scale(${logoScale})`,
@@ -72,59 +37,41 @@ export const CTA: React.FC = () => {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 26,
+          gap: 22,
           zIndex: 2,
+          marginBottom: 180,
         }}
       >
-        <div
+        <Img
+          src={staticFile("images/descall-logo.png")}
           style={{
-            padding: 7,
-            borderRadius: 58,
-            background: `conic-gradient(from ${spin}deg, #8b9bff, #d0a4ff, #7ef0d0, #ff9ec8, #8b9bff)`,
-            boxShadow: `0 40px 100px rgba(0,0,0,0.45), 0 0 ${50 * glow}px rgba(139,155,255,0.55)`,
+            width: 180,
+            height: 180,
+            borderRadius: 44,
+            display: "block",
+            background: "#0a0814",
+            boxShadow: "0 30px 80px rgba(0,0,0,0.4)",
           }}
-        >
-          <Img
-            src={staticFile("images/descall-logo.png")}
-            style={{
-              width: 200,
-              height: 200,
-              borderRadius: 50,
-              display: "block",
-              background: "#0a0814",
-            }}
-          />
-        </div>
+        />
         <div
           style={{
             fontFamily: "Inter, Geist, sans-serif",
-            fontWeight: 820,
-            fontSize: 96,
-            letterSpacing: -2.8,
+            fontWeight: 800,
+            fontSize: 88,
+            letterSpacing: -2.4,
             color: BRAND.text,
-            textShadow: `0 0 40px rgba(139,155,255,0.55), 0 0 80px rgba(208,164,255,0.35)`,
           }}
         >
           DESCALL
         </div>
       </div>
-      <AnimatedText
-        text="Start free at descall.com"
-        accentWord="descall.com"
-        size={38}
-        bottom={300}
-        delay={14}
-        variant="caption"
-      />
-      <SoftTransition side="in" length={12} />
-      <Sequence from={0} durationInFrames={22}>
-        <SoundEffect file="impact" volume={0.34} />
+      <CaptionLines lines={scene.lines} sceneDuration={scene.duration} size={44} bottom={280} />
+      <SoftTransition side="in" length={10} />
+      <Sequence from={0} durationInFrames={18}>
+        <SoundEffect file="impact" volume={0.28} />
       </Sequence>
-      <Sequence from={10} durationInFrames={28}>
-        <SoundEffect file="confirm" volume={0.24} />
-      </Sequence>
-      <Sequence from={0} durationInFrames={40}>
-        <SoundEffect file="riser" volume={0.14} />
+      <Sequence from={8} durationInFrames={22}>
+        <SoundEffect file="confirm" volume={0.2} />
       </Sequence>
     </AbsoluteFill>
   );

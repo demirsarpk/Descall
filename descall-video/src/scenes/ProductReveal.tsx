@@ -1,41 +1,24 @@
 import React from "react";
 import { AbsoluteFill, Sequence } from "remotion";
 import { UIZoom } from "../components/UIZoom";
-import { AnimatedText, Subtitle } from "../components/AnimatedText";
-import {
-  AccentRing,
-  EffectStack,
-  FeatureChip,
-  LightSweep,
-  SoftTransition,
-  SoundEffect,
-} from "../components/Transition";
+import { CaptionLines } from "../components/CaptionLines";
+import { SoftTransition, SoundEffect } from "../components/Transition";
+import { EDIT_PLAN } from "../editPlan";
+
+const scene = EDIT_PLAN[1];
 
 export const ProductReveal: React.FC = () => {
   return (
     <AbsoluteFill>
-      <AccentRing delay={2} />
-      <UIZoom src="images/frames/app-direct.png" mode="card" />
-      <EffectStack />
-      <FeatureChip label="Realtime" x={80} y={260} delay={10} />
-      <FeatureChip label="Voice + Video" x={640} y={1420} delay={16} />
-      <LightSweep at={1} />
-      <LightSweep at={20} />
-      <AnimatedText
-        text="Meet Descall."
-        accentWord="Descall"
-        size={66}
-        bottom={260}
-        delay={4}
-      />
-      <Subtitle text="Chat · Voice · LFG" start={16} />
+      <UIZoom src={`images/frames/${scene.frame}.png`} mode="card" />
+      <CaptionLines lines={scene.lines} sceneDuration={scene.duration} size={48} />
       <SoftTransition side="in" length={8} />
-      <SoftTransition side="out" length={10} />
-      <Sequence from={0} durationInFrames={16}>
-        <SoundEffect file="whoosh" volume={0.24} />
+      <SoftTransition side="out" length={8} />
+      <Sequence from={0} durationInFrames={12}>
+        <SoundEffect file="whoosh" volume={0.16} />
       </Sequence>
-      <Sequence from={10} durationInFrames={24}>
-        <SoundEffect file="confirm" volume={0.22} />
+      <Sequence from={8} durationInFrames={18}>
+        <SoundEffect file="confirm" volume={0.18} />
       </Sequence>
     </AbsoluteFill>
   );

@@ -1,128 +1,19 @@
 {
-  "generatedAt": "2026-08-11T19:54:05.387Z",
-  "source": {
-    "video": "public/video/raw-source.mp4",
-    "probe": {
-      "programs": [],
-      "streams": [
-        {
-          "width": 1080,
-          "height": 1920,
-          "avg_frame_rate": "30/1",
-          "duration": "23.966667"
-        }
-      ],
-      "format": {
-        "duration": "23.966667"
-      }
-    },
-    "frames": 31,
-    "frameList": [
-      "app-activity.png",
-      "app-appearance-mid.png",
-      "app-appearance.png",
-      "app-calls.png",
-      "app-direct-2.png",
-      "app-direct.png",
-      "app-dm-nova.png",
-      "app-dm-sam.png",
-      "app-dm-samdemo-scroll.png",
-      "app-dm-samdemo.png",
-      "app-friends-2.png",
-      "app-friends.png",
-      "app-group-open.png",
-      "app-groups.png",
-      "app-open-dm.png",
-      "app-play-2.png",
-      "app-play.png",
-      "app-profile.png",
-      "app-settings-profile.png",
-      "app-settings.png",
-      "logo.png",
-      "m-compare-mid.png",
-      "m-compare.png",
-      "m-discord-alt-mid.png",
-      "m-discord-alt.png",
-      "m-download-mid.png",
-      "m-download.png",
-      "m-features-mid.png",
-      "m-features.png",
-      "m-home-mid.png",
-      "m-home.png"
-    ]
-  },
-  "strongestMoments": [
-    {
-      "id": "dm-descoin-gif",
-      "frame": "app-open-dm.png",
-      "reason": "DesCoin + GIF social proof"
-    },
-    {
-      "id": "chats-list",
-      "frame": "app-direct.png",
-      "reason": "Clean product chrome + neon ring"
-    },
-    {
-      "id": "lfg",
-      "frame": "app-play-2.png",
-      "reason": "Valorant LFG differentiator"
-    },
-    {
-      "id": "settings",
-      "frame": "app-appearance.png",
-      "reason": "Personalization depth"
-    },
-    {
-      "id": "seo-hook",
-      "frame": "m-discord-alt.png",
-      "reason": "Category positioning"
-    }
-  ],
   "timeline": [
-    {
-      "start": 0,
-      "end": 2.2,
-      "scene": "HOOK",
-      "copy": "Discord, but different."
-    },
-    {
-      "start": 2.2,
-      "end": 4.8,
-      "scene": "PRODUCT",
-      "copy": "Meet Descall."
-    },
-    {
-      "start": 4.8,
-      "end": 8.4,
-      "scene": "CHAT",
-      "copy": "Cosmetics that show."
-    },
-    {
-      "start": 8.4,
-      "end": 11.6,
-      "scene": "SOCIAL",
-      "copy": "Friends. Calls. Done."
-    },
-    {
-      "start": 11.6,
-      "end": 15.0,
-      "scene": "LOOK",
-      "copy": "Make it yours."
-    },
-    {
-      "start": 15.0,
-      "end": 19.0,
-      "scene": "PAYOFF",
-      "copy": "Free. Fast. Yours."
-    },
-    {
-      "start": 19.0,
-      "end": 24.0,
-      "scene": "CTA",
-      "copy": "Start free at descall.com"
-    }
+    { "start": 0.3, "end": 2.1, "scene": "HOOK", "copy": "Tired of Discord?" },
+    { "start": 2.35, "end": 4.1, "scene": "HOOK", "copy": "Discord, but different." },
+    { "start": 4.4, "end": 6.1, "scene": "PRODUCT", "copy": "Meet Descall." },
+    { "start": 6.4, "end": 8.5, "scene": "PRODUCT", "copy": "Chat, voice, and video — free." },
+    { "start": 8.85, "end": 10.6, "scene": "CHAT", "copy": "Real conversations." },
+    { "start": 11.05, "end": 12.9, "scene": "CHAT", "copy": "Cosmetics that actually show." },
+    { "start": 13.45, "end": 15.2, "scene": "SOCIAL", "copy": "Friends without the clutter." },
+    { "start": 15.6, "end": 17.4, "scene": "SOCIAL", "copy": "HD calls in one tap." },
+    { "start": 17.85, "end": 19.9, "scene": "LOOK", "copy": "Themes, frames, and titles." },
+    { "start": 20.2, "end": 21.9, "scene": "LOOK", "copy": "Make your profile yours." },
+    { "start": 22.25, "end": 24.0, "scene": "PAYOFF", "copy": "No Nitro paywall." },
+    { "start": 24.55, "end": 26.5, "scene": "PAYOFF", "copy": "Free. Fast. Built for friends." },
+    { "start": 27.2, "end": 28.9, "scene": "CTA", "copy": "Start free today." },
+    { "start": 29.4, "end": 31.1, "scene": "CTA", "copy": "descall.com" }
   ],
-  "notes": [
-    "v3: soft Ken Burns only, SoundHelix music, orbs/chips/rings"
-  ]
+  "notes": ["v5: flashy FX removed; 14 caption/VO lines over 32s"]
 }
