@@ -3374,6 +3374,7 @@ button.header-avatar {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 
 .activity-empty-icon {
@@ -3503,6 +3504,14 @@ button.header-avatar {
   position: sticky;
   top: 0;
   z-index: 5;
+  background: var(--surface-1);
+}
+
+.activity-view-toolbar-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
 .activity-view-search {
@@ -3582,6 +3591,11 @@ button.header-avatar {
   flex-shrink: 0;
 }
 
+.activity-view-mobile {
+  /* Tab bar (60) + safe area + buffer so the last section is never clipped */
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
 .activity-view-mobile .activity-view-header {
   padding: 14px 16px 12px;
 }
@@ -3595,13 +3609,15 @@ button.header-avatar {
 }
 
 .activity-view-mobile .activity-tab-content {
-  padding: 12px 16px 88px;
+  padding: 12px 16px 28px;
+  flex: 1;
+  min-height: 0;
 }
 
 .activity-view-mobile .sidebar-actions {
   flex-wrap: nowrap;
   overflow-x: auto;
-  max-width: min(70vw, 260px);
+  max-width: min(58vw, 220px);
   scrollbar-width: none;
 }
 

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Clock, Edit3, X, ChevronDown, Lock, Users, EyeOff, Monitor,
-  Search, RefreshCw, Megaphone, MessageSquarePlus, Plus,
+  Search, RefreshCw, Megaphone, MessageSquarePlus, Plus, Menu,
 } from 'lucide-react';
 import { useT } from '../../context/LocaleContext';
 import { openFeedbackModal } from '../../lib/feedbackNudge';
@@ -200,6 +200,7 @@ export default function ActivityView({
   onRefresh,
   onAddFriend,
   onFriendSelect,
+  onMenuClick,
 }) {
   const t = useT();
   const searchRef = useRef(null);
@@ -244,7 +245,20 @@ export default function ActivityView({
       {isMobile && (
         <>
           <div className="sidebar-header activity-view-toolbar">
-            <h2 className="sidebar-title">{t('Activity')}</h2>
+            <div className="activity-view-toolbar-title">
+              {onMenuClick && (
+                <button
+                  type="button"
+                  className="icon-btn mobile-nav-btn"
+                  onClick={onMenuClick}
+                  aria-label={t('Open menu')}
+                  title={t('Open menu')}
+                >
+                  <Menu size={20} />
+                </button>
+              )}
+              <h2 className="sidebar-title">{t('Activity')}</h2>
+            </div>
             <div className="sidebar-actions">
               <button type="button" className="icon-btn" title={t('Refresh')} onClick={handleRefresh}>
                 <RefreshCw size={18} className={isRefreshing ? 'spin-refresh' : ''} />

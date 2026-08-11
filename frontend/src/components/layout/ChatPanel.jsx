@@ -412,6 +412,7 @@ export default function ChatPanel({
           onRefresh={onRefresh}
           onAddFriend={() => onAddClick?.("friend")}
           onFriendSelect={onStartDm}
+          onMenuClick={onMenuClick}
         />
       ) : activeView === "calls" && !activeDmUser && !activeGroup ? (
         <CallsView

@@ -201,8 +201,8 @@ export default function AppLayout({
       if (activeGroup) onGroupSelect?.(null);
     }
     if (isMobile) {
-      // Play + Activity fill the main panel — don't cover them with the list drawer.
-      // Friends/calls/chat still open the drawer so users can pick a conversation.
+      // Play + Activity are full-page layouts (no list drawer overlay).
+      // Friends/calls/chat open the drawer to pick a conversation.
       setMobileDrawerOpen(view !== "play" && view !== "activity");
     }
   }, [isMobile, activeDmUser, activeGroup, onDmSelect, onGroupSelect]);
@@ -308,7 +308,7 @@ export default function AppLayout({
           onStatusChange={onStatusChange}
         />
 
-        {activeView === "play" || (activeView === "activity" && isMobile) ? null : activeView === "activity" ? (
+        {activeView === "play" ? null : activeView === "activity" ? (
           <ActivitySidebar
             friends={friends}
             friendPresence={activity.friendPresence}

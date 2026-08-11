@@ -1474,6 +1474,7 @@ export const phrases = {
   "Try a different name": "Try a different name",
   "When friends come online, their activity shows up here.": "When friends come online, their activity shows up here.",
   "Your status": "Your status",
+  "Open menu": "Open menu",
   "Removing…": "Removing…",
   "Member Since": "Member Since",
   "Mutual Friends": "Mutual Friends",
