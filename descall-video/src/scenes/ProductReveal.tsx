@@ -4,6 +4,8 @@ import { UIZoom } from "../components/UIZoom";
 import { AnimatedText, Subtitle } from "../components/AnimatedText";
 import {
   AccentRing,
+  EffectStack,
+  FeatureChip,
   LightSweep,
   SoftTransition,
   SoundEffect,
@@ -14,7 +16,11 @@ export const ProductReveal: React.FC = () => {
     <AbsoluteFill>
       <AccentRing delay={2} />
       <UIZoom src="images/frames/app-direct.png" mode="card" />
+      <EffectStack />
+      <FeatureChip label="Realtime" x={80} y={260} delay={10} />
+      <FeatureChip label="Voice + Video" x={640} y={1420} delay={16} />
       <LightSweep at={1} />
+      <LightSweep at={20} />
       <AnimatedText
         text="Meet Descall."
         accentWord="Descall"

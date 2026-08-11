@@ -13,8 +13,9 @@ import { AnimatedText } from "../components/AnimatedText";
 import {
   AccentRing,
   AmbientOrbs,
+  ConfettiBurst,
+  EffectStack,
   SoftTransition,
-  SparkDust,
 } from "../components/Effects";
 import { SoundEffect } from "../components/Transition";
 import { BRAND } from "../editPlan";
@@ -24,10 +25,11 @@ export const CTA: React.FC = () => {
   const { fps } = useVideoConfig();
   const s = spring({ frame, fps, config: { damping: 18, stiffness: 100 } });
   const logoScale = interpolate(s, [0, 1], [0.82, 1]);
-  const glow = interpolate(frame, [0, 50, 140], [0.18, 0.5, 0.32], {
+  const glow = interpolate(frame, [0, 50, 140], [0.22, 0.65, 0.4], {
     extrapolateRight: "clamp",
   });
-  const ringPulse = 1 + Math.sin(frame / 14) * 0.02;
+  const ringPulse = 1 + Math.sin(frame / 12) * 0.035;
+  const spin = (frame * 2) % 360;
 
   return (
     <AbsoluteFill
@@ -37,17 +39,30 @@ export const CTA: React.FC = () => {
         background: `radial-gradient(900px 720px at 50% 42%, #1b1538 0%, ${BRAND.bg} 62%, #010105 100%)`,
       }}
     >
-      <AmbientOrbs intensity={1.2} />
+      <AmbientOrbs intensity={1.5} />
       <AccentRing />
-      <SparkDust />
+      <EffectStack heavy />
+      <ConfettiBurst delay={4} />
+      <ConfettiBurst delay={22} />
       <div
         style={{
           position: "absolute",
-          width: 560 * ringPulse,
-          height: 560 * ringPulse,
+          width: 620 * ringPulse,
+          height: 620 * ringPulse,
           borderRadius: "50%",
           background: `radial-gradient(circle, rgba(139,155,255,${glow}), transparent 70%)`,
           filter: "blur(8px)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          width: 340,
+          height: 340,
+          borderRadius: "50%",
+          background: `conic-gradient(from ${spin}deg, #8b9bff, #d0a4ff, #7ef0d0, #8b9bff)`,
+          filter: "blur(20px)",
+          opacity: 0.45,
         }}
       />
       <div
@@ -63,11 +78,10 @@ export const CTA: React.FC = () => {
       >
         <div
           style={{
-            padding: 6,
-            borderRadius: 56,
-            background:
-              "linear-gradient(135deg, rgba(139,155,255,0.7), rgba(208,164,255,0.45))",
-            boxShadow: "0 40px 100px rgba(0,0,0,0.45)",
+            padding: 7,
+            borderRadius: 58,
+            background: `conic-gradient(from ${spin}deg, #8b9bff, #d0a4ff, #7ef0d0, #ff9ec8, #8b9bff)`,
+            boxShadow: `0 40px 100px rgba(0,0,0,0.45), 0 0 ${50 * glow}px rgba(139,155,255,0.55)`,
           }}
         >
           <Img
@@ -88,7 +102,7 @@ export const CTA: React.FC = () => {
             fontSize: 96,
             letterSpacing: -2.8,
             color: BRAND.text,
-            textShadow: "0 0 40px rgba(139,155,255,0.35)",
+            textShadow: `0 0 40px rgba(139,155,255,0.55), 0 0 80px rgba(208,164,255,0.35)`,
           }}
         >
           DESCALL
@@ -110,7 +124,7 @@ export const CTA: React.FC = () => {
         <SoundEffect file="confirm" volume={0.24} />
       </Sequence>
       <Sequence from={0} durationInFrames={40}>
-        <SoundEffect file="riser" volume={0.12} />
+        <SoundEffect file="riser" volume={0.14} />
       </Sequence>
     </AbsoluteFill>
   );

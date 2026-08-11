@@ -4,11 +4,11 @@ import { UIZoom } from "../components/UIZoom";
 import { AnimatedText } from "../components/AnimatedText";
 import {
   AccentRing,
+  EffectStack,
   FeatureChip,
   LightSweep,
   SoftTransition,
   SoundEffect,
-  SparkDust,
 } from "../components/Transition";
 
 export const Hook: React.FC = () => {
@@ -16,10 +16,12 @@ export const Hook: React.FC = () => {
     <AbsoluteFill>
       <AccentRing />
       <UIZoom src="images/frames/app-open-dm.png" mode="float" />
-      <SparkDust />
-      <FeatureChip label="DesCoin" x={70} y={220} delay={10} />
-      <FeatureChip label="GIF · Calls" x={680} y={1480} delay={16} />
-      <LightSweep at={3} />
+      <EffectStack heavy />
+      <FeatureChip label="DesCoin" x={70} y={220} delay={8} />
+      <FeatureChip label="GIF · Calls" x={680} y={1480} delay={14} />
+      <FeatureChip label="Neon Ring" x={720} y={320} delay={18} />
+      <LightSweep at={2} />
+      <LightSweep at={14} />
       <AnimatedText
         text="Discord, but different."
         accentWord="different"
@@ -31,8 +33,11 @@ export const Hook: React.FC = () => {
       <Sequence from={0} durationInFrames={18}>
         <SoundEffect file="impact" volume={0.38} />
       </Sequence>
-      <Sequence from={5} durationInFrames={18}>
+      <Sequence from={4} durationInFrames={18}>
         <SoundEffect file="whoosh" volume={0.22} />
+      </Sequence>
+      <Sequence from={0} durationInFrames={30}>
+        <SoundEffect file="riser" volume={0.1} />
       </Sequence>
     </AbsoluteFill>
   );

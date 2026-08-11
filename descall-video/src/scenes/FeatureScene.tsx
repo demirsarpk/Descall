@@ -4,11 +4,11 @@ import { UIZoom } from "../components/UIZoom";
 import { AnimatedText } from "../components/AnimatedText";
 import {
   AccentRing,
+  EffectStack,
   FeatureChip,
   LightSweep,
   SoftTransition,
   SoundEffect,
-  SparkDust,
 } from "../components/Transition";
 
 export const FeatureScene: React.FC<{
@@ -22,11 +22,12 @@ export const FeatureScene: React.FC<{
     <AbsoluteFill>
       <AccentRing delay={1} />
       <UIZoom src={src} mode={mode} />
-      <SparkDust />
+      <EffectStack />
       {chips.map((c) => (
         <FeatureChip key={c.label + c.x} {...c} />
       ))}
       <LightSweep at={2} />
+      <LightSweep at={18} />
       <AnimatedText
         text={copy}
         accentWord={accent}
@@ -41,6 +42,9 @@ export const FeatureScene: React.FC<{
       </Sequence>
       <Sequence from={8} durationInFrames={10}>
         <SoundEffect file="click" volume={0.16} />
+      </Sequence>
+      <Sequence from={2} durationInFrames={20}>
+        <SoundEffect file="impact" volume={0.12} />
       </Sequence>
     </AbsoluteFill>
   );

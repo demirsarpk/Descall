@@ -37,8 +37,10 @@ const sceneById = (id: string, index: number) => {
             accent="show"
             mode="float"
             chips={[
-              { label: "Neon frame", x: 64, y: 260, delay: 12 },
-              { label: "Titles · Badges", x: 620, y: 1500, delay: 18 },
+              { label: "Neon frame", x: 64, y: 240, delay: 10 },
+              { label: "Titles · Badges", x: 620, y: 1480, delay: 16 },
+              { label: "DesCoin", x: 740, y: 360, delay: 20 },
+              { label: "GIF ready", x: 80, y: 1380, delay: 24 },
             ]}
           />
         </>
@@ -51,7 +53,11 @@ const sceneById = (id: string, index: number) => {
             src="images/frames/app-friends-2.png"
             copy="Friends. Calls. Done."
             accent="Done"
-            chips={[{ label: "1:1 & groups", x: 80, y: 1380, delay: 10 }]}
+            chips={[
+              { label: "1:1 & groups", x: 80, y: 1360, delay: 10 },
+              { label: "HD voice", x: 700, y: 280, delay: 14 },
+              { label: "Instant DM", x: 720, y: 1500, delay: 18 },
+            ]}
           />
         </>
       );
@@ -65,7 +71,8 @@ const sceneById = (id: string, index: number) => {
             accent="yours"
             chips={[
               { label: "Themes", x: 720, y: 240, delay: 10 },
-              { label: "Profile FX", x: 60, y: 1500, delay: 16 },
+              { label: "Profile FX", x: 60, y: 1480, delay: 16 },
+              { label: "Accent color", x: 680, y: 1400, delay: 20 },
             ]}
           />
         </>
@@ -79,7 +86,11 @@ const sceneById = (id: string, index: number) => {
             copy="Free. Fast. Yours."
             accent="Yours"
             mode="float"
-            chips={[{ label: "No Nitro tax", x: 90, y: 1280, delay: 12 }]}
+            chips={[
+              { label: "No Nitro tax", x: 90, y: 1260, delay: 10 },
+              { label: "LFG built-in", x: 680, y: 300, delay: 14 },
+              { label: "Free forever", x: 700, y: 1480, delay: 18 },
+            ]}
           />
         </>
       );

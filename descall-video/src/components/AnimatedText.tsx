@@ -92,9 +92,14 @@ export const AnimatedText: React.FC<{
                 transform: `translateY(${interpolate(s, [0, 1], [18, 0])}px) scale(${interpolate(s, [0, 1], [0.94, 1])})`,
                 opacity: s,
                 textShadow: isAccent
-                  ? `0 0 28px rgba(139,155,255,0.45), 0 12px 36px rgba(0,0,0,0.7)`
+                  ? `0 0 28px rgba(139,155,255,0.65), 0 0 60px rgba(208,164,255,0.35), 0 12px 36px rgba(0,0,0,0.7)`
                   : "0 12px 36px rgba(0,0,0,0.7)",
                 whiteSpace: "pre",
+                backgroundImage: isAccent
+                  ? "linear-gradient(90deg, #8b9bff, #d0a4ff, #7ef0d0)"
+                  : undefined,
+                WebkitBackgroundClip: isAccent ? "text" : undefined,
+                WebkitTextFillColor: isAccent ? "transparent" : undefined,
               }}
             >
               {word}
