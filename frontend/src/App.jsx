@@ -474,6 +474,14 @@ export default function App() {
     return normalized;
   }, []);
 
+  // Identify restored sessions in PostHog (login/register paths already identify).
+  useEffect(() => {
+    if (!me?.id) return;
+    import("./site/analytics")
+      .then(({ identifyUser }) => identifyUser(me))
+      .catch(() => {});
+  }, [me?.id]);
+
   // Apply the account's equipped premium theme (or the plain dark/light
   // choice) to the document as soon as we know it. Previously the only
   // place that ever set data-theme from the equipped theme lived inside
@@ -1831,6 +1839,9 @@ export default function App() {
     socketRef.current?.disconnect();
     socketRef.current = null;
     setSocketApi(null);
+    import("./site/analytics")
+      .then(({ resetAnalyticsUser }) => resetAnalyticsUser())
+      .catch(() => {});
     clearToken(); clearUser(); setMe(null);
     setIsConnected(false); setOnlineUsers([]); setFriends([]); setFriendRequests([]);
     setDmByUserId({}); setDmUnread({}); setGroupUnread({}); setDmLastActivity({}); setGroupLastActivity({}); setDmPreviews({}); setGroupPreviews({}); setNotifications([]);

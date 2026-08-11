@@ -8,9 +8,13 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./context/ToastContext";
 import { LocaleProvider } from "./context/LocaleContext";
 import { resolveInitialLocale, translate } from "./i18n";
+import { initAnalytics } from "./site/analytics";
 /* DESCALL v2.0 — Complete UI rebuild - New modular CSS system */
 import "./styles.css";
 import "./styles/blackjack.css";
+
+// Boot PostHog (and optional GA/Clarity) for marketing + authenticated SPA.
+initAnalytics();
 
 // Electron loadFile() uses file:// — BrowserRouter cannot deep-link there.
 const Router = typeof window !== "undefined" && window.location.protocol === "file:"

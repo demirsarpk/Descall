@@ -7,7 +7,9 @@
  *   VITE_GA_MEASUREMENT_ID
  *   VITE_CLARITY_ID
  *
- * Safe no-op when keys are missing (local/dev).
+ * Public project key is safe to ship in the client bundle. Env overrides win;
+ * production falls back to the Descall EU project so Vercel builds work without
+ * Dashboard env wiring. Local/dev can leave the key empty to no-op.
  */
 
 import posthog from "posthog-js";
@@ -15,12 +17,22 @@ import posthog from "posthog-js";
 let booted = false;
 let posthogReady = false;
 
+/** Descall EU project — public `phc_` key (not a secret). */
+const DESCALL_POSTHOG_KEY = "phc_ztiuFNjFuPcfrCV6ANXunnYaZh4yH99ZhxFZf2cryacQ";
+const DESCALL_POSTHOG_HOST = "https://eu.i.posthog.com";
+
 function posthogKey() {
-  return String(import.meta.env.VITE_PUBLIC_POSTHOG_KEY || "").trim();
+  const fromEnv = String(import.meta.env.VITE_PUBLIC_POSTHOG_KEY || "").trim();
+  if (fromEnv) return fromEnv;
+  // Production builds always track; local/dev stays quiet unless env is set.
+  if (import.meta.env.PROD) return DESCALL_POSTHOG_KEY;
+  return "";
 }
 
 function posthogHost() {
-  return String(import.meta.env.VITE_PUBLIC_POSTHOG_HOST || "https://eu.i.posthog.com").trim();
+  return String(
+    import.meta.env.VITE_PUBLIC_POSTHOG_HOST || DESCALL_POSTHOG_HOST
+  ).trim();
 }
 
 export function initAnalytics() {
