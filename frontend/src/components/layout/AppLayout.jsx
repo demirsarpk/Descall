@@ -7,6 +7,7 @@ import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
 import ActivitySidebar from "../activity/ActivitySidebar";
 import FeedbackNudgeBanner from "../feedback/FeedbackNudgeBanner";
+import FeedbackModal from "../feedback/FeedbackModal";
 import LfgWorkspace from "../lfg/LfgWorkspace";
 import { useActivity } from "../../hooks/useActivity";
 import { useMobile } from "../../hooks/useMobile";
@@ -102,11 +103,18 @@ export default function AppLayout({
   const [addTab, setAddTab] = useState("friend");
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const activity = useActivity({ socket, me, friends });
 
   const closeMobileDrawer = useCallback(() => setMobileDrawerOpen(false), []);
   const openMobileDrawer = useCallback(() => setMobileDrawerOpen(true), []);
+
+  useEffect(() => {
+    const onOpenFeedback = () => setShowFeedbackModal(true);
+    window.addEventListener("descall:open-feedback", onOpenFeedback);
+    return () => window.removeEventListener("descall:open-feedback", onOpenFeedback);
+  }, []);
 
   const openUserPanel = useCallback(() => {
     setUserPanelOpen(true);
@@ -193,8 +201,9 @@ export default function AppLayout({
       if (activeGroup) onGroupSelect?.(null);
     }
     if (isMobile) {
-      // Play has its own split UI in the main panel — don't cover it with the drawer
-      setMobileDrawerOpen(view !== "play");
+      // Play + Activity fill the main panel — don't cover them with the list drawer.
+      // Friends/calls/chat still open the drawer so users can pick a conversation.
+      setMobileDrawerOpen(view !== "play" && view !== "activity");
     }
   }, [isMobile, activeDmUser, activeGroup, onDmSelect, onGroupSelect]);
 
@@ -267,6 +276,7 @@ export default function AppLayout({
 
       {/* Soft feedback reminder — top banner, auto-hides in 10s */}
       {me && !showNotifBanner && <FeedbackNudgeBanner enabled />}
+      <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} />
 
       {/* Mobile drawer backdrop */}
       <AnimatePresence>
@@ -298,11 +308,14 @@ export default function AppLayout({
           onStatusChange={onStatusChange}
         />
 
-        {activeView === "play" ? null : activeView === "activity" ? (
+        {activeView === "play" || (activeView === "activity" && isMobile) ? null : activeView === "activity" ? (
           <ActivitySidebar
             friends={friends}
             friendPresence={activity.friendPresence}
             onlineUsers={onlineUsers}
+            onRefresh={onRefresh}
+            onAddFriend={() => handleAddClick("friend")}
+            onFriendSelect={handleDmSelect}
           />
         ) : (
           <ServerSidebar
@@ -403,6 +416,7 @@ export default function AppLayout({
         onOpenChatFromCalls={handleOpenChatFromCalls}
         onOpenGroupFromCalls={handleOpenGroupFromCalls}
         onStartDm={handleOpenChatFromCalls}
+        onRefresh={onRefresh}
         groups={groups}
       >
         {children}

@@ -1,7 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Clock, Edit3, X, ChevronDown, Lock, Users, EyeOff, Monitor } from 'lucide-react';
+import {
+  Zap, Clock, Edit3, X, ChevronDown, Lock, Users, EyeOff, Monitor,
+  Search, RefreshCw, Megaphone, MessageSquarePlus, Plus,
+} from 'lucide-react';
 import { useT } from '../../context/LocaleContext';
+import { openFeedbackModal } from '../../lib/feedbackNudge';
+import { PresenceCard, useOnlinePresenceLists } from './ActivitySidebar';
 
 const TYPE_COLOR = {
   game:     '#23a55a',
@@ -191,17 +196,31 @@ export default function ActivityView({
   onClearManual,
   onUpdatePrivacy,
   onlineUsers,
+  isMobile = false,
+  onRefresh,
+  onAddFriend,
+  onFriendSelect,
 }) {
   const t = useT();
-  const [showManualModal,  setShowManualModal]  = useState(false);
-  const [showPrivacyMenu,  setShowPrivacyMenu]  = useState(false);
-  const [activeTab,        setActiveTab]        = useState('history');
+  const searchRef = useRef(null);
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [showPrivacyMenu, setShowPrivacyMenu] = useState(false);
+  const [activeTab, setActiveTab] = useState('history');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const PRIVACY_OPTIONS = getPrivacyOptions(t);
   const currentPrivacy = PRIVACY_OPTIONS.find(p => p.value === settings.privacy) || PRIVACY_OPTIONS[0];
-  const PrivacyIcon    = currentPrivacy.icon;
+  const PrivacyIcon = currentPrivacy.icon;
 
-  const friendFeed = Object.entries(friendPresence)
+  const { active, idle, onlineCount } = useOnlinePresenceLists(
+    friends,
+    friendPresence,
+    onlineUsers,
+    searchQuery
+  );
+
+  const friendFeed = Object.entries(friendPresence || {})
     .map(([userId, pres]) => {
       const friend = friends?.find(f => f.id === userId);
       if (!friend || !pres?.displayName) return null;
@@ -210,24 +229,157 @@ export default function ActivityView({
     .filter(Boolean)
     .sort((a, b) => new Date(b.pres.startedAt || 0) - new Date(a.pres.startedAt || 0));
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await onRefresh?.();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 800);
+    }
+  };
+
   return (
-    <div className="activity-view">
-      {/* ─── Header ─────────────────────────────────────────────────────── */}
+    <div className={`activity-view${isMobile ? ' activity-view-mobile' : ''}`}>
+      {/* Mobile: Friends-style bar + search + online friends (desktop uses ActivitySidebar) */}
+      {isMobile && (
+        <>
+          <div className="sidebar-header activity-view-toolbar">
+            <h2 className="sidebar-title">{t('Activity')}</h2>
+            <div className="sidebar-actions">
+              <button type="button" className="icon-btn" title={t('Refresh')} onClick={handleRefresh}>
+                <RefreshCw size={18} className={isRefreshing ? 'spin-refresh' : ''} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                title={t('Search')}
+                onClick={() => searchRef.current?.focus()}
+              >
+                <Search size={18} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                title={t('Announcements')}
+                onClick={() => openFeedbackModal({ type: 'praise', source: 'activity_view' })}
+              >
+                <Megaphone size={18} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                title={t('Send Feedback')}
+                onClick={() => openFeedbackModal({ type: 'suggestion', source: 'activity_view' })}
+              >
+                <MessageSquarePlus size={18} />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                title={t('Add friend')}
+                onClick={() => onAddFriend?.()}
+              >
+                <Plus size={18} />
+              </button>
+            </div>
+          </div>
+
+          <div className="sidebar-search activity-view-search">
+            <Search size={16} className="search-icon" />
+            <input
+              ref={searchRef}
+              type="text"
+              placeholder={t('Search')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+          </div>
+
+          <div className="activity-view-friends-block">
+            {onlineCount > 0 && (
+              <div className="activity-sidebar-summary">
+                <Users size={14} />
+                <span>{t('{count} online', { count: onlineCount })}</span>
+              </div>
+            )}
+
+            {active.length > 0 && (
+              <div className="activity-sidebar-section">
+                <div className="activity-sidebar-label">
+                  {t('Active Now — {count}', { count: active.length })}
+                </div>
+                <AnimatePresence initial={false}>
+                  {active.map(({ friend, presence }) => (
+                    <PresenceCard
+                      key={friend.id}
+                      friend={friend}
+                      presence={presence}
+                      onlineUsers={onlineUsers}
+                      onSelect={onFriendSelect}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {idle.length > 0 && (
+              <div className="activity-sidebar-section" style={{ marginTop: active.length ? 8 : 0 }}>
+                <div className="activity-sidebar-label">
+                  {t('Online — {count}', { count: idle.length })}
+                </div>
+                <AnimatePresence initial={false}>
+                  {idle.map(({ friend }) => (
+                    <PresenceCard
+                      key={friend.id}
+                      friend={friend}
+                      presence={null}
+                      onlineUsers={onlineUsers}
+                      onSelect={onFriendSelect}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {onlineCount === 0 && (
+              <div className="activity-empty-state activity-empty-state-inline">
+                <div className="activity-empty-icon">
+                  <Zap size={24} />
+                </div>
+                <p>{searchQuery.trim() ? t('No matches') : t('No friends online')}</p>
+                <span>
+                  {searchQuery.trim()
+                    ? t('Try a different name')
+                    : t('When friends come online, their activity shows up here.')}
+                </span>
+                {!searchQuery.trim() && (
+                  <button type="button" className="activity-empty-cta" onClick={() => onAddFriend?.()}>
+                    <Plus size={14} />
+                    {t('Add friend')}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
       <div className="activity-view-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="activity-view-header-left">
           <div className="activity-header-icon">
             <Zap size={20} />
           </div>
-          <div>
-            <h1 className="activity-view-title">{t('Activity')}</h1>
+          <div className="activity-view-heading">
+            <h1 className="activity-view-title">{isMobile ? t('Your status') : t('Activity')}</h1>
             <p className="activity-view-subtitle">{t('Your presence and history')}</p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Privacy selector */}
-          <div className="activity-privacy-selector" style={{ position: 'relative' }}>
+        <div className="activity-view-header-actions">
+          <div className="activity-privacy-selector">
             <button
+              type="button"
               className="activity-privacy-btn"
               onClick={() => setShowPrivacyMenu(v => !v)}
             >
@@ -240,14 +392,15 @@ export default function ActivityView({
                 <motion.div
                   className="activity-privacy-menu"
                   initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0,  scale: 1 }}
-                  exit={{ opacity: 0,   y: -6,  scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
                   transition={{ duration: 0.15 }}
                 >
                   {PRIVACY_OPTIONS.map(opt => {
                     const Icon = opt.icon;
                     return (
                       <button
+                        type="button"
                         key={opt.value}
                         className={`activity-privacy-option${settings.privacy === opt.value ? ' active' : ''}`}
                         onClick={() => { onUpdatePrivacy(opt.value); setShowPrivacyMenu(false); }}
@@ -265,15 +418,13 @@ export default function ActivityView({
             </AnimatePresence>
           </div>
 
-          {/* Manual status */}
-          <button className="activity-set-status-btn" onClick={() => setShowManualModal(true)}>
+          <button type="button" className="activity-set-status-btn" onClick={() => setShowManualModal(true)}>
             <Edit3 size={14} />
             <span>{t('Set Status')}</span>
           </button>
         </div>
       </div>
 
-      {/* ─── Current activity card ─────────────────────────────────────── */}
       <div className="activity-view-section">
         <CurrentActivityCard
           activity={currentActivity}
@@ -283,11 +434,11 @@ export default function ActivityView({
         />
       </div>
 
-      {/* ─── Tabs ─────────────────────────────────────────────────────── */}
       <div className="activity-tabs">
         {['history', 'friends'].map(tab => (
           <button
             key={tab}
+            type="button"
             className={`activity-tab-btn${activeTab === tab ? ' active' : ''}`}
             onClick={() => setActiveTab(tab)}
           >
@@ -300,7 +451,6 @@ export default function ActivityView({
         ))}
       </div>
 
-      {/* ─── Tab content ──────────────────────────────────────────────── */}
       <div className="activity-tab-content">
         <AnimatePresence mode="wait">
           {activeTab === 'history' && (
@@ -311,7 +461,7 @@ export default function ActivityView({
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
             >
-              {history.length > 0 ? (
+              {(history || []).length > 0 ? (
                 <div className="activity-history-list">
                   {history.map(entry => (
                     <HistoryRow key={entry.id} entry={entry} />
@@ -319,9 +469,15 @@ export default function ActivityView({
                 </div>
               ) : (
                 <div className="activity-tab-empty">
-                  <Clock size={32} />
+                  <div className="activity-empty-icon">
+                    <Clock size={24} />
+                  </div>
                   <p>{t('No activity history yet')}</p>
                   <span>{t('Start using apps and games to see them here')}</span>
+                  <button type="button" className="activity-empty-cta" onClick={() => setShowManualModal(true)}>
+                    <Edit3 size={14} />
+                    {t('Set Status')}
+                  </button>
                 </div>
               )}
             </motion.div>
@@ -340,7 +496,12 @@ export default function ActivityView({
                   {friendFeed.map(({ friend, pres }) => {
                     const accentColor = TYPE_COLOR[pres.appType] || '#5865f2';
                     return (
-                      <div key={friend.id} className="activity-friend-feed-row">
+                      <button
+                        type="button"
+                        key={friend.id}
+                        className="activity-friend-feed-row"
+                        onClick={() => onFriendSelect?.(friend)}
+                      >
                         <div className="activity-friend-feed-avatar">
                           <img
                             src={friend.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.username)}&background=5865f2&color=fff&size=36`}
@@ -357,13 +518,15 @@ export default function ActivityView({
                         <span className="activity-friend-feed-time">
                           {formatRelativeTime(pres.startedAt, t)}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               ) : (
                 <div className="activity-tab-empty">
-                  <Zap size={32} />
+                  <div className="activity-empty-icon">
+                    <Zap size={24} />
+                  </div>
                   <p>{t('No friend activity')}</p>
                   <span>{t("Friends' active sessions will appear here")}</span>
                 </div>
@@ -373,7 +536,6 @@ export default function ActivityView({
         </AnimatePresence>
       </div>
 
-      {/* ─── Manual modal ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {showManualModal && (
           <ManualStatusModal

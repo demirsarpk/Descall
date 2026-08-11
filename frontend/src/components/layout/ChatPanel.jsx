@@ -65,6 +65,7 @@ export default function ChatPanel({
   onStartGroupCall,
   onOpenGroupFromCalls,
   onStartDm,
+  onRefresh,
   groups = [],
   children
 }) {
@@ -407,6 +408,10 @@ export default function ChatPanel({
           onClearManual={activity?.clearManual}
           onUpdatePrivacy={activity?.updatePrivacy}
           onlineUsers={onlineUsers}
+          isMobile={isMobile}
+          onRefresh={onRefresh}
+          onAddFriend={() => onAddClick?.("friend")}
+          onFriendSelect={onStartDm}
         />
       ) : activeView === "calls" && !activeDmUser && !activeGroup ? (
         <CallsView

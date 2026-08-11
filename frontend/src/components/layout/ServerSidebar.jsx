@@ -106,21 +106,6 @@ export default function ServerSidebar({
   const [feedbackSending, setFeedbackSending] = useState(false);
 
   useEffect(() => {
-    const onOpen = (e) => {
-      const type = e?.detail?.type;
-      setShowFeedback(true);
-      setFeedbackSent(false);
-      setFeedbackText("");
-      setFeedbackRating(0);
-      setFeedbackType(
-        type === "bug" || type === "praise" || type === "suggestion" ? type : "suggestion"
-      );
-    };
-    window.addEventListener("descall:open-feedback", onOpen);
-    return () => window.removeEventListener("descall:open-feedback", onOpen);
-  }, []);
-
-  useEffect(() => {
     if (!socket) return;
     const onFriendError = ({ message }) => {
       setAddError(message || t("Friend action failed."));

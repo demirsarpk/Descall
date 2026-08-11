@@ -3342,16 +3342,89 @@ button.header-avatar {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   padding: 8px 10px;
   border-radius: 8px;
+  border: none;
   border-left: 3px solid transparent;
-  cursor: default;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
   transition: background 0.12s;
   margin-bottom: 2px;
+  font: inherit;
 }
 
 .activity-presence-card:hover {
   background: var(--surface-2);
+}
+
+.activity-sidebar-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.activity-sidebar-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.activity-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-soft, rgba(88, 101, 242, 0.12));
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.activity-empty-state p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.activity-empty-state span {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  max-width: 240px;
+}
+
+.activity-empty-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.12s, transform 0.1s;
+}
+
+.activity-empty-cta:hover {
+  opacity: 0.92;
+}
+
+.activity-empty-cta:active {
+  transform: scale(0.97);
 }
 
 .activity-presence-avatar {
@@ -3401,10 +3474,18 @@ button.header-avatar {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 16px;
+  flex: 1;
+  min-height: 220px;
+  padding: 32px 16px;
   color: var(--text-muted);
   text-align: center;
   font-size: 13px;
+}
+
+.activity-empty-state-inline {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 20px 12px 8px;
 }
 
 /* ─── Activity View (Main Panel) ─── */
@@ -3412,8 +3493,26 @@ button.header-avatar {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--surface-0);
+}
+
+.activity-view-toolbar {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.activity-view-search {
+  flex-shrink: 0;
+}
+
+.activity-view-friends-block {
+  flex-shrink: 0;
+  padding: 4px 8px 12px;
+  border-bottom: 1px solid var(--border-2);
 }
 
 .activity-view-header {
@@ -3427,6 +3526,31 @@ button.header-avatar {
   flex-wrap: wrap;
 }
 
+.activity-view-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.activity-view-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.activity-view-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.activity-privacy-selector {
+  position: relative;
+}
+
 .activity-header-icon {
   width: 40px;
   height: 40px;
@@ -3436,6 +3560,7 @@ button.header-avatar {
   align-items: center;
   justify-content: center;
   color: var(--primary);
+  flex-shrink: 0;
 }
 
 .activity-view-title {
@@ -3455,6 +3580,33 @@ button.header-avatar {
 .activity-view-section {
   padding: 20px 28px 0;
   flex-shrink: 0;
+}
+
+.activity-view-mobile .activity-view-header {
+  padding: 14px 16px 12px;
+}
+
+.activity-view-mobile .activity-view-section {
+  padding: 12px 16px 0;
+}
+
+.activity-view-mobile .activity-tabs {
+  padding: 12px 16px 0;
+}
+
+.activity-view-mobile .activity-tab-content {
+  padding: 12px 16px 88px;
+}
+
+.activity-view-mobile .sidebar-actions {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: min(70vw, 260px);
+  scrollbar-width: none;
+}
+
+.activity-view-mobile .sidebar-actions::-webkit-scrollbar {
+  display: none;
 }
 
 /* ─── Current Activity Card ─── */
@@ -3684,10 +3836,11 @@ button.header-avatar {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 64px 16px;
+  padding: 40px 16px;
   text-align: center;
   color: var(--text-muted);
-  gap: 8px;
+  gap: 6px;
+  min-height: 180px;
 }
 
 .activity-tab-empty p {
@@ -3775,8 +3928,15 @@ button.header-avatar {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   padding: 10px 14px;
+  border: none;
   border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
   transition: background 0.1s;
 }
 
