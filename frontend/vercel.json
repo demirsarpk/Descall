@@ -4,15 +4,30 @@
   "installCommand": "npm install --include=dev",
   "buildCommand": "npm run build:prod",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.descall.com" }],
+      "destination": "https://descall.com/:path*",
+      "statusCode": 301
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "header", "key": "x-forwarded-proto", "value": "http" }],
+      "destination": "https://descall.com/:path*",
+      "statusCode": 301
+    },
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "statusCode": 301
+    }
+  ],
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "https://des-call.onrender.com/sitemap.xml" },
-    { "source": "/sitemap-pages.xml", "destination": "https://des-call.onrender.com/sitemap-pages.xml" },
-    { "source": "/sitemap-invites.xml", "destination": "https://des-call.onrender.com/sitemap-invites.xml" },
-    { "source": "/sitemap-announcements.xml", "destination": "https://des-call.onrender.com/sitemap-announcements.xml" },
-    { "source": "/sitemap.html", "destination": "https://des-call.onrender.com/sitemap.html" },
-    { "source": "/sitemap.xsl", "destination": "https://des-call.onrender.com/sitemap.xsl" },
-    { "source": "/robots.txt", "destination": "https://des-call.onrender.com/robots.txt" },
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!assets/|robots\\.txt|sitemap\\.xml|sitemap-pages\\.xml|sitemap\\.html|sitemap\\.xsl|og-default\\.svg|favicon\\.svg|icon\\.png|manifest\\.webmanifest|sw\\.js).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
@@ -25,6 +40,13 @@
       "source": "/sw.js",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/(sitemap.xml|sitemap-pages.xml|robots.txt)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=300, stale-while-revalidate=600" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
       ]
     }
   ]

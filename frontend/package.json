@@ -8,9 +8,10 @@
   "homepage": "./",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/prerender-seo.mjs",
-    "build:prod": "npx vite build && node scripts/prerender-seo.mjs && node scripts/seo-validate.mjs --dist",
+    "build": "vite build && node scripts/prerender-seo.mjs && node scripts/generate-seo-files.mjs",
+    "build:prod": "npx vite build && node scripts/prerender-seo.mjs && node scripts/generate-seo-files.mjs && node scripts/seo-validate.mjs --dist",
     "prerender:seo": "node scripts/prerender-seo.mjs",
+    "seo:files": "node scripts/generate-seo-files.mjs",
     "seo:validate": "node scripts/seo-validate.mjs",
     "seo:validate:dist": "node scripts/seo-validate.mjs --dist",
     "preview": "vite preview",

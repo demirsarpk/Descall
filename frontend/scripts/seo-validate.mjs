@@ -111,12 +111,51 @@ if (!robotsTxt.includes("Sitemap: https://descall.com/sitemap.xml")) {
 if (robotsTxt.includes("des-call.onrender.com")) {
   fail("public/robots.txt still references onrender.com");
 }
+if (/http:\/\/descall\.com/i.test(robotsTxt)) {
+  fail("public/robots.txt contains http://descall.com");
+}
+
+const vercelJson = fs.readFileSync(path.join(root, "vercel.json"), "utf8");
+if (/des-call\.onrender\.com/i.test(vercelJson)) {
+  fail("vercel.json still proxies SEO files to onrender.com — use static dist sitemap/robots");
+}
+if (!/"statusCode"\s*:\s*301/.test(vercelJson)) {
+  fail("vercel.json missing statusCode 301 redirects for www/http canonicalization");
+}
+
+const seoConfigSrc = fs.readFileSync(path.join(root, "src/site/seoConfig.js"), "utf8");
+if (!seoConfigSrc.includes("canonicalOrigin") || !seoConfigSrc.includes("https://descall.com")) {
+  fail("seoConfig.js must pin canonicalOrigin to https://descall.com");
+}
 
 if (checkDist) {
   const dist = path.join(root, "dist");
   if (!fs.existsSync(dist)) {
     fail("dist/ missing — run build first");
   } else {
+    for (const name of ["robots.txt", "sitemap.xml", "sitemap-pages.xml", "sitemap.html"]) {
+      const file = path.join(dist, name);
+      if (!fs.existsSync(file)) {
+        fail(`Missing dist/${name} — run generate-seo-files`);
+        continue;
+      }
+      const body = fs.readFileSync(file, "utf8");
+      if (/onrender\.com|vercel\.app|localhost|127\.0\.0\.1/i.test(body)) {
+        fail(`dist/${name} contains non-production host`);
+      }
+      if (/http:\/\/descall\.com/i.test(body)) {
+        fail(`dist/${name} contains http://descall.com`);
+      }
+    }
+
+    const pagesXml = fs.readFileSync(path.join(dist, "sitemap-pages.xml"), "utf8");
+    for (const route of PUBLIC_ROUTES) {
+      const loc = route.path === "/" ? "https://descall.com/" : `https://descall.com${route.path}`;
+      if (!pagesXml.includes(`<loc>${loc}</loc>`)) {
+        fail(`sitemap-pages.xml missing ${loc}`);
+      }
+    }
+
     for (const route of PUBLIC_ROUTES) {
       const rel = route.path === "/" ? "index.html" : path.join(route.path.replace(/^\//, ""), "index.html");
       const file = path.join(dist, rel);
@@ -128,11 +167,22 @@ if (checkDist) {
       if (!html.includes("<title>")) fail(`No <title> in ${rel}`);
       if (!html.includes('rel="canonical"')) fail(`No canonical in ${rel}`);
       if (!html.includes("<h1")) fail(`No <h1> crawl content in ${rel}`);
+      if (/rel="canonical"[^>]*http:\/\//i.test(html)) fail(`HTTP canonical in ${rel}`);
+      if (/rel="canonical"[^>]*(onrender\.com|vercel\.app|localhost)/i.test(html)) {
+        fail(`Non-production canonical in ${rel}`);
+      }
+      const expectedCanon =
+        route.path === "/"
+          ? 'rel="canonical" href="https://descall.com/"'
+          : `rel="canonical" href="https://descall.com${route.path}"`;
+      if (!html.includes(expectedCanon)) fail(`Wrong/missing self canonical in ${rel}`);
       if (html.includes('content=""') && html.includes('name="description"')) {
         warn(`Empty description meta possible in ${rel}`);
       }
       // noindex should not appear on indexable shells
       if (/noindex/i.test(html) && !route.noindex) fail(`noindex found on indexable shell ${rel}`);
+      const h1Count = (html.match(/<h1[\s>]/gi) || []).length;
+      if (h1Count !== 1) warn(`Expected 1 H1 in ${rel}, found ${h1Count}`);
     }
   }
 }

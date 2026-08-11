@@ -1,7 +1,4 @@
-# Served as a fallback if Express robots route is unavailable.
-# Production truth: frontend/backend/routes/sitemap.js → GET /robots.txt
-# Canonical host: https://descall.com
-
+# Descall robots.txt — production (static, served from descall.com)
 User-agent: *
 Allow: /
 Allow: /download
