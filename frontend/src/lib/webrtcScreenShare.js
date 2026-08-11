@@ -2,6 +2,9 @@
  * Screen-share capture + RTP sender tuning for WebRTC mesh calls.
  * Group calls encode once per peer — keep resolution/bitrate/FPS conservative
  * so remote viewers stay smooth instead of stuttering at 1080p+.
+ *
+ * Avoid aggressive post-capture constraints so browser-provided display tracks
+ * remain stable across tabs, windows, and desktop capture.
  */
 
 export const GROUP_SCREEN_DEFAULT_QUALITY = {
@@ -36,8 +39,11 @@ export function screenBitrateForPeerCount(peerCount, resolution = "720p") {
   return base;
 }
 
-/** Prefer readable UI at stable FPS over chasing resolution. */
-export async function optimizeScreenShareTrack(track, { width, height, fps } = {}) {
+/**
+ * Soft post-capture tuning. Never use hard `max` constraints after
+ * getDisplayMedia because browsers may end the track.
+ */
+export async function optimizeScreenShareTrack(track, { fps } = {}) {
   if (!track || track.kind !== "video") return;
   try {
     // detail = prioritize text/UI sharpness; pair with capped FPS/bitrate
@@ -45,14 +51,16 @@ export async function optimizeScreenShareTrack(track, { width, height, fps } = {
   } catch {
     /* ignore */
   }
+
+  if (track.readyState !== "live") return;
+
   try {
-    await track.applyConstraints({
-      width: { ideal: width, max: width },
-      height: { ideal: height, max: height },
-      frameRate: { ideal: fps, max: fps },
-    });
+    // Do not force a landscape width/height after capture. Display tracks
+    // expose their real dimensions and update them when a phone/window rotates;
+    // constraining them here can leave viewers stuck with the old orientation.
+    await track.applyConstraints({ frameRate: { ideal: fps } });
   } catch {
-    /* browser may reject some constraints after getDisplayMedia */
+    /* browser may reject some constraints after getDisplayMedia — leave track as-is */
   }
 }
 
@@ -77,21 +85,40 @@ export async function optimizeScreenShareSender(
   }
 }
 
+/**
+ * Prefer a browser tab surface for convenient window switching.
+ */
 export function buildDisplayMediaConstraints({ width, height, fps }) {
   return {
     video: {
       cursor: "motion",
-      width: { ideal: width, max: width },
-      height: { ideal: height, max: height },
-      frameRate: { ideal: fps, max: fps },
+      displaySurface: "browser",
+      width: { ideal: width },
+      height: { ideal: height },
+      frameRate: { ideal: fps },
     },
-    audio: false,
+    // Chromium only captures tab/system sound after the person explicitly
+    // selects "Share audio" in the picker. Requesting it never bypasses that
+    // consent, but makes an approved audio track available to WebRTC.
+    audio: true,
+    // Chromium extensions to the getDisplayMedia options dictionary
+    preferCurrentTab: true,
+    selfBrowserSurface: "include",
+    surfaceSwitching: "include",
+    systemAudio: "include",
   };
 }
 
 export function buildElectronDesktopConstraints(sourceId, { width, height, fps }) {
   return {
-    audio: false,
+    // Electron can provide loopback audio for desktop sources when supported
+    // by the operating system. Unsupported platforms simply return video.
+    audio: {
+      mandatory: {
+        chromeMediaSource: "desktop",
+        chromeMediaSourceId: sourceId,
+      },
+    },
     video: {
       mandatory: {
         chromeMediaSource: "desktop",
@@ -102,4 +129,55 @@ export function buildElectronDesktopConstraints(sourceId, { width, height, fps }
       },
     },
   };
+}
+
+/**
+ * Decide whether an incoming remote video track is screen share vs camera.
+ *
+ * IMPORTANT: Do not treat a synthetic MediaStream([videoTrack]) fallback
+ * (when e.streams[0] is missing during renegotiation) as screen — that
+ * mis-wires camera frames into screenStream and leaves the real second
+ * share black / stuck.
+ */
+export function isRemoteScreenVideoTrack(
+  track,
+  {
+    rawStream = null,
+    peerExpectsScreen = false,
+    mainRemoteStream = null,
+    participantHasCameraVideo = false,
+  } = {}
+) {
+  if (!track || track.kind !== "video") return false;
+
+  const label = (track.label || "").toLowerCase();
+  if (
+    peerExpectsScreen ||
+    label.includes("screen") ||
+    label.includes("display") ||
+    label.includes("window") ||
+    label.includes("tab") ||
+    label.includes("web contents") ||
+    label.includes("desktop") ||
+    label.includes("monitor") ||
+    label.includes("primary")
+  ) {
+    return true;
+  }
+
+  // Distinct MediaStream from the mic/camera bundle → screen share stream
+  if (rawStream && mainRemoteStream && rawStream.id !== mainRemoteStream.id) {
+    return true;
+  }
+
+  // Already showing camera; another video-only stream is screen
+  if (
+    participantHasCameraVideo &&
+    rawStream &&
+    rawStream.getAudioTracks().length === 0
+  ) {
+    return true;
+  }
+
+  return false;
 }

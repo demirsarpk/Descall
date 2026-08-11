@@ -10,6 +10,7 @@ import {
 import { adminFetch } from "../../api/adminHttp";
 import RippleButton from "../ui/RippleButton";
 import { Avatar } from "../ui/Avatar";
+import { useT } from "../../context/LocaleContext";
 
 const CATEGORIES = [
   { id: "bug", label: "Bug Report", color: "#f23f43", icon: AlertTriangle },
@@ -35,6 +36,7 @@ const STATUSES = [
 ];
 
 export default function AdminFeedback({ socket }) {
+  const t = useT();
   const [feedbacks, setFeedbacks] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -69,7 +71,7 @@ export default function AdminFeedback({ socket }) {
       console.log("[AdminFeedback] Response:", d);
       
       if (!d || typeof d !== 'object') {
-        throw new Error("Invalid response from server");
+        throw new Error(t("Invalid response from server"));
       }
       
       setFeedbacks(d.feedbacks || []);
@@ -85,7 +87,7 @@ export default function AdminFeedback({ socket }) {
       console.log("[AdminFeedback] Loaded", d.feedbacks?.length || 0, "feedbacks");
     } catch (e) {
       console.error("[AdminFeedback] Failed to load feedbacks:", e);
-      setError("Failed to load feedbacks: " + e.message);
+      setError(t("Failed to load feedbacks: {message}", { message: e.message }));
       setTimeout(() => setError(""), 5000);
     } finally {
       setLoading(false);
@@ -137,7 +139,7 @@ export default function AdminFeedback({ socket }) {
   };
 
   const deleteFeedback = async (id) => {
-    if (!confirm("Delete this feedback permanently?")) return;
+    if (!confirm(t("Delete this feedback permanently?"))) return;
     try {
       await adminFetch(`/feedback/${id}`, { method: "DELETE" });
       setFeedbacks(prev => prev.filter(f => f.id !== id));
@@ -230,7 +232,7 @@ export default function AdminFeedback({ socket }) {
           </div>
           <div className="stat-info">
             <span className="stat-value">{stats?.total || 0}</span>
-            <span className="stat-label">Total Feedback</span>
+            <span className="stat-label">{t("Total Feedback")}</span>
           </div>
         </motion.div>
         
@@ -242,7 +244,7 @@ export default function AdminFeedback({ socket }) {
             <span className="stat-value" style={{ color: "#f23f43" }}>
               {stats?.byStatus?.new || 0}
             </span>
-            <span className="stat-label">New</span>
+            <span className="stat-label">{t("New")}</span>
           </div>
         </motion.div>
         
@@ -254,7 +256,7 @@ export default function AdminFeedback({ socket }) {
             <span className="stat-value" style={{ color: "#f0b232" }}>
               {stats?.byStatus?.in_progress || 0}
             </span>
-            <span className="stat-label">In Progress</span>
+            <span className="stat-label">{t("In Progress")}</span>
           </div>
         </motion.div>
         
@@ -266,7 +268,7 @@ export default function AdminFeedback({ socket }) {
             <span className="stat-value" style={{ color: "#23a55a" }}>
               {stats?.byStatus?.resolved || 0}
             </span>
-            <span className="stat-label">Resolved</span>
+            <span className="stat-label">{t("Resolved")}</span>
           </div>
         </motion.div>
       </div>
@@ -277,7 +279,7 @@ export default function AdminFeedback({ socket }) {
           <Search size={18} />
           <input
             type="text"
-            placeholder="Search feedback..."
+            placeholder={t("Search feedback...")}
             value={searchQ}
             onChange={e => setSearchQ(e.target.value)}
           />
@@ -285,30 +287,30 @@ export default function AdminFeedback({ socket }) {
         
         <div className="filter-group">
           <select value={filter.category} onChange={e => setFilter(f => ({ ...f, category: e.target.value }))}>
-            <option value="all">All Categories</option>
+            <option value="all">{t("All Categories")}</option>
             {CATEGORIES.map(c => (
-              <option key={c.id} value={c.id}>{c.label}</option>
+              <option key={c.id} value={c.id}>{t(c.label)}</option>
             ))}
           </select>
           
           <select value={filter.priority} onChange={e => setFilter(f => ({ ...f, priority: e.target.value }))}>
-            <option value="all">All Priorities</option>
+            <option value="all">{t("All Priorities")}</option>
             {PRIORITIES.map(p => (
-              <option key={p.id} value={p.id}>{p.label}</option>
+              <option key={p.id} value={p.id}>{t(p.label)}</option>
             ))}
           </select>
           
           <select value={filter.status} onChange={e => setFilter(f => ({ ...f, status: e.target.value }))}>
-            <option value="all">All Statuses</option>
+            <option value="all">{t("All Statuses")}</option>
             {STATUSES.map(s => (
-              <option key={s.id} value={s.id}>{s.label}</option>
+              <option key={s.id} value={s.id}>{t(s.label)}</option>
             ))}
           </select>
           
           <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
-            <option value="priority">Priority</option>
+            <option value="newest">{t("Newest First")}</option>
+            <option value="oldest">{t("Oldest First")}</option>
+            <option value="priority">{t("Priority")}</option>
           </select>
         </div>
         
@@ -321,9 +323,9 @@ export default function AdminFeedback({ socket }) {
       <div className="admin-feedback-content">
         <div className="feedback-list">
           {loading ? (
-            <div className="loading-state">Loading feedback...</div>
+            <div className="loading-state">{t("Loading feedback...")}</div>
           ) : filteredFeedbacks.length === 0 ? (
-            <div className="empty-state">No feedback found</div>
+            <div className="empty-state">{t("No feedback found")}</div>
           ) : (
             filteredFeedbacks.map(f => {
               const category = CATEGORIES.find(c => c.id === f.category) || CATEGORIES[4];
@@ -344,23 +346,23 @@ export default function AdminFeedback({ socket }) {
                     <div className="feedback-badges">
                       <span className="badge" style={{ background: category.color + "30", color: category.color }}>
                         <category.icon size={12} />
-                        {category.label}
+                        {t(category.label)}
                       </span>
                       <span className="badge" style={{ background: priority.color + "30", color: priority.color }}>
-                        {priority.label}
+                        {t(priority.label)}
                       </span>
                       <span className="badge" style={{ background: status.color + "30", color: status.color }}>
-                        {status.label}
+                        {t(status.label)}
                       </span>
                     </div>
-                    {isNew && <span className="new-indicator">NEW</span>}
+                    {isNew && <span className="new-indicator">{t("NEW")}</span>}
                   </div>
                   
                   <div className="feedback-user">
                     <div className="user-avatar">
                       <Avatar user={f.user} name={f.user?.username || "?"} size={28} />
                     </div>
-                    <span className="username">{f.user?.username || "Unknown"}</span>
+                    <span className="username">{f.user?.username || t("Unknown")}</span>
                     <span className="timestamp">{new Date(f.created_at).toLocaleString()}</span>
                   </div>
                   
@@ -369,7 +371,7 @@ export default function AdminFeedback({ socket }) {
                   {f.attachments?.length > 0 && (
                     <div className="attachment-preview">
                       <PaperclipIcon size={14} />
-                      {f.attachments.length} attachment{f.attachments.length > 1 ? "s" : ""}
+                      {t("{count} attachment(s)", { count: f.attachments.length })}
                     </div>
                   )}
                   
@@ -393,7 +395,7 @@ export default function AdminFeedback({ socket }) {
                 <div className="detail-badges">
                   {CATEGORIES.find(c => c.id === selectedFeedback.category) && (
                     <span className="badge category">
-                      {CATEGORIES.find(c => c.id === selectedFeedback.category).label}
+                      {t(CATEGORIES.find(c => c.id === selectedFeedback.category)?.label || "")}
                     </span>
                   )}
                   <select
@@ -401,7 +403,7 @@ export default function AdminFeedback({ socket }) {
                     onChange={e => updateFeedback(selectedFeedback.id, { priority: e.target.value })}
                   >
                     {PRIORITIES.map(p => (
-                      <option key={p.id} value={p.id}>{p.label}</option>
+                      <option key={p.id} value={p.id}>{t(p.label)}</option>
                     ))}
                   </select>
                   <select
@@ -409,7 +411,7 @@ export default function AdminFeedback({ socket }) {
                     onChange={e => updateFeedback(selectedFeedback.id, { status: e.target.value })}
                   >
                     {STATUSES.map(s => (
-                      <option key={s.id} value={s.id}>{s.label}</option>
+                      <option key={s.id} value={s.id}>{t(s.label)}</option>
                     ))}
                   </select>
                 </div>
@@ -429,7 +431,7 @@ export default function AdminFeedback({ socket }) {
                   <Avatar user={selectedFeedback.user} name={selectedFeedback.user?.username || "?"} size={48} />
                 </div>
                 <div className="user-details">
-                  <span className="username">{selectedFeedback.user?.username || "Unknown"}</span>
+                  <span className="username">{selectedFeedback.user?.username || t("Unknown")}</span>
                   <span className="user-id">ID: {selectedFeedback.user?.id}</span>
                   <span className="timestamp">
                     {new Date(selectedFeedback.created_at).toLocaleString()}
@@ -443,7 +445,7 @@ export default function AdminFeedback({ socket }) {
 
               {selectedFeedback.attachments?.length > 0 && (
                 <div className="detail-attachments">
-                  <h4>Attachments</h4>
+                  <h4>{t("Attachments")}</h4>
                   <div className="attachment-grid">
                     {selectedFeedback.attachments.map((url, i) => (
                       <motion.div
@@ -457,7 +459,7 @@ export default function AdminFeedback({ socket }) {
                         ) : (
                           <div className="file-icon">
                             <PaperclipIcon size={32} />
-                            <span>File {i + 1}</span>
+                            <span>{t("File {n}", { n: i + 1 })}</span>
                           </div>
                         )}
                       </motion.div>
@@ -469,7 +471,7 @@ export default function AdminFeedback({ socket }) {
               {/* Replies */}
               {selectedFeedback.replies?.length > 0 && (
                 <div className="detail-replies">
-                  <h4>Replies</h4>
+                  <h4>{t("Replies")}</h4>
                   {selectedFeedback.replies.map((reply, i) => (
                     <div key={i} className={`reply-item ${reply.isAdmin ? "admin" : ""}`}>
                       <div className="reply-avatar">
@@ -477,8 +479,8 @@ export default function AdminFeedback({ socket }) {
                       </div>
                       <div className="reply-content">
                         <div className="reply-header">
-                          <span className="username">{reply.user?.username || "Unknown"}</span>
-                          {reply.isAdmin && <span className="admin-badge">ADMIN</span>}
+                          <span className="username">{reply.user?.username || t("Unknown")}</span>
+                          {reply.isAdmin && <span className="admin-badge">{t("ADMIN")}</span>}
                           <span className="timestamp">{new Date(reply.created_at).toLocaleString()}</span>
                         </div>
                         <p>{reply.text}</p>
@@ -498,7 +500,7 @@ export default function AdminFeedback({ socket }) {
               {/* Reply Input */}
               <div className="reply-input-area">
                 <textarea
-                  placeholder="Write a reply..."
+                  placeholder={t("Write a reply...")}
                   value={replyText}
                   onChange={e => setReplyText(e.target.value)}
                   rows={3}
@@ -529,11 +531,11 @@ export default function AdminFeedback({ socket }) {
                       disabled={replyAttachments.length >= 5}
                     >
                       <Paperclip size={16} />
-                      Attach
+                      {t("Attach")}
                     </RippleButton>
                     <RippleButton onClick={sendReply} className="primary" disabled={!replyText.trim() && replyAttachments.length === 0}>
                       <Send size={16} />
-                      Reply
+                      {t("Reply")}
                     </RippleButton>
                   </div>
                 </div>
@@ -542,7 +544,7 @@ export default function AdminFeedback({ socket }) {
           ) : (
             <div className="empty-detail">
               <MessageSquare size={48} opacity={0.3} />
-              <p>Select a feedback to view details</p>
+              <p>{t("Select a feedback to view details")}</p>
             </div>
           )}
         </div>

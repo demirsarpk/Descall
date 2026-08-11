@@ -1,74 +1,78 @@
 /**
- * Blackjack Game Logic
- * Modern, casino-grade implementation
+ * Descall Casino — Blackjack engine (server-authoritative)
+ * Multi-deck shoe, proper soft totals, 3:2 blackjack, stake escrow.
  */
 
-const { v4: uuidv4 } = require('uuid');
+const crypto = require("crypto");
 
-// Kart destesi suit ve rank'leri
-const SUITS = ['♠', '♥', '♦', '♣'];
-const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-
-// Kart değerleri
-const CARD_VALUES = {
-  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
-  'J': 10, 'Q': 10, 'K': 10, 'A': 11
+const SUITS = ["♠", "♥", "♦", "♣"];
+const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+const VALUES = {
+  A: 11, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
+  "10": 10, J: 10, Q: 10, K: 10,
 };
+
+const MIN_BET = 10;
+const MAX_BET = 25000;
+const STARTING_CREDITS = 1000;
+const SHOE_DECKS = 6;
+const PENETRATION = 0.75; // reshuffle when 75% of shoe is dealt
+
+function uid(prefix = "c") {
+  return `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
+}
 
 class Card {
   constructor(suit, rank) {
     this.suit = suit;
     this.rank = rank;
-    this.value = CARD_VALUES[rank];
-    this.id = uuidv4();
-  }
-
-  toString() {
-    return `${this.suit}${this.rank}`;
+    this.value = VALUES[rank];
+    this.id = uid("card");
+    this.color = suit === "♥" || suit === "♦" ? "red" : "black";
   }
 
   toJSON() {
     return {
+      id: this.id,
       suit: this.suit,
       rank: this.rank,
       value: this.value,
-      color: this.suit === '♥' || this.suit === '♦' ? 'red' : 'black',
-      id: this.id
+      color: this.color,
     };
   }
 }
 
-class Deck {
-  constructor(deckCount = 1) {
-    this.deckCount = deckCount;
+class Shoe {
+  constructor(decks = SHOE_DECKS) {
+    this.decks = decks;
     this.cards = [];
-    this.reset();
+    this.dealt = 0;
+    this.reshuffle();
   }
 
-  reset() {
+  reshuffle() {
     this.cards = [];
-    for (let d = 0; d < this.deckCount; d++) {
+    for (let d = 0; d < this.decks; d++) {
       for (const suit of SUITS) {
         for (const rank of RANKS) {
           this.cards.push(new Card(suit, rank));
         }
       }
     }
-    this.shuffle();
-  }
-
-  shuffle() {
-    // Fisher-Yates shuffle
+    // Fisher–Yates
     for (let i = this.cards.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [this.cards[i], this.cards[j]] = [this.cards[j], this.cards[i]];
     }
+    this.dealt = 0;
+    this.cutIndex = Math.floor(this.cards.length * (1 - PENETRATION));
   }
 
   draw() {
-    if (this.cards.length === 0) {
-      this.reset();
+    if (this.cards.length === 0 || this.cards.length <= this.cutIndex) {
+      this.reshuffle();
     }
+    this.dealt += 1;
     return this.cards.pop();
   }
 }
@@ -82,22 +86,34 @@ class Hand {
     this.cards.push(card);
   }
 
+  /** Soft/hard aware total */
   get value() {
-    let value = 0;
+    let total = 0;
     let aces = 0;
-
-    for (const card of this.cards) {
-      value += card.value;
-      if (card.rank === 'A') aces++;
+    for (const c of this.cards) {
+      total += c.value;
+      if (c.rank === "A") aces += 1;
     }
-
-    // As'ları 11'den 1'e çevir (bust olmamak için)
-    while (value > 21 && aces > 0) {
-      value -= 10;
-      aces--;
+    while (total > 21 && aces > 0) {
+      total -= 10;
+      aces -= 1;
     }
+    return total;
+  }
 
-    return value;
+  get isSoft() {
+    let total = 0;
+    let aces = 0;
+    for (const c of this.cards) {
+      total += c.value;
+      if (c.rank === "A") aces += 1;
+    }
+    // Soft if at least one ace still counts as 11
+    while (total > 21 && aces > 0) {
+      total -= 10;
+      aces -= 1;
+    }
+    return aces > 0 && total <= 21;
   }
 
   get isBlackjack() {
@@ -108,310 +124,309 @@ class Hand {
     return this.value > 21;
   }
 
-  get isSoft() {
-    // Soft hand: As 11 olarak sayılıyor
-    let value = 0;
-    let aces = 0;
-
-    for (const card of this.cards) {
-      value += card.value;
-      if (card.rank === 'A') aces++;
-    }
-
-    return aces > 0 && value <= 21;
-  }
-
   toJSON() {
     return {
-      cards: this.cards.map(c => c.toJSON()),
+      cards: this.cards.map((c) => c.toJSON()),
       value: this.value,
+      isSoft: this.isSoft,
       isBlackjack: this.isBlackjack,
       isBust: this.isBust,
-      isSoft: this.isSoft
     };
   }
 }
 
 class BlackjackGame {
-  constructor(userId, groupId, bet, deckCount = 1) {
-    this.id = uuidv4();
+  constructor({ userId, username, groupId, bet }) {
+    this.id = uid("bj");
     this.userId = userId;
+    this.username = username || "Player";
     this.groupId = groupId;
     this.bet = bet;
-    this.deck = new Deck(deckCount);
+    this.originalBet = bet;
+    this.shoe = new Shoe(SHOE_DECKS);
     this.playerHand = new Hand();
     this.dealerHand = new Hand();
-    this.status = 'betting'; // betting, playing, dealer_turn, finished
-    this.result = null; // win, loss, push, blackjack
-    this.winAmount = 0;
-    this.canDouble = false;
-    this.canSplit = false;
-    this.playerStand = false;
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    this.status = "dealing"; // dealing | playing | dealer | finished
+    this.result = null; // blackjack | win | loss | push
+    this.winAmount = 0; // credits returned to player (includes stake on win/push)
+    this.profit = 0;
+    this.doubled = false;
+    this.createdAt = Date.now();
+    this.updatedAt = Date.now();
+    this.history = []; // action log for UI
   }
 
-  start() {
-    // İlk dağıtım
-    this.playerHand.add(this.deck.draw());
-    this.dealerHand.add(this.deck.draw());
-    this.playerHand.add(this.deck.draw());
-    this.dealerHand.add(this.deck.draw());
+  deal() {
+    this.playerHand.add(this.shoe.draw());
+    this.dealerHand.add(this.shoe.draw());
+    this.playerHand.add(this.shoe.draw());
+    this.dealerHand.add(this.shoe.draw());
+    this.updatedAt = Date.now();
+    this.history.push({ action: "deal", at: this.updatedAt });
 
-    this.status = 'playing';
-    this.updatedAt = new Date();
-
-    // Double kontrol (ilk iki kart toplamı 9, 10, 11 ise)
-    const playerValue = this.playerHand.value;
-    this.canDouble = [9, 10, 11].includes(playerValue);
-
-    // Split kontrol (ilk iki kart aynı rank)
-    this.canSplit = this.playerHand.cards[0].rank === this.playerHand.cards[1].rank;
-
-    // Blackjack kontrol
     if (this.playerHand.isBlackjack) {
       if (this.dealerHand.isBlackjack) {
-        this.endGame('push');
+        this._finish("push");
       } else {
-        this.endGame('blackjack');
+        this._finish("blackjack");
       }
+      return this.getPublicState();
     }
 
-    return this.getState();
+    // Dealer peek for Ace / 10 upcard — auto resolve dealer BJ
+    if (this.dealerHand.isBlackjack) {
+      this._finish("loss");
+      return this.getPublicState();
+    }
+
+    this.status = "playing";
+    return this.getPublicState();
+  }
+
+  get canDouble() {
+    return (
+      this.status === "playing" &&
+      this.playerHand.cards.length === 2 &&
+      !this.doubled
+    );
+  }
+
+  get canHit() {
+    return this.status === "playing" && !this.playerHand.isBust;
+  }
+
+  get canStand() {
+    return this.status === "playing";
   }
 
   hit() {
-    if (this.status !== 'playing') return null;
-
-    this.playerHand.add(this.deck.draw());
-    this.canDouble = false; // Hit sonrası double yok
-    this.canSplit = false;
-    this.updatedAt = new Date();
-
+    if (!this.canHit) return { error: "HIT is not available right now." };
+    this.playerHand.add(this.shoe.draw());
+    this.updatedAt = Date.now();
+    this.history.push({ action: "hit", at: this.updatedAt, value: this.playerHand.value });
     if (this.playerHand.isBust) {
-      this.endGame('loss');
+      this._finish("loss");
     }
-
-    return this.getState();
+    return { state: this.getPublicState() };
   }
 
   stand() {
-    if (this.status !== 'playing') return null;
-
-    this.playerStand = true;
-    this.status = 'dealer_turn';
-    this.updatedAt = new Date();
-
-    return this.playDealerTurn();
+    if (!this.canStand) return { error: "STAND is not available right now." };
+    this.updatedAt = Date.now();
+    this.history.push({ action: "stand", at: this.updatedAt });
+    return { state: this._dealerPlay() };
   }
 
+  /**
+   * Double down — caller must ensure player can afford extraBet === originalBet
+   * and has already escrowed the additional stake.
+   */
   double() {
-    if (this.status !== 'playing' || !this.canDouble) return null;
-
-    this.bet *= 2;
-    this.playerHand.add(this.deck.draw());
-    this.updatedAt = new Date();
-
+    if (!this.canDouble) return { error: "DOUBLE is only available on your first two cards." };
+    this.bet = this.originalBet * 2;
+    this.doubled = true;
+    this.playerHand.add(this.shoe.draw());
+    this.updatedAt = Date.now();
+    this.history.push({ action: "double", at: this.updatedAt, bet: this.bet });
     if (this.playerHand.isBust) {
-      this.endGame('loss');
-    } else {
-      return this.stand();
+      this._finish("loss");
+      return { state: this.getPublicState() };
     }
-
-    return this.getState();
+    return { state: this._dealerPlay() };
   }
 
-  playDealerTurn() {
-    // Dealer kuralları: 17'ye kadar çek, soft 17'de bile çek
-    while (this.dealerHand.value < 17) {
-      this.dealerHand.add(this.deck.draw());
+  _dealerPlay() {
+    this.status = "dealer";
+    // Dealer stands on all 17s (including soft 17) — H17 casino variant: hit soft 17
+    while (
+      this.dealerHand.value < 17 ||
+      (this.dealerHand.value === 17 && this.dealerHand.isSoft)
+    ) {
+      this.dealerHand.add(this.shoe.draw());
     }
-
-    this.updatedAt = new Date();
-
-    // Sonuç hesaplama
-    const playerValue = this.playerHand.value;
-    const dealerValue = this.dealerHand.value;
+    this.updatedAt = Date.now();
 
     if (this.dealerHand.isBust) {
-      this.endGame('win');
-    } else if (playerValue > dealerValue) {
-      this.endGame('win');
-    } else if (playerValue < dealerValue) {
-      this.endGame('loss');
+      this._finish("win");
+    } else if (this.playerHand.value > this.dealerHand.value) {
+      this._finish("win");
+    } else if (this.playerHand.value < this.dealerHand.value) {
+      this._finish("loss");
     } else {
-      this.endGame('push');
+      this._finish("push");
     }
-
-    return this.getState();
+    return this.getPublicState();
   }
 
-  endGame(result) {
-    this.status = 'finished';
+  _finish(result) {
+    this.status = "finished";
     this.result = result;
-    this.updatedAt = new Date();
+    this.updatedAt = Date.now();
 
     switch (result) {
-      case 'blackjack':
-        this.winAmount = Math.floor(this.bet * 2.5); // 3:2 ödeme
+      case "blackjack":
+        // 3:2 — return stake + 1.5× stake
+        this.winAmount = Math.floor(this.bet * 2.5);
+        this.profit = this.winAmount - this.bet;
         break;
-      case 'win':
-        this.winAmount = this.bet * 2; // 1:1 ödeme
+      case "win":
+        this.winAmount = this.bet * 2;
+        this.profit = this.bet;
         break;
-      case 'push':
-        this.winAmount = this.bet; // Bahis iade
+      case "push":
+        this.winAmount = this.bet;
+        this.profit = 0;
         break;
-      case 'loss':
+      case "loss":
+      default:
         this.winAmount = 0;
+        this.profit = -this.bet;
         break;
     }
-
-    return this.getState();
-  }
-
-  getState() {
-    // Dealer'ın ilk kartı gizli (hole card)
-    const dealerVisible = this.status === 'playing' 
-      ? [this.dealerHand.cards[0].toJSON()]
-      : this.dealerHand.toJSON().cards;
-
-    return {
-      id: this.id,
-      userId: this.userId,
-      groupId: this.groupId,
-      bet: this.bet,
-      status: this.status,
-      result: this.result,
-      winAmount: this.winAmount,
-      playerHand: this.playerHand.toJSON(),
-      dealerHand: {
-        ...this.dealerHand.toJSON(),
-        visibleCards: dealerVisible,
-        hiddenCard: this.status === 'playing' && this.dealerHand.cards[1] 
-          ? this.dealerHand.cards[1].toJSON() 
-          : null
-      },
-      canHit: this.status === 'playing' && !this.playerHand.isBust,
-      canStand: this.status === 'playing',
-      canDouble: this.status === 'playing' && this.canDouble,
-      canSplit: this.status === 'playing' && this.canSplit,
-      actions: this.getAvailableActions()
-    };
+    this.history.push({ action: "finish", result, winAmount: this.winAmount, at: this.updatedAt });
   }
 
   getAvailableActions() {
-    if (this.status !== 'playing') return [];
-    
-    const actions = ['hit', 'stand'];
-    if (this.canDouble) actions.push('double');
-    // Split henüz implemente edilmedi, sadece göster
-    // if (this.canSplit) actions.push('split');
-    
+    if (this.status !== "playing") return [];
+    const actions = ["hit", "stand"];
+    if (this.canDouble) actions.push("double");
     return actions;
   }
 
-  // Dealer'ın hole card'ını aç (oyun bitince)
-  revealDealerCard() {
-    return this.dealerHand.cards[1]?.toJSON() || null;
+  getPublicState() {
+    const hideHole = this.status === "playing";
+    const dealerJson = this.dealerHand.toJSON();
+    return {
+      id: this.id,
+      userId: this.userId,
+      username: this.username,
+      groupId: this.groupId,
+      bet: this.bet,
+      originalBet: this.originalBet,
+      doubled: this.doubled,
+      status: this.status,
+      result: this.result,
+      winAmount: this.winAmount,
+      profit: this.profit,
+      playerHand: this.playerHand.toJSON(),
+      dealerHand: {
+        cards: hideHole
+          ? [dealerJson.cards[0], { id: "hole", suit: "?", rank: "?", hidden: true }]
+          : dealerJson.cards,
+        value: hideHole ? undefined : dealerJson.value,
+        isSoft: hideHole ? undefined : dealerJson.isSoft,
+        isBlackjack: hideHole ? false : dealerJson.isBlackjack,
+        isBust: hideHole ? false : dealerJson.isBust,
+        holeHidden: hideHole,
+      },
+      actions: this.getAvailableActions(),
+      canHit: this.canHit,
+      canStand: this.canStand,
+      canDouble: this.canDouble,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
+
+  /** Serialize for DB history (never call .toJSON on plain objects). */
+  toHistoryPayload() {
+    return {
+      bet: this.bet,
+      originalBet: this.originalBet,
+      result: this.result,
+      winAmount: this.winAmount,
+      profit: this.profit,
+      player_hand: this.playerHand.toJSON(),
+      dealer_hand: this.dealerHand.toJSON(),
+    };
   }
 }
 
-// Aktif oyunları saklama (bellekte - production'da Redis önerilir)
-const activeGames = new Map();
+const activeGames = new Map(); // key: `${userId}:${groupId}` → BlackjackGame
 
-// Game manager fonksiyonları
+function gameKey(userId, groupId) {
+  return `${userId}:${groupId}`;
+}
+
 const GameManager = {
-  createGame(userId, groupId, bet) {
-    const key = `${userId}:${groupId}`;
-    
-    // Mevcut oyunu kontrol et
-    if (activeGames.has(key)) {
-      const existing = activeGames.get(key);
-      if (existing.status !== 'finished') {
-        return { error: 'Zaten aktif bir oyununuz var', game: existing.getState() };
-      }
+  MIN_BET,
+  MAX_BET,
+  STARTING_CREDITS,
+
+  create(userId, groupId, bet, username) {
+    const key = gameKey(userId, groupId);
+    const existing = activeGames.get(key);
+    if (existing && existing.status !== "finished") {
+      return { error: "You already have an active hand. Use HIT / STAND / DOUBLE.", game: existing.getPublicState() };
     }
 
-    const game = new BlackjackGame(userId, groupId, bet);
+    const amount = Number(bet);
+    if (!Number.isFinite(amount) || amount < MIN_BET || amount > MAX_BET) {
+      return { error: `Bet must be between ${MIN_BET} and ${MAX_BET.toLocaleString()}.` };
+    }
+
+    const game = new BlackjackGame({ userId, username, groupId, bet: Math.floor(amount) });
+    const state = game.deal();
     activeGames.set(key, game);
-    return { game: game.start() };
+    return { game: state, instance: game };
   },
 
-  getGame(userId, groupId) {
-    const key = `${userId}:${groupId}`;
-    return activeGames.get(key) || null;
+  get(userId, groupId) {
+    return activeGames.get(gameKey(userId, groupId)) || null;
   },
 
-  removeGame(userId, groupId) {
-    const key = `${userId}:${groupId}`;
-    activeGames.delete(key);
+  remove(userId, groupId) {
+    activeGames.delete(gameKey(userId, groupId));
   },
 
   action(userId, groupId, action) {
-    const key = `${userId}:${groupId}`;
-    const game = activeGames.get(key);
-    
-    if (!game) {
-      return { error: 'Aktif oyun bulunamadı' };
-    }
-
-    if (game.status === 'finished') {
-      return { error: 'Oyun zaten bitti', game: game.getState() };
+    const game = this.get(userId, groupId);
+    if (!game) return { error: "No active game. Start with /bj <amount>." };
+    if (game.status === "finished") {
+      return { error: "This hand is already over.", game: game.getPublicState() };
     }
 
     let result;
-    switch (action) {
-      case 'hit':
+    switch (String(action || "").toLowerCase()) {
+      case "hit":
         result = game.hit();
         break;
-      case 'stand':
+      case "stand":
+      case "stay":
         result = game.stand();
         break;
-      case 'double':
+      case "double":
         result = game.double();
         break;
       default:
-        return { error: 'Geçersiz aksiyon' };
+        return { error: "Unknown action." };
     }
 
-    // Oyun bittiyse temizle (opsiyonel - history için saklayabilirsiniz)
-    if (game.status === 'finished') {
-      // Oyun bitti, isterseniz burada history kaydedin
-      // GameManager.removeGame(userId, groupId);
-    }
-
-    return { game: result };
+    if (result.error) return { error: result.error, game: game.getPublicState() };
+    return { game: result.state, instance: game };
   },
 
-  // Tüm aktif oyunları listele (admin için)
-  getAllActiveGames() {
-    return Array.from(activeGames.values()).map(g => g.getState());
-  },
-
-  // Eski oyunları temizle (10 dakika inaktif)
-  cleanupOldGames(maxAgeMinutes = 10) {
-    const now = new Date();
+  cleanup(maxAgeMs = 10 * 60 * 1000) {
+    const now = Date.now();
     for (const [key, game] of activeGames.entries()) {
-      const age = (now - game.updatedAt) / (1000 * 60);
-      if (age > maxAgeMinutes || game.status === 'finished') {
+      if (game.status === "finished" || now - game.updatedAt > maxAgeMs) {
         activeGames.delete(key);
       }
     }
-  }
+  },
 };
 
-// Periyodik temizlik (her 5 dakikada bir)
-setInterval(() => {
-  GameManager.cleanupOldGames();
-}, 5 * 60 * 1000);
+setInterval(() => GameManager.cleanup(), 5 * 60 * 1000).unref?.();
 
 module.exports = {
   Card,
-  Deck,
+  Shoe,
   Hand,
   BlackjackGame,
   GameManager,
+  MIN_BET,
+  MAX_BET,
+  STARTING_CREDITS,
   SUITS,
   RANKS,
-  CARD_VALUES
 };

@@ -1,24 +1,23 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { MessageCircle, UserPlus, Lock, Mail } from "lucide-react";
+import GoogleSignInButton from "./auth/GoogleSignInButton";
+import { useT } from "../context/LocaleContext";
 
-// Simple Descall Logo
 function DescallLogo({ size = 60 }) {
   return (
     <div className="descall-logo">
       <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
         <defs>
           <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#6366f1" />
-            <stop offset="100%" stopColor="#8b5cf6" />
+            <stop offset="0%" stopColor="#7b89ff" />
+            <stop offset="100%" stopColor="#5865f2" />
           </linearGradient>
         </defs>
-        {/* Chat bubble */}
         <path
           d="M30 45 C30 35, 35 30, 50 30 C65 30, 70 35, 70 45 C70 55, 65 60, 50 60 L45 68 L40 60 C35 58, 30 55, 30 45"
           fill="url(#logoGrad)"
         />
-        {/* Sound waves */}
         <path
           d="M75 40 Q82 50, 75 60"
           stroke="url(#logoGrad)"
@@ -38,17 +37,15 @@ function DescallLogo({ size = 60 }) {
   );
 }
 
-export default function AuthView({ onLogin, onRegister, loading, error }) {
+export default function AuthView({ onLogin, onRegister, onGoogleLogin, loading, error }) {
+  const t = useT();
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [focusedInput, setFocusedInput] = useState(null);
 
   const submit = async (event) => {
     event.preventDefault();
-    if (!username.trim() || !password) {
-      return;
-    }
+    if (!username.trim() || !password) return;
     if (mode === "login") {
       await onLogin({ username: username.trim(), password });
       return;
@@ -58,20 +55,25 @@ export default function AuthView({ onLogin, onRegister, loading, error }) {
 
   return (
     <main className="auth-shell">
+      <div className="auth-bg" aria-hidden="true">
+        <div className="gradient-orb orb-1" />
+        <div className="gradient-orb orb-2" />
+        <div className="gradient-orb orb-3" />
+        <div className="grid-pattern" />
+      </div>
+
       <motion.section
         className="auth-card"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        {/* Logo */}
         <div className="auth-logo-container">
           <DescallLogo size={80} />
-          <h1 className="auth-title">Descall</h1>
-          <p className="auth-subtitle">Connect with friends through voice, video, and messaging</p>
+          <h1 className="auth-title">{t("Descall")}</h1>
+          <p className="auth-subtitle">{t("Connect with friends through voice, video, and messaging")}</p>
         </div>
 
-        {/* Tabs */}
         <div className="auth-tabs">
           <button
             className={`auth-tab ${mode === "login" ? "active" : ""}`}
@@ -79,7 +81,7 @@ export default function AuthView({ onLogin, onRegister, loading, error }) {
             type="button"
           >
             <MessageCircle size={18} />
-            <span>Login</span>
+            <span>{t("Login")}</span>
           </button>
           <button
             className={`auth-tab ${mode === "register" ? "active" : ""}`}
@@ -87,17 +89,27 @@ export default function AuthView({ onLogin, onRegister, loading, error }) {
             type="button"
           >
             <UserPlus size={18} />
-            <span>Register</span>
+            <span>{t("Register")}</span>
           </button>
         </div>
 
-        {/* Form */}
+        <GoogleSignInButton
+          disabled={loading}
+          onCredential={async (credential) => {
+            await onGoogleLogin?.(credential);
+          }}
+        />
+
+        <div className="auth-divider" aria-hidden="true">
+          <span>{t("or")}</span>
+        </div>
+
         <form onSubmit={submit} className="auth-form">
           <div className="input-wrapper">
             <Mail className="input-icon" size={20} />
             <input
               type="text"
-              placeholder="Username"
+              placeholder={t("Username")}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               maxLength={24}
@@ -109,7 +121,7 @@ export default function AuthView({ onLogin, onRegister, loading, error }) {
             <Lock className="input-icon" size={20} />
             <input
               type="password"
-              placeholder="Password"
+              placeholder={t("Password")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               maxLength={72}
@@ -125,18 +137,17 @@ export default function AuthView({ onLogin, onRegister, loading, error }) {
             disabled={loading || !username.trim() || !password}
           >
             {loading ? (
-              <span>Please wait...</span>
+              <span>{t("Please wait...")}</span>
             ) : mode === "login" ? (
-              <span>Login</span>
+              <span>{t("Login")}</span>
             ) : (
-              <span>Create Account</span>
+              <span>{t("Create Account")}</span>
             )}
           </button>
         </form>
 
-        {/* Footer */}
         <p className="auth-footer">
-          By continuing, you agree to our Terms of Service
+          {t("By continuing, you agree to our Terms of Service")}
         </p>
       </motion.section>
     </main>

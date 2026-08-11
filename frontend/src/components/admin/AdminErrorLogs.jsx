@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { adminFetch } from "../../api/adminHttp";
 import RippleButton from "../ui/RippleButton";
+import { useT } from "../../context/LocaleContext";
 
 const SEVERITIES = [
   { id: "critical", label: "Critical", color: "#f23f43", icon: AlertCircle },
@@ -41,6 +42,7 @@ const SOURCES = [
 ];
 
 export default function AdminErrorLogs({ socket }) {
+  const t = useT();
   const [logs, setLogs] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -184,7 +186,7 @@ export default function AdminErrorLogs({ socket }) {
   };
 
   const deleteSelected = async () => {
-    if (!confirm(`Delete ${selectedLogs.size} selected logs?`)) return;
+    if (!confirm(t("Delete {count} selected logs?", { count: selectedLogs.size }))) return;
     try {
       await adminFetch("/errors/bulk-delete", {
         method: "POST",
@@ -198,7 +200,7 @@ export default function AdminErrorLogs({ socket }) {
   };
 
   const archiveOld = async (days = 7) => {
-    if (!confirm(`Archive all logs older than ${days} days?`)) return;
+    if (!confirm(t("Archive all logs older than {days} days?", { days }))) return;
     try {
       await adminFetch("/errors/archive", { method: "POST", body: { days } });
       loadLogs();
@@ -293,12 +295,12 @@ export default function AdminErrorLogs({ socket }) {
         <div className="stat-item">
           <Activity size={16} />
           <span className={realtimeMode ? "live-indicator" : ""}>
-            {realtimeMode ? "● LIVE" : "○ PAUSED"}
+            {realtimeMode ? t("● LIVE") : t("○ PAUSED")}
           </span>
         </div>
         <div className="stat-item">
           <span className="stat-value">{liveStats.count}</span>
-          <span className="stat-label">Total Errors</span>
+          <span className="stat-label">{t("Total Errors")}</span>
         </div>
         {SEVERITIES.slice(0, 3).map(sev => (
           <div key={sev.id} className="stat-item">
@@ -310,7 +312,7 @@ export default function AdminErrorLogs({ socket }) {
         ))}
         <div className="stat-item">
           <Archive size={14} />
-          <span>{archivedCount} archived</span>
+          <span>{t("{count} archived", { count: archivedCount })}</span>
         </div>
       </div>
 
@@ -321,7 +323,7 @@ export default function AdminErrorLogs({ socket }) {
             <Search size={16} />
             <input
               type="text"
-              placeholder="Search errors..."
+              placeholder={t("Search errors...")}
               value={searchQ}
               onChange={e => setSearchQ(e.target.value)}
             />
@@ -332,44 +334,44 @@ export default function AdminErrorLogs({ socket }) {
             className={showFilters ? "active" : ""}
           >
             <Filter size={16} />
-            Filters
+            {t("Filters")}
           </RippleButton>
           
           <RippleButton onClick={() => setRealtimeMode(!realtimeMode)}>
             {realtimeMode ? <Pause size={16} /> : <Play size={16} />}
-            {realtimeMode ? "Pause" : "Resume"}
+            {realtimeMode ? t("Pause") : t("Resume")}
           </RippleButton>
         </div>
         
         <div className="toolbar-right">
           {selectedLogs.size > 0 && (
-            <span className="selected-count">{selectedLogs.size} selected</span>
+            <span className="selected-count">{t("{count} selected", { count: selectedLogs.size })}</span>
           )}
           
           <RippleButton onClick={selectAll}>
-            {selectedLogs.size === filteredLogs.length ? "Deselect All" : "Select All"}
+            {selectedLogs.size === filteredLogs.length ? t("Deselect All") : t("Select All")}
           </RippleButton>
           
           {selectedLogs.size > 0 && (
             <RippleButton onClick={deleteSelected} className="danger">
               <Trash2 size={16} />
-              Delete
+              {t("Delete")}
             </RippleButton>
           )}
           
           <RippleButton onClick={() => exportLogs("json")}>
             <Download size={16} />
-            Export JSON
+            {t("Export JSON")}
           </RippleButton>
           
           <RippleButton onClick={() => exportLogs("csv")}>
             <Download size={16} />
-            Export CSV
+            {t("Export CSV")}
           </RippleButton>
           
           <RippleButton onClick={() => archiveOld(7)}>
             <Archive size={16} />
-            Archive Old
+            {t("Archive Old")}
           </RippleButton>
           
           <RippleButton onClick={() => loadLogs()}>
@@ -389,50 +391,50 @@ export default function AdminErrorLogs({ socket }) {
           >
             <div className="filter-row">
               <div className="filter-group">
-                <label>Severity</label>
+                <label>{t("Severity")}</label>
                 <select 
                   value={filters.severity} 
                   onChange={e => setFilters(f => ({ ...f, severity: e.target.value }))}
                 >
-                  <option value="all">All Severities</option>
+                  <option value="all">{t("All Severities")}</option>
                   {SEVERITIES.map(s => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
+                    <option key={s.id} value={s.id}>{t(s.label)}</option>
                   ))}
                 </select>
               </div>
               
               <div className="filter-group">
-                <label>Source</label>
+                <label>{t("Source")}</label>
                 <select 
                   value={filters.source} 
                   onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}
                 >
-                  <option value="all">All Sources</option>
+                  <option value="all">{t("All Sources")}</option>
                   {SOURCES.map(s => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
+                    <option key={s.id} value={s.id}>{t(s.label)}</option>
                   ))}
                 </select>
               </div>
               
               <div className="filter-group">
-                <label>Time Range</label>
+                <label>{t("Time Range")}</label>
                 <select 
                   value={filters.timeRange} 
                   onChange={e => setFilters(f => ({ ...f, timeRange: e.target.value }))}
                 >
-                  {TIME_RANGES.map(t => (
-                    <option key={t.id} value={t.id}>{t.label}</option>
+                  {TIME_RANGES.map(range => (
+                    <option key={range.id} value={range.id}>{t(range.label)}</option>
                   ))}
                 </select>
               </div>
               
               <div className="filter-group">
-                <label>User</label>
+                <label>{t("User")}</label>
                 <select 
                   value={filters.user} 
                   onChange={e => setFilters(f => ({ ...f, user: e.target.value }))}
                 >
-                  <option value="all">All Users</option>
+                  <option value="all">{t("All Users")}</option>
                   {errorUsers.map(u => (
                     <option key={u.id} value={u.id}>{u.username}</option>
                   ))}
@@ -442,26 +444,26 @@ export default function AdminErrorLogs({ socket }) {
             
             <div className="filter-row">
               <div className="filter-group">
-                <label>Sort By</label>
+                <label>{t("Sort By")}</label>
                 <select 
                   value={sortConfig.key} 
                   onChange={e => setSortConfig({ ...sortConfig, key: e.target.value })}
                 >
-                  <option value="timestamp">Timestamp</option>
-                  <option value="severity">Severity</option>
-                  <option value="source">Source</option>
-                  <option value="user">User</option>
+                  <option value="timestamp">{t("Timestamp")}</option>
+                  <option value="severity">{t("Severity")}</option>
+                  <option value="source">{t("Source")}</option>
+                  <option value="user">{t("User")}</option>
                 </select>
               </div>
               
               <div className="filter-group">
-                <label>Order</label>
+                <label>{t("Order")}</label>
                 <select 
                   value={sortConfig.order} 
                   onChange={e => setSortConfig({ ...sortConfig, order: e.target.value })}
                 >
-                  <option value="desc">Newest First</option>
-                  <option value="asc">Oldest First</option>
+                  <option value="desc">{t("Newest First")}</option>
+                  <option value="asc">{t("Oldest First")}</option>
                 </select>
               </div>
               
@@ -472,7 +474,7 @@ export default function AdminErrorLogs({ socket }) {
                     checked={autoScroll} 
                     onChange={e => setAutoScroll(e.target.checked)} 
                   />
-                  Auto-scroll
+                  {t("Auto-scroll")}
                 </label>
               </div>
               
@@ -483,7 +485,7 @@ export default function AdminErrorLogs({ socket }) {
                     checked={viewMode === "compact"} 
                     onChange={e => setViewMode(e.target.checked ? "compact" : "list")} 
                   />
-                  Compact View
+                  {t("Compact View")}
                 </label>
               </div>
             </div>
@@ -506,7 +508,7 @@ export default function AdminErrorLogs({ socket }) {
               >
                 <div className="stat-header">
                   <sev.icon size={20} color={sev.color} />
-                  <span style={{ color: sev.color }}>{sev.label}</span>
+                  <span style={{ color: sev.color }}>{t(sev.label)}</span>
                 </div>
                 <div className="stat-value">{count}</div>
                 {trend !== 0 && (
@@ -524,12 +526,12 @@ export default function AdminErrorLogs({ socket }) {
       {/* Logs List */}
       <div className="logs-container">
         {loading && logs.length === 0 ? (
-          <div className="loading-state">Loading error logs...</div>
+          <div className="loading-state">{t("Loading error logs...")}</div>
         ) : filteredLogs.length === 0 ? (
           <div className="empty-state">
             <CheckCircle size={48} color="#23a55a" />
-            <p>No errors found</p>
-            <span>Everything is running smoothly!</span>
+            <p>{t("No errors found")}</p>
+            <span>{t("Everything is running smoothly!")}</span>
           </div>
         ) : (
           <div className={`logs-list ${viewMode}`}>
@@ -610,58 +612,58 @@ export default function AdminErrorLogs({ socket }) {
                     >
                       {/* Error Info */}
                       <div className="error-main-info">
-                        <h4>Error Details</h4>
+                        <h4>{t("Error Details")}</h4>
                         <div className="info-grid">
                           <div className="info-item">
-                            <span className="label">Error Type:</span>
-                            <span className="value error-type">{log.name || 'Error'}</span>
+                            <span className="label">{t("Error Type:")}</span>
+                            <span className="value error-type">{log.name || t("Error")}</span>
                           </div>
                           {log.category && (
                             <div className="info-item">
-                              <span className="label">Category:</span>
+                              <span className="label">{t("Category:")}</span>
                               <span className="value error-category">{log.category}</span>
                             </div>
                           )}
                           {log.severity && (
                             <div className="info-item">
-                              <span className="label">Severity:</span>
+                              <span className="label">{t("Severity:")}</span>
                               <span className={`value severity-${log.severity.toLowerCase()}`}>{log.severity}</span>
                             </div>
                           )}
                         </div>
                         <div className="error-message-box">
-                          <strong>Message:</strong>
+                          <strong>{t("Message:")}</strong>
                           <p>{log.message}</p>
                         </div>
                       </div>
 
                       {/* User Info */}
                       <div className="user-info-section">
-                        <h4>User Information</h4>
+                        <h4>{t("User Information")}</h4>
                         <div className="info-grid">
                           <div className="info-item">
-                            <span className="label">Username:</span>
-                            <span className="value">{log.username || 'Anonymous'}</span>
+                            <span className="label">{t("Username:")}</span>
+                            <span className="value">{log.username || t("Anonymous")}</span>
                           </div>
                           <div className="info-item">
-                            <span className="label">User ID:</span>
-                            <span className="value user-id">{log.userId || 'anonymous'}</span>
+                            <span className="label">{t("User ID:")}</span>
+                            <span className="value user-id">{log.userId || t("anonymous")}</span>
                           </div>
                           {log.userEmail && (
                             <div className="info-item">
-                              <span className="label">Email:</span>
+                              <span className="label">{t("Email:")}</span>
                               <span className="value">{log.userEmail}</span>
                             </div>
                           )}
                           {log.userRole && (
                             <div className="info-item">
-                              <span className="label">Role:</span>
+                              <span className="label">{t("Role:")}</span>
                               <span className="value">{log.userRole}</span>
                             </div>
                           )}
                           {log.sessionId && (
                             <div className="info-item">
-                              <span className="label">Session ID:</span>
+                              <span className="label">{t("Session ID:")}</span>
                               <span className="value session-id">{log.sessionId}</span>
                             </div>
                           )}
@@ -670,35 +672,35 @@ export default function AdminErrorLogs({ socket }) {
 
                       {/* System Info */}
                       <div className="system-info-section">
-                        <h4>System Information</h4>
+                        <h4>{t("System Information")}</h4>
                         <div className="info-grid">
                           <div className="info-item">
-                            <span className="label">URL:</span>
-                            <span className="value url">{log.url || 'N/A'}</span>
+                            <span className="label">{t("URL:")}</span>
+                            <span className="value url">{log.url || t("N/A")}</span>
                           </div>
                           <div className="info-item">
-                            <span className="label">Platform:</span>
-                            <span className="value">{log.platform || 'Unknown'}</span>
+                            <span className="label">{t("Platform:")}</span>
+                            <span className="value">{log.platform || t("Unknown")}</span>
                           </div>
                           <div className="info-item">
-                            <span className="label">Language:</span>
-                            <span className="value">{log.language || 'Unknown'}</span>
+                            <span className="label">{t("Language:")}</span>
+                            <span className="value">{log.language || t("Unknown")}</span>
                           </div>
                           <div className="info-item">
-                            <span className="label">Screen:</span>
-                            <span className="value">{log.screenResolution || 'Unknown'}</span>
+                            <span className="label">{t("Screen:")}</span>
+                            <span className="value">{log.screenResolution || t("Unknown")}</span>
                           </div>
                           <div className="info-item">
-                            <span className="label">Viewport:</span>
-                            <span className="value">{log.viewport || 'Unknown'}</span>
+                            <span className="label">{t("Viewport:")}</span>
+                            <span className="value">{log.viewport || t("Unknown")}</span>
                           </div>
                           <div className="info-item">
-                            <span className="label">Timezone:</span>
-                            <span className="value">{log.timezone || 'Unknown'}</span>
+                            <span className="label">{t("Timezone:")}</span>
+                            <span className="value">{log.timezone || t("Unknown")}</span>
                           </div>
                           <div className="info-item full-width">
-                            <span className="label">User Agent:</span>
-                            <span className="value user-agent">{log.userAgent || 'Unknown'}</span>
+                            <span className="label">{t("User Agent:")}</span>
+                            <span className="value user-agent">{log.userAgent || t("Unknown")}</span>
                           </div>
                         </div>
                       </div>
@@ -706,27 +708,27 @@ export default function AdminErrorLogs({ socket }) {
                       {/* Connection Info */}
                       {log.connection && (
                         <div className="connection-info-section">
-                          <h4>Connection Information</h4>
+                          <h4>{t("Connection Information")}</h4>
                           <div className="info-grid">
                             <div className="info-item">
-                              <span className="label">Network Type:</span>
-                              <span className="value">{log.connection.effectiveType || 'Unknown'}</span>
+                              <span className="label">{t("Network Type:")}</span>
+                              <span className="value">{log.connection.effectiveType || t("Unknown")}</span>
                             </div>
                             {log.connection.downlink && (
                               <div className="info-item">
-                                <span className="label">Downlink:</span>
+                                <span className="label">{t("Downlink:")}</span>
                                 <span className="value">{log.connection.downlink} Mbps</span>
                               </div>
                             )}
                             {log.connection.rtt && (
                               <div className="info-item">
-                                <span className="label">RTT:</span>
+                                <span className="label">{t("RTT:")}</span>
                                 <span className="value">{log.connection.rtt} ms</span>
                               </div>
                             )}
                             <div className="info-item">
-                              <span className="label">Online:</span>
-                              <span className="value">{log.isOnline !== false ? 'Yes' : 'No'}</span>
+                              <span className="label">{t("Online:")}</span>
+                              <span className="value">{log.isOnline !== false ? t("Yes") : t("No")}</span>
                             </div>
                           </div>
                         </div>
@@ -735,7 +737,7 @@ export default function AdminErrorLogs({ socket }) {
                       {/* Stack Trace */}
                       {log.stack && (
                         <div className="stack-trace">
-                          <h4>Stack Trace</h4>
+                          <h4>{t("Stack Trace")}</h4>
                           <pre>{log.stack}</pre>
                         </div>
                       )}
@@ -743,7 +745,7 @@ export default function AdminErrorLogs({ socket }) {
                       {/* Component Stack (React) */}
                       {log.componentStack && (
                         <div className="component-stack">
-                          <h4>Component Stack</h4>
+                          <h4>{t("Component Stack")}</h4>
                           <pre>{log.componentStack}</pre>
                         </div>
                       )}
@@ -751,7 +753,7 @@ export default function AdminErrorLogs({ socket }) {
                       {/* Additional Metadata */}
                       {log.metadata && (
                         <div className="metadata">
-                          <h4>Additional Metadata</h4>
+                          <h4>{t("Additional Metadata")}</h4>
                           <pre>{JSON.stringify(log.metadata, null, 2)}</pre>
                         </div>
                       )}
@@ -783,7 +785,7 @@ export default function AdminErrorLogs({ socket }) {
               onClick={e => e.stopPropagation()}
             >
               <div className="modal-header">
-                <h3>Error Details</h3>
+                <h3>{t("Error Details")}</h3>
                 <button onClick={() => setSelectedLog(null)}>
                   <X size={20} />
                 </button>
@@ -792,7 +794,7 @@ export default function AdminErrorLogs({ socket }) {
               <div className="modal-body">
               </div>
               <div>
-                <label style={{ color: "#888" }}>Severity:</label>
+                <label style={{ color: "#888" }}>{t("Severity:")}</label>
                 <p style={{ 
                   color: selectedLog.severity === 'critical' ? '#ff0000' : 
                          selectedLog.severity === 'high' ? '#ff6b6b' : 
@@ -810,11 +812,11 @@ export default function AdminErrorLogs({ socket }) {
                   className="secondary"
                 >
                   <Copy size={16} />
-                  Copy JSON
+                  {t("Copy JSON")}
                 </RippleButton>
                 <RippleButton onClick={() => deleteLog(selectedLog.id)} className="danger">
                   <Trash2 size={16} />
-                  Delete
+                  {t("Delete")}
                 </RippleButton>
               </div>
             </motion.div>

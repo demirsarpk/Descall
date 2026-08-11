@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Zap } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import StatusBadge from '../ui/StatusBadge';
+import { getPresenceStatus, isVisiblyOnline } from '../../lib/presence';
+import { useT } from '../../context/LocaleContext';
 
 const TYPE_COLOR = {
   game:          '#23a55a',
@@ -18,7 +20,9 @@ const TYPE_COLOR = {
 };
 
 function PresenceCard({ friend, presence, onlineUsers }) {
-  const isOnline = onlineUsers?.some?.(u => u.id === friend.id) || onlineUsers?.has?.(friend.id);
+  const t = useT();
+  const status = getPresenceStatus(onlineUsers, friend.id);
+  const isOnline = isVisiblyOnline(onlineUsers, friend.id);
   const accentColor = presence ? (TYPE_COLOR[presence.appType] || '#5865f2') : null;
 
   return (
@@ -33,7 +37,7 @@ function PresenceCard({ friend, presence, onlineUsers }) {
     >
       <div className="activity-presence-avatar">
         <Avatar name={friend.username} user={friend} size={36} />
-        <StatusBadge status={isOnline ? 'online' : 'offline'} />
+        <StatusBadge status={isOnline ? status : 'offline'} />
       </div>
       <div className="activity-presence-info">
         <span className="activity-presence-name">{friend.username}</span>
@@ -43,7 +47,7 @@ function PresenceCard({ friend, presence, onlineUsers }) {
             {presence.displayName}
           </span>
         ) : (
-          <span className="activity-presence-idle">Online</span>
+          <span className="activity-presence-idle">{t("Online")}</span>
         )}
       </div>
     </motion.div>
@@ -51,12 +55,13 @@ function PresenceCard({ friend, presence, onlineUsers }) {
 }
 
 export default function ActivitySidebar({ friends, friendPresence, onlineUsers }) {
+  const t = useT();
   const { active, idle } = useMemo(() => {
     const active = [];
     const idle   = [];
     for (const friend of (friends || [])) {
       const presence = friendPresence?.[friend.id];
-      const isOnline = onlineUsers?.some?.(u => u.id === friend.id) || onlineUsers?.has?.(friend.id);
+      const isOnline = isVisiblyOnline(onlineUsers, friend.id);
       if (!isOnline) continue;
       if (presence?.displayName) {
         active.push({ friend, presence });
@@ -78,7 +83,7 @@ export default function ActivitySidebar({ friends, friendPresence, onlineUsers }
         <div className="sidebar-header">
           <h2 className="sidebar-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Zap size={16} style={{ color: 'var(--primary)' }} />
-            Activity
+            {t("Activity")}
           </h2>
         </div>
 
@@ -86,7 +91,7 @@ export default function ActivitySidebar({ friends, friendPresence, onlineUsers }
           {active.length > 0 && (
             <div className="activity-sidebar-section">
               <div className="activity-sidebar-label">
-                Active Now — {active.length}
+                {t("Active Now — {count}", { count: active.length })}
               </div>
               <AnimatePresence initial={false}>
                 {active.map(({ friend, presence }) => (
@@ -104,7 +109,7 @@ export default function ActivitySidebar({ friends, friendPresence, onlineUsers }
           {idle.length > 0 && (
             <div className="activity-sidebar-section" style={{ marginTop: active.length ? 16 : 0 }}>
               <div className="activity-sidebar-label">
-                Online — {idle.length}
+                {t("Online — {count}", { count: idle.length })}
               </div>
               <AnimatePresence initial={false}>
                 {idle.map(({ friend }) => (
@@ -131,7 +136,7 @@ export default function ActivitySidebar({ friends, friendPresence, onlineUsers }
             }}>
               <Zap size={32} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>
-                No friends online
+                {t("No friends online")}
               </p>
             </div>
           )}

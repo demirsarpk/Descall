@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Send, Smile, Hash, Loader2, Edit3, Trash2, Check, X } from "lucide-react";
 import { useGuildMessages } from "../../hooks/useGuildMessages";
 import { Avatar } from "../ui/Avatar";
+import { useT } from "../../context/LocaleContext";
 
 function formatTime(iso) {
   if (!iso) return "";
@@ -40,6 +41,7 @@ function GuildMessageBubble({
   onDelete,
   compact,
 }) {
+  const t = useT();
   const [hover, setHover] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content || "");
@@ -48,8 +50,8 @@ function GuildMessageBubble({
   const reactions = message.reactions || [];
 
   const saveEdit = () => {
-    const t = draft.trim();
-    if (t && t !== message.content) onEdit?.(message.id, t);
+    const next = draft.trim();
+    if (next && next !== message.content) onEdit?.(message.id, next);
     setEditing(false);
   };
 
@@ -65,7 +67,7 @@ function GuildMessageBubble({
     >
       {!compact ? (
         <div className="msg-avatar-wrap">
-          <Avatar name={sender.username || "?"} size={40} user={sender} />
+          <Avatar name={sender.displayName || sender.display_name || sender.username || "?"} size={40} user={sender} />
         </div>
       ) : (
         <div className="msg-avatar-spacer" aria-hidden />
@@ -73,11 +75,11 @@ function GuildMessageBubble({
       <div className="msg-body">
         {!compact && (
           <header className="msg-meta">
-            <span className="msg-author">{sender.username || "Unknown"}</span>
+            <span className="msg-author">{sender.displayName || sender.display_name || sender.username || t("Unknown")}</span>
             <span className="msg-time-wrap">
               <time dateTime={message.created_at}>{formatTime(message.created_at)}</time>
             </span>
-            {message.is_edited && <span className="msg-edited">(edited)</span>}
+            {message.is_edited && <span className="msg-edited">{t("(edited)")}</span>}
           </header>
         )}
         {compact && (
@@ -101,7 +103,7 @@ function GuildMessageBubble({
             />
             <div className="msg-edit-actions">
               <button type="button" className="btn-ghost sm" onClick={saveEdit}>
-                <Check size={14} /> Save
+                <Check size={14} /> {t("Save")}
               </button>
               <button
                 type="button"
@@ -111,7 +113,7 @@ function GuildMessageBubble({
                   setEditing(false);
                 }}
               >
-                <X size={14} /> Cancel
+                <X size={14} /> {t("Cancel")}
               </button>
             </div>
           </div>
@@ -164,10 +166,10 @@ function GuildMessageBubble({
               {isOwn && (
                 <>
                   <button type="button" className="toolbar-btn" onClick={() => setEditing(true)}>
-                    <Edit3 size={12} /> Edit
+                    <Edit3 size={12} /> {t("Edit")}
                   </button>
                   <button type="button" className="toolbar-btn danger" onClick={() => onDelete?.(message.id)}>
-                    <Trash2 size={12} /> Delete
+                    <Trash2 size={12} /> {t("Delete")}
                   </button>
                 </>
               )}
@@ -180,6 +182,7 @@ function GuildMessageBubble({
 }
 
 export default function GuildChatView({ socket, me, guildId, channelId, channelName }) {
+  const t = useT();
   const myId = me?.id;
   const {
     messages,
@@ -244,8 +247,8 @@ export default function GuildChatView({ socket, me, guildId, channelId, channelN
   };
 
   const EMOJI_CATEGORIES = [
-    { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖","😺","😸","😹","😻","😼","😽","🙀","😿","😾"] },
-    { name: "Gestures", emojis: ["👋","🤚","🖐️","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦵","🦿","🦶","👂","🦻","👃","🧠","🫀","🫁","🦷","🦴","👀","👁️","👅","👄","💋","🩸"] },
+    { nameKey: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖","😺","😸","😹","😻","😼","😽","🙀","😿","😾"] },
+    { nameKey: "Gestures", emojis: ["👋","🤚","🖐️","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦵","🦿","🦶","👂","🦻","👃","🧠","🫀","🫁","🦷","🦴","👀","👁️","👅","👄","💋","🩸"] },
   ];
 
   return (
@@ -255,7 +258,7 @@ export default function GuildChatView({ socket, me, guildId, channelId, channelN
         {hasMore && (
           <div className="guild-load-more">
             <button className="btn-ghost sm" onClick={handleLoadMore} disabled={loading}>
-              {loading ? <Loader2 size={14} className="spin" /> : "Load more messages"}
+              {loading ? <Loader2 size={14} className="spin" /> : t("Load more messages")}
             </button>
           </div>
         )}
@@ -291,7 +294,7 @@ export default function GuildChatView({ socket, me, guildId, channelId, channelN
           <div className="empty-state">
             <Hash size={48} />
             <h3>#{channelName}</h3>
-            <p>This is the start of the channel. Send a message to get started!</p>
+            <p>{t("This is the start of the channel. Send a message to get started!")}</p>
           </div>
         )}
       </div>
@@ -311,7 +314,7 @@ export default function GuildChatView({ socket, me, guildId, channelId, channelN
               <span />
             </div>
             <span className="typing-names">
-              {typingUsers.map((u) => u.username).join(", ")} typing…
+              {t("{names} typing…", { names: typingUsers.map((u) => u.username).join(", ") })}
             </span>
           </motion.div>
         )}
@@ -328,15 +331,15 @@ export default function GuildChatView({ socket, me, guildId, channelId, channelN
               className="emoji-picker"
             >
               <div className="emoji-picker-header">
-                <span>Emojis</span>
+                <span>{t("Emojis")}</span>
                 <button className="emoji-picker-close" onClick={() => setShowEmojiPicker(false)}>
                   <X size={14} />
                 </button>
               </div>
               <div className="emoji-picker-body">
                 {EMOJI_CATEGORIES.map((cat) => (
-                  <div key={cat.name} className="emoji-category">
-                    <span className="emoji-category-name">{cat.name}</span>
+                  <div key={cat.nameKey} className="emoji-category">
+                    <span className="emoji-category-name">{t(cat.nameKey)}</span>
                     <div className="emoji-grid">
                       {cat.emojis.map((em) => (
                         <button
@@ -362,13 +365,13 @@ export default function GuildChatView({ socket, me, guildId, channelId, channelN
           <button
             className="composer-action-btn"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            title="Emoji"
+            title={t("Emoji")}
           >
             <Smile size={22} />
           </button>
           <textarea
             className="guild-composer-input"
-            placeholder={`Message #${channelName || "channel"}`}
+            placeholder={t("Message #{name}", { name: channelName || t("channel") })}
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}

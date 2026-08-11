@@ -1,11 +1,11 @@
 {
   "name": "descall-electron",
-  "version": "2.3.1",
+  "version": "2.6.2",
   "description": "Descall - Discord-like chat application",
   "main": "main.cjs",
   "author": "Descall Team",
   "license": "MIT",
-  "homepage": "https://descall-1.onrender.com",
+  "homepage": "https://des-call.onrender.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/demirrsarppkurtlarr/Descall.git"
@@ -41,6 +41,7 @@
     "files": [
       "main.cjs",
       "preload.cjs",
+      "splash.html",
       "notificationWindow.cjs",
       "notifPreload.cjs",
       "processScanner.cjs",
@@ -64,25 +65,21 @@
             "x64",
             "ia32"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
-      "publisherName": "Descall",
-      "icon": "../public/icon.png"
+      "icon": "../public/icon.png",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Descall",
       "artifactName": "Descall-Setup-${version}.exe",
-      "deleteAppDataOnUninstall": true,
+      "deleteAppDataOnUninstall": false,
       "include": "installer.nsh"
     },
     "portable": {

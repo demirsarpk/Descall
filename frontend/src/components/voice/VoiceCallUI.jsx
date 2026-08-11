@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Mic, MicOff, Camera, CameraOff, Monitor, 
   PhoneOff, Users, Settings, Maximize2, Minimize2,
-  Volume2, VolumeX, ScreenShare
+  Volume2, VolumeX, ScreenShare, X
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * COMPLETELY REBUILT VOICE CALL UI
@@ -26,6 +27,7 @@ export default function VoiceCallUI({
   onEndCall,
   onMinimize
 }) {
+  const t = useT();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [volume, setVolume] = useState(100);
@@ -35,6 +37,8 @@ export default function VoiceCallUI({
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const unknown = t("Unknown");
 
   return (
     <motion.div
@@ -54,14 +58,15 @@ export default function VoiceCallUI({
           <div className="call-info">
             <div className="call-avatar">
               <Avatar 
-                name={peer?.username || "Unknown"} 
+                name={peer?.username || unknown} 
                 size={48}
                 user={peer}
+                animate="always"
               />
               <StatusBadge status="online" />
             </div>
             <div className="call-details">
-              <h3 className="call-name">{peer?.username || "Unknown"}</h3>
+              <h3 className="call-name">{peer?.username || unknown}</h3>
               <span className="call-duration">{formatDuration(duration)}</span>
             </div>
           </div>
@@ -70,21 +75,21 @@ export default function VoiceCallUI({
             <button 
               className="icon-btn"
               onClick={() => setShowParticipants(!showParticipants)}
-              title="Participants"
+              title={t("Participants")}
             >
               <Users size={20} />
             </button>
             <button 
               className="icon-btn"
               onClick={() => setIsFullscreen(!isFullscreen)}
-              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              title={isFullscreen ? t("Exit Fullscreen") : t("Fullscreen")}
             >
               {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
             </button>
             <button 
               className="icon-btn"
               onClick={onMinimize}
-              title="Minimize"
+              title={t("Minimize")}
             >
               <Minimize2 size={20} />
             </button>
@@ -108,9 +113,10 @@ export default function VoiceCallUI({
               <div className="voice-visualization">
                 <div className="avatar-large">
                   <Avatar 
-                    name={peer?.username || "Unknown"} 
+                    name={peer?.username || unknown} 
                     size={120}
                     user={peer}
+                    animate="always"
                   />
                 </div>
                 <div className="voice-waves">
@@ -157,7 +163,7 @@ export default function VoiceCallUI({
                 />
                 <div className="screen-share-badge">
                   <ScreenShare size={16} />
-                  <span>Screen Sharing</span>
+                  <span>{t("Screen Sharing")}</span>
                 </div>
               </div>
             )}
@@ -173,7 +179,7 @@ export default function VoiceCallUI({
                 className="participants-panel"
               >
                 <div className="participants-header">
-                  <h4>Participants</h4>
+                  <h4>{t("Participants")}</h4>
                   <button 
                     className="icon-btn"
                     onClick={() => setShowParticipants(false)}
@@ -187,8 +193,8 @@ export default function VoiceCallUI({
                     <span>{peer?.username}</span>
                   </div>
                   <div className="participant-item">
-                    <Avatar name="You" size={32} />
-                    <span>You</span>
+                    <Avatar name={t("You")} size={32} animate="always" />
+                    <span>{t("You")}</span>
                   </div>
                 </div>
               </motion.div>
@@ -202,7 +208,7 @@ export default function VoiceCallUI({
             <button 
               className={`control-btn ${isMuted ? "muted" : ""}`}
               onClick={onToggleMute}
-              title={isMuted ? "Unmute" : "Mute"}
+              title={isMuted ? t("Unmute") : t("Mute")}
             >
               {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
             </button>
@@ -210,7 +216,7 @@ export default function VoiceCallUI({
             <button 
               className={`control-btn ${!isCameraOn ? "off" : ""}`}
               onClick={onToggleCamera}
-              title={isCameraOn ? "Turn Off Camera" : "Turn On Camera"}
+              title={isCameraOn ? t("Turn Off Camera") : t("Turn On Camera")}
             >
               {isCameraOn ? <Camera size={24} /> : <CameraOff size={24} />}
             </button>
@@ -218,7 +224,7 @@ export default function VoiceCallUI({
             <button 
               className={`control-btn ${isScreenSharing ? "active" : ""}`}
               onClick={onToggleScreenShare}
-              title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
+              title={isScreenSharing ? t("Stop Screen Share") : t("Share Screen")}
             >
               <Monitor size={24} />
             </button>
@@ -241,7 +247,7 @@ export default function VoiceCallUI({
           <button 
             className="end-call-btn"
             onClick={onEndCall}
-            title="End Call"
+            title={t("End Call")}
           >
             <PhoneOff size={24} />
           </button>

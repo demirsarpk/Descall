@@ -6,6 +6,17 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version_bump:
+        description: "Optional — only when cutting a release from main without a local tag (patch/minor/major)"
+        required: false
+        default: "none"
+        type: choice
+        options:
+          - none
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
@@ -41,7 +52,9 @@ jobs:
         working-directory: frontend
         run: npm run build
         env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          # Electron builds always ship against production (never staging).
+          # Runtime also forces this in frontend/src/config/api.js for Electron.
+          VITE_API_BASE_URL: https://des-call.onrender.com
 
       - name: Debug - Check dist contents
         working-directory: frontend
@@ -147,8 +160,11 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          # latest.yml + blockmap are required for electron-updater silent auto-update
           files: |
             **/Descall-Setup-*.exe
+            **/Descall-Setup-*.exe.blockmap
+            **/latest.yml
           draft: false
           prerelease: false
           generate_release_notes: true

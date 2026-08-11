@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import AuthView from "./components/AuthView";
 import AppLayout from "./components/layout/AppLayout";
-import DownloadPage from "./components/download/DownloadPage";
-import { getMe, login, register } from "./api/auth";
+import GroupInviteLanding from "./components/groups/GroupInviteLanding";
+import MarketingApp from "./site/MarketingApp";
+import SeoHead from "./site/SeoHead";
+import { getMe, login, loginWithGoogle, register } from "./api/auth";
 import { getMyGroups, getGroupMessages } from "./api/groups";
 import {
   getMyGuilds,
@@ -30,27 +33,83 @@ import {
   patchUserInList,
   patchDmMessagesAvatar,
   patchGroupMessagesAvatar,
-  patchUserAvatar,
+  resolveDisplayName,
 } from "./lib/userProfile";
 import audioManager, { initAudioManager } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
+import { subscribeWebPush } from "./lib/webPushSubscription";
+import { requestNativePushPermission } from "./lib/nativePush";
+import { useToast } from "./context/ToastContext";
+import { useLocale } from "./context/LocaleContext";
+import { t as tRuntime } from "./i18n/runtime";
+import { appPathForView, directPath, groupPath, isAuthenticatedAppPath, parseAppRoute } from "./lib/appRoutes";
 import AdminPanel from "./components/admin/AdminPanel";
 import TitleBar from "./components/TitleBar";
 import MessageList from "./components/chat/MessageList";
 import MessageComposer from "./components/chat/MessageComposer";
 import CallOverlay from "./components/CallOverlay";
 import GroupCallIncomingModal from "./components/GroupCallIncomingModal";
+import { requestFeedbackNudge } from "./components/feedback/FeedbackNudgeBanner";
+import { parseVoiceMeta, encodeVoiceContent } from "./lib/voiceMessage";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
   const out = [...(incoming || []).filter((m) => m && !ids.has(m.id)), ...existing];
-  return out.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  return sortMessagesChronologically(out);
+}
+
+function sortMessagesChronologically(messages) {
+  return [...messages].sort((a, b) => {
+    const aTime = new Date(a?.timestamp || a?.created_at || 0).getTime();
+    const bTime = new Date(b?.timestamp || b?.created_at || 0).getTime();
+    return aTime - bTime;
+  });
 }
 
 function normalizeGroups(payload) {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.groups)) return payload.groups;
   return [];
+}
+
+function parseInviteCodeFromLocation() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    const fromQuery = (params.get("invite") || params.get("i") || "").trim();
+    if (fromQuery) return fromQuery;
+    const path = window.location.pathname || "";
+    const match = path.match(/^\/(?:invite|i)\/([A-Za-z0-9_-]+)\/?$/i);
+    return match?.[1] || null;
+  } catch {
+    return null;
+  }
+}
+
+function clearInvitePath() {
+  try {
+    const path = window.location.pathname || "";
+    const params = new URLSearchParams(window.location.search || "");
+    const hasQueryInvite = params.has("invite") || params.has("i");
+    const hasPathInvite = /^\/(?:invite|i)\//i.test(path);
+    if (!hasQueryInvite && !hasPathInvite) return;
+    window.history.replaceState({}, "", "/");
+  } catch {
+    /* ignore */
+  }
+}
+
+function writeInvitePath(code) {
+  try {
+    if (!code) return;
+    // Root query form — required because Vite builds with base "./" and
+    // deep paths like /invite/:code break relative JS/CSS asset loading.
+    const next = `/?invite=${encodeURIComponent(code)}`;
+    if (`${window.location.pathname}${window.location.search}` !== next) {
+      window.history.replaceState({}, "", next);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 function normalizeGroupMessage(m) {
@@ -102,30 +161,98 @@ function normalizeGroupMessage(m) {
   const sender = normalizeUser(m.sender || {
     id: m.sender?.id || m.sender_id,
     username: m.sender?.username || "Unknown",
+    display_name: m.sender?.display_name || m.sender?.displayName,
     avatar_url: m.sender?.avatar_url,
     updated_at: m.sender?.updated_at,
   });
+  const voice = parseVoiceMeta(m.content, m.media_type);
   return {
     id: m.id,
     from: sender,
     username: sender?.username || "Unknown",
+    displayName: sender?.displayName || null,
     avatarUrl: sender?.avatarUrl,
-    text: m.content || "",
+    text: voice.isVoice ? "" : (m.content || ""),
     timestamp: m.created_at || new Date().toISOString(),
     mediaUrl: m.media_url,
-    mediaType: m.media_type,
+    mediaType: voice.isVoice ? "voice" : m.media_type,
     originalName: m.original_name,
     size: m.file_size,
+    duration: voice.duration ?? m.duration ?? null,
+    reactions: Array.isArray(m.reactions) ? m.reactions : [],
+    replyTo: m.replyTo || m.reply_to || null,
   };
 }
 
+/** Sidebar preview text for a normalized group message (username: body). */
+function formatGroupPreviewFromMsg(msg, t = (k) => k) {
+  if (!msg) return null;
+  if (msg.type === "call_summary") {
+    const who = msg.from?.username || msg.username || null;
+    const body = t("📞 Call");
+    return (who ? `${who}: ${body}` : body).slice(0, 80);
+  }
+  const who =
+    msg.from?.username ||
+    msg.username ||
+    msg.sender?.username ||
+    null;
+  let body = null;
+  const text = String(msg.text || "").trim();
+  if (text) body = text;
+  else if (msg.mediaType === "image") body = t("📷 Photo");
+  else if (msg.mediaType === "voice" || msg.mediaType === "audio") body = t("🎤 Voice message");
+  else if (msg.mediaUrl) body = t("📎 Attachment");
+  if (!body) return null;
+  return (who ? `${who}: ${body}` : body).slice(0, 80);
+}
+
+async function fetchConversationReactions(type, conversationId) {
+  if (!type || !conversationId) return {};
+  try {
+    const token = getToken();
+    const res = await fetch(
+      `${API_BASE_URL}/api/reactions/conversation/${encodeURIComponent(type)}/${encodeURIComponent(conversationId)}`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data?.reactions && typeof data.reactions === "object" ? data.reactions : {};
+  } catch {
+    return {};
+  }
+}
+
+function mergeReactionsIntoMessages(messages, reactionsByMessageId) {
+  if (!Array.isArray(messages) || !reactionsByMessageId) return messages;
+  return messages.map((m) => {
+    const list = reactionsByMessageId[m.id];
+    if (!list) return m;
+    return { ...m, reactions: list };
+  });
+}
+
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const requestedRoute = useMemo(() => parseAppRoute(location.pathname), [location.pathname]);
   const [authLoading, setAuthLoading] = useState(false);
+  const { toast } = useToast();
+  const { t, setLocale } = useLocale();
   const [authError, setAuthError] = useState("");
   const [sessionChecked, setSessionChecked] = useState(false);
   const [me, setMe] = useState(() => normalizeUser(getUser()));
+  const [inviteCode, setInviteCode] = useState(() => parseInviteCodeFromLocation());
+  const [inviteAuthOpen, setInviteAuthOpen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [myStatus, setMyStatus] = useState("online");
+  const [myStatus, setMyStatus] = useState(() => {
+    try {
+      const saved = localStorage.getItem("descall:myStatus");
+      if (["online", "idle", "dnd", "invisible"].includes(saved)) return saved;
+    } catch {}
+    return "online";
+  });
+  const [replyTo, setReplyTo] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
@@ -139,6 +266,12 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [activeDmUser, setActiveDmUser] = useState(null);
   const [activeGroup, setActiveGroup] = useState(null);
+  const [activeView, setActiveView] = useState("chat");
+  const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [unreadMarker, setUnreadMarker] = useState(null); // { key, count }
   const [friendNotice, setFriendNotice] = useState("");
   const [notifPermission, setNotifPermission] = useState(() => notificationService.getPermissionState());
   const [socketApi, setSocketApi] = useState(null);
@@ -150,7 +283,6 @@ export default function App() {
   const [reconnectState, setReconnectState] = useState("idle");
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminChanged, setAdminChanged] = useState(false);
-  const [peerScreenSharing, setPeerScreenSharing] = useState(false);
   const [myGroups, setMyGroups] = useState([]);
   const [groupMessagesById, setGroupMessagesById] = useState({});
   // Electron silent auto-update state: null | 'downloading' | 'installing'
@@ -167,10 +299,126 @@ export default function App() {
   const myIdRef = useRef(null);
   const myGroupsRef = useRef([]);
   const myGuildsRef = useRef([]);
+  const friendsRef = useRef([]);
+  const myStatusRef = useRef(myStatus);
   const transportFallbackStepRef = useRef(0);
   const prevOnlineUsersRef = useRef([]);
-  const call = useCall(socketApi);
-  const groupCall = useGroupCall(socketApi, me?.id);
+  const activeGuildRef = useRef(null);
+  const typingDmTimeoutRef = useRef(null);
+  const typingGroupTimeoutsRef = useRef(new Map());
+  const callOccupancyRef = useRef({ dmMode: null, groupActive: false });
+  const call = useCall(socketApi, callOccupancyRef);
+  const groupCall = useGroupCall(socketApi, me?.id, callOccupancyRef);
+
+  useEffect(() => {
+    callOccupancyRef.current = {
+      dmMode: call?.mode || null,
+      groupActive: Boolean(groupCall?.isInCall || groupCall?.incomingCall),
+    };
+  }, [call?.mode, groupCall?.isInCall, groupCall?.incomingCall]);
+  const wasDmInCallRef = useRef(false);
+  const wasGroupInCallRef = useRef(false);
+  const lastDmCallDurationRef = useRef(0);
+  const lastGroupCallDurationRef = useRef(0);
+
+  // Reflect a live call in the address bar without treating a pasted call URL
+  // as permission to start a microphone/camera session. Refreshing the URL
+  // safely returns to its DM/group conversation instead.
+  useEffect(() => {
+    if (!me?.id) return;
+    if (call.mode && call.peer?.username) {
+      const callPath = `${directPath(call.peer)}/call/${call.callType || "voice"}`;
+      if (location.pathname !== callPath) navigate(callPath, { replace: true });
+      return;
+    }
+    if (groupCall.isInCall && groupCall.activeGroupId) {
+      const callPath = `${groupPath(groupCall.activeGroupId)}/call`;
+      if (location.pathname !== callPath) navigate(callPath, { replace: true });
+      return;
+    }
+    if (requestedRoute.call && call.mode == null) {
+      navigate(directPath(requestedRoute.username), { replace: true });
+    } else if (requestedRoute.joinCall && !groupCall.isInCall) {
+      navigate(groupPath(requestedRoute.groupId), { replace: true });
+    }
+  }, [
+    call.callType,
+    call.mode,
+    call.peer,
+    groupCall.activeGroupId,
+    groupCall.isInCall,
+    location.pathname,
+    me?.id,
+    navigate,
+    requestedRoute,
+  ]);
+
+  useEffect(() => {
+    preloadIceServers().catch(() => {});
+  }, []);
+
+  // Sync account language when user has no explicit local override
+  useEffect(() => {
+    if (!me?.language) return;
+    try {
+      if (!localStorage.getItem("descall_language")) {
+        setLocale(me.language);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [me?.language, setLocale]);
+
+  // Riot OAuth / link callback (?riot_link=success|error)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search || "");
+      const riotLink = params.get("riot_link");
+      if (!riotLink) return;
+      const reason = params.get("reason") || "";
+      params.delete("riot_link");
+      params.delete("reason");
+      const qs = params.toString();
+      window.history.replaceState({}, "", qs ? `/?${qs}` : "/");
+      if (riotLink === "success") {
+        toast("Valorant account linked", "success");
+      } else {
+        const msg = reason ? `Valorant link failed: ${reason}` : "Valorant link failed";
+        toast(msg, "error");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [toast]);
+
+  // Soft feedback nudge after voice/video calls end (≥45s)
+  useEffect(() => {
+    if (call?.isInCall) {
+      wasDmInCallRef.current = true;
+      lastDmCallDurationRef.current = Number(call.duration) || 0;
+      return;
+    }
+    if (wasDmInCallRef.current) {
+      wasDmInCallRef.current = false;
+      const secs = lastDmCallDurationRef.current || 0;
+      lastDmCallDurationRef.current = 0;
+      requestFeedbackNudge({ trigger: "after_call", callDurationMs: secs * 1000 });
+    }
+  }, [call?.isInCall, call?.duration]);
+
+  useEffect(() => {
+    if (groupCall?.isInCall) {
+      wasGroupInCallRef.current = true;
+      lastGroupCallDurationRef.current = Number(groupCall.duration) || 0;
+      return;
+    }
+    if (wasGroupInCallRef.current) {
+      wasGroupInCallRef.current = false;
+      const secs = lastGroupCallDurationRef.current || 0;
+      lastGroupCallDurationRef.current = 0;
+      requestFeedbackNudge({ trigger: "after_call", callDurationMs: secs * 1000 });
+    }
+  }, [groupCall?.isInCall, groupCall?.duration]);
 
   useEffect(() => {
     preloadIceServers().catch(() => {});
@@ -179,6 +427,24 @@ export default function App() {
   useEffect(() => {
     myIdRef.current = me?.id ?? null;
   }, [me?.id]);
+
+  useEffect(() => {
+    friendsRef.current = Array.isArray(friends) ? friends : [];
+  }, [friends]);
+
+  useEffect(() => {
+    myStatusRef.current = myStatus;
+  }, [myStatus]);
+
+  const isDnd = useCallback(() => myStatusRef.current === "dnd", []);
+
+  const playUiSound = useCallback((name) => {
+    // Match notificationService: mute social/message sounds under DND
+    if (myStatusRef.current === "dnd" && name !== "incomingCall" && name !== "outgoingCall") {
+      return;
+    }
+    audioManager.play(name);
+  }, []);
 
   useEffect(() => {
     activeDmRef.current = activeDmUser;
@@ -196,6 +462,10 @@ export default function App() {
     myGuildsRef.current = myGuilds;
   }, [myGuilds]);
 
+  useEffect(() => {
+    activeGuildRef.current = activeGuild;
+  }, [activeGuild]);
+
   const commitSessionUser = useCallback((user) => {
     const normalized = normalizeUser(user);
     setMe(normalized);
@@ -207,33 +477,70 @@ export default function App() {
   const applyProfileUpdate = useCallback((user) => {
     const normalized = normalizeUser(user);
     if (!normalized?.id) return;
-    const { id, avatarUrl, avatarVersion } = normalized;
+    const { id } = normalized;
+    const stored = getUser();
+    const existingSelf = me?.id === id ? me : stored?.id === id ? stored : null;
+    // Prefer incoming avatar, but never clear a known photo with an empty patch.
+    const avatarUrl =
+      normalized.avatarUrl ||
+      normalized.avatar_url ||
+      existingSelf?.avatarUrl ||
+      existingSelf?.avatar_url ||
+      null;
 
-    if (me?.id === id || getUser()?.id === id) {
-      commitSessionUser(normalized);
+    const patch = {
+      avatarUrl,
+      avatar_url: avatarUrl,
+      displayName: normalized.displayName,
+      display_name: normalized.displayName,
+      bio: normalized.bio,
+      customStatus: normalized.customStatus,
+      bannerUrl: normalized.bannerUrl,
+      avatarVersion: normalized.avatarVersion,
+      updated_at: normalized.updated_at,
+    };
+
+    if (me?.id === id || stored?.id === id) {
+      commitSessionUser({
+        ...existingSelf,
+        ...normalized,
+        avatarUrl,
+        avatar_url: avatarUrl,
+        displayName: normalized.displayName,
+        display_name: normalized.displayName,
+      });
     }
 
-    setFriends((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
-    setFriendRequests((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
-    setOnlineUsers((prev) => patchUserInList(prev, id, avatarUrl, avatarVersion));
-    setActiveDmUser((prev) => (prev?.id === id ? patchUserAvatar(prev, avatarUrl, avatarVersion) : prev));
+    setFriends((prev) => patchUserInList(prev, id, patch));
+    setFriendRequests((prev) => patchUserInList(prev, id, patch));
+    setOnlineUsers((prev) => patchUserInList(prev, id, patch));
+    setActiveDmUser((prev) => {
+      if (prev?.id !== id) return prev;
+      return normalizeUser({ ...prev, ...patch });
+    });
     setNotifications((prev) => prev.map((n) => {
       const fromId = n.meta?.fromUserId || n.meta?.userId || n.fromUserId;
       if (fromId !== id) return n;
-      return { ...n, avatarUrl, avatar_url: avatarUrl };
+      return {
+        ...n,
+        avatarUrl: avatarUrl || n.avatarUrl,
+        avatar_url: avatarUrl || n.avatar_url,
+        displayName: normalized.displayName || n.displayName,
+      };
     }));
-    setDmByUserId((prev) => patchDmMessagesAvatar(prev, id, avatarUrl, avatarVersion));
-    setGroupMessagesById((prev) => patchGroupMessagesAvatar(prev, id, avatarUrl, avatarVersion));
-  }, [commitSessionUser, me?.id]);
+    setDmByUserId((prev) => patchDmMessagesAvatar(prev, id, patch));
+    setGroupMessagesById((prev) => patchGroupMessagesAvatar(prev, id, patch));
+  }, [commitSessionUser, me]);
 
   useEffect(() => {
     setTypingDmUser(null);
   }, [activeDmUser?.id]);
 
   useEffect(() => {
-    if (activeDmUser && socketRef.current) {
-      socketRef.current.emit("dm:history", { withUserId: activeDmUser.id });
-    }
+    if (!activeDmUser?.id || !socketRef.current) return;
+    const cached = dmByUserId[activeDmUser.id];
+    if (!cached) setMessagesLoading(true);
+    socketRef.current.emit("dm:history", { withUserId: activeDmUser.id });
   }, [activeDmUser?.id]);
 
   const dmMessages = useMemo(() => {
@@ -243,8 +550,14 @@ export default function App() {
       // do NOT merge in-memory callSummaries to avoid duplicates.
       // Only inject the live active-call banner (not yet in DB).
       const banner = groupCall?.activeCallBanner;
-      const activeBannerItem = (banner?.groupId === activeGroup.id && banner?.startTime)
-        ? [{ ...banner, id: `active-call-${banner.groupId}`, type: "active_call", timestamp: new Date(banner.startTime).toISOString() }]
+      const activeBannerItem = (banner?.groupId === activeGroup.id)
+        ? [{
+            ...banner,
+            startTime: banner.startTime || Date.now(),
+            id: `active-call-${banner.groupId}`,
+            type: "active_call",
+            timestamp: new Date(banner.startTime || Date.now()).toISOString(),
+          }]
         : [];
       const merged = activeBannerItem.length > 0 ? [...msgs, ...activeBannerItem] : [...msgs];
       return merged.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -255,22 +568,27 @@ export default function App() {
 
   useEffect(() => {
     const token = getToken();
+    const bootStatus = document.getElementById("boot-status");
     if (!token) {
+      if (bootStatus) bootStatus.textContent = tRuntime("Almost ready");
       setSessionChecked(true);
       return;
     }
+    if (bootStatus) bootStatus.textContent = tRuntime("Signing in");
     let cancelled = false;
     (async () => {
       try {
-              const { user } = await getMe(token);
+        const { user } = await getMe(token);
         if (!cancelled) {
           commitSessionUser(user);
+          if (bootStatus) bootStatus.textContent = tRuntime("Welcome back");
         }
       } catch (err) {
         if (!cancelled) {
           clearToken();
           clearUser();
           setMe(null);
+          if (bootStatus) bootStatus.textContent = tRuntime("Almost ready");
         }
       } finally {
         if (!cancelled) setSessionChecked(true);
@@ -284,6 +602,11 @@ export default function App() {
     initAudioManager().catch(() => {});
     notificationService.init().catch(() => {});
     setNotifPermission(notificationService.getPermissionState());
+    requestNativePushPermission()
+      .then((permission) => {
+        if (permission) setNotifPermission(permission);
+      })
+      .catch((error) => console.warn("[NativePush] Permission request failed:", error?.message || error));
     return () => { audioManager.destroy(); };
   }, []);
 
@@ -304,9 +627,27 @@ export default function App() {
   }, []);
 
   const handleRequestNotifPermission = async () => {
+    const nativePermission = await requestNativePushPermission();
+    if (nativePermission) {
+      setNotifPermission(nativePermission);
+      return;
+    }
     const result = await notificationService.requestPermission();
+    if (result === "granted") subscribeWebPush().catch(() => {});
     setNotifPermission(result);
+    if (result === "granted") {
+      subscribeWebPush().catch((error) => {
+        console.warn("[WebPush] Subscription failed:", error.message);
+      });
+    }
   };
+
+  useEffect(() => {
+    if (!me?.id || notifPermission !== "granted") return;
+    subscribeWebPush().catch((error) => {
+      console.warn("[WebPush] Subscription sync failed:", error.message);
+    });
+  }, [me?.id, notifPermission]);
 
   useEffect(() => {
     const token = getToken();
@@ -333,12 +674,13 @@ export default function App() {
     };
     
     socketApi.on("user:updated", handleUserUpdated);
-    socketApi.on("user:profile:updated", ({ user }) => {
+    const handleProfileUpdated = ({ user }) => {
       if (user) applyProfileUpdate(user);
-    });
+    };
+    socketApi.on("user:profile:updated", handleProfileUpdated);
     return () => {
       socketApi.off("user:updated", handleUserUpdated);
-      socketApi.off("user:profile:updated");
+      socketApi.off("user:profile:updated", handleProfileUpdated);
     };
   }, [socketApi, commitSessionUser, applyProfileUpdate]);
 
@@ -447,7 +789,7 @@ export default function App() {
         connectSocket(token, { transports: ["polling"] });
         return;
       }
-      if (msg.toLowerCase().includes("xhr poll error") || msg.toLowerCase().includes("authentication failed") || msg.toLowerCase().includes("authentication required")) {
+      if (msg.toLowerCase().includes("authentication failed") || msg.toLowerCase().includes("authentication required")) {
         clearToken(); clearUser(); setMe(null); socket.disconnect();
       }
       if (msg.toLowerCase().includes("xhr poll error")) {
@@ -458,10 +800,41 @@ export default function App() {
     });
 
     socket.on("connected", (payload) => {
-      if (payload?.user) { setUser(payload.user); }
+      if (payload?.user) {
+        // Merge — never let a thin socket payload wipe displayName / bio / banner.
+        commitSessionUser({ ...(getUser() || me || {}), ...payload.user });
+      }
       getMyGroups().then((raw) => {
         const groups = normalizeGroups(raw);
         setMyGroups(groups);
+        // Seed list previews from API lastMessage/lastActivity (same idea as friend:list).
+        setGroupPreviews((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const g of groups) {
+            if (g?.id && g.lastMessage && g.lastMessage !== next[g.id]) {
+              next[g.id] = g.lastMessage;
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+        setGroupLastActivity((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const g of groups) {
+            if (!g?.id || !g.lastActivity) continue;
+            const prevTs = next[g.id] ? new Date(next[g.id]).getTime() : 0;
+            const nextTs = new Date(g.lastActivity).getTime();
+            if (!prevTs || nextTs >= prevTs) {
+              if (next[g.id] !== g.lastActivity) {
+                next[g.id] = g.lastActivity;
+                changed = true;
+              }
+            }
+          }
+          return changed ? next : prev;
+        });
         // Rejoin after groups load — connect-time rejoin often runs with empty list.
         const ids = groups.map((g) => g.id).filter(Boolean);
         if (ids.length > 0 && socket.connected) {
@@ -477,8 +850,24 @@ export default function App() {
       }).catch(console.error);
     });
 
+    socket.on("status:current", ({ status } = {}) => {
+      if (!["online", "idle", "dnd", "invisible"].includes(status)) return;
+      setMyStatus(status);
+      try { localStorage.setItem("descall:myStatus", status); } catch {}
+    });
+
     socket.on("sync:state", (state) => {
-      if (state?.dmUnreadByPeer && typeof state.dmUnreadByPeer === "object") setDmUnread({ ...state.dmUnreadByPeer });
+      if (state?.dmUnreadByPeer && typeof state.dmUnreadByPeer === "object") {
+        setDmUnread({ ...state.dmUnreadByPeer });
+      }
+      // Seed DM list previews from server memory (fills "No messages yet" on load).
+      // Existing client previews win so live dm:message updates are not overwritten.
+      if (state?.dmPreviewsByPeer && typeof state.dmPreviewsByPeer === "object") {
+        setDmPreviews((prev) => ({ ...state.dmPreviewsByPeer, ...prev }));
+      }
+      if (state?.dmLastActivityByPeer && typeof state.dmLastActivityByPeer === "object") {
+        setDmLastActivity((prev) => ({ ...state.dmLastActivityByPeer, ...prev }));
+      }
       if (Array.isArray(state?.notifications)) setNotifications(state.notifications);
     });
 
@@ -492,9 +881,17 @@ export default function App() {
           return;
         }
         setTypingDmUser(typing ? fromUser : null);
+        // Auto-clear stuck typing if peer disconnects without typing:stop
+        if (typingDmTimeoutRef.current) clearTimeout(typingDmTimeoutRef.current);
+        if (typing) {
+          typingDmTimeoutRef.current = setTimeout(() => {
+            setTypingDmUser((cur) => (cur?.id === fromUser.id ? null : cur));
+          }, 3500);
+        }
       } else if (context === "group" && groupId) {
         setTypingGroupUsers((prev) => {
-          const groupMap = new Map(prev[groupId] ?? []);
+          const cur = prev[groupId];
+          const groupMap = cur instanceof Map ? new Map(cur) : new Map();
           if (typing) {
             groupMap.set(fromUser.id, fromUser);
           } else {
@@ -502,33 +899,82 @@ export default function App() {
           }
           return { ...prev, [groupId]: groupMap };
         });
+        const key = `${groupId}:${fromUser.id}`;
+        if (typingGroupTimeoutsRef.current.has(key)) {
+          clearTimeout(typingGroupTimeoutsRef.current.get(key));
+          typingGroupTimeoutsRef.current.delete(key);
+        }
+        if (typing) {
+          const t = setTimeout(() => {
+            setTypingGroupUsers((prev) => {
+              const cur = prev[groupId];
+              const groupMap = cur instanceof Map ? new Map(cur) : new Map();
+              groupMap.delete(fromUser.id);
+              return { ...prev, [groupId]: groupMap };
+            });
+            typingGroupTimeoutsRef.current.delete(key);
+          }, 3500);
+          typingGroupTimeoutsRef.current.set(key, t);
+        }
       }
     });
 
     socket.on("users:update", (users) => {
       const newUsers = (users ?? []).map((u) => normalizeUser(u));
       const prevIds = new Set(prevOnlineUsersRef.current.map((u) => u.id));
-      const friendsSet = new Set(friends.map((f) => f.id));
+      const friendsSet = new Set((friendsRef.current || []).map((f) => f.id));
 
-      // Check if any friends just came online
-      const newOnlineFriends = (newUsers || []).filter(
-        (u) => !prevIds.has(u.id) && friendsSet.has(u.id) && u.id !== myIdRef.current
-      );
-      
+      // Check if any friends just came online (invisible never counts as online)
+      const newOnlineFriends = (newUsers || []).filter((u) => {
+        if (!u?.id || prevIds.has(u.id) || !friendsSet.has(u.id) || u.id === myIdRef.current) return false;
+        const st = u.status || "online";
+        return st === "online" || st === "idle" || st === "dnd";
+      });
+
       if (newOnlineFriends.length > 0) {
-        // Play notification sound for friends coming online (use notification type)
-        audioManager.play("notification");
-        // Send notification for first friend coming online
+        playUiSound("notification");
         if (newOnlineFriends[0]) {
-          notificationService.friendOnline({ username: newOnlineFriends[0].username });
+          notificationService.friendOnline({ username: resolveDisplayName(newOnlineFriends[0]) });
         }
       }
-      
+
       prevOnlineUsersRef.current = newUsers;
       setOnlineUsers(newUsers);
     });
 
-    socket.on("friend:list", (list) => setFriends((list ?? []).map((u) => normalizeUser(u))));
+    socket.on("friend:list", (list) => {
+      const normalized = (list ?? []).map((u) => normalizeUser(u));
+      setFriends(normalized);
+      setFriendsLoaded(true);
+      // Server now attaches lastMessage/lastActivity from dmHistory — seed list previews.
+      setDmPreviews((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const f of normalized) {
+          if (f?.id && f.lastMessage && f.lastMessage !== next[f.id]) {
+            next[f.id] = f.lastMessage;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      setDmLastActivity((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const f of normalized) {
+          if (!f?.id || !f.lastActivity) continue;
+          const prevTs = next[f.id] ? new Date(next[f.id]).getTime() : 0;
+          const nextTs = new Date(f.lastActivity).getTime();
+          if (!prevTs || nextTs >= prevTs) {
+            if (next[f.id] !== f.lastActivity) {
+              next[f.id] = f.lastActivity;
+              changed = true;
+            }
+          }
+        }
+        return changed ? next : prev;
+      });
+    });
     socket.on("friend:requests", (list) => setFriendRequests((list ?? []).map((u) => normalizeUser(u))));
     socket.on("friend:request:incoming", ({ from }) => {
       if (!from) return;
@@ -537,24 +983,44 @@ export default function App() {
       // Notification for incoming friend request
       notificationService.friendRequest({ from: from.username, fromId: from.id });
     });
-    socket.on("friend:accepted", () => { socket.emit("friend:list"); });
+    socket.on("friend:accepted", () => {
+      socket.emit("friend:list");
+    });
     socket.on("user:profile:updated", ({ user }) => {
       if (user) applyProfileUpdate(user);
     });
     socket.on("friend:error", ({ message } = {}) => {
-      setFriendNotice(message || "Friend action failed.");
+      setFriendNotice(message || t("Friend action failed."));
       setTimeout(() => setFriendNotice(""), 4000);
+      // Restore pending list / friends after a failed accept/decline
+      socket.emit("friend:list");
     });
     socket.on("friend:request:sent", ({ to } = {}) => {
-      setFriendNotice(to ? `Request sent to ${to}` : "Request sent.");
+      setFriendNotice(to ? t("Request sent to {to}", { to }) : t("Request sent."));
       setTimeout(() => setFriendNotice(""), 3000);
     });
 
     socket.on("dm:history", ({ withUserId, messages }) => {
       if (!withUserId) return;
-      setDmByUserId((prev) => ({ ...prev, [withUserId]: messages ?? [] }));
-      setDmHasMore((messages?.length ?? 0) >= 50);
-      const last = Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1] : null;
+      const normalized = (messages ?? []).map((m) => {
+        const voice = parseVoiceMeta(m.text, m.mediaType);
+        if (!voice.isVoice) return m;
+        return {
+          ...m,
+          text: "",
+          mediaType: "voice",
+          duration: m.duration ?? voice.duration ?? 0,
+        };
+      });
+      // History is a recent DB window; never replace already loaded pages or
+      // optimistic rows when the periodic refresh arrives.
+      setDmByUserId((prev) => {
+        const existing = prev[withUserId] ?? [];
+        return { ...prev, [withUserId]: mergeById(existing, normalized) };
+      });
+      setMessagesLoading(false);
+      setDmHasMore((normalized?.length ?? 0) >= 50);
+      const last = Array.isArray(normalized) && normalized.length > 0 ? normalized[normalized.length - 1] : null;
       if (last) {
         const ts = last.timestamp || last.created_at;
         if (ts) setDmLastActivity((prev) => {
@@ -562,8 +1028,19 @@ export default function App() {
           return { ...prev, [withUserId]: ts };
         });
         const previewText = last.text
-          || (last.mediaType === "image" ? "📷 Photo" : last.mediaUrl ? "📎 Attachment" : "");
-        if (previewText) setDmPreviews((p) => (p[withUserId] ? p : { ...p, [withUserId]: previewText }));
+          || (last.mediaType === "image"
+            ? "📷 Photo"
+            : last.mediaType === "voice" || last.mediaType === "audio"
+              ? "🎤 Voice message"
+              : last.mediaUrl
+                ? "📎 Attachment"
+                : "");
+        if (previewText) {
+          setDmPreviews((p) => {
+            if (p[withUserId] === previewText) return p;
+            return { ...p, [withUserId]: previewText };
+          });
+        }
       }
     });
 
@@ -577,41 +1054,74 @@ export default function App() {
       setDmHasMore(!!hasMore);
     });
 
+    socket.on("dm:error", ({ message, tempId, toUserId } = {}) => {
+      if (tempId && toUserId) {
+        setDmByUserId((prev) => {
+          const cur = prev[toUserId] ?? [];
+          if (!cur.some((m) => m.id === tempId)) return prev;
+          return {
+            ...prev,
+            [toUserId]: cur.map((m) =>
+              m.id === tempId ? { ...m, sending: false, failed: true } : m
+            ),
+          };
+        });
+      }
+      if (message) {
+        toast(message, "error");
+      }
+    });
+
     socket.on("dm:message", (message) => {
       const convWith = message?.convWith;
       if (!convWith) return;
-      const ts = message.timestamp || new Date().toISOString();
-      const previewText = message.text
-        || (message.mediaType === "image" ? "📷 Photo" : message.mediaUrl ? "📎 Attachment" : "");
+      const voice = parseVoiceMeta(message.text, message.mediaType);
+      const normalizedMsg = voice.isVoice
+        ? {
+            ...message,
+            text: "",
+            mediaType: "voice",
+            duration: message.duration ?? voice.duration ?? 0,
+          }
+        : message;
+      const ts = normalizedMsg.timestamp || new Date().toISOString();
+      const previewText = normalizedMsg.text
+        || (normalizedMsg.mediaType === "image"
+          ? "📷 Photo"
+          : normalizedMsg.mediaType === "voice" || normalizedMsg.mediaType === "audio"
+            ? "🎤 Voice message"
+            : normalizedMsg.mediaUrl
+              ? "📎 Attachment"
+              : "");
       setDmLastActivity((prev) => ({ ...prev, [convWith]: ts }));
       if (previewText) setDmPreviews((prev) => ({ ...prev, [convWith]: previewText }));
 
       setDmByUserId((prev) => {
         const cur = prev[convWith] ?? [];
-        const isSelf = message.from?.id === me?.id;
+        const isSelf = normalizedMsg.from?.id === myIdRef.current;
         // Replace optimistic (sending) message by tempId echo, or dedupe by real id
-        if (isSelf && message.tempId) {
-          const hasTemp = cur.some((m) => m.id === message.tempId);
+        if (isSelf && normalizedMsg.tempId) {
+          const hasTemp = cur.some((m) => m.id === normalizedMsg.tempId);
           if (hasTemp) {
-            return { ...prev, [convWith]: cur.map((m) => m.id === message.tempId ? { ...message, sending: false } : m) };
+            return { ...prev, [convWith]: cur.map((m) => m.id === normalizedMsg.tempId ? { ...normalizedMsg, sending: false } : m) };
           }
         }
-        const alreadyExists = cur.some((m) => m.id === message.id);
+        const alreadyExists = cur.some((m) => m.id === normalizedMsg.id);
         if (alreadyExists) return prev;
-        return { ...prev, [convWith]: [...cur, message] };
+        return { ...prev, [convWith]: [...cur, normalizedMsg] };
       });
       // Only notify for messages from others (not self)
-      const currentUserId = me?.id;
-      const isFromOther = message.from?.id && message.from.id !== currentUserId;
+      const currentUserId = myIdRef.current;
+      const isFromOther = normalizedMsg.from?.id && normalizedMsg.from.id !== currentUserId;
       if (isFromOther) {
-        socket.emit("dm:delivered", { msgId: message.id, fromUserId: message.from.id });
+        socket.emit("dm:delivered", { msgId: normalizedMsg.id, fromUserId: normalizedMsg.from.id });
         // Local unread bump if not viewing this conversation (server also syncs)
         if (activeDmRef.current?.id !== convWith) {
-          audioManager.play("message");
+          playUiSound("message");
           // Send native notification
           notificationService.newMessage({
-            from: message.from?.username || 'Birisi',
-            text: message.text || '',
+            from: normalizedMsg.from?.username || 'Birisi',
+            text: normalizedMsg.text || (normalizedMsg.mediaType === "voice" ? "🎤 Voice message" : ""),
             preview: message.text?.substring(0, 100),
             conversationId: convWith
           });
@@ -636,58 +1146,85 @@ export default function App() {
     // Group messages listener
     socket.on("group:message", ({ groupId, message, tempId }) => {
       if (!groupId || !message) return;
+
+      const trimmedContent = (message.content || "").trim();
+      const isGameCommand =
+        Boolean(message.isGameCommand) ||
+        (trimmedContent.startsWith("/") &&
+          ["/bj", "/blackjack", "/hit", "/stand", "/stay", "/double", "/credits", "/bakiye", "/balance", "/top", "/lider", "/help", "/yardım", "/commands", "/jb", "/daily"].some(
+            (cmd) => trimmedContent.toLowerCase().startsWith(cmd)
+          ));
+
+      // Never insert /bj etc. as chat rows — casino UI uses game:* events
+      if (isGameCommand) {
+        if (tempId || message.id) {
+          setGroupMessagesById((prev) => {
+            const cur = prev[groupId] ?? [];
+            return {
+              ...prev,
+              [groupId]: cur.filter(
+                (m) =>
+                  m.isGameMessage ||
+                  (m.id !== tempId && m.id !== message.id)
+              ),
+            };
+          });
+        }
+        return;
+      }
+
       const sender = normalizeUser(message.sender || {
         id: message.sender_id,
         username: message.sender?.username || "Unknown",
+        display_name: message.sender?.display_name || message.sender?.displayName,
         avatar_url: message.sender?.avatar_url,
         updated_at: message.sender?.updated_at,
       });
+      const voice = parseVoiceMeta(message.content, message.media_type);
       const normalized = {
         id: message.id,
         from: sender,
         username: sender?.username || "Unknown",
+        displayName: sender?.displayName || null,
         avatarUrl: sender?.avatarUrl,
-        text: message.content || "",
+        text: voice.isVoice ? "" : (message.content || ""),
         timestamp: message.created_at || new Date().toISOString(),
         mediaUrl: message.media_url,
-        mediaType: message.media_type,
+        mediaType: voice.isVoice ? "voice" : message.media_type,
         originalName: message.original_name,
         size: message.file_size,
+        duration: voice.duration ?? message.duration ?? null,
+        replyTo: message.replyTo || message.reply_to || null,
       };
       setGroupMessagesById((prev) => {
         const cur = prev[groupId] ?? [];
         // Replace optimistic message by tempId, or dedupe by real id
         if (tempId && cur.some((m) => m.id === tempId)) {
-          return { ...prev, [groupId]: cur.map((m) => m.id === tempId ? { ...normalized, sending: false } : m) };
+          return {
+            ...prev,
+            [groupId]: sortMessagesChronologically(
+              cur.map((m) => m.id === tempId ? { ...normalized, sending: false } : m)
+            ),
+          };
         }
         if (cur.some((m) => m.id === normalized.id)) return prev;
-        return { ...prev, [groupId]: [...cur, normalized] };
+        return { ...prev, [groupId]: sortMessagesChronologically([...cur, normalized]) };
       });
 
       setGroupLastActivity((prev) => ({ ...prev, [groupId]: normalized.timestamp }));
-      if (normalized.text) {
-        const preview = `${normalized.from.username}: ${normalized.text}`;
-        setGroupPreviews((prev) => ({ ...prev, [groupId]: preview.slice(0, 80) }));
-      }
-
-      // Check if message is a game command - suppress normal message display for commands
-      const trimmedContent = message.content?.trim() || '';
-      if (trimmedContent.startsWith('/')) {
-        const validGameCommands = ['/bj', '/blackjack', '/hit', '/stand', '/stay', '/double', '/credits', '/bakiye', '/balance', '/top', '/lider', '/help', '/yardım', '/commands', '/jb'];
-        const isGameCommand = validGameCommands.some(cmd => trimmedContent.toLowerCase().startsWith(cmd));
-        if (isGameCommand && message.sender?.id === myIdRef.current) {
-          // Remove the command message from display (it will be handled by game:message)
-          setGroupMessagesById((prev) => {
-            const cur = prev[groupId] || [];
-            return { ...prev, [groupId]: cur.filter(m => m.id !== message.id) };
-          });
+      {
+        const preview = formatGroupPreviewFromMsg(normalized);
+        if (preview) {
+          setGroupPreviews((prev) => ({ ...prev, [groupId]: preview }));
         }
       }
+
       // Notify for messages from others in non-active group
-      const isFromMe = normalized.from.id === me?.id;
+      const isFromMe = normalized.from.id === myIdRef.current;
       const isActiveGroup = activeGroupRef.current?.id === groupId;
       if (!isFromMe && !isActiveGroup) {
         setGroupUnread((prev) => ({ ...prev, [groupId]: (prev[groupId] || 0) + 1 }));
+        playUiSound("message");
         const grp = myGroupsRef.current.find((g) => g.id === groupId);
         notificationService.groupMessage({
           groupName: grp?.name || "Grup",
@@ -698,31 +1235,123 @@ export default function App() {
       }
     });
 
+    // Clear optimistic "/bj …" without inserting a chat row
+    socket.on("group:message:ack", ({ groupId, tempId, suppress } = {}) => {
+      if (!groupId || !tempId || !suppress) return;
+      setGroupMessagesById((prev) => {
+        const cur = prev[groupId] ?? [];
+        return { ...prev, [groupId]: cur.filter((m) => m.id !== tempId) };
+      });
+    });
+
+    socket.on("group:message:error", ({ groupId, tempId, message } = {}) => {
+      if (groupId && tempId) {
+        setGroupMessagesById((prev) => {
+          const cur = prev[groupId] ?? [];
+          if (!cur.some((m) => m.id === tempId)) return prev;
+          return {
+            ...prev,
+            [groupId]: cur.map((m) =>
+              m.id === tempId ? { ...m, sending: false, failed: true } : m
+            ),
+          };
+        });
+      }
+      if (message) toast(message, "error");
+    });
+
     socket.on("mention:received", ({ groupId, dmConversationId, from, text, groupName }) => {
       notificationService.mention({ groupId, dmConversationId, from, text, groupName });
     });
 
-    // Game messages (blackjack, etc.)
-    socket.on("game:message", ({ groupId, message }) => {
+    // Casino: one bubble per player (session id). Board never downgrades to lobby on stray clicks.
+    const isCasinoBoard = (msg) => {
+      const s = msg?.gameData?.status;
+      return s === "playing" || s === "dealer" || s === "dealing" || s === "finished";
+    };
+    const isCasinoBoardIncoming = (message) =>
+      isCasinoBoard(message) ||
+      ["game_start", "game_update", "game_end"].includes(message?.type);
+
+    const upsertGameMessage = (groupId, message) => {
       if (!groupId || !message) return;
-      
+      const handId = message.gameData?.id;
+      const ownerId =
+        message.sessionOwnerId ||
+        message.gameData?.sessionOwnerId ||
+        message.gameData?.userId ||
+        null;
+      const stableId = ownerId
+        ? `casino-session-${ownerId}`
+        : handId
+          ? `casino-hand-${handId}`
+          : message.id;
       const gameMessage = {
-        id: message.id,
-        from: message.sender || { id: 'game-bot', username: '🎰 Casino Bot' },
+        id: stableId,
+        from: message.sender || { id: "game-bot", username: "Casino" },
         text: message.content || "",
-        type: message.type || 'game_message',
-        gameData: message.gameData,
+        type: message.type || "game_message",
+        gameData: message.gameData ?? null,
+        sessionOwnerId: ownerId,
         timestamp: message.timestamp || new Date().toISOString(),
         isGameMessage: true,
-        groupId: groupId, // Ensure groupId is attached to the message
+        groupId,
       };
-      
+
       setGroupMessagesById((prev) => {
         const cur = prev[groupId] ?? [];
-        // Deduplicate by id
-        if (cur.some((m) => m.id === gameMessage.id)) return prev;
+        const idx = cur.findIndex((m) => {
+          if (m.id === stableId || m.id === message.id) return true;
+          if (handId && m.gameData?.id === handId) return true;
+          if (
+            ownerId &&
+            m.isGameMessage &&
+            (m.sessionOwnerId === ownerId ||
+              m.gameData?.userId === ownerId ||
+              m.gameData?.sessionOwnerId === ownerId ||
+              m.id === `casino-session-${ownerId}` ||
+              (handId && m.id === `casino-hand-${handId}`))
+          ) {
+            return true;
+          }
+          return false;
+        });
+        if (idx >= 0) {
+          const prevMsg = cur[idx];
+          // Never interrupt a live or finished hand with lobby/help (Again must survive)
+          const prevLive = ["playing", "dealer", "dealing", "finished"].includes(
+            prevMsg?.gameData?.status
+          );
+          if (prevLive && !isCasinoBoardIncoming(message)) {
+            return prev;
+          }
+          const next = cur.slice();
+          next[idx] = {
+            ...prevMsg,
+            ...gameMessage,
+            // Keep a single stable session id so Deal / Again never stacks menus
+            id: ownerId ? `casino-session-${ownerId}` : prevMsg.id || stableId,
+            gameData: message.gameData != null ? message.gameData : prevMsg.gameData,
+            sessionOwnerId: ownerId || prevMsg.sessionOwnerId,
+            isGameMessage: true,
+          };
+          return { ...prev, [groupId]: next };
+        }
         return { ...prev, [groupId]: [...cur, gameMessage] };
       });
+    };
+
+    socket.on("game:message", ({ groupId, message }) => {
+      upsertGameMessage(groupId, message);
+    });
+
+    socket.on("game:update", ({ groupId, message }) => {
+      upsertGameMessage(groupId, message);
+    });
+
+    socket.on("game:notice", ({ text } = {}) => {
+      if (!text) return;
+      toast(text, "info");
     });
 
     socket.on("dm:message:update", ({ msgId, convWith, deliveredAt } = {}) => {
@@ -731,6 +1360,67 @@ export default function App() {
         const cur = prev[convWith];
         if (!cur) return prev;
         return { ...prev, [convWith]: cur.map((m) => m.id === msgId ? { ...m, deliveredAt: deliveredAt ?? m.deliveredAt } : m) };
+      });
+    });
+
+    socket.on("reaction:update", ({ messageId, emoji, userId, username, conversationType, conversationId, removed } = {}) => {
+      if (!messageId || !emoji || !userId) return;
+
+      const patchList = (list) => {
+        if (!Array.isArray(list)) return list;
+        let changed = false;
+        const next = list.map((m) => {
+          if (m.id !== messageId) return m;
+          changed = true;
+          const reactions = Array.isArray(m.reactions) ? [...m.reactions] : [];
+          if (removed) {
+            return {
+              ...m,
+              reactions: reactions.filter((r) => !(r.emoji === emoji && r.userId === userId)),
+            };
+          }
+          if (reactions.some((r) => r.emoji === emoji && r.userId === userId)) return m;
+          return {
+            ...m,
+            reactions: [...reactions, { emoji, userId, username, messageId }],
+          };
+        });
+        return changed ? next : list;
+      };
+
+      if (conversationType === "group" && conversationId) {
+        setGroupMessagesById((prev) => {
+          const cur = prev[conversationId];
+          if (!cur) return prev;
+          const next = patchList(cur);
+          return next === cur ? prev : { ...prev, [conversationId]: next };
+        });
+        return;
+      }
+
+      // DM: conversationId is "a::b" — update the peer bucket
+      const selfId = myIdRef.current;
+      let peerId = null;
+      if (typeof conversationId === "string" && conversationId.includes("::")) {
+        peerId = conversationId.split("::").find((id) => id && id !== selfId) || null;
+      } else if (conversationId && conversationId !== selfId) {
+        peerId = conversationId;
+      }
+
+      setDmByUserId((prev) => {
+        if (peerId && prev[peerId]) {
+          const next = patchList(prev[peerId]);
+          return next === prev[peerId] ? prev : { ...prev, [peerId]: next };
+        }
+        // Fallback: scan all DM threads for the message
+        let any = false;
+        const out = {};
+        for (const [id, list] of Object.entries(prev)) {
+          const next = patchList(list);
+          out[id] = next;
+          if (next !== list) any = true;
+        }
+        return any ? out : prev;
       });
     });
 
@@ -786,13 +1476,6 @@ export default function App() {
       });
     });
 
-    socket.on("screen:share-start", ({ fromUserId } = {}) => {
-      if (fromUserId === activeDmRef.current?.id) setPeerScreenSharing(true);
-    });
-    socket.on("screen:share-stop", ({ fromUserId } = {}) => {
-      if (fromUserId === activeDmRef.current?.id) setPeerScreenSharing(false);
-    });
-
     // Guild socket events
     socket.on("guild:created", ({ guild } = {}) => {
       if (!guild?.id) return;
@@ -811,11 +1494,10 @@ export default function App() {
     socket.on("guild:deleted", ({ guildId } = {}) => {
       if (!guildId) return;
       setMyGuilds((prev) => prev.filter((g) => g.id !== guildId));
-      setActiveGuild((prev) => (prev?.id === guildId ? null : prev));
-      setActiveGuildChannel((prev) => {
-        const activeG = myGuildsRef.current.find((g) => g.id === activeGuild?.id);
-        return activeG?.channels?.find((c) => c.id === prev?.id) ?? null;
-      });
+      if (activeGuildRef.current?.id === guildId) {
+        setActiveGuild(null);
+        setActiveGuildChannel(null);
+      }
     });
 
     socket.on("guild:left", ({ guildId } = {}) => {
@@ -894,6 +1576,23 @@ export default function App() {
     }
   };
 
+  const handleGoogleLogin = async (credential) => {
+    try {
+      setAuthLoading(true);
+      setAuthError("");
+      await verifyBackendEndpoint();
+      const data = await loginWithGoogle(credential);
+      transportFallbackStepRef.current = 0;
+      setToken(data.token);
+      commitSessionUser(data.user);
+    } catch (error) {
+      setAuthError(error.message);
+      throw error;
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   const handleRegister = async (payload) => {
     try {
       setAuthLoading(true);
@@ -926,12 +1625,42 @@ export default function App() {
       const raw = await getMyGroups();
       const groups = normalizeGroups(raw);
       setMyGroups(groups);
+      setGroupPreviews((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const g of groups) {
+          if (g?.id && g.lastMessage && g.lastMessage !== next[g.id]) {
+            next[g.id] = g.lastMessage;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      setGroupLastActivity((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const g of groups) {
+          if (!g?.id || !g.lastActivity) continue;
+          const prevTs = next[g.id] ? new Date(next[g.id]).getTime() : 0;
+          const nextTs = new Date(g.lastActivity).getTime();
+          if (!prevTs || nextTs >= prevTs) {
+            if (next[g.id] !== g.lastActivity) {
+              next[g.id] = g.lastActivity;
+              changed = true;
+            }
+          }
+        }
+        return changed ? next : prev;
+      });
       const ids = groups.map((g) => g.id).filter(Boolean);
       if (ids.length > 0 && socketRef.current?.connected) {
         socketRef.current.emit("groups:rejoin", ids);
       }
     } catch (err) {
-      setMyGroups([]);
+      // Keep previous list — a transient API failure should not wipe the sidebar
+      console.error("[groups] fetch failed", err);
+    } finally {
+      setGroupsLoaded(true);
     }
   }, []);
 
@@ -958,10 +1687,33 @@ export default function App() {
     if (grp?.id) {
       s.emit("group:join", grp.id);
       getGroupMessages(grp.id)
-        .then((res) => {
+        .then(async (res) => {
           const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
-          const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
-          setGroupMessagesById((prev) => ({ ...prev, [grp.id]: normalized }));
+          let normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
+          const rx = await fetchConversationReactions("group", grp.id);
+          normalized = mergeReactionsIntoMessages(normalized, rx);
+          setGroupMessagesById((prev) => {
+            const existing = prev[grp.id] || [];
+            // Preserve ephemeral socket-only rows (casino boards, pending sends)
+            const keep = existing.filter((m) =>
+              m?.isGameMessage ||
+              m?.sending ||
+              m?.failed ||
+              (typeof m?.id === "string" && (m.id.startsWith("temp-") || m.id.startsWith("casino-"))) ||
+              (typeof m?.type === "string" && m.type.startsWith("game_"))
+            );
+            const byId = new Map(normalized.map((m) => [m.id, m]));
+            for (const m of keep) {
+              if (!byId.has(m.id)) byId.set(m.id, m);
+            }
+            // Keep chronological order: DB messages + any keep-only at end if missing timestamps
+            const merged = Array.from(byId.values()).sort((a, b) => {
+              const ta = new Date(a.timestamp || a.created_at || 0).getTime();
+              const tb = new Date(b.timestamp || b.created_at || 0).getTime();
+              return ta - tb;
+            });
+            return { ...prev, [grp.id]: merged };
+          });
         })
         .catch(console.error);
     }
@@ -977,15 +1729,34 @@ export default function App() {
 
   // Fetch group messages when activeGroup changes
   useEffect(() => {
-    if (!activeGroup?.id || groupMessagesById[activeGroup.id]) return;
+    if (!activeGroup?.id) return;
+    if (groupMessagesById[activeGroup.id]) {
+      setMessagesLoading(false);
+      return;
+    }
+    setMessagesLoading(true);
     getGroupMessages(activeGroup.id)
-      .then((res) => {
+      .then(async (res) => {
         const msgs = Array.isArray(res?.messages) ? res.messages : Array.isArray(res) ? res : [];
-        const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
-        setGroupMessagesById((prev) => ({ ...prev, [activeGroup.id]: normalized }));
+        let normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
+        const rx = await fetchConversationReactions("group", activeGroup.id);
+        normalized = mergeReactionsIntoMessages(normalized, rx);
+        setGroupMessagesById((prev) => ({
+          ...prev,
+          [activeGroup.id]: sortMessagesChronologically(normalized),
+        }));
+        const last = normalized[normalized.length - 1];
+        const preview = formatGroupPreviewFromMsg(last, t);
+        if (preview) {
+          setGroupPreviews((prev) => ({ ...prev, [activeGroup.id]: preview }));
+        }
+        if (last?.timestamp) {
+          setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: last.timestamp }));
+        }
       })
-      .catch((err) => console.error("[App] fetch group messages error:", err));
-  }, [activeGroup?.id]);
+      .catch((err) => console.error("[App] fetch group messages error:", err))
+      .finally(() => setMessagesLoading(false));
+  }, [activeGroup?.id, t]);
 
   useEffect(() => {
     if (me?.id) {
@@ -993,20 +1764,153 @@ export default function App() {
     }
   }, [me?.id, fetchGroups]);
 
+  // URL is authoritative for an existing browser entry. Only friends and
+  // current group members can resolve a conversation route; invalid targets
+  // fall back to their safe list view without ever loading private history.
+  useEffect(() => {
+    if (!me?.id || !sessionChecked) return;
+
+    if (requestedRoute.unknown) {
+      navigate("/direct", { replace: true });
+      return;
+    }
+
+    setActiveView(requestedRoute.view);
+    setUserPanelOpen(Boolean(requestedRoute.settingsTab));
+
+    if (requestedRoute.view === "chat") {
+      setActiveGroup(null);
+      if (!requestedRoute.username) {
+        setActiveDmUser(null);
+        return;
+      }
+      if (!friendsLoaded) return;
+      const friend = friends.find(
+        (item) => item?.username?.toLowerCase() === requestedRoute.username.toLowerCase()
+      );
+      if (!friend) {
+        setActiveDmUser(null);
+        navigate("/direct", { replace: true });
+        return;
+      }
+      if (activeDmRef.current?.id !== friend.id) handleOpenDm(friend);
+      return;
+    }
+
+    if (requestedRoute.view === "groups") {
+      setActiveDmUser(null);
+      if (!requestedRoute.groupId) {
+        setActiveGroup(null);
+        return;
+      }
+      if (!groupsLoaded) return;
+      const group = myGroups.find((item) => item?.id === requestedRoute.groupId);
+      if (!group) {
+        setActiveGroup(null);
+        navigate("/groups", { replace: true });
+        return;
+      }
+      if (activeGroupRef.current?.id !== group.id) {
+        setActiveGroup(group);
+        socketRef.current?.emit("group:join", group.id);
+      }
+      return;
+    }
+
+    setActiveDmUser(null);
+    setActiveGroup(null);
+  }, [
+    friends,
+    friendsLoaded,
+    groupsLoaded,
+    location.pathname,
+    me?.id,
+    myGroups,
+    navigate,
+    requestedRoute,
+    sessionChecked,
+  ]);
+
   const handleOpenDm = (friend) => {
     if (!friend || !friend.id) {
       // Close DM (null friend)
       setActiveDmUser(null);
+      setUnreadMarker(null);
+      setMessagesLoading(false);
       socketRef.current?.emit("dm:set_active", { withUserId: null });
       return;
     }
+    const nextPath = directPath(friend);
+    if (location.pathname !== nextPath) navigate(nextPath);
+    const unread = dmUnread[friend.id] || 0;
+    setUnreadMarker(unread > 0 ? { key: `dm:${friend.id}`, count: unread } : null);
     setActiveGroup(null);
     setActiveDmUser(friend);
+    if (!dmByUserId[friend.id]) setMessagesLoading(true);
     setDmUnread((u) => { const n = { ...u }; delete n[friend.id]; return n; });
     socketRef.current?.emit("dm:mark_read", { withUserId: friend.id });
     socketRef.current?.emit("dm:history", { withUserId: friend.id });
     socketRef.current?.emit("dm:set_active", { withUserId: friend.id });
   };
+
+  // Desktop/web notification click → open the related DM or group
+  useEffect(() => {
+    const onNotifClick = (event) => {
+      const detail = event?.detail;
+      // Electron sends { title, body, tag, data }; web Notification sends data directly
+      const data = detail?.data && typeof detail.data === "object" ? detail.data : detail;
+      if (!data || typeof data !== "object") return;
+      const type = data.type;
+
+      if (type === "dm" || type === "missed-call") {
+        const peerId = data.conversationId || data.fromId;
+        if (!peerId) return;
+        const friend =
+          friendsRef.current.find((f) => f.id === peerId) ||
+          { id: peerId, username: data.from || "User" };
+        handleOpenDm(friend);
+        return;
+      }
+
+      if (type === "group" || type === "group-call" || (type === "mention" && data.groupId)) {
+        const groupId = data.groupId;
+        if (!groupId) return;
+        const group =
+          myGroupsRef.current.find((g) => g.id === groupId) ||
+          { id: groupId, name: data.groupName || "Grup" };
+        setReplyTo(null);
+        setActiveDmUser(null);
+        setActiveGroup(group);
+        socketRef.current?.emit("dm:set_active", { withUserId: null });
+        setGroupUnread((u) => {
+          if (!u[groupId]) return u;
+          const n = { ...u };
+          delete n[groupId];
+          return n;
+        });
+        socketRef.current?.emit("group:join", groupId);
+        return;
+      }
+
+      if (type === "mention" && data.dmConversationId) {
+        const peerId = data.dmConversationId;
+        const friend =
+          friendsRef.current.find((f) => f.id === peerId) ||
+          { id: peerId, username: data.from || "User" };
+        handleOpenDm(friend);
+        return;
+      }
+
+      if (type === "friend-request") {
+        // Open friends list focus is enough — status is already in sidebar
+        return;
+      }
+    };
+
+    window.addEventListener("descall:notification-click", onNotifClick);
+    return () => window.removeEventListener("descall:notification-click", onNotifClick);
+    // handleOpenDm closes over dmUnread/dmByUserId — rebind when those change
+  }, [dmUnread, dmByUserId]);
 
   const handleSendDm = (toUserId, text) => {
     socketRef.current?.emit("dm:send", { toUserId, text });
@@ -1029,13 +1933,67 @@ export default function App() {
   };
 
   const handleAcceptFriend = (fromUserId) => {
-    socketRef.current?.emit("friend:accept", { fromUserId });
-    setFriendRequests((prev) => prev.filter((r) => r.id !== fromUserId));
+    const id = String(fromUserId || "").trim();
+    if (!id) return;
+    const socket = socketRef.current;
+    // Optimistic remove — restored via friend:error → friend:list if it fails
+    setFriendRequests((prev) => prev.filter((r) => r.id !== id));
+    if (socket?.connected) {
+      socket.emit("friend:accept", { fromUserId: id });
+      return;
+    }
+    // HTTP fallback when socket is down
+    const token = getToken();
+    fetch(`${API_BASE_URL}/friends/accept`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ fromUserId: id }),
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Failed to accept");
+        setFriendNotice(t("Friend request accepted"));
+        setTimeout(() => setFriendNotice(""), 3000);
+        socketRef.current?.emit("friend:list");
+      })
+      .catch((err) => {
+        setFriendNotice(err.message || t("Friend action failed."));
+        setTimeout(() => setFriendNotice(""), 4000);
+        socketRef.current?.emit("friend:list");
+      });
   };
 
   const handleDeclineFriend = (fromUserId) => {
-    socketRef.current?.emit("friend:decline", { fromUserId });
-    setFriendRequests((prev) => prev.filter((r) => r.id !== fromUserId));
+    const id = String(fromUserId || "").trim();
+    if (!id) return;
+    const socket = socketRef.current;
+    setFriendRequests((prev) => prev.filter((r) => r.id !== id));
+    if (socket?.connected) {
+      socket.emit("friend:decline", { fromUserId: id });
+      return;
+    }
+    const token = getToken();
+    fetch(`${API_BASE_URL}/friends/decline`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ fromUserId: id }),
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || "Failed to decline");
+        socketRef.current?.emit("friend:list");
+      })
+      .catch((err) => {
+        setFriendNotice(err.message || t("Friend action failed."));
+        setTimeout(() => setFriendNotice(""), 4000);
+        socketRef.current?.emit("friend:list");
+      });
   };
 
   const handleRemoveFriend = (friendId) => {
@@ -1045,7 +2003,9 @@ export default function App() {
   };
 
   const handleStatusChange = (status) => {
+    if (!["online", "idle", "dnd", "invisible"].includes(status)) return;
     setMyStatus(status);
+    try { localStorage.setItem("descall:myStatus", status); } catch {}
     socketRef.current?.emit("status:set", { status });
   };
 
@@ -1164,19 +2124,35 @@ export default function App() {
 
   const connectionLabel = useMemo(() => {
     if (!isConnected) {
-      if (reconnectState === "reconnecting") return "Reconnecting…";
-      return "Offline";
+      if (reconnectState === "reconnecting") return t("Reconnecting…");
+      return t("Offline");
     }
-    return "Online";
-  }, [isConnected, reconnectState]);
+    return t("Online");
+  }, [isConnected, reconnectState, t]);
 
   const sortedDms = useMemo(() => {
-    const list = (friends || []).map((f) => ({
-      ...f,
-      lastMessage: dmPreviews[f.id] || f.lastMessage || null,
-      lastActivity: dmLastActivity[f.id] || f.lastActivity || null,
-      unreadCount: dmUnread[f.id] || 0,
-    }));
+    const list = (friends || []).map((f) => {
+      const cached = dmByUserId?.[f.id];
+      const lastCached =
+        Array.isArray(cached) && cached.length > 0 ? cached[cached.length - 1] : null;
+      const cachedPreview = lastCached
+        ? lastCached.text
+          || (lastCached.mediaType === "image"
+            ? t("📷 Photo")
+            : lastCached.mediaType === "voice" || lastCached.mediaType === "audio"
+              ? t("🎤 Voice message")
+              : lastCached.mediaUrl
+                ? t("📎 Attachment")
+                : null)
+        : null;
+      const cachedActivity = lastCached?.timestamp || lastCached?.created_at || null;
+      return {
+        ...f,
+        lastMessage: dmPreviews[f.id] || f.lastMessage || cachedPreview || null,
+        lastActivity: dmLastActivity[f.id] || f.lastActivity || cachedActivity || null,
+        unreadCount: dmUnread[f.id] || 0,
+      };
+    });
     return list.sort((a, b) => {
       const ta = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
       const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
@@ -1184,15 +2160,23 @@ export default function App() {
       if ((b.unreadCount || 0) !== (a.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
       return (a.username || "").localeCompare(b.username || "");
     });
-  }, [friends, dmLastActivity, dmPreviews, dmUnread]);
+  }, [friends, dmLastActivity, dmPreviews, dmUnread, dmByUserId, t]);
 
   const sortedGroups = useMemo(() => {
-    const list = (myGroups || []).map((g) => ({
-      ...g,
-      lastMessage: groupPreviews[g.id] || g.lastMessage || null,
-      lastActivity: groupLastActivity[g.id] || g.lastActivity || g.updated_at || g.created_at || null,
-      unreadCount: groupUnread[g.id] || 0,
-    }));
+    const list = (myGroups || []).map((g) => {
+      const cached = groupMessagesById[g.id];
+      const lastCached =
+        Array.isArray(cached) && cached.length > 0 ? cached[cached.length - 1] : null;
+      const cachedPreview = formatGroupPreviewFromMsg(lastCached, t);
+      const cachedActivity = lastCached?.timestamp || lastCached?.created_at || null;
+      return {
+        ...g,
+        lastMessage: groupPreviews[g.id] || g.lastMessage || cachedPreview || null,
+        lastActivity:
+          groupLastActivity[g.id] || g.lastActivity || cachedActivity || g.updated_at || g.created_at || null,
+        unreadCount: groupUnread[g.id] || 0,
+      };
+    });
     return list.sort((a, b) => {
       const ta = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
       const tb = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
@@ -1200,26 +2184,137 @@ export default function App() {
       if ((b.unreadCount || 0) !== (a.unreadCount || 0)) return (b.unreadCount || 0) - (a.unreadCount || 0);
       return (a.name || "").localeCompare(b.name || "");
     });
-  }, [myGroups, groupLastActivity, groupPreviews, groupUnread]);
+  }, [myGroups, groupLastActivity, groupPreviews, groupUnread, groupMessagesById, t]);
 
-  if (!sessionChecked) return <div className="session-boot" aria-busy="true" />;
+  // HTML boot splash covers first paint; dismiss once session is resolved
+  useEffect(() => {
+    if (!sessionChecked) return;
+    try {
+      window.__descallDismissBootSplash?.({ minMs: 1200 });
+    } catch {
+      /* ignore */
+    }
+  }, [sessionChecked]);
 
-  // Show download page for all non-logged-in users
-  if (!me) {
+  // After login, resume a pending Discord-style group invite
+  useEffect(() => {
+    if (!me?.id) return;
+    try {
+      const pending = sessionStorage.getItem("descall:pendingInvite");
+      if (!pending) return;
+      sessionStorage.removeItem("descall:pendingInvite");
+      setInviteCode(pending);
+      setInviteAuthOpen(false);
+      writeInvitePath(pending);
+    } catch {
+      /* ignore */
+    }
+  }, [me?.id]);
+
+  const handleInviteJoined = useCallback((group) => {
+    if (group?.id) {
+      setMyGroups((prev) => {
+        const list = Array.isArray(prev) ? prev : [];
+        if (list.some((g) => g.id === group.id)) return list;
+        return [group, ...list];
+      });
+      setReplyTo(null);
+      setActiveDmUser(null);
+      setActiveGroup(group);
+      setUnreadMarker(null);
+      if (socketRef.current?.connected) {
+        socketRef.current.emit("groups:rejoin", [group.id]);
+        socketRef.current.emit("dm:set_active", { withUserId: null });
+      }
+    }
+    try {
+      sessionStorage.removeItem("descall:pendingInvite");
+    } catch {
+      /* ignore */
+    }
+    clearInvitePath();
+    setInviteCode(null);
+    setInviteAuthOpen(false);
+  }, []);
+
+  const dismissInvite = useCallback(() => {
+    try {
+      sessionStorage.removeItem("descall:pendingInvite");
+    } catch {
+      /* ignore */
+    }
+    clearInvitePath();
+    setInviteCode(null);
+    setInviteAuthOpen(false);
+  }, []);
+
+  if (!sessionChecked) {
+    return <TitleBar />;
+  }
+
+  // Discord-style invite landing (works logged out + logged in)
+  if (inviteCode && !(inviteAuthOpen && !me)) {
     return (
-      <DownloadPage 
-        onLogin={handleLogin}
-        onRegister={handleRegister}
-        authLoading={authLoading}
-        authError={authError}
-      />
+      <>
+        <SeoHead forceNoindex title="Group invite — Descall" description="Join a Descall group" />
+        <TitleBar />
+        <GroupInviteLanding
+          code={inviteCode}
+          me={me}
+          onJoined={handleInviteJoined}
+          onNeedLogin={() => setInviteAuthOpen(true)}
+          onDismiss={dismissInvite}
+        />
+      </>
+    );
+  }
+
+  // Public marketing site for logged-out users (real SEO routes)
+  if (!me) {
+    if (isAuthenticatedAppPath(location.pathname)) {
+      return <Navigate to="/" replace />;
+    }
+    // Native Android/iOS launches are product entry points, not SEO landing
+    // pages. Take people straight to sign-in/sign-up so an installed app
+    // feels like an app from its first frame.
+    if (Capacitor.isNativePlatform()) {
+      return (
+        <>
+          <TitleBar />
+          <AuthView
+            onLogin={handleLogin}
+            onRegister={handleRegister}
+            onGoogleLogin={handleGoogleLogin}
+            loading={authLoading}
+            error={authError}
+          />
+        </>
+      );
+    }
+    return (
+      <>
+        <TitleBar />
+        <MarketingApp
+          onLogin={handleLogin}
+          onRegister={handleRegister}
+          onGoogleLogin={handleGoogleLogin}
+          authLoading={authLoading}
+          authError={authError}
+        />
+      </>
     );
   }
 
   return (
+    <>
+    {/* Authenticated app shell — never index private UI */}
+    <SeoHead forceNoindex title="Descall" description="Descall app" path="/app" />
+    <TitleBar />
     <div className="app-container">
         {updateState && (
-          <div style={{
+          <div
+            className="electron-update-banner"
+            style={{
             position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
             background: updateState === 'installing' ? '#23a55a' : '#5865f2',
             color: '#fff', fontSize: '13px', fontWeight: 600,
@@ -1244,31 +2339,73 @@ export default function App() {
           onProfileUpdated={applyProfileUpdate}
           activeDmUser={activeDmUser}
           activeGroup={activeGroup}
+          activeView={activeView}
+          onActiveViewChange={(view) => {
+            const nextPath = appPathForView(view);
+            setActiveView(view);
+            if (location.pathname !== nextPath) navigate(nextPath);
+          }}
+          userPanelOpen={userPanelOpen}
+          settingsTab={requestedRoute.settingsTab}
+          onUserPanelOpenChange={(open) => {
+            setUserPanelOpen(open);
+            const nextPath = open ? "/settings" : appPathForView(activeView);
+            if (location.pathname !== nextPath) navigate(nextPath);
+          }}
+          onSettingsTabChange={(tab) => {
+            const nextPath = tab && tab !== "overview" ? `/settings/${encodeURIComponent(tab)}` : "/settings";
+            if (location.pathname !== nextPath) navigate(nextPath);
+          }}
           groups={sortedGroups}
           dms={sortedDms}
           friends={friends}
           onlineUsers={onlineUsers}
+          myStatus={myStatus}
+          onStatusChange={handleStatusChange}
           onAdminClick={() => setAdminOpen(true)}
           isAdmin={me?.is_admin || me?.username === "admin"}
           onDmSelect={(dm) => {
-            setActiveDmUser(dm);
-            if (dm) {
-              setActiveGroup(null);
-              setDmUnread((u) => { const n = { ...u }; delete n[dm.id]; return n; });
-              socketRef.current?.emit("dm:mark_read", { withUserId: dm.id });
-              socketRef.current?.emit("dm:set_active", { withUserId: dm.id });
-            } else {
+            setReplyTo(null);
+            if (!dm) {
+              setActiveDmUser(null);
+              setUnreadMarker(null);
+              setMessagesLoading(false);
               socketRef.current?.emit("dm:set_active", { withUserId: null });
+              if (location.pathname.startsWith("/direct/")) navigate("/direct");
+              return;
             }
+            const nextPath = directPath(dm);
+            if (location.pathname !== nextPath) navigate(nextPath);
+            const unread = dmUnread[dm.id] || 0;
+            setUnreadMarker(unread > 0 ? { key: `dm:${dm.id}`, count: unread } : null);
+            setActiveGroup(null);
+            setActiveDmUser(dm);
+            if (dmByUserId[dm.id] === undefined) setMessagesLoading(true);
+            setDmUnread((u) => { const n = { ...u }; delete n[dm.id]; return n; });
+            socketRef.current?.emit("dm:mark_read", { withUserId: dm.id });
+            socketRef.current?.emit("dm:history", { withUserId: dm.id });
+            socketRef.current?.emit("dm:set_active", { withUserId: dm.id });
           }}
           onGroupSelect={(group) => {
+            setReplyTo(null);
             setActiveDmUser(null);
-            setActiveGroup(group);
-            socketRef.current?.emit("dm:set_active", { withUserId: null });
-            if (group?.id) {
-              setGroupUnread((u) => { const n = { ...u }; delete n[group.id]; return n; });
-              socketRef.current?.emit("group:join", group.id);
+            if (!group?.id) {
+              setActiveGroup(null);
+              setUnreadMarker(null);
+              setMessagesLoading(false);
+              socketRef.current?.emit("dm:set_active", { withUserId: null });
+              if (location.pathname.startsWith("/groups/")) navigate("/groups");
+              return;
             }
+            const nextPath = groupPath(group);
+            if (location.pathname !== nextPath) navigate(nextPath);
+            const unread = groupUnread[group.id] || 0;
+            setUnreadMarker(unread > 0 ? { key: `group:${group.id}`, count: unread } : null);
+            setActiveGroup(group);
+            if (groupMessagesById[group.id] === undefined) setMessagesLoading(true);
+            socketRef.current?.emit("dm:set_active", { withUserId: null });
+            setGroupUnread((u) => { const n = { ...u }; delete n[group.id]; return n; });
+            socketRef.current?.emit("group:join", group.id);
           }}
           dmUnread={dmUnread}
           groupUnread={groupUnread}
@@ -1289,20 +2426,33 @@ export default function App() {
           friendRequests={friendRequests}
           onAcceptFriend={handleAcceptFriend}
           onDeclineFriend={handleDeclineFriend}
+          replyTo={replyTo}
+          onClearReply={() => setReplyTo(null)}
           onSendMessage={(msg) => {
-            const isMediaObject = msg && typeof msg === "object" && (msg.type === "gif" || msg.type === "media");
+            const isObj = msg && typeof msg === "object";
+            const isMediaObject = isObj && (msg.type === "gif" || msg.type === "media");
+            const textPayload = isObj && msg.type === "text" ? msg.text : (!isObj ? msg : "");
+            const replyMeta = isObj ? msg.replyTo : null;
 
             if (activeDmUser) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
               const optimisticMessage = {
                 id: tempId,
-                from: { id: me?.id, username: me?.username },
+                from: normalizeUser({
+                  id: me?.id,
+                  username: me?.username,
+                  displayName: me?.displayName || me?.display_name,
+                  avatarUrl: me?.avatarUrl || me?.avatar_url,
+                  updated_at: me?.updated_at || me?.avatarVersion,
+                }),
                 to: { id: activeDmUser.id },
-                text: isMediaObject ? "" : msg,
+                text: isMediaObject ? "" : textPayload,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
                 mediaType: isMediaObject ? msg.mediaType : undefined,
                 originalName: isMediaObject ? msg.originalName : undefined,
                 size: isMediaObject ? msg.size : undefined,
+                duration: isMediaObject ? msg.duration : undefined,
+                replyTo: replyMeta || undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
               };
@@ -1314,58 +2464,105 @@ export default function App() {
               setDmPreviews((prev) => ({
                 ...prev,
                 [activeDmUser.id]: isMediaObject
-                  ? (msg.mediaType === "image" ? "📷 Photo" : "📎 Attachment")
-                  : String(msg).slice(0, 80),
+                  ? (msg.mediaType === "image"
+                    ? "📷 Photo"
+                    : msg.mediaType === "voice" || msg.mediaType === "audio"
+                      ? "🎤 Voice message"
+                      : "📎 Attachment")
+                  : String(textPayload).slice(0, 80),
               }));
               if (isMediaObject) {
+                const isVoice = msg.mediaType === "voice" || msg.mediaType === "audio";
                 socketRef.current?.emit("dm:send", {
                   toUserId: activeDmUser.id,
                   tempId,
-                  text: "",
+                  text: isVoice ? encodeVoiceContent(msg.duration || 0) : "",
                   mediaUrl: msg.mediaUrl,
-                  mediaType: msg.mediaType,
+                  mediaType: isVoice ? "voice" : msg.mediaType,
                   mimeType: msg.mimeType,
                   size: msg.size,
                   originalName: msg.originalName,
+                  duration: msg.duration,
+                  replyTo: replyMeta || undefined,
                 });
               } else {
-                socketRef.current?.emit("dm:send", { toUserId: activeDmUser.id, tempId, text: msg });
+                socketRef.current?.emit("dm:send", {
+                  toUserId: activeDmUser.id,
+                  tempId,
+                  text: textPayload,
+                  replyTo: replyMeta || undefined,
+                });
               }
+              setReplyTo(null);
             } else if (activeGroup) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+              const textStr = isMediaObject ? "" : String(textPayload || "");
+              const isCasinoCmd =
+                textStr.trim().startsWith("/") &&
+                ["/bj", "/blackjack", "/hit", "/stand", "/stay", "/double", "/credits", "/bakiye", "/balance", "/top", "/lider", "/help", "/yardım", "/commands", "/jb", "/daily"].some(
+                  (cmd) => textStr.trim().toLowerCase().startsWith(cmd)
+                );
               const optimistic = {
                 id: tempId,
-                from: normalizeUser({ id: me?.id, username: me?.username, avatarUrl: me?.avatarUrl, updated_at: me?.updated_at }),
-                text: isMediaObject ? "" : msg,
+                from: normalizeUser({
+                  id: me?.id,
+                  username: me?.username,
+                  displayName: me?.displayName || me?.display_name,
+                  avatarUrl: me?.avatarUrl || me?.avatar_url,
+                  updated_at: me?.updated_at || me?.avatarVersion,
+                }),
+                text: isMediaObject ? "" : textStr,
                 mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
                 mediaType: isMediaObject ? msg.mediaType : undefined,
                 originalName: isMediaObject ? msg.originalName : undefined,
                 size: isMediaObject ? msg.size : undefined,
+                duration: isMediaObject ? msg.duration : undefined,
+                replyTo: replyMeta || undefined,
                 timestamp: new Date().toISOString(),
                 sending: true,
               };
-              setGroupMessagesById((prev) => ({
-                ...prev,
-                [activeGroup.id]: [...(prev[activeGroup.id] ?? []), optimistic],
-              }));
-              setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: optimistic.timestamp }));
+              // Don't flash "/bj 100" as a chat row — casino board arrives via game:*
+              if (!isCasinoCmd) {
+                setGroupMessagesById((prev) => ({
+                  ...prev,
+                  [activeGroup.id]: [...(prev[activeGroup.id] ?? []), optimistic],
+                }));
+                setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: optimistic.timestamp }));
+              } else {
+                setGroupLastActivity((prev) => ({ ...prev, [activeGroup.id]: optimistic.timestamp }));
+              }
               setGroupPreviews((prev) => ({
                 ...prev,
-                [activeGroup.id]: isMediaObject
-                  ? `${me?.username || "You"}: 📎 Attachment`
-                  : `${me?.username || "You"}: ${String(msg).slice(0, 60)}`,
+                [activeGroup.id]: formatGroupPreviewFromMsg(
+                  {
+                    from: { username: me?.username || t("You") },
+                    text: isMediaObject ? "" : textStr,
+                    mediaType: isMediaObject ? msg.mediaType : undefined,
+                    mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
+                  },
+                  t
+                ) || `${me?.username || t("You")}: ${String(textStr).slice(0, 60)}`,
               }));
               if (isMediaObject) {
+                const isVoice = msg.mediaType === "voice" || msg.mediaType === "audio";
                 socketRef.current?.emit("group:message", {
                   groupId: activeGroup.id,
                   tempId,
-                  content: "",
+                  content: isVoice ? encodeVoiceContent(msg.duration || 0) : "",
                   mediaUrl: msg.mediaUrl,
-                  mediaType: msg.mediaType,
+                  mediaType: isVoice ? "voice" : msg.mediaType,
+                  duration: msg.duration,
+                  replyTo: replyMeta || undefined,
                 });
               } else {
-                socketRef.current?.emit("group:message", { groupId: activeGroup.id, tempId, content: msg });
+                socketRef.current?.emit("group:message", {
+                  groupId: activeGroup.id,
+                  tempId,
+                  content: textStr,
+                  replyTo: replyMeta || undefined,
+                });
               }
+              setReplyTo(null);
             }
           }}
           onVoiceCall={() => {
@@ -1390,6 +2587,22 @@ export default function App() {
               return;
             }
             if (activeDmUser && call?.startCall) call.startCall(activeDmUser, "video");
+          }}
+          onStartCall={(user, type = "voice") => {
+            if (groupCall?.isInCall) return;
+            if (user && call?.startCall) call.startCall(user, type);
+          }}
+          onStartGroupCallFromCalls={(group, type = "voice") => {
+            if (!group?.id || !groupCall) return;
+            if (groupCall.isInCall) return;
+            const banner = groupCall.activeCallBanner;
+            if (banner?.groupId === group.id) {
+              groupCall.joinActiveCall(banner);
+              return;
+            }
+            const full = sortedGroups.find((g) => g.id === group.id) || group;
+            const memberIds = full.memberIds || full.members?.map((m) => m.id) || [];
+            groupCall.startGroupCall(full.id, type, memberIds);
           }}
           onGroupVoiceCall={() => {
             if (!activeGroup || !groupCall) return;
@@ -1445,6 +2658,7 @@ export default function App() {
             friends={friends}
             onlineUsers={onlineUsers}
             onStartDm={(user) => setActiveDmUser(user)}
+            onReply={setReplyTo}
             onJoinActiveCall={() => {
               if (!activeGroup || !groupCall?.activeCallBanner) return;
               groupCall.joinActiveCall(groupCall.activeCallBanner);
@@ -1452,6 +2666,19 @@ export default function App() {
             onDismissActiveBanner={groupCall?.dismissActiveBanner}
             socket={socketRef.current}
             activeGroup={activeGroup}
+            activeDmUser={activeDmUser}
+            loading={Boolean(
+              messagesLoading &&
+                ((activeDmUser && dmByUserId[activeDmUser.id] === undefined) ||
+                  (activeGroup && groupMessagesById[activeGroup.id] === undefined))
+            )}
+            unreadCount={
+              unreadMarker &&
+              ((activeDmUser && unreadMarker.key === `dm:${activeDmUser.id}`) ||
+                (activeGroup && unreadMarker.key === `group:${activeGroup.id}`))
+                ? unreadMarker.count
+                : 0
+            }
           />
         </AppLayout>
         <CallOverlay call={call} groupCall={groupCall} me={me} />
@@ -1461,5 +2688,6 @@ export default function App() {
           onDecline={(groupId, fromUserId, fromUser, callType) => groupCall?.declineCall(groupId, fromUserId, fromUser, callType)}
         />
       </div>
+    </>
   );
 }

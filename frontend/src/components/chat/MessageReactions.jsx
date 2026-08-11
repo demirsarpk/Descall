@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Smile, X } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👏", "🤔", "👎"];
 
@@ -13,6 +14,7 @@ export default function MessageReactions({
   socket,
   onReact
 }) {
+  const t = useT();
   const [showPicker, setShowPicker] = useState(false);
   const [localReactions, setLocalReactions] = useState(reactions);
 
@@ -22,14 +24,17 @@ export default function MessageReactions({
   }, [reactions]);
 
   // Group reactions by emoji
-  const groupedReactions = localReactions.reduce((acc, reaction) => {
-    if (!acc[reaction.emoji]) {
-      acc[reaction.emoji] = { count: 0, users: [], hasMine: false };
+  const groupedReactions = (Array.isArray(localReactions) ? localReactions : []).reduce((acc, reaction) => {
+    const emoji = reaction?.emoji;
+    const userId = reaction?.userId;
+    if (!emoji || !userId) return acc;
+    if (!acc[emoji]) {
+      acc[emoji] = { count: 0, users: [], hasMine: false };
     }
-    acc[reaction.emoji].count++;
-    acc[reaction.emoji].users.push(reaction.userId);
-    if (reaction.userId === currentUserId) {
-      acc[reaction.emoji].hasMine = true;
+    acc[emoji].count++;
+    acc[emoji].users.push(userId);
+    if (userId === currentUserId) {
+      acc[emoji].hasMine = true;
     }
     return acc;
   }, {});
@@ -90,7 +95,7 @@ export default function MessageReactions({
             onClick={() => handleReactionClick(emoji)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            title={`${data.count} reaction${data.count > 1 ? "s" : ""}`}
+            title={t(data.count === 1 ? "{count} reaction" : "{count} reactions", { count: data.count })}
           >
             <span className="reaction-emoji">{emoji}</span>
             <span className="reaction-count">{data.count}</span>
@@ -105,7 +110,7 @@ export default function MessageReactions({
           onClick={() => setShowPicker(!showPicker)}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          title="Add reaction"
+          title={t("Add reaction")}
         >
           <Smile size={16} />
         </motion.button>
@@ -127,7 +132,7 @@ export default function MessageReactions({
                 exit={{ opacity: 0, scale: 0.8, y: 10 }}
               >
                 <div className="reaction-picker-header">
-                  <span>Add Reaction</span>
+                  <span>{t("Add Reaction")}</span>
                   <button className="reaction-picker-close" onClick={() => setShowPicker(false)}>
                     <X size={14} />
                   </button>

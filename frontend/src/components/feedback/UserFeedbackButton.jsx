@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import RippleButton from "../ui/RippleButton";
 import { API_BASE_URL } from "../../config/api";
+import { useT } from "../../context/LocaleContext";
 
 const CATEGORIES = [
   { id: "bug", label: "Bug Report", icon: AlertTriangle, color: "#f23f43" },
@@ -24,6 +25,7 @@ const PRIORITIES = [
 ];
 
 export default function UserFeedbackButton({ socket, user }) {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState("");
@@ -38,7 +40,7 @@ export default function UserFeedbackButton({ socket, user }) {
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
     if (attachments.length + files.length > 5) {
-      setError("Maximum 5 attachments allowed");
+      setError(t("Maximum 5 attachments allowed"));
       setTimeout(() => setError(""), 3000);
       return;
     }
@@ -86,7 +88,7 @@ export default function UserFeedbackButton({ socket, user }) {
           }
         } else {
           const errorText = await res.text();
-          throw new Error(`Failed to upload ${file.name}: ${res.status}`);
+          throw new Error(t("Failed to upload {name}: {status}", { name: file.name, status: res.status }));
         }
       }
       
@@ -110,14 +112,14 @@ export default function UserFeedbackButton({ socket, user }) {
       const responseText = await res.text();
       
       if (!responseText) {
-        throw new Error("Server returned empty response");
+        throw new Error(t("Server returned empty response"));
       }
       
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (parseErr) {
-        throw new Error(`Server returned invalid JSON: ${parseErr.message}`);
+        throw new Error(t("Server returned invalid JSON: {message}", { message: parseErr.message }));
       }
       
       if (res.ok) {
@@ -132,10 +134,10 @@ export default function UserFeedbackButton({ socket, user }) {
           setAttachments([]);
         }, 2000);
       } else {
-        throw new Error(data.error || data.details || `HTTP ${res.status}: ${responseText.slice(0, 100)}`);
+        throw new Error(data.error || data.details || t("HTTP {status}: {detail}", { status: res.status, detail: responseText.slice(0, 100) }));
       }
     } catch (err) {
-      setError("Failed to submit feedback: " + err.message);
+      setError(t("Failed to submit feedback: {message}", { message: err.message }));
       setTimeout(() => setError(""), 5000);
     } finally {
       setIsSubmitting(false);
@@ -154,7 +156,7 @@ export default function UserFeedbackButton({ socket, user }) {
         animate={{ opacity: 1, y: 0 }}
       >
         <MessageSquare size={24} />
-        <span>Feedback</span>
+        <span>{t("Feedback")}</span>
       </motion.button>
 
       {/* Feedback Modal */}
@@ -198,16 +200,16 @@ export default function UserFeedbackButton({ socket, user }) {
                   >
                     <CheckCircle size={64} color="#23a55a" />
                   </motion.div>
-                  <h3>Thank You!</h3>
-                  <p>Your feedback has been submitted successfully.</p>
+                  <h3>{t("Thank You!")}</h3>
+                  <p>{t("Your feedback has been submitted successfully.")}</p>
                 </div>
               ) : (
                 <>
                   <div className="feedback-header">
                     <h3>
-                      {step === 1 && "Select Category"}
-                      {step === 2 && "Describe the Issue"}
-                      {step === 3 && "Set Priority"}
+                      {step === 1 && t("Select Category")}
+                      {step === 2 && t("Describe the Issue")}
+                      {step === 3 && t("Set Priority")}
                     </h3>
                     <button 
                       onClick={() => !isSubmitting && setIsOpen(false)}
@@ -236,7 +238,7 @@ export default function UserFeedbackButton({ socket, user }) {
                             style={{ borderColor: category === cat.id ? cat.color : undefined }}
                           >
                             <cat.icon size={24} color={cat.color} />
-                            <span>{cat.label}</span>
+                            <span>{t(cat.label)}</span>
                           </motion.button>
                         ))}
                       </div>
@@ -245,7 +247,7 @@ export default function UserFeedbackButton({ socket, user }) {
                     {step === 2 && (
                       <div className="feedback-form">
                         <textarea
-                          placeholder="Please describe your feedback in detail..."
+                          placeholder={t("Please describe your feedback in detail...")}
                           value={message}
                           onChange={e => setMessage(e.target.value)}
                           rows={5}
@@ -269,7 +271,7 @@ export default function UserFeedbackButton({ socket, user }) {
                             disabled={attachments.length >= 5}
                           >
                             <Image size={16} />
-                            Attach Screenshot {attachments.length > 0 && `(${attachments.length}/5)`}
+                            {t("Attach screenshots ({count}/5)", { count: attachments.length })}
                           </RippleButton>
                           
                           {attachments.length > 0 && (
@@ -290,7 +292,7 @@ export default function UserFeedbackButton({ socket, user }) {
 
                     {step === 3 && (
                       <div className="priority-selection">
-                        <p>How urgent is this issue?</p>
+                        <p>{t("How urgent is this issue?")}</p>
                         <div className="priority-grid">
                           {PRIORITIES.map(p => (
                             <motion.button
@@ -308,18 +310,18 @@ export default function UserFeedbackButton({ socket, user }) {
                                 className="priority-indicator" 
                                 style={{ background: p.color }}
                               />
-                              <span>{p.label}</span>
+                              <span>{t(p.label)}</span>
                             </motion.button>
                           ))}
                         </div>
                         
                         <div className="feedback-summary">
-                          <h4>Summary</h4>
-                          <p><strong>Category:</strong> {CATEGORIES.find(c => c.id === category)?.label}</p>
-                          <p><strong>Message:</strong> {message.slice(0, 100)}{message.length > 100 ? "..." : ""}</p>
-                          <p><strong>Priority:</strong> {PRIORITIES.find(p => p.id === priority)?.label}</p>
+                          <h4>{t("Summary")}</h4>
+                          <p><strong>{t("Category:")}</strong> {t(CATEGORIES.find(c => c.id === category)?.label || "")}</p>
+                          <p><strong>{t("Message:")}</strong> {message.slice(0, 100)}{message.length > 100 ? "..." : ""}</p>
+                          <p><strong>{t("Priority:")}</strong> {t(PRIORITIES.find(p => p.id === priority)?.label || "")}</p>
                           {attachments.length > 0 && (
-                            <p><strong>Attachments:</strong> {attachments.length} file(s)</p>
+                            <p><strong>{t("Attachments:")}</strong> {t("{count} file(s)", { count: attachments.length })}</p>
                           )}
                         </div>
                       </div>
@@ -333,7 +335,7 @@ export default function UserFeedbackButton({ socket, user }) {
                         disabled={isSubmitting}
                         className="secondary"
                       >
-                        Back
+                        {t("Back")}
                       </RippleButton>
                     )}
                     
@@ -343,7 +345,7 @@ export default function UserFeedbackButton({ socket, user }) {
                         disabled={step === 1 && !category}
                         className="primary"
                       >
-                        Next
+                        {t("Next")}
                       </RippleButton>
                     ) : (
                       <RippleButton 
@@ -354,12 +356,12 @@ export default function UserFeedbackButton({ socket, user }) {
                         {isSubmitting ? (
                           <>
                             <Loader2 size={16} className="spin" />
-                            Submitting...
+                            {t("Submitting...")}
                           </>
                         ) : (
                           <>
                             <Send size={16} />
-                            Submit Feedback
+                            {t("Submit Feedback")}
                           </>
                         )}
                       </RippleButton>

@@ -1,0 +1,32 @@
+# Served as a fallback if Express robots route is unavailable.
+# Production truth: frontend/backend/routes/sitemap.js → GET /robots.txt
+
+User-agent: *
+Allow: /
+Allow: /download
+Allow: /features
+Allow: /faq
+Allow: /security
+Allow: /about
+Allow: /privacy
+Allow: /terms
+Allow: /contact
+Allow: /compare/
+Allow: /sitemap.xml
+Allow: /sitemap-pages.xml
+Allow: /sitemap.html
+
+Disallow: /app/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /admin/
+Disallow: /media/
+Disallow: /groups/
+Disallow: /friends/
+Disallow: /guilds/
+Disallow: /invite/
+Disallow: /i/
+Disallow: /debug/
+Disallow: /health
+
+Sitemap: https://des-call.onrender.com/sitemap.xml

@@ -1,24 +1,24 @@
-# Descall — Render Blueprint (FREE tier)
-# URL: https://des-call.onrender.com
+# Descall — Render Blueprint
 #
-# İlk Blueprint kurulumunda Render şunları sorar (sync: false):
+# Production: https://des-call.onrender.com          (branch: main)
+# Staging:    https://des-call-staging.onrender.com  (branch: staging)
+#
+# Akış:
+#   1) Değişiklikleri `staging` branch'ine push et → staging site güncellenir
+#   2) Test et (https://des-call-staging.onrender.com)
+#   3) Sorun yoksa `staging` → `main` merge → production güncellenir
+#
+# İlk Blueprint kurulumunda Render sorar (sync: false):
 #   - SUPABASE_URL
 #   - SUPABASE_SERVICE_ROLE_KEY
+#   - GOOGLE_CLIENT_ID / VITE_GOOGLE_CLIENT_ID (opsiyonel)
 # JWT_SECRET otomatik üretilir (generateValue).
-#
-# Supabase değerlerini bulmak için:
-#   Dashboard → Project → Settings → API
-#   - Project URL  → SUPABASE_URL
-#   - service_role → SUPABASE_SERVICE_ROLE_KEY (anon key DEĞİL)
-#
-# Yerel kurulum / toplu import için:
-#   node scripts/setup-render-env.mjs
-#   veya render.env.example dosyasını doldurup Render'a yapıştır
 
 previews:
   generation: off
 
 services:
+  # ── Production (ana site) ───────────────────────────────────────
   - type: web
     name: des-call
     runtime: node
@@ -30,22 +30,60 @@ services:
     buildCommand: cd frontend && npm install --include=dev && npm run build:prod && cd backend && npm install
     startCommand: cd frontend/backend && NODE_ENV=production node server.js
     envVars:
-      # --- Supabase (Render ilk kurulumda sorar) ---
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      # --- Auth ---
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: "7d"
-      # --- Runtime ---
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
       - key: NODE_VERSION
         value: "20"
       - key: PORT
         value: "3000"
       - key: ALLOW_ALL_ORIGINS
         value: "true"
+      - key: APP_ENV
+        value: production
       - key: VITE_API_BASE_URL
         value: https://des-call.onrender.com
+
+  # ── Staging (test site) ─────────────────────────────────────────
+  - type: web
+    name: des-call-staging
+    runtime: node
+    region: frankfurt
+    plan: free
+    branch: staging
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    buildCommand: cd frontend && npm install --include=dev && npm run build:prod && cd backend && npm install
+    startCommand: cd frontend/backend && NODE_ENV=production node server.js
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "7d"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+      - key: NODE_VERSION
+        value: "20"
+      - key: PORT
+        value: "3000"
+      - key: ALLOW_ALL_ORIGINS
+        value: "true"
+      - key: APP_ENV
+        value: staging
+      - key: VITE_API_BASE_URL
+        value: https://des-call-staging.onrender.com

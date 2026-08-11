@@ -1,5 +1,35 @@
+import { t } from '../i18n/runtime';
+
 const COOLDOWN_MS = 800;
 const CALL_TAG = 'descall-incoming-call';
+
+function readUserSettings() {
+  try {
+    const raw =
+      localStorage.getItem('descall_user_settings') ||
+      localStorage.getItem('descall_settings') ||
+      '{}';
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function readMyStatus() {
+  try {
+    const saved = localStorage.getItem('descall:myStatus');
+    if (['online', 'idle', 'dnd', 'invisible'].includes(saved)) return saved;
+  } catch {
+    /* ignore */
+  }
+  return 'online';
+}
+
+/** DND mutes desktop notifications; live incoming calls still ring. */
+function isDndMuted({ allowDuringDnd = false } = {}) {
+  if (allowDuringDnd) return false;
+  return readMyStatus() === 'dnd';
+}
 
 class NotificationService {
   constructor() {
@@ -66,9 +96,9 @@ class NotificationService {
     return document.hasFocus();
   }
 
-  async show({ title, body, tag = 'descall', requireInteraction = false, silent = false, data = {} }) {
+  async show({ title, body, tag = 'descall', requireInteraction = false, silent = false, data = {}, avatarUrl = null }) {
     if (!this.initialized) {
-      this.pendingNotifications.push({ title, body, tag, requireInteraction, silent, data });
+      this.pendingNotifications.push({ title, body, tag, requireInteraction, silent, data, avatarUrl });
       await this.init();
       return;
     }
@@ -100,7 +130,7 @@ class NotificationService {
     }
 
     if (this.isElectron) {
-      window.electronAPI.showNotification(title, { body, tag, data });
+      window.electronAPI.showNotification(title, { body, tag, data, requireInteraction, silent, avatarUrl });
     } else {
       this._showWebNotification({ title, body, tag, requireInteraction, silent, data });
     }
@@ -143,9 +173,11 @@ class NotificationService {
   // ─── Typed notification helpers ───────────────────────────────────────────
 
   async dm({ from, text, conversationId }) {
+    if (isDndMuted()) return;
+    if (readUserSettings().msgNotifications === false) return;
     await this.show({
       title: from,
-      body: text?.substring(0, 120) || 'Yeni mesaj',
+      body: text?.substring(0, 120) || t("New message"),
       tag: `dm-${conversationId}`,
       data: { type: 'dm', conversationId, from },
     });
@@ -157,17 +189,21 @@ class NotificationService {
   }
 
   async groupMessage({ groupName, from, text, groupId }) {
+    if (isDndMuted()) return;
+    if (readUserSettings().msgNotifications === false) return;
     await this.show({
       title: groupName,
-      body: `${from}: ${(text || 'Yeni mesaj').substring(0, 100)}`,
+      body: `${from}: ${(text || t("New message")).substring(0, 100)}`,
       tag: `group-${groupId}`,
       data: { type: 'group', groupId, from, groupName },
     });
   }
 
   async mention({ groupName, from, text, groupId, dmConversationId }) {
+    if (isDndMuted()) return;
+    if (readUserSettings().msgNotifications === false) return;
     await this.show({
-      title: `💬 ${from} senden bahsetti`,
+      title: `💬 ${t("{from} mentioned you", { from })}`,
       body: groupName ? `${groupName}: ${(text || '').substring(0, 100)}` : (text || '').substring(0, 120),
       tag: `mention-${groupId || dmConversationId}`,
       requireInteraction: true,
@@ -181,9 +217,11 @@ class NotificationService {
   }
 
   async incomingCall({ from, type = 'voice' }) {
+    // Live calls still notify during DND so you don't miss them
+    if (readUserSettings().callNotifications === false) return;
     await this.show({
-      title: `📞 ${from} arıyor`,
-      body: type === 'video' ? 'Görüntülü arama' : 'Sesli arama',
+      title: `📞 ${t("{from} is calling", { from })}`,
+      body: type === 'video' ? t("Video call") : t("Voice call"),
       tag: CALL_TAG,
       requireInteraction: true,
       data: { type: 'call', from, callType: type },
@@ -191,9 +229,10 @@ class NotificationService {
   }
 
   async groupCall({ groupName, from }) {
+    if (readUserSettings().callNotifications === false) return;
     await this.show({
-      title: `📞 ${groupName} — Grup Araması`,
-      body: `${from} grup araması başlattı`,
+      title: `📞 ${t("{groupName} — Group Call", { groupName })}`,
+      body: t("{from} started a group call", { from }),
       tag: `group-call-${groupName}`,
       requireInteraction: true,
       data: { type: 'group-call', groupName, from },
@@ -201,27 +240,32 @@ class NotificationService {
   }
 
   async missedCall({ from, type = 'voice' }) {
+    if (isDndMuted()) return;
     await this.show({
-      title: 'Cevapsız Arama',
-      body: `${from} ${type === 'video' ? 'görüntülü' : 'sesli'} aradı`,
+      title: t("Missed Call"),
+      body: type === 'video'
+        ? t("{from} made a video call", { from })
+        : t("{from} made a voice call", { from }),
       tag: `missed-call-${from}`,
       data: { type: 'missed-call', from, callType: type },
     });
   }
 
   async friendRequest({ from, fromId }) {
+    if (isDndMuted()) return;
     await this.show({
-      title: 'Arkadaşlık İsteği',
-      body: `${from} seni arkadaş olarak eklemek istiyor`,
+      title: t("Friend Request"),
+      body: t("{from} wants to add you as a friend", { from }),
       tag: `friend-req-${fromId}`,
       data: { type: 'friend-request', fromId, from },
     });
   }
 
   async friendOnline({ username }) {
+    if (isDndMuted()) return;
     await this.show({
-      title: 'Descall',
-      body: `${username} çevrimiçi oldu`,
+      title: t("Descall"),
+      body: t("{username} is now online", { username }),
       tag: `online-${username}`,
       silent: true,
       data: { type: 'friend-online', username },
@@ -229,6 +273,7 @@ class NotificationService {
   }
 
   async newAnnouncement({ title, preview, announcementId }) {
+    if (isDndMuted()) return;
     await this.show({
       title: `📢 ${title}`,
       body: preview,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Wifi, WifiOff } from "lucide-react";
+import { Mic, MicOff, VideoOff, Wifi, WifiOff } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { resolveAvatarUrl } from "../../lib/avatar";
 import {
@@ -8,6 +8,7 @@ import {
   getConnectionStatusLabel,
   DM_PARTICIPANT_EXIT_MS,
 } from "../../hooks/useDmRemoteParticipant";
+import { useT } from "../../context/LocaleContext";
 
 const PARTICIPANT_EASE = [0.16, 1, 0.3, 1];
 
@@ -28,7 +29,9 @@ const enterVariants = {
 };
 
 function ConnectionBadge({ status }) {
-  const label = getConnectionStatusLabel(status);
+  const t = useT();
+  const labelRaw = getConnectionStatusLabel(status);
+  const label = labelRaw ? t(labelRaw) : labelRaw;
   if (!label) return null;
 
   const isReconnecting = status === "reconnecting" || status === "connecting";
@@ -60,6 +63,7 @@ function ConnectionBadge({ status }) {
 }
 
 function ConnectingPlaceholder({ username, user, status }) {
+  const t = useT();
   return (
     <motion.div
       layout
@@ -89,11 +93,18 @@ function ConnectingPlaceholder({ username, user, status }) {
         animate={{ scale: [1, 1.04, 1] }}
         transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
       >
-        <Avatar name={username || "?"} size={64} imageUrl={resolveAvatarUrl(user)} />
+        <Avatar
+          name={username || "?"}
+          size={64}
+          user={user}
+          imageUrl={resolveAvatarUrl(user)}
+          animate="speaking"
+          isSpeaking={false}
+        />
       </motion.div>
       <div style={{ textAlign: "center", padding: "0 12px" }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 6 }}>
-          {username || "Participant"}
+          {username || t("Participant")}
         </div>
         <ConnectionBadge status={status || "connecting"} />
       </div>
@@ -111,8 +122,10 @@ export default function DmRemoteParticipantSlot({
   remoteStream,
   isSpeaking = false,
   isMuted = false,
+  cameraOn = true,
 }) {
-  const username = displayPeer?.username || "User";
+  const t = useT();
+  const username = displayPeer?.username || t("User");
   const user = displayPeer;
 
   const remoteVideoCallbackRef = useCallback(
@@ -157,22 +170,8 @@ export default function DmRemoteParticipantSlot({
           initial="hidden"
           animate="visible"
           exit="exit"
-          style={{
-            position: "relative",
-            borderRadius: 14,
-            overflow: "hidden",
-            background: "#1a1b1f",
-            border: isSpeaking ? "2px solid #3ba55d" : "2px solid transparent",
-            boxShadow: isSpeaking ? "0 0 0 1px rgba(59,165,93,0.35)" : "none",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minWidth: 0,
-            minHeight: 0,
-            width: "100%",
-            height: "100%",
-            willChange: "transform, opacity",
-          }}
+          className={`participant-tile${isSpeaking ? " is-speaking" : ""}`}
+          style={{ willChange: "transform, opacity" }}
         >
           {hasVideo && videoRef ? (
             <video
@@ -183,7 +182,41 @@ export default function DmRemoteParticipantSlot({
             />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-              <Avatar name={username} size={64} imageUrl={resolveAvatarUrl(user)} />
+              <div style={{ position: "relative", width: 64, height: 64 }}>
+                {isSpeaking && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        inset: -5,
+                        borderRadius: "50%",
+                        border: "2px solid #3ba55d",
+                        boxShadow: "0 0 0 3px rgba(59,165,93,0.22)",
+                        animation: "callTilePulse 1.2s infinite",
+                      }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        inset: -10,
+                        borderRadius: "50%",
+                        border: "1px solid rgba(59,165,93,0.38)",
+                        animation: "callTilePulse 1.2s 0.18s infinite",
+                      }}
+                    />
+                  </>
+                )}
+                <Avatar
+                  name={username}
+                  size={64}
+                  user={user}
+                  imageUrl={resolveAvatarUrl(user)}
+                  animate="speaking"
+                  isSpeaking={isSpeaking}
+                />
+              </div>
               <span style={{ fontSize: 13, color: "#b5bac1", fontWeight: 500 }}>{username}</span>
               <ConnectionBadge status="connected" />
             </div>
@@ -241,9 +274,26 @@ export default function DmRemoteParticipantSlot({
                   background: "rgba(237,66,69,0.85)",
                   flexShrink: 0,
                 }}
-                title="Muted"
+                title={t("Muted")}
               >
                 <MicOff size={12} color="#fff" />
+              </span>
+            )}
+            {cameraOn === false && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: "rgba(237,66,69,0.85)",
+                  flexShrink: 0,
+                }}
+                title={t("Camera off")}
+              >
+                <VideoOff size={12} color="#fff" />
               </span>
             )}
             {!isMuted && isSpeaking && (
@@ -258,7 +308,7 @@ export default function DmRemoteParticipantSlot({
                   background: "rgba(59,165,93,0.85)",
                   flexShrink: 0,
                 }}
-                title="Speaking"
+                title={t("Speaking")}
               >
                 <Mic size={12} color="#fff" />
               </span>
@@ -291,7 +341,13 @@ export default function DmRemoteParticipantSlot({
             willChange: "transform, opacity",
           }}
         >
-          <Avatar name={username} size={64} imageUrl={resolveAvatarUrl(user)} />
+          <Avatar
+            name={username}
+            size={64}
+            user={user}
+            imageUrl={resolveAvatarUrl(user)}
+            animate="never"
+          />
           <ConnectionBadge status="disconnected" />
         </motion.div>
       )}

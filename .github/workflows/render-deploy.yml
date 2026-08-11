@@ -2,27 +2,45 @@ name: Deploy to Render
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging]
   pull_request:
-    branches: [main]
+    branches: [main, staging]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to Render
+      - name: Deploy production (main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
           if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "Triggering Render deployment..."
-            curl -X POST "$RENDER_DEPLOY_HOOK_URL"
-            echo "Deploy triggered successfully!"
+            echo "Triggering PRODUCTION deploy (des-call)..."
+            curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+            echo "Production deploy triggered."
           else
-            echo "RENDER_DEPLOY_HOOK_URL not set. Skipping deploy."
-            echo "Set this secret in GitHub repo settings for auto-deploy."
+            echo "RENDER_DEPLOY_HOOK_URL not set — Render autoDeploy on main still applies if enabled."
           fi
+
+      - name: Deploy staging
+        if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+        env:
+          RENDER_STAGING_DEPLOY_HOOK_URL: ${{ secrets.RENDER_STAGING_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -n "$RENDER_STAGING_DEPLOY_HOOK_URL" ]; then
+            echo "Triggering STAGING deploy (des-call-staging)..."
+            curl -fsS -X POST "$RENDER_STAGING_DEPLOY_HOOK_URL"
+            echo "Staging deploy triggered."
+          else
+            echo "RENDER_STAGING_DEPLOY_HOOK_URL not set — Render autoDeploy on staging still applies if enabled."
+          fi
+
+      - name: PR note
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "PR against ${{ github.base_ref }} — no deploy hook fired."
+          echo "Merge to staging first to test, then promote staging → main for production."

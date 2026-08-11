@@ -3,13 +3,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor,
   Minus, Maximize2, Users, MessageSquare, Hand, MoreVertical, Check, X as XIcon,
-  Volume2, ChevronUp, Mic2, SlidersHorizontal
+  Volume2, ChevronUp, Mic2, SlidersHorizontal, PictureInPicture2,
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
 import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
 import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
 import { resolveAvatarUrl } from "../lib/avatar";
 import ScreenShareQualityPanel from "./voice/ScreenShareQualityPanel";
+import CallPipSource, { CallPipButton } from "./voice/CallPipSource";
+import IncomingCallCard from "./voice/IncomingCallCard";
+import { useIsNarrowViewport } from "../lib/useIsNarrowViewport";
+import useSpeaking from "../hooks/useSpeaking";
+import useAudioLevel from "../hooks/useAudioLevel";
+import { useT } from "../context/LocaleContext";
 
 /*
  * Google Meet-style call overlay
@@ -21,7 +27,14 @@ import ScreenShareQualityPanel from "./voice/ScreenShareQualityPanel";
  */
 const PULSE_STYLE = `@keyframes callTilePulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`;
 
+/** True when a MediaStream has a usable (non-ended) camera video track. */
+function streamHasLiveVideo(stream) {
+  if (!stream?.getVideoTracks) return false;
+  return stream.getVideoTracks().some((t) => t && t.readyState !== "ended");
+}
+
 export default function CallOverlay({ call, groupCall, me }) {
+  const t = useT();
   const [minimized, setMinimized] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -30,10 +43,14 @@ export default function CallOverlay({ call, groupCall, me }) {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showAudioPanel, setShowAudioPanel] = useState(false);
   const [showScreenQuality, setShowScreenQuality] = useState(false);
+  const [screenShareVolume, setScreenShareVolume] = useState(100);
   const [copiedInfo, setCopiedInfo] = useState(false);
+  const [pipApi, setPipApi] = useState(null);
+  const narrowViewport = useIsNarrowViewport(720);
   const moreMenuRef = useRef(null);
   const audioPanelRef = useRef(null);
   const screenQualityAnchorRef = useRef(null);
+  const onPipApi = useCallback((api) => setPipApi(api), []);
 
   useEffect(() => {
     if (!showMoreMenu) return;
@@ -69,6 +86,7 @@ export default function CallOverlay({ call, groupCall, me }) {
   const isDmActive = call?.mode !== null && call?.mode !== undefined;
   const isGroupActive = groupCall?.isInCall;
   const active = isDmActive || isGroupActive;
+  const isDm = isDmActive;
 
   useEffect(() => {
     if (!active) {
@@ -80,9 +98,23 @@ export default function CallOverlay({ call, groupCall, me }) {
     }
   }, [active]);
 
+  // `ontrack` can run while an incoming caller is still negotiating, before
+  // the active-call UI mounts its <audio>. Retry attachment after each render
+  // so the first remote audio track is never lost until a later renegotiation.
+  useEffect(() => {
+    const audio = call?.remoteAudioRef?.current;
+    const stream = call?.remoteStream;
+    const hasLiveAudio = stream?.getAudioTracks?.().some(
+      (track) => track?.readyState === "live" || track?.readyState === "new"
+    );
+    if (!isDm || !audio || !stream || !hasLiveAudio) return;
+    if (audio.srcObject !== stream) audio.srcObject = stream;
+    audio.muted = false;
+    audio.play().catch(() => {});
+  }, [isDm, call?.mode, call?.remoteAudioRef, call?.remoteStream]);
+
   if (!active) return null;
 
-  const isDm = isDmActive;
   const mode = isDm ? call.mode : "active";
   const peer = isDm ? call.peer : null;
   const callType = isDm ? call.callType : groupCall.callType;
@@ -93,224 +125,191 @@ export default function CallOverlay({ call, groupCall, me }) {
   const formattedDuration = duration
     ? `${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, "0")}`
     : "";
-  const title = isDm ? (peer?.username || "User") : "Group Call";
+  const title = isDm ? (peer?.username || t("User")) : t("Group Call");
+  const participantCount = (groupCall.participants?.filter((p) => p.id !== me?.id).length ?? 0) + 1;
   const subtitle = isDm
     ? mode === "incoming"
-      ? "Incoming call..."
+      ? t("Incoming call...")
       : mode === "outgoing"
       ? (call?.connectionQuality === "failed"
-          ? "User may be offline — waiting…"
-          : "Calling...")
+          ? t("User may be offline — waiting…")
+          : t("Calling..."))
       : call?.peerConnectionState === "reconnecting"
-      ? "Reconnecting…"
+      ? t("Reconnecting…")
       : call?.peerConnectionState === "connecting" || (call?.mode === "active" && !call?.remoteMediaReady)
-      ? "Connecting…"
+      ? t("Connecting…")
       : callType === "video"
-      ? "Video call"
-      : "Voice call"
-    : `${(groupCall.participants?.filter((p) => p.id !== me?.id).length ?? 0) + 1} participants`;
+      ? t("Video call")
+      : t("Voice call")
+    : participantCount <= 1
+      ? t("Waiting for others to join…")
+      : t("{count} participants", { count: participantCount });
 
-  /* ---------- Incoming DM: floating accept/decline popup ---------- */
+  const pipSource = (
+    <CallPipSource
+      isDm={isDm}
+      call={call}
+      groupCall={groupCall}
+      active={Boolean(active && !(isDm && mode === "incoming"))}
+      onApi={onPipApi}
+    />
+  );
+
+  const remoteAudio = isDm ? (
+    <audio
+      ref={call?.remoteAudioRef}
+      autoPlay
+      playsInline
+      style={{ display: "none" }}
+      aria-hidden="true"
+    />
+  ) : null;
+
+  /* ---------- Incoming DM: FaceTime-style avatar rings ---------- */
   if (isDm && mode === "incoming") {
     return (
-      <AnimatePresence>
-        <motion.div
-          key="dm-incoming-call"
-          initial={{ opacity: 0, y: -80, scale: 0.92 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -80, scale: 0.92 }}
-          transition={{ type: "spring", damping: 22, stiffness: 260 }}
-          style={{
-            position: "fixed",
-            top: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 10000,
-            background: "linear-gradient(135deg, #1e1f23 0%, #2b2d33 100%)",
-            borderRadius: 18,
-            padding: "20px 24px",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.07)",
-            display: "flex",
-            alignItems: "center",
-            gap: 16,
-            minWidth: 340,
-            maxWidth: 420,
-          }}
-        >
-          <motion.div
-            animate={{ scale: [1, 1.08, 1] }}
-            transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: "50%",
-              background: callType === "video" ? "#5865f2" : "#3ba55d",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            {callType === "video" ? <Video size={24} color="#fff" /> : <Phone size={24} color="#fff" />}
-          </motion.div>
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: "#b5bac1", marginBottom: 2 }}>
-              {callType === "video" ? "Incoming video call" : "Incoming voice call"}
-            </div>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#fff",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {peer?.username || "Someone"} is calling
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => call.declineIncoming?.()}
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: "50%",
-                background: "#ed4245",
-                border: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                cursor: "pointer",
-              }}
-              title="Decline"
-            >
-              <PhoneOff size={20} />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => call.acceptIncoming?.()}
-              style={{
-                width: 46,
-                height: 46,
-                borderRadius: "50%",
-                background: "#3ba55d",
-                border: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                cursor: "pointer",
-              }}
-              title="Accept"
-            >
-              <Phone size={20} />
-            </motion.button>
-          </div>
-        </motion.div>
-      </AnimatePresence>
+      <>
+        {remoteAudio}
+        <AnimatePresence>
+          <IncomingCallCard
+            key="dm-incoming-call"
+            username={peer?.username}
+            user={peer}
+            callType={callType}
+            onDecline={() => call.declineIncoming?.()}
+            onAccept={() => call.acceptIncoming?.()}
+          />
+        </AnimatePresence>
+      </>
     );
   }
 
   /* ---------- Minimized widget ---------- */
   if (minimized) {
     return (
-      <motion.div
-        className="call-overlay-minimized"
-        initial={{ opacity: 0, y: 60, scale: 0.9 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 60, scale: 0.9 }}
-        style={{
-          position: "fixed",
-          bottom: 20,
-          right: 20,
-          zIndex: 9999,
-          background: "#1e1f23",
-          borderRadius: 14,
-          padding: 14,
-          boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          cursor: "pointer",
-          border: "1px solid rgba(255,255,255,0.06)",
-          minWidth: 260,
-        }}
-        onClick={() => setMinimized(false)}
-      >
-        <div style={{ position: "relative" }}>
-          {isDm ? (
-            <Avatar name={peer?.username || "?"} size={44} imageUrl={resolveAvatarUrl(peer)} />
-          ) : (
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: "50%",
-                background: "#5865f2",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Users size={22} color="white" />
-            </div>
-          )}
-          {screenSharing && (
-            <div
-              style={{
-                position: "absolute",
-                bottom: -2,
-                right: -2,
-                background: "#3ba55d",
-                borderRadius: "50%",
-                width: 16,
-                height: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Monitor size={10} color="white" />
-            </div>
-          )}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-          <span style={{ fontWeight: 700, fontSize: 15, color: "#fff" }}>{title}</span>
-          <span style={{ fontSize: 12, color: "#b5bac1" }}>
-            {subtitle}
-            {formattedDuration ? ` · ${formattedDuration}` : ""}
-          </span>
-        </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            isDm ? call.endCall(peer?.id) : groupCall.leaveCall();
-          }}
+      <>
+        {pipSource}
+        <motion.div
+          className="call-overlay-minimized"
+          initial={{ opacity: 0, y: 60, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 60, scale: 0.9 }}
           style={{
-            background: "#ed4245",
-            border: "none",
-            borderRadius: "50%",
-            width: 36,
-            height: 36,
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            zIndex: 9999,
+            background: "#1e1f23",
+            borderRadius: 14,
+            padding: 14,
+            boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            color: "white",
+            gap: 12,
             cursor: "pointer",
-            flexShrink: 0,
+            border: "1px solid rgba(255,255,255,0.06)",
+            minWidth: 260,
           }}
+          onClick={() => setMinimized(false)}
         >
-          <PhoneOff size={18} />
-        </button>
-      </motion.div>
+          <div style={{ position: "relative" }}>
+            {isDm ? (
+              <Avatar
+                name={peer?.username || "?"}
+                size={44}
+                user={peer}
+                imageUrl={resolveAvatarUrl(peer)}
+                animate="always"
+              />
+            ) : (
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "#5865f2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Users size={22} color="white" />
+              </div>
+            )}
+            {screenSharing && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: -2,
+                  right: -2,
+                  background: "#3ba55d",
+                  borderRadius: "50%",
+                  width: 16,
+                  height: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Monitor size={10} color="white" />
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+            <span style={{ fontWeight: 700, fontSize: 15, color: "#fff" }}>{title}</span>
+            <span style={{ fontSize: 12, color: "#b5bac1" }}>
+              {subtitle}
+              {formattedDuration ? ` · ${formattedDuration}` : ""}
+            </span>
+          </div>
+          <button
+            type="button"
+            title={t("Picture in Picture")}
+            onClick={(e) => {
+              e.stopPropagation();
+              pipApi?.primeFromGesture?.();
+              if (pipApi?.pipActive) pipApi.leavePip?.();
+              else pipApi?.enterPip?.();
+            }}
+            style={{
+              background: "#3c4043",
+              border: "none",
+              borderRadius: "50%",
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <PictureInPicture2 size={16} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              isDm ? call.endCall(peer?.id) : groupCall.leaveCall();
+            }}
+            style={{
+              background: "#ed4245",
+              border: "none",
+              borderRadius: "50%",
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "white",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <PhoneOff size={18} />
+          </button>
+        </motion.div>
+      </>
     );
   }
 
@@ -326,25 +325,51 @@ export default function CallOverlay({ call, groupCall, me }) {
             username: call.peer.username,
             avatarUrl: resolveAvatarUrl(call.peer),
             stream: call.remoteStream,
-            hasVideo: callType === "video" && !!call.remoteStream,
+            hasVideo: call.remoteCameraOn !== false && streamHasLiveVideo(call.remoteStream),
+            isMuted: Boolean(call.remoteMuted),
+            isCameraOn: call.remoteCameraOn,
           }]
         : [])
     : (groupCall?.participants ?? []).filter((p) => p.id !== localId);
 
   // All screen sharers: remote peers sharing only (exclude local — handled separately by screenSharing flag)
   const remoteScreenSharers = isDm
-    ? []
-    : (groupCall?.participants ?? []).filter((p) => p.isScreenSharing && p.screenStream && p.id !== localId);
-  const localUsername = me?.username || me?.displayName || "You";
+    ? (call?.remoteScreenSharing && streamHasLiveVideo(call?.remoteScreenStream) && call?.peer
+        ? [{
+            id: call.peer.id,
+            username: call.peer.username,
+            stream: call.remoteScreenStream,
+            isScreenSharing: true,
+          }]
+        : [])
+    : (groupCall?.participants ?? [])
+        .filter((p) => p.isScreenSharing && p.screenStream && p.id !== localId)
+        .map((p) => ({
+          id: p.id,
+          username: p.username,
+          stream: p.screenStream,
+          isScreenSharing: true,
+        }));
+  const localUsername = me?.username || me?.displayName || t("You");
 
   const allScreenSharers = [
     ...(screenSharing ? [{ id: "local", username: localUsername, isLocal: true }] : []),
-    ...remoteScreenSharers.map((p) => ({ id: p.id, username: p.username, isLocal: false })),
+    ...remoteScreenSharers.map((p) => ({
+      id: p.id,
+      username: p.username,
+      stream: p.stream,
+      isLocal: false,
+    })),
   ];
   const anyScreenShare = allScreenSharers.length > 0;
 
   return (
+    <>
+    {remoteAudio}
+    {pipSource}
     <motion.div
+      data-call-overlay="true"
+      className="call-overlay-root"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -380,12 +405,15 @@ export default function CallOverlay({ call, groupCall, me }) {
           {anyScreenShare && (
             <span style={{ background: "#3ba55d", color: "#fff", fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 20, display: "flex", alignItems: "center", gap: 4 }}>
               <Monitor size={12} />
-              Presenting
+              {t("Presenting")}
             </span>
           )}
           <span style={{ fontSize: 13, color: "#b5bac1" }}>
             {subtitle}{formattedDuration ? ` · ${formattedDuration}` : ""}
           </span>
+          {isDm && mode === "active" && (
+            <CallQualityHud quality={call?.connectionQuality || "unknown"} />
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, pointerEvents: "auto" }}>
           <TopIconBtn onClick={() => setShowParticipants(!showParticipants)} active={showParticipants}><Users size={18} /></TopIconBtn>
@@ -395,7 +423,21 @@ export default function CallOverlay({ call, groupCall, me }) {
       </div>
 
       {/* ====== MAIN CONTENT AREA ====== */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", paddingTop: 60, paddingBottom: 90 }}>
+      {/* Reserve real control-bar height so screen share never sits under the buttons */}
+      <div
+        className="call-main-stage"
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          minHeight: 0,
+          paddingTop: narrowViewport ? 56 : 60,
+          paddingBottom: narrowViewport
+            ? "calc(72px + env(safe-area-inset-bottom, 0px))"
+            : 96,
+        }}
+      >
         {anyScreenShare ? (
           <ScreenShareLayout
             allScreenSharers={allScreenSharers}
@@ -409,6 +451,9 @@ export default function CallOverlay({ call, groupCall, me }) {
             cameraOn={cameraOn}
             localUsername={localUsername}
             localAvatarUrl={resolveAvatarUrl(me)}
+            narrow={narrowViewport}
+            screenShareVolume={screenShareVolume}
+            onScreenShareVolumeChange={setScreenShareVolume}
           />
         ) : (
           <ParticipantGrid
@@ -432,18 +477,25 @@ export default function CallOverlay({ call, groupCall, me }) {
 
       {/* ====== BOTTOM CONTROL BAR ====== */}
       <div
+        className="call-control-bar"
         style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
+          width: "100%",
           zIndex: 10,
-          padding: "20px 24px 28px",
           display: "flex",
+          flexDirection: "row",
+          flexWrap: "nowrap",
           alignItems: "center",
-          justifyContent: "center",
-          gap: 16,
-          background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
+          justifyContent: "space-evenly",
+          gap: narrowViewport ? 6 : 14,
+          padding: narrowViewport
+            ? "12px 12px calc(12px + env(safe-area-inset-bottom, 0px))"
+            : "20px 24px 28px",
+          background: "linear-gradient(to top, rgba(0,0,0,0.85) 40%, transparent)",
+          boxSizing: "border-box",
         }}
       >
         {mode === "incoming" && isDm ? (
@@ -458,25 +510,40 @@ export default function CallOverlay({ call, groupCall, me }) {
         ) : (
           <>
             <CircleBtn
+              size={narrowViewport ? 46 : 52}
               color={muted ? "#ed4245" : "#3c4043"}
               onClick={isDm ? call.toggleMute : groupCall.toggleMute}
-              title={muted ? "Unmute" : "Mute"}
+              title={muted ? t("Unmute") : t("Mute")}
             >
-              {muted ? <MicOff size={22} /> : <Mic size={22} />}
+              {muted ? <MicOff size={narrowViewport ? 19 : 22} /> : <Mic size={narrowViewport ? 19 : 22} />}
             </CircleBtn>
 
             <CircleBtn
+              size={narrowViewport ? 46 : 52}
               color={cameraOn ? "#3c4043" : "#ed4245"}
               onClick={isDm ? call.toggleCamera : groupCall.toggleCamera}
-              title={cameraOn ? "Turn off camera" : "Turn on camera"}
+              title={cameraOn ? t("Turn off camera") : t("Turn on camera")}
             >
-              {cameraOn ? <Video size={22} /> : <VideoOff size={22} />}
+              {cameraOn ? <Video size={narrowViewport ? 19 : 22} /> : <VideoOff size={narrowViewport ? 19 : 22} />}
             </CircleBtn>
 
-            <div ref={screenQualityAnchorRef} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
+            <div
+              ref={screenQualityAnchorRef}
+              style={{
+                position: "relative",
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                flexShrink: 0,
+              }}
+            >
               <CircleBtn
+                size={narrowViewport ? 46 : 52}
                 color={screenSharing ? "#3ba55d" : "#3c4043"}
                 onClick={() => {
+                  setShowMoreMenu(false);
+                  setShowAudioPanel(false);
                   if (isDm) {
                     if (screenSharing) call.stopScreenShare();
                     else setShowScreenQuality((v) => !v);
@@ -485,15 +552,19 @@ export default function CallOverlay({ call, groupCall, me }) {
                     else setShowScreenQuality((v) => !v);
                   }
                 }}
-                title={screenSharing ? "Stop presenting" : "Present screen"}
+                title={screenSharing ? t("Stop presenting") : t("Present screen")}
               >
-                <Monitor size={22} />
+                <Monitor size={narrowViewport ? 19 : 22} />
               </CircleBtn>
-              {(screenSharing || showScreenQuality) && (
+              {!narrowViewport && (screenSharing || showScreenQuality) && (
                 <button
                   type="button"
-                  title="Ekran kalitesi"
-                  onClick={() => setShowScreenQuality((v) => !v)}
+                  title={t("Screen quality")}
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    setShowAudioPanel(false);
+                    setShowScreenQuality((v) => !v);
+                  }}
                   style={{
                     width: 28,
                     height: 28,
@@ -535,82 +606,149 @@ export default function CallOverlay({ call, groupCall, me }) {
               />
             </div>
 
-            <motion.button
-              onClick={() => setHandRaised((v) => !v)}
-              title={handRaised ? "Lower hand" : "Raise hand"}
-              animate={handRaised ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-              transition={handRaised ? { repeat: Infinity, duration: 1.6, ease: "easeInOut" } : {}}
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: "50%",
-                background: handRaised ? "#f0a500" : "#3c4043",
-                border: handRaised ? "2px solid #ffc107" : "2px solid transparent",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                cursor: "pointer",
-                flexShrink: 0,
-                boxShadow: handRaised ? "0 0 16px rgba(240,165,0,0.5)" : "none",
-              }}
-            >
-              <Hand size={22} />
-            </motion.button>
-
-            {/* Audio Device Picker */}
-            <div ref={audioPanelRef} style={{ position: "relative" }}>
-              <CircleBtn
-                color={showAudioPanel ? "rgba(255,255,255,0.18)" : "#3c4043"}
-                title="Audio devices"
-                onClick={() => { setShowAudioPanel(v => !v); setShowMoreMenu(false); }}
+            {!narrowViewport && (
+              <motion.button
+                onClick={() => setHandRaised((v) => !v)}
+                title={handRaised ? t("Lower hand") : t("Raise hand")}
+                animate={handRaised ? { scale: [1, 1.2, 1] } : { scale: 1 }}
+                transition={handRaised ? { repeat: Infinity, duration: 1.6, ease: "easeInOut" } : {}}
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "50%",
+                  background: handRaised ? "#f0a500" : "#3c4043",
+                  border: handRaised ? "2px solid #ffc107" : "2px solid transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  boxShadow: handRaised ? "0 0 16px rgba(240,165,0,0.5)" : "none",
+                }}
               >
-                <Volume2 size={22} />
-              </CircleBtn>
-              <AnimatePresence>
-                {showAudioPanel && (
-                  <AudioDevicePanel
-                    isDm={isDm}
-                    call={call}
-                    groupCall={groupCall}
-                    onClose={() => setShowAudioPanel(false)}
-                  />
-                )}
-              </AnimatePresence>
-            </div>
+                <Hand size={22} />
+              </motion.button>
+            )}
 
-            <div ref={moreMenuRef} style={{ position: "relative" }}>
+            {!narrowViewport && (
+              <div ref={audioPanelRef} style={{ position: "relative", flexShrink: 0 }}>
+                <CircleBtn
+                  size={52}
+                  color={showAudioPanel ? "rgba(255,255,255,0.18)" : "#3c4043"}
+                  title={t("Audio devices")}
+                  onClick={() => {
+                    setShowAudioPanel((v) => !v);
+                    setShowMoreMenu(false);
+                    setShowScreenQuality(false);
+                  }}
+                >
+                  <Volume2 size={22} />
+                </CircleBtn>
+                <AnimatePresence>
+                  {showAudioPanel && (
+                    <AudioDevicePanel
+                      isDm={isDm}
+                      call={call}
+                      groupCall={groupCall}
+                      narrow={false}
+                      onClose={() => setShowAudioPanel(false)}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            <div ref={moreMenuRef} style={{ position: "relative", flexShrink: 0 }}>
               <CircleBtn
-                color={showMoreMenu ? "rgba(255,255,255,0.15)" : "#3c4043"}
-                title="More options"
-                onClick={() => setShowMoreMenu((v) => !v)}
+                size={narrowViewport ? 46 : 52}
+                color={showMoreMenu || (narrowViewport && handRaised) ? "rgba(255,255,255,0.15)" : "#3c4043"}
+                title={t("More options")}
+                onClick={() => {
+                  setShowMoreMenu((v) => !v);
+                  setShowAudioPanel(false);
+                  setShowScreenQuality(false);
+                }}
               >
-                <MoreVertical size={22} />
+                <MoreVertical size={narrowViewport ? 19 : 22} />
               </CircleBtn>
 
               <AnimatePresence>
                 {showMoreMenu && (
                   <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                    initial={narrowViewport ? { opacity: 0, y: 20 } : { opacity: 0, y: 8, scale: 0.95 }}
+                    animate={narrowViewport ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, scale: 1 }}
+                    exit={narrowViewport ? { opacity: 0, y: 20 } : { opacity: 0, y: 8, scale: 0.95 }}
                     transition={{ duration: 0.14 }}
                     style={{
-                      position: "absolute",
-                      bottom: "calc(100% + 10px)",
-                      right: 0,
+                      ...(narrowViewport
+                        ? {
+                            position: "fixed",
+                            left: 12,
+                            right: 12,
+                            bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 72px))",
+                            maxHeight: "min(55vh, 360px)",
+                            overflowY: "auto",
+                            zIndex: 10050,
+                          }
+                        : {
+                            position: "absolute",
+                            bottom: "calc(100% + 10px)",
+                            right: 0,
+                            minWidth: 210,
+                            maxWidth: "min(280px, calc(100vw - 24px))",
+                            zIndex: 100,
+                          }),
                       background: "#2b2d33",
                       border: "1px solid rgba(255,255,255,0.1)",
                       borderRadius: 12,
-                      minWidth: 210,
-                      zIndex: 100,
                       overflow: "hidden",
                       boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+                      boxSizing: "border-box",
                     }}
                   >
+                    {narrowViewport && (
+                      <>
+                        <MoreMenuItem
+                          icon={<Hand size={16} color={handRaised ? "#f0a500" : undefined} />}
+                          label={handRaised ? t("Lower hand") : t("Raise hand")}
+                          onClick={() => {
+                            setHandRaised((v) => !v);
+                            setShowMoreMenu(false);
+                          }}
+                        />
+                        <MoreMenuItem
+                          icon={<Volume2 size={16} />}
+                          label={t("Audio devices")}
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            setShowAudioPanel(true);
+                          }}
+                        />
+                        <MoreMenuItem
+                          icon={<SlidersHorizontal size={16} />}
+                          label={t("Screen quality")}
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            setShowScreenQuality(true);
+                          }}
+                        />
+                        <MoreMenuItem
+                          icon={<PictureInPicture2 size={16} />}
+                          label={pipApi?.pipActive ? t("Exit Picture in Picture") : t("Picture in Picture")}
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            pipApi?.primeFromGesture?.();
+                            if (pipApi?.pipActive) pipApi.leavePip?.();
+                            else pipApi?.enterPip?.();
+                          }}
+                        />
+                        <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
+                      </>
+                    )}
                     <MoreMenuItem
                       icon={cameraOn ? <VideoOff size={16} /> : <Video size={16} />}
-                      label={cameraOn ? "Turn off camera" : "Turn on camera"}
+                      label={cameraOn ? t("Turn off camera") : t("Turn on camera")}
                       onClick={() => {
                         isDm ? call.toggleCamera?.() : groupCall.toggleCamera?.();
                         setShowMoreMenu(false);
@@ -618,7 +756,7 @@ export default function CallOverlay({ call, groupCall, me }) {
                     />
                     <MoreMenuItem
                       icon={muted ? <Mic size={16} /> : <MicOff size={16} />}
-                      label={muted ? "Unmute" : "Mute microphone"}
+                      label={muted ? t("Unmute") : t("Mute microphone")}
                       onClick={() => {
                         isDm ? call.toggleMute?.() : groupCall.toggleMute?.();
                         setShowMoreMenu(false);
@@ -627,7 +765,7 @@ export default function CallOverlay({ call, groupCall, me }) {
                     <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
                     <MoreMenuItem
                       icon={<Users size={16} />}
-                      label="Show participants"
+                      label={t("Show participants")}
                       onClick={() => {
                         setShowParticipants((v) => !v);
                         setShowMoreMenu(false);
@@ -635,11 +773,11 @@ export default function CallOverlay({ call, groupCall, me }) {
                     />
                     <MoreMenuItem
                       icon={copiedInfo ? <Check size={16} color="#3ba55d" /> : <MessageSquare size={16} />}
-                      label={copiedInfo ? "Copied!" : "Copy call info"}
+                      label={copiedInfo ? t("Copied!") : t("Copy call info")}
                       onClick={() => {
                         const info = isDm
                           ? `Call with ${peer?.username}`
-                          : `Group call · ${groupCall.participants?.length ?? 0} participants`;
+                          : t("Group call · {count} participants", { count: groupCall.participants?.length ?? 0 });
                         navigator.clipboard?.writeText(info).catch(() => {});
                         setCopiedInfo(true);
                         setTimeout(() => setCopiedInfo(false), 2000);
@@ -648,7 +786,7 @@ export default function CallOverlay({ call, groupCall, me }) {
                     <div style={{ height: 1, background: "rgba(255,255,255,0.07)", margin: "4px 0" }} />
                     <MoreMenuItem
                       icon={<PhoneOff size={16} color="#ed4245" />}
-                      label="Leave call"
+                      label={t("Leave call")}
                       danger
                       onClick={() => {
                         setShowMoreMenu(false);
@@ -660,8 +798,32 @@ export default function CallOverlay({ call, groupCall, me }) {
               </AnimatePresence>
             </div>
 
-            <CircleBtn color="#ed4245" size={56} onClick={() => (isDm ? call.endCall(peer?.id) : groupCall.leaveCall())} title="End call">
-              <PhoneOff size={24} />
+            {/* Mobile audio panel (opened from More) */}
+            {narrowViewport && (
+              <div ref={audioPanelRef} style={{ position: "absolute", width: 0, height: 0, overflow: "visible" }}>
+                <AnimatePresence>
+                  {showAudioPanel && (
+                    <AudioDevicePanel
+                      isDm={isDm}
+                      call={call}
+                      groupCall={groupCall}
+                      narrow
+                      onClose={() => setShowAudioPanel(false)}
+                    />
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            <CallPipButton pipApi={pipApi} narrow={narrowViewport} />
+
+            <CircleBtn
+              color="#ed4245"
+              size={narrowViewport ? 50 : 56}
+              onClick={() => (isDm ? call.endCall(peer?.id) : groupCall.leaveCall())}
+              title={t("End call")}
+            >
+              <PhoneOff size={narrowViewport ? 21 : 24} />
             </CircleBtn>
           </>
         )}
@@ -680,12 +842,14 @@ export default function CallOverlay({ call, groupCall, me }) {
               top: 0,
               right: 0,
               bottom: 0,
-              width: 300,
+              width: narrowViewport ? "min(100%, 320px)" : 300,
+              maxWidth: "100vw",
               zIndex: 20,
               background: "#1e1f23",
               borderLeft: "1px solid rgba(255,255,255,0.06)",
               display: "flex",
               flexDirection: "column",
+              boxSizing: "border-box",
             }}
           >
             <div
@@ -697,7 +861,7 @@ export default function CallOverlay({ call, groupCall, me }) {
                 borderBottom: "1px solid rgba(255,255,255,0.06)",
               }}
             >
-              <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>People</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>{t("People")}</span>
               <button
                 onClick={() => setShowParticipants(false)}
                 style={{ background: "none", border: "none", color: "#b5bac1", cursor: "pointer" }}
@@ -707,7 +871,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
               {isDm ? (
-                <PersonRow name={peer?.username || "User"} avatarUrl={resolveAvatarUrl(peer)} isHost />
+                <PersonRow name={peer?.username || t("User")} avatarUrl={resolveAvatarUrl(peer)} isHost />
               ) : (
                 groupCall.participants?.map((p) => (
                   <PersonRow key={p.id} name={p.username} avatarUrl={resolveAvatarUrl(p)} />
@@ -718,6 +882,7 @@ export default function CallOverlay({ call, groupCall, me }) {
         )}
       </AnimatePresence>
     </motion.div>
+    </>
   );
 }
 
@@ -725,63 +890,112 @@ export default function CallOverlay({ call, groupCall, me }) {
    ParticipantTile — one rectangle in the grid or strip
    isSpeaking derived externally; videoRef only for remote video.
    ───────────────────────────────────────────────────────────────── */
-function ParticipantTile({ username, avatarUrl, isSpeaking, videoRef, hasVideo, isLocal, small = false }) {
+function SpeakingRemoteSlot(props) {
+  const speaking = useSpeaking(props.remoteStream);
+  return <DmRemoteParticipantSlot {...props} isSpeaking={speaking} />;
+}
+
+function CallQualityHud({ quality = "unknown" }) {
+  const t = useT();
+  const q = String(quality || "unknown");
+  const bars =
+    q === "good" ? 3 :
+    q === "connecting" || q === "unknown" ? 2 :
+    q === "poor" ? 1 :
+    0;
+  const label =
+    q === "good" ? t("Good") :
+    q === "connecting" ? t("Connecting") :
+    q === "poor" ? t("Weak") :
+    q === "failed" ? t("Failed") :
+    t("Link");
+
   return (
-    <div
-      style={{
-        position: "relative",
-        borderRadius: small ? 10 : 14,
-        overflow: "hidden",
-        background: "#1a1b1f",
-        border: isSpeaking ? "2px solid #3ba55d" : "2px solid transparent",
-        boxShadow: isSpeaking ? "0 0 0 1px rgba(59,165,93,0.35)" : "none",
-        transition: "border-color 0.2s, box-shadow 0.2s",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minWidth: 0,
-        minHeight: 0,
-        width: "100%",
-        height: "100%",
-      }}
-    >
-      {hasVideo && videoRef ? (
+    <div className={`call-quality-hud ${q}`} title={t("Connection: {label}", { label })}>
+      <div className="call-quality-bars" aria-hidden>
+        <span className={bars >= 1 ? "on" : ""} style={{ height: 5 }} />
+        <span className={bars >= 2 ? "on" : ""} style={{ height: 8 }} />
+        <span className={bars >= 3 ? "on" : ""} style={{ height: 12 }} />
+      </div>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false, cameraOn = true }) {
+  const t = useT();
+  const elRef = useRef(null);
+  const detected = useSpeaking(stream, {
+    muted: muted || (isLocal === false && !stream),
+    attackMs: 90,
+    releaseMs: 220,
+  });
+  const level = useAudioLevel(stream, { muted: muted || !stream });
+  const isSpeaking = Boolean(speakingProp || detected);
+  // Cap ring motion so level jitter doesn't look like flicker
+  const ringScale = 1 + (isSpeaking ? Math.max(0.06, Math.min(0.22, level * 0.28)) : 0);
+
+  const setVideoEl = useCallback((el) => {
+    elRef.current = el;
+    if (typeof videoRef === "function") videoRef(el);
+    else if (videoRef) videoRef.current = el;
+    if (el && stream && el.srcObject !== stream) {
+      el.srcObject = stream;
+      el.play().catch(() => {});
+    }
+  }, [videoRef, stream]);
+
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el || !hasVideo || !stream) return;
+    if (el.srcObject !== stream) el.srcObject = stream;
+    el.play().catch(() => {});
+  }, [stream, hasVideo]);
+
+  return (
+    <div className={`participant-tile${small ? " small" : ""}${isSpeaking ? " is-speaking" : ""}`}>
+      {hasVideo && cameraOn !== false && (videoRef || stream) ? (
         <video
-          ref={videoRef}
+          ref={setVideoEl}
           autoPlay
           playsInline
           muted={isLocal}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            // Local preview behaves like a mirror; remote video and shared
+            // screens preserve their actual orientation.
+            transform: isLocal ? "scaleX(-1)" : undefined,
+          }}
         />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: small ? 6 : 12 }}>
-          <Avatar name={username || "?"} size={small ? 36 : 64} imageUrl={avatarUrl} />
-          {!small && (
-            <span style={{ fontSize: 13, color: "#b5bac1", fontWeight: 500 }}>{username}</span>
-          )}
+        <div className="participant-tile-avatar-stack">
+          <span
+            className={`speaking-ring ring-a${isSpeaking ? " active" : ""}`}
+            style={{ transform: `scale(${ringScale})` }}
+          />
+          <span
+            className={`speaking-ring ring-b${isSpeaking ? " active" : ""}`}
+            style={{ transform: `scale(${1 + (isSpeaking ? level * 0.55 : 0)})` }}
+          />
+          <Avatar
+            name={username || "?"}
+            size={small ? 36 : 72}
+            imageUrl={avatarUrl}
+            animate="speaking"
+            isSpeaking={isSpeaking}
+          />
+          {!small && <span>{username}</span>}
         </div>
       )}
 
-      {/* Name label overlay at bottom */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: small ? "4px 8px" : "8px 12px",
-          background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        {isSpeaking && (
-          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#3ba55d", flexShrink: 0, animation: "callTilePulse 1.2s infinite" }} />
-        )}
-        <span style={{ fontSize: small ? 11 : 13, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {username}
-        </span>
+      <div className="participant-tile-label">
+        {isSpeaking && <span className="speaking-dot" />}
+        <span className="participant-tile-name">{username}</span>
+        {muted && <MicOff size={14} aria-label={t("Muted")} title={t("Muted")} />}
+        {cameraOn === false && <VideoOff size={14} aria-label={t("Camera off")} title={t("Camera off")} />}
       </div>
     </div>
   );
@@ -814,19 +1028,27 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }
     }
   }, [localStream, isDm, call, groupCall]);
 
+  const localSpeaking = useSpeaking(localStream, {
+    muted: Boolean(isDm ? call?.muted : groupCall?.isMuted),
+  });
+
   return (
     <ParticipantTile
       username={username}
       avatarUrl={avatarUrl}
-      isSpeaking={false}
+      isSpeaking={localSpeaking}
       videoRef={hasVideo ? videoCallbackRef : null}
       hasVideo={hasVideo}
       isLocal
+      stream={localStream}
+      muted={Boolean(isDm ? call?.muted : groupCall?.isMuted)}
+      cameraOn={Boolean(isDm ? call?.cameraOn : groupCall?.isCameraOn)}
     />
   );
 }
 
 function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localAvatarUrl }) {
+  const t = useT();
   const dmRemote = useDmRemoteParticipant({
     peer: isDm ? call?.peer : null,
     mode: isDm ? call?.mode : null,
@@ -835,12 +1057,22 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
     connectionQuality: isDm ? call?.connectionQuality : "unknown",
   });
 
-  const remoteTiles = remoteParticipants.map((p) => ({
-    id: p.id,
-    username: p.username || "Member",
-    avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
-    hasVideo: p.hasVideo || p.isCameraOn,
-  }));
+  const remoteTiles = remoteParticipants.map((p) => {
+    const live = streamHasLiveVideo(p.stream) || Boolean(p.hasVideo) || Boolean(p.isCameraOn);
+    return {
+      id: p.id,
+      username: p.username || t("Member"),
+      avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
+      stream: p.stream || null,
+      hasVideo: p.isCameraOn !== false && live,
+      muted: Boolean(p.isMuted),
+      cameraOn: p.isCameraOn,
+    };
+  });
+
+  // A call's requested type is not evidence that the peer has a camera track.
+  // Screen media is rendered only by ScreenShareLayout, never as a camera tile.
+  const dmRemoteHasVideo = streamHasLiveVideo(call?.remoteStream);
 
   const dmTwoUp = isDm && dmRemote.showSlot;
   const count = dmTwoUp ? 2 : 1 + remoteTiles.length;
@@ -878,14 +1110,16 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
           transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
           style={{ minWidth: 0, minHeight: 0, position: "relative" }}
         >
-          <DmRemoteParticipantSlot
+          <SpeakingRemoteSlot
             displayPeer={dmRemote.displayPeer}
             phase={dmRemote.phase}
             connectionStatus={dmRemote.connectionStatus}
             isMediaReady={dmRemote.isMediaReady}
-            hasVideo={callType === "video" && !!call?.remoteStream}
+            hasVideo={dmRemoteHasVideo}
             videoRef={call?.remoteVideoRef}
             remoteStream={call?.remoteStream}
+            isMuted={Boolean(call?.remoteMuted)}
+            cameraOn={call?.remoteCameraOn}
           />
         </motion.div>
       )}
@@ -895,10 +1129,12 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
           <ParticipantTile
             username={tile.username}
             avatarUrl={tile.avatarUrl}
-            isSpeaking={false}
             videoRef={null}
-            hasVideo={false}
+            stream={tile.stream}
+            hasVideo={tile.hasVideo}
             isLocal={false}
+            muted={tile.muted}
+            cameraOn={tile.cameraOn}
           />
         </motion.div>
       ))}
@@ -909,44 +1145,74 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
 /* ─────────────────────────────────────────────────────────────────
    ScreenShareLayout — selected screen large on top, strip below
    ───────────────────────────────────────────────────────────────── */
-function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl }) {
+function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl, narrow = false, screenShareVolume = 100, onScreenShareVolumeChange }) {
+  const t = useT();
   const [selectedSharerIndex, setSelectedSharerIndex] = useState(0);
   const [viewerCount] = useState(0);
   // Keep refs to both the normal and expanded video elements so we can set srcObject on each
   const normalVideoRef = useRef(null);
   const expandedVideoRef = useRef(null);
+  const prevSharerCountRef = useRef(0);
+
+  // When a new sharer appears (dual screen share), auto-focus the newest one
+  useEffect(() => {
+    const n = allScreenSharers.length;
+    if (n > prevSharerCountRef.current) {
+      setSelectedSharerIndex(n - 1);
+    } else if (n > 0 && selectedSharerIndex > n - 1) {
+      setSelectedSharerIndex(n - 1);
+    }
+    prevSharerCountRef.current = n;
+  }, [allScreenSharers.length, selectedSharerIndex]);
 
   // Clamp index if sharers list shrinks
-  const safeIndex = Math.min(selectedSharerIndex, allScreenSharers.length - 1);
+  const safeIndex = allScreenSharers.length
+    ? Math.min(Math.max(selectedSharerIndex, 0), allScreenSharers.length - 1)
+    : 0;
   const activeSharer = allScreenSharers[safeIndex] ?? allScreenSharers[0];
 
   // Derive the stream to display for the active sharer
   const screenStream = activeSharer?.isLocal
     ? (isDm ? call?.screenStream : groupCall?.screenStream)
-    : (groupCall?.participants?.find((p) => p.id === activeSharer?.id)?.screenStream ?? null);
+    : (activeSharer?.stream ?? null);
 
   const attachStream = useCallback((el, stream) => {
-    if (!el || !stream) return;
+    if (!el) return;
+    el.volume = Math.max(0, Math.min(1, Number(screenShareVolume) / 100));
+    if (!stream) {
+      if (el.srcObject) el.srcObject = null;
+      return;
+    }
     // Only reassign srcObject when the stream reference actually changes —
     // reassigning the same stream causes the browser to reload the video
     // element producing a black flash on every React render.
     if (el.srcObject !== stream) {
       el.srcObject = stream;
     }
-    // If any video track is still muted (ICE not yet connected), register
-    // onunmute to call play() without touching srcObject (no reload = no flash).
+    // If any video track is still muted (ICE not yet connected), chain onunmute
+    // so we don't clobber useGroupCall's applyScreenStream handler.
     const videoTracks = stream.getVideoTracks();
     const playWhenReady = () => el.play().catch(() => {});
     if (videoTracks.some((t) => t.muted || t.readyState !== "live")) {
-      videoTracks.forEach((t) => { t.onunmute = playWhenReady; });
-    } else {
-      el.play().catch(() => {});
+      videoTracks.forEach((t) => {
+        const prev = t.onunmute;
+        t.onunmute = (ev) => {
+          try {
+            if (typeof prev === "function") prev.call(t, ev);
+          } catch {
+            /* ignore */
+          }
+          playWhenReady();
+        };
+      });
     }
-  }, []);
+    playWhenReady();
+  }, [screenShareVolume]);
 
-  // Only re-attach when the stream reference changes (new peer / new share)
-  useEffect(() => {
-    attachStream(normalVideoRef.current, screenStream);
+  // Re-attach via callback ref so remounts from key=sharerId always bind the stream
+  const normalVideoCallbackRef = useCallback((el) => {
+    normalVideoRef.current = el;
+    if (el) attachStream(el, screenStream);
   }, [screenStream, attachStream]);
 
   // Callback ref for expanded video — fires immediately when the element mounts
@@ -955,24 +1221,64 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     if (el) attachStream(el, screenStream);
   }, [screenStream, attachStream]);
 
+  useEffect(() => {
+    const volume = Math.max(0, Math.min(1, Number(screenShareVolume) / 100));
+    for (const video of [normalVideoRef.current, expandedVideoRef.current]) {
+      if (video) video.volume = volume;
+    }
+  }, [screenShareVolume, screenStream]);
+
   const sharerLabel = activeSharer
-    ? (activeSharer.isLocal ? "Your Screen" : `${activeSharer.username}'s Screen`)
+    ? (activeSharer.isLocal ? t("Your Screen") : t("{name}'s Screen", { name: activeSharer.username }))
     : "";
 
   // Strip tiles: all participants + local self
   const stripTiles = [
-    { id: "local", username: localUsername, isLocal: true, hasVideo: hasLocalVideo, avatarUrl: localAvatarUrl },
-    ...remoteParticipants.map((p) => ({ id: p.id, username: p.username, avatarUrl: p.avatarUrl, isLocal: false, hasVideo: p.hasVideo || p.isCameraOn })),
+    {
+      id: "local",
+      username: localUsername,
+      isLocal: true,
+      hasVideo: hasLocalVideo,
+      avatarUrl: localAvatarUrl,
+      stream: isDm ? call?.localStream : groupCall?.localStream,
+      muted: Boolean(isDm ? call?.muted : groupCall?.isMuted),
+      cameraOn: Boolean(isDm ? call?.cameraOn : groupCall?.isCameraOn),
+    },
+    ...remoteParticipants.map((p) => ({
+      id: p.id,
+      username: p.username,
+      avatarUrl: p.avatarUrl,
+      isLocal: false,
+      hasVideo: streamHasLiveVideo(p.stream) || Boolean(p.hasVideo) || Boolean(p.isCameraOn),
+      stream: p.stream || null,
+      muted: Boolean(p.isMuted),
+      cameraOn: p.isCameraOn,
+    })),
   ];
 
+  const stripH = narrow ? 72 : 110;
+  const tileW = narrow ? 112 : 160;
+  const tileH = narrow ? 64 : 100;
+
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, padding: "4px 12px", minHeight: 0 }}>
+    <div
+      className="call-screen-share-layout"
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        gap: narrow ? 6 : 8,
+        padding: narrow ? "2px 8px 0" : "4px 12px",
+        minHeight: 0,
+        overflow: "hidden",
+      }}
+    >
       {/* ── Main screen share area ── */}
       <div
         style={{
-          flex: 1,
+          flex: "1 1 auto",
           position: "relative",
-          borderRadius: 14,
+          borderRadius: narrow ? 12 : 14,
           overflow: "hidden",
           background: "#000",
           cursor: "pointer",
@@ -980,11 +1286,13 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
         }}
         onClick={() => setScreenExpanded((v) => !v)}
       >
+        {/* key forces remount when switching sharers — prevents stuck black frames */}
         <video
-          ref={normalVideoRef}
+          key={activeSharer?.id || "none"}
+          ref={normalVideoCallbackRef}
           autoPlay
           playsInline
-          muted={activeSharer?.isLocal}
+          muted={Boolean(activeSharer?.isLocal)}
           style={{
             width: "100%",
             height: "100%",
@@ -995,6 +1303,23 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             willChange: "contents",
           }}
         />
+
+        {!screenStream && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#b5bac1",
+              fontSize: 14,
+              pointerEvents: "none",
+            }}
+          >
+            {t("Waiting for screen…")}
+          </div>
+        )}
 
         {/* Sharer name label — top-left */}
         <div
@@ -1022,6 +1347,37 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
           )}
         </div>
 
+        {!activeSharer?.isLocal && (
+          <label
+            style={{
+              position: "absolute",
+              top: 12,
+              right: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "rgba(0,0,0,0.65)",
+              backdropFilter: "blur(6px)",
+              borderRadius: 8,
+              padding: "6px 10px",
+              color: "#fff",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Volume2 size={15} aria-hidden="true" />
+            <input
+              aria-label={t("Screen share volume")}
+              type="range"
+              min="0"
+              max="100"
+              value={screenShareVolume}
+              onChange={(event) => onScreenShareVolumeChange?.(Number(event.target.value))}
+              style={{ width: narrow ? 78 : 112, accentColor: "#6678ff" }}
+            />
+            <span style={{ fontSize: 11, minWidth: 30 }}>{screenShareVolume}%</span>
+          </label>
+        )}
+
         {/* Expand/collapse hint — bottom-center */}
         <div
           style={{
@@ -1038,7 +1394,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             pointerEvents: "none",
           }}
         >
-          {screenExpanded ? "Click to shrink" : "Click to expand"}
+          {screenExpanded ? t("Click to shrink") : t("Click to expand")}
         </div>
 
         {/* Expanded fullscreen overlay */}
@@ -1054,10 +1410,11 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             onClick={(e) => { e.stopPropagation(); setScreenExpanded(false); }}
           >
             <video
+              key={`exp-${activeSharer?.id || "none"}`}
               ref={expandedVideoCallbackRef}
               autoPlay
               playsInline
-              muted={activeSharer?.isLocal}
+              muted={Boolean(activeSharer?.isLocal)}
               style={{
                 width: "100%",
                 height: "100%",
@@ -1071,7 +1428,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
               <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>{sharerLabel}</span>
             </div>
             <div style={{ position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.6)", color: "#b5bac1", fontSize: 12, padding: "5px 14px", borderRadius: 6 }}>
-              Click anywhere to exit fullscreen
+              {t("Click anywhere to exit fullscreen")}
             </div>
           </div>
         )}
@@ -1080,7 +1437,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
       {/* ── Screen selector (multiple sharers) ── */}
       {allScreenSharers.length > 1 && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "2px 0" }}>
-          <span style={{ fontSize: 12, color: "#72767d", flexShrink: 0 }}>Screens:</span>
+          <span style={{ fontSize: 12, color: "#72767d", flexShrink: 0 }}>{t("Screens:")}</span>
           {allScreenSharers.map((sharer, idx) => (
             <motion.button
               key={sharer.id}
@@ -1102,7 +1459,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
               }}
             >
               <Monitor size={12} />
-              {sharer.isLocal ? "Your Screen" : `${sharer.username}'s Screen`}
+              {sharer.isLocal ? t("Your Screen") : t("{name}'s Screen", { name: sharer.username })}
             </motion.button>
           ))}
         </div>
@@ -1110,8 +1467,9 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
 
       {/* ── Bottom participant strip ── */}
       <div
+        className="call-screen-share-strip"
         style={{
-          height: 110,
+          height: stripH,
           display: "flex",
           gap: 8,
           overflowX: "auto",
@@ -1119,6 +1477,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
           flexShrink: 0,
           padding: "2px 0 4px",
           scrollbarWidth: "none",
+          WebkitOverflowScrolling: "touch",
         }}
       >
         {stripTiles.map((tile) => {
@@ -1126,14 +1485,17 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
             ? (isDm ? call?.localVideoRef : groupCall?.localVideoRef)
             : null;
           return (
-            <div key={tile.id} style={{ width: 160, height: 100, flexShrink: 0 }}>
+            <div key={tile.id} style={{ width: tileW, height: tileH, flexShrink: 0 }}>
               <ParticipantTile
                 username={tile.username}
                 avatarUrl={tile.avatarUrl}
                 isSpeaking={tile.isSpeaking}
                 videoRef={tile.hasVideo ? videoRef : null}
+                stream={tile.stream}
                 hasVideo={tile.hasVideo}
                 isLocal={tile.isLocal}
+                muted={tile.muted}
+                cameraOn={tile.cameraOn}
                 small
               />
             </div>
@@ -1196,6 +1558,7 @@ function TopIconBtn({ children, onClick, active }) {
 }
 
 function PersonRow({ name, avatarUrl, isHost }) {
+  const t = useT();
   return (
     <div
       style={{
@@ -1205,10 +1568,10 @@ function PersonRow({ name, avatarUrl, isHost }) {
         padding: "10px 0",
       }}
     >
-      <Avatar name={name} size={36} imageUrl={avatarUrl} />
+      <Avatar name={name} size={36} imageUrl={avatarUrl} animate="hover" />
       <div style={{ display: "flex", flexDirection: "column" }}>
         <span style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{name}</span>
-        {isHost && <span style={{ fontSize: 11, color: "#b5bac1" }}>Host</span>}
+        {isHost && <span style={{ fontSize: 11, color: "#b5bac1" }}>{t("Host")}</span>}
       </div>
     </div>
   );
@@ -1217,7 +1580,8 @@ function PersonRow({ name, avatarUrl, isHost }) {
 /* ─────────────────────────────────────────────────────────────────
    AudioDevicePanel — floating panel for mic/speaker selection
    ───────────────────────────────────────────────────────────────── */
-function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
+function AudioDevicePanel({ isDm, call, groupCall, onClose, narrow = false }) {
+  const t = useT();
   const hook = isDm ? call : groupCall;
   const {
     audioInputDevices = [],
@@ -1240,26 +1604,47 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
     try { await setAudioOutput?.(deviceId); } finally { setSwitching(null); }
   };
 
-  const labelOf = (d) => d.label || (d.kind === "audioinput" ? `Microphone ${d.deviceId.slice(0, 5)}` : `Speaker ${d.deviceId.slice(0, 5)}`);
+  const labelOf = (d) =>
+    d.label ||
+    (d.kind === "audioinput"
+      ? `${t("Microphone")} ${d.deviceId.slice(0, 5)}`
+      : `${t("Speaker")} ${d.deviceId.slice(0, 5)}`);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 12, scale: 0.96 }}
+      initial={narrow ? { opacity: 0, y: 24 } : { opacity: 0, y: 12, x: "-50%", scale: 0.96 }}
+      animate={narrow ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, x: "-50%", scale: 1 }}
+      exit={narrow ? { opacity: 0, y: 24 } : { opacity: 0, y: 12, x: "-50%", scale: 0.96 }}
       transition={{ duration: 0.16, ease: [0.25, 0.46, 0.45, 0.94] }}
       style={{
-        position: "absolute",
-        bottom: "calc(100% + 14px)",
-        left: "50%",
-        transform: "translateX(-50%)",
-        width: 320,
+        ...(narrow
+          ? {
+              position: "fixed",
+              left: 12,
+              right: 12,
+              bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 72px))",
+              width: "auto",
+              maxHeight: "min(70dvh, calc(100dvh - 120px))",
+              overflowY: "auto",
+              overflowX: "hidden",
+              WebkitOverflowScrolling: "touch",
+              zIndex: 10050,
+            }
+          : {
+              position: "absolute",
+              bottom: "calc(100% + 14px)",
+              left: "50%",
+              width: "min(320px, calc(100vw - 24px))",
+              maxHeight: "min(70vh, 480px)",
+              overflowY: "auto",
+              overflowX: "hidden",
+              zIndex: 200,
+            }),
         background: "linear-gradient(160deg, #25272e 0%, #1e2026 100%)",
         border: "1px solid rgba(255,255,255,0.09)",
         borderRadius: 16,
         boxShadow: "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04) inset",
-        zIndex: 200,
-        overflow: "hidden",
+        boxSizing: "border-box",
       }}
     >
       {/* Header */}
@@ -1268,7 +1653,7 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
           <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(88,101,242,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Volume2 size={14} color="#7289da" />
           </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#e3e5e8", letterSpacing: "0.01em" }}>Audio Devices</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#e3e5e8", letterSpacing: "0.01em" }}>{t("Audio Devices")}</span>
         </div>
         <button
           onClick={onClose}
@@ -1289,13 +1674,13 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
             <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(59,165,93,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Mic2 size={12} color="#3ba55d" />
             </div>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#72767d", textTransform: "uppercase", letterSpacing: "0.06em" }}>Microphone</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#72767d", textTransform: "uppercase", letterSpacing: "0.06em" }}>{t("Microphone")}</span>
             {switching === "input" && (
-              <span style={{ fontSize: 10, color: "#7289da", marginLeft: "auto" }}>Switching…</span>
+              <span style={{ fontSize: 10, color: "#7289da", marginLeft: "auto" }}>{t("Switching…")}</span>
             )}
           </div>
           {audioInputDevices.length === 0 ? (
-            <div style={{ fontSize: 12, color: "#72767d", padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>No microphones found</div>
+            <div style={{ fontSize: 12, color: "#72767d", padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>{t("No microphones found")}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {audioInputDevices.map((d) => {
@@ -1347,15 +1732,15 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
             <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(114,137,218,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Volume2 size={12} color="#7289da" />
             </div>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#72767d", textTransform: "uppercase", letterSpacing: "0.06em" }}>Speaker</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#72767d", textTransform: "uppercase", letterSpacing: "0.06em" }}>{t("Speaker")}</span>
             {switching === "output" && (
-              <span style={{ fontSize: 10, color: "#7289da", marginLeft: "auto" }}>Switching…</span>
+              <span style={{ fontSize: 10, color: "#7289da", marginLeft: "auto" }}>{t("Switching…")}</span>
             )}
           </div>
           {audioOutputDevices.length === 0 ? (
             <div style={{ fontSize: 12, color: "#72767d", padding: "8px 10px", background: "rgba(255,255,255,0.04)", borderRadius: 8 }}>
-              No output devices found
-              <div style={{ fontSize: 11, marginTop: 3, color: "#4f545c" }}>Browser may not support output selection</div>
+              {t("No output devices found")}
+              <div style={{ fontSize: 11, marginTop: 3, color: "#4f545c" }}>{t("Browser may not support output selection")}</div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1401,15 +1786,25 @@ function AudioDevicePanel({ isDm, call, groupCall, onClose }) {
         </div>
       </div>
 
-      {/* Arrow pointing down to the button */}
-      <div style={{
-        position: "absolute", bottom: -7, left: "50%", transform: "translateX(-50%)",
-        width: 14, height: 14, background: "#1e2026",
-        border: "1px solid rgba(255,255,255,0.09)",
-        borderTop: "none", borderLeft: "none",
-        transform: "translateX(-50%) rotate(45deg)",
-        transformOrigin: "center",
-      }} />
+      {/* Arrow — desktop only (fixed sheet on mobile has no anchor) */}
+      {!narrow && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: -7,
+            left: "50%",
+            width: 14,
+            height: 14,
+            background: "#1e2026",
+            border: "1px solid rgba(255,255,255,0.09)",
+            borderTop: "none",
+            borderLeft: "none",
+            transform: "translateX(-50%) rotate(45deg)",
+            transformOrigin: "center",
+            pointerEvents: "none",
+          }}
+        />
+      )}
     </motion.div>
   );
 }

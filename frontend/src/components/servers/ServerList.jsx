@@ -4,6 +4,7 @@ import { Plus, Compass, X, Hash, Volume2, ChevronDown, ChevronRight, UserPlus, S
 import { Avatar } from "../ui/Avatar";
 import CreateGuildModal from "./CreateGuildModal";
 import JoinGuildModal from "./JoinGuildModal";
+import { useT } from "../../context/LocaleContext";
 
 function GuildIcon({ guild, isActive, onClick, hasUnread }) {
   const initials = guild.name
@@ -70,6 +71,7 @@ export default function ServerList({
   onRefreshGuilds,
   me,
 }) {
+  const t = useT();
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [showGuildMenu, setShowGuildMenu] = useState(null);
@@ -109,7 +111,7 @@ export default function ServerList({
         onClick={() => onGuildSelect(null)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        title="Direct Messages"
+        title={t("Direct Messages")}
       >
         <div className="server-pill" />
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -191,11 +193,11 @@ export default function ServerList({
                     <>
                       <button className="guild-dropdown-item" onClick={() => handleCopyInvite(activeGuild.id)}>
                         {inviteCopied ? <Check size={16} /> : <Copy size={16} />}
-                        <span>{inviteCopied ? "Copied!" : "Copy Invite"}</span>
+                        <span>{inviteCopied ? t("Copied!") : t("Copy Invite")}</span>
                       </button>
                       <button className="guild-dropdown-item" onClick={() => {}}>
                         <Settings size={16} />
-                        <span>Server Settings</span>
+                        <span>{t("Server Settings")}</span>
                       </button>
                       <div className="guild-dropdown-divider" />
                       <button
@@ -203,14 +205,14 @@ export default function ServerList({
                         onClick={() => { onDeleteGuild(activeGuild.id); setShowGuildMenu(null); }}
                       >
                         <Trash2 size={16} />
-                        <span>Delete Server</span>
+                        <span>{t("Delete Server")}</span>
                       </button>
                     </>
                   ) : (
                     <>
                       <button className="guild-dropdown-item" onClick={() => { onLeaveGuild(activeGuild.id); setShowGuildMenu(null); }}>
                         <LogOut size={16} />
-                        <span>Leave Server</span>
+                        <span>{t("Leave Server")}</span>
                       </button>
                     </>
                   )}
@@ -234,17 +236,17 @@ export default function ServerList({
               {activeGuild.isOwner && (
                 <button className="channel-add-btn" onClick={() => onCreateChannel?.(activeGuild.id)}>
                   <Plus size={14} />
-                  <span>Add Channel</span>
+                  <span>{t("Add Channel")}</span>
                 </button>
               )}
             </div>
 
             {/* User panel at bottom */}
             <div className="guild-user-panel">
-              <Avatar name={me?.username || "User"} size={32} user={me} />
+              <Avatar name={me?.username || t("User")} size={32} user={me} />
               <div className="guild-user-info">
                 <span className="guild-user-name">{me?.username}</span>
-                <span className="guild-user-status">Online</span>
+                <span className="guild-user-status">{t("Online")}</span>
               </div>
             </div>
           </motion.div>

@@ -4,6 +4,7 @@ import { Mic, MicOff, Video, VideoOff, Monitor, PhoneOff, Grid, Maximize2, Users
 import RippleButton from "./ui/RippleButton";
 import VoiceEffectsPanel from "./VoiceEffectsPanel";
 import VideoConferenceMobile from "./VideoConferenceMobile";
+import { useT } from "../context/LocaleContext";
 import "./styles/VideoConferenceMobile.css";
 
 /**
@@ -46,6 +47,7 @@ export default function VideoConference({
   onAudioInputChange = () => {},
   onAudioOutputChange = () => {},
 }) {
+  const t = useT();
   const safeParticipants = Array.isArray(participants) ? participants : [];
   const remoteStreamMap = remoteStreams?.current instanceof Map ? remoteStreams.current : new Map();
   
@@ -415,7 +417,7 @@ export default function VideoConference({
       >
         <div className="vc-title">
           <Users size={18} />
-          <span>{safeParticipants.length + 1} participants</span>
+          <span>{t("{count} participants", { count: safeParticipants.length + 1 })}</span>
         </div>
         <div className="vc-view-toggle">
           <button
@@ -431,7 +433,7 @@ export default function VideoConference({
             <Maximize2 size={18} />
           </button>
           {onMinimize && (
-            <button onClick={onMinimize} title="Minimize">
+            <button onClick={onMinimize} title={t("Minimize")}>
               <Minimize2 size={18} />
             </button>
           )}
@@ -467,7 +469,7 @@ export default function VideoConference({
                 />
               ) : (
                 <div className="vc-avatar-placeholder">
-                  <span>You</span>
+                  <span>{t("You")}</span>
                 </div>
               )}
               <div className="vc-video-badge">
@@ -486,7 +488,7 @@ export default function VideoConference({
                   className={`vc-video-cell ${focusedParticipant === participant.id ? 'focused' : ''} ${hasScreenShare ? 'has-screen-share' : ''}`}
                   onClick={() => setFocusedParticipant(participant.id)}
                 >
-                  {hasScreenShare && <div className="vc-screen-indicator">Screen</div>}
+                  {hasScreenShare && <div className="vc-screen-indicator">{t("Screen")}</div>}
                   
                   {stream && (p.hasVideo || p.isScreenSharing) ? (
                     <video
@@ -513,7 +515,7 @@ export default function VideoConference({
                   )}
                   
                   <div className="vc-video-info">
-                    <span>{participant.username || 'User'}</span>
+                    <span>{participant.username || t("User")}</span>
                     {hasScreenShare && <Monitor size={14} />}
                   </div>
                   
@@ -560,7 +562,7 @@ export default function VideoConference({
                   />
                 ) : (
                   <div className="vc-avatar-placeholder large">
-                    <span>You</span>
+                    <span>{t("You")}</span>
                   </div>
                 )
               ) : focusParticipant ? (
@@ -605,20 +607,20 @@ export default function VideoConference({
                     </div>
                   )}
                   <div className="vc-focus-info">
-                    <span>{focusParticipant.username || 'User'}</span>
+                    <span>{focusParticipant.username || t("User")}</span>
                     {focusParticipant.isScreenSharing && <Monitor size={16} />}
                   </div>
                 </div>
               ) : (
                 <div className="vc-avatar-placeholder large">
-                  <span>No participant</span>
+                  <span>{t("No participant")}</span>
                 </div>
               )}
               
               {(focusTarget === 'local' ? isScreenSharing : focusParticipant?.isScreenSharing) && (
                 <div className="vc-focus-screen-badge">
                   <Monitor size={16} />
-                  <span>Screen Sharing</span>
+                  <span>{t("Screen Sharing")}</span>
                 </div>
               )}
             </div>
@@ -643,10 +645,10 @@ export default function VideoConference({
                     />
                   ) : (
                     <div className="vc-thumbnail-avatar">
-                      <span>You</span>
+                      <span>{t("You")}</span>
                     </div>
                   )}
-                  <div className="vc-thumbnail-label">You</div>
+                  <div className="vc-thumbnail-label">{t("You")}</div>
                 </div>
               )}
 
@@ -682,7 +684,7 @@ export default function VideoConference({
                       </div>
                     )}
                     <div className="vc-thumbnail-label">
-                      {participant.username || 'User'}
+                      {participant.username || t("User")}
                     </div>
                   </div>
                 );
@@ -718,7 +720,7 @@ export default function VideoConference({
           <RippleButton
             className={`vc-btn ${showVoiceEffects ? 'active' : ''}`}
             onClick={() => setShowVoiceEffects(!showVoiceEffects)}
-            title="Voice Effects"
+            title={t("Voice Effects")}
           >
             <Sparkles size={20} />
           </RippleButton>
@@ -726,7 +728,7 @@ export default function VideoConference({
           <RippleButton
             className={`vc-btn ${isScreenSharing ? 'active' : ''}`}
             onClick={() => isScreenSharing ? stopScreenShare() : handleStartScreenShare()}
-            title={isScreenSharing ? "Stop screen sharing" : "Start screen sharing"}
+            title={isScreenSharing ? t("Stop screen sharing") : t("Start screen sharing")}
           >
             <Monitor size={20} />
           </RippleButton>
@@ -735,7 +737,7 @@ export default function VideoConference({
             <button
               className="quality-toggle-btn"
               onClick={() => setShowScreenQuality(!showScreenQuality)}
-              title="Screen quality settings"
+              title={t("Screen quality settings")}
             >
               <Settings size={14} />
             </button>
@@ -773,7 +775,7 @@ export default function VideoConference({
           >
             <div className="quality-header">
               <Monitor size={18} />
-              <span>Advanced Screen Settings</span>
+              <span>{t("Advanced Screen Settings")}</span>
               <button 
                 className="quality-close-btn"
                 onClick={() => setShowScreenQuality(false)}
@@ -786,8 +788,8 @@ export default function VideoConference({
             <div className="quality-section">
               <label className="quality-label">
                 <Monitor size={16} />
-                Screen Preview
-                <span className="quality-description">Your shared screen will appear here</span>
+                {t("Screen Preview")}
+                <span className="quality-description">{t("Your shared screen will appear here")}</span>
               </label>
               <div className="screen-preview-container">
                 {isScreenSharing && screenStream ? (
@@ -811,7 +813,7 @@ export default function VideoConference({
                 ) : (
                   <div className="screen-preview-placeholder">
                     <Monitor size={32} />
-                    <span>Start screen sharing to see preview</span>
+                    <span>{t("Start screen sharing to see preview")}</span>
                   </div>
                 )}
               </div>
@@ -821,17 +823,17 @@ export default function VideoConference({
             <div className="quality-section">
               <label className="quality-label">
                 <Maximize2 size={16} />
-                Resolution
-                <span className="quality-description">Select display resolution</span>
+                {t("Resolution")}
+                <span className="quality-description">{t("Select display resolution")}</span>
               </label>
               <div className="quality-options-grid">
                 {[
-                  { value: '480p', label: '480p', desc: '854×480', icon: '📱' },
-                  { value: '720p', label: '720p HD', desc: '1280×720', icon: '🎥' },
-                  { value: '1080p', label: '1080p FHD', desc: '1920×1080', icon: '📺' },
-                  { value: '1440p', label: '1440p QHD', desc: '2560×1440', icon: '🖥️' },
-                  { value: '2160p', label: '2160p 4K', desc: '3840×2160', icon: '🎬' },
-                  { value: 'custom', label: 'Custom', desc: 'Custom size', icon: '⚙️' }
+                  { value: '480p', label: t('480p'), desc: '854×480', icon: '📱' },
+                  { value: '720p', label: t('720p HD'), desc: '1280×720', icon: '🎥' },
+                  { value: '1080p', label: t('1080p FHD'), desc: '1920×1080', icon: '📺' },
+                  { value: '1440p', label: t('1440p QHD'), desc: '2560×1440', icon: '🖥️' },
+                  { value: '2160p', label: t('2160p 4K'), desc: '3840×2160', icon: '🎬' },
+                  { value: 'custom', label: t('Custom'), desc: t('Custom size'), icon: '⚙️' }
                 ].map((res) => (
                   <button
                     key={res.value}
@@ -859,17 +861,17 @@ export default function VideoConference({
             <div className="quality-section">
               <label className="quality-label">
                 <Activity size={16} />
-                Frame Rate (FPS)
-                <span className="quality-description">Select frame rate for smoothness</span>
+                {t("Frame Rate (FPS)")}
+                <span className="quality-description">{t("Select frame rate for smoothness")}</span>
               </label>
               <div className="quality-options-grid">
                 {[
-                  { value: 15, label: '15 FPS', desc: 'Low bandwidth', icon: '🐌' },
-                  { value: 24, label: '24 FPS', desc: 'Cinema standard', icon: '🎬' },
-                  { value: 30, label: '30 FPS', desc: 'Standard smooth', icon: '📹' },
-                  { value: 60, label: '60 FPS', desc: 'High quality', icon: '🎮' },
-                  { value: 120, label: '120 FPS', desc: 'Ultra smooth', icon: '⚡' },
-                  { value: 144, label: '144 FPS', desc: 'Gaming grade', icon: '🚀' }
+                  { value: 15, label: t('15 FPS'), desc: t('Low bandwidth'), icon: '🐌' },
+                  { value: 24, label: t('24 FPS'), desc: t('Cinema standard'), icon: '🎬' },
+                  { value: 30, label: t('30 FPS'), desc: t('Standard smooth'), icon: '📹' },
+                  { value: 60, label: t('60 FPS'), desc: t('High quality'), icon: '🎮' },
+                  { value: 120, label: t('120 FPS'), desc: t('Ultra smooth'), icon: '⚡' },
+                  { value: 144, label: t('144 FPS'), desc: t('Gaming grade'), icon: '🚀' }
                 ].map((fps) => (
                   <button
                     key={fps.value}
@@ -897,29 +899,29 @@ export default function VideoConference({
             <div className="quality-section">
               <label className="quality-label">
                 <Settings size={16} />
-                Additional Settings
-                <span className="quality-description">Optimize your sharing experience</span>
+                {t("Additional Settings")}
+                <span className="quality-description">{t("Optimize your sharing experience")}</span>
               </label>
               <div className="quality-toggles">
                 <div className="quality-toggle-item">
                   <label className="toggle-label">
                     <input type="checkbox" defaultChecked />
                     <span className="toggle-slider"></span>
-                    <span className="toggle-text">Show cursor</span>
+                    <span className="toggle-text">{t("Show cursor")}</span>
                   </label>
                 </div>
                 <div className="quality-toggle-item">
                   <label className="toggle-label">
                     <input type="checkbox" defaultChecked />
                     <span className="toggle-slider"></span>
-                    <span className="toggle-text">Optimize for motion</span>
+                    <span className="toggle-text">{t("Optimize for motion")}</span>
                   </label>
                 </div>
                 <div className="quality-toggle-item">
                   <label className="toggle-label">
                     <input type="checkbox" />
                     <span className="toggle-slider"></span>
-                    <span className="toggle-text">Hardware acceleration</span>
+                    <span className="toggle-text">{t("Hardware acceleration")}</span>
                   </label>
                 </div>
               </div>
@@ -929,21 +931,21 @@ export default function VideoConference({
             <div className="quality-section">
               <label className="quality-label">
                 <Activity size={16} />
-                Performance Impact
-                <span className="quality-description">Estimated resource usage</span>
+                {t("Performance Impact")}
+                <span className="quality-description">{t("Estimated resource usage")}</span>
               </label>
               <div className="quality-stats">
                 <div className="quality-stat">
-                  <span>Bandwidth</span>
+                  <span>{t("Bandwidth")}</span>
                   <span className="stat-value medium">5-15 Mbps</span>
                 </div>
                 <div className="quality-stat">
-                  <span>CPU Usage</span>
-                  <span className="stat-value low">Low</span>
+                  <span>{t("CPU Usage")}</span>
+                  <span className="stat-value low">{t("Low")}</span>
                 </div>
                 <div className="quality-stat">
-                  <span>Quality</span>
-                  <span className="stat-value high">High</span>
+                  <span>{t("Quality")}</span>
+                  <span className="stat-value high">{t("High")}</span>
                 </div>
               </div>
             </div>

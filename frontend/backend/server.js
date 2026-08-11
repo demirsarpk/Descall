@@ -6,6 +6,7 @@
  */
 
 const path = require("path");
+const fs = require("fs");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const express = require("express");
@@ -23,8 +24,15 @@ const friendsRoutes = require("./routes/friends");
 const activityRoutes = require("./routes/activity");
 const guildRoutes = require("./routes/guilds");
 const webrtcRoutes = require("./routes/webrtc");
+const appReleaseRoutes = require("./routes/appRelease");
 const errorRoutes = require("./routes/errors");
+const callsRoutes = require("./routes/calls");
+const lfgRoutes = require("./routes/lfg");
+const riotRoutes = require("./routes/riot");
+const webPushRoutes = require("./routes/webPush");
+const { sitemapRouter } = require("./routes/sitemap");
 const state = require("./runtime/sharedState");
+const { sendFeedbackEmail } = require("./lib/feedbackEmail");
 
 // Inline feedback - no external file needed
 const { requireAuth } = require("./middleware/auth");
@@ -56,6 +64,7 @@ app.set("io", io);
 // Middleware
 app.use(cors({ origin: true, credentials: false }));
 app.use(express.json());
+app.use("/api/web-push", webPushRoutes);
 
 // Debug - log all requests (skip noise in production)
 if (process.env.NODE_ENV !== "production") {
@@ -118,6 +127,9 @@ app.get("/health", (_req, res) => {
   });
 });
 
+// SEO: robots + advanced sitemap (index, pages, invites, announcements, HTML)
+app.use(sitemapRouter);
+
 // Test endpoint - no auth required
 app.post("/api/test", (req, res) => {
   console.log("[TEST] POST /api/test received");
@@ -137,6 +149,9 @@ app.use("/groups", groupRoutes);
 app.use("/reactions", reactionRoutes);
 app.use("/friends", friendsRoutes);
 app.use("/guilds", guildRoutes);
+app.use("/calls", callsRoutes);
+app.use("/lfg", lfgRoutes);
+app.use("/riot", riotRoutes);
 
 // /api/* aliases — frontend calls mix /api/... and /... so support both
 app.use("/api/auth", authRoutes);
@@ -149,6 +164,11 @@ app.use("/api/activity", activityRoutes);
 app.use("/api/guilds", guildRoutes);
 app.use("/api/webrtc", webrtcRoutes);
 app.use("/api/errors", errorRoutes);
+app.use("/api/app", appReleaseRoutes);
+app.use("/api/calls", callsRoutes);
+app.use("/api/lfg", lfgRoutes);
+app.use("/api/riot", riotRoutes);
+app.use("/api/web-push", webPushRoutes);
 
 // ============================================================================
 // INLINE FEEDBACK ENDPOINTS - Direct in server.js (most reliable)
@@ -160,7 +180,7 @@ app.post("/api/feedback/submit", requireAuth, async (req, res) => {
   console.log("[FEEDBACK] User:", req.user?.username);
   
   try {
-    const { category, priority, message, attachments } = req.body;
+    const { category, priority, subject, message, attachments, platform, appVersion } = req.body;
     
     // Validation
     if (!message || typeof message !== "string" || message.trim().length === 0) {
@@ -173,8 +193,11 @@ app.post("/api/feedback/submit", requireAuth, async (req, res) => {
       username: req.user.username || "Anonymous",
       category: String(category || "general").toLowerCase(),
       priority: String(priority || "medium").toLowerCase(),
+      subject: String(subject || message.trim().split(/\r?\n/, 1)[0]).trim().slice(0, 200),
       message: message.trim(),
       attachments: Array.isArray(attachments) ? attachments.slice(0, 10) : [],
+      platform: String(platform || req.get("user-agent") || "unknown").slice(0, 160),
+      app_version: String(appVersion || req.get("x-app-version") || "unknown").slice(0, 80),
       status: "new",
       viewed: false,
       admin_replies: [],
@@ -197,11 +220,39 @@ app.post("/api/feedback/submit", requireAuth, async (req, res) => {
     }
     
     console.log("[FEEDBACK] SUCCESS! ID:", data?.id);
+
+    let emailDelivery = { sent: false, skipped: true };
+    try {
+      emailDelivery = await sendFeedbackEmail(data);
+      await supabase
+        .from("user_feedback")
+        .update({
+          email_status: emailDelivery.sent ? "sent" : "skipped",
+          email_provider_id: emailDelivery.providerId,
+          email_sent_at: emailDelivery.sent ? new Date().toISOString() : null,
+          email_error: emailDelivery.error || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", data.id);
+    } catch (emailError) {
+      const message = String(emailError?.message || "Email delivery failed").slice(0, 500);
+      console.error("[FEEDBACK] Email delivery failed:", message);
+      await supabase
+        .from("user_feedback")
+        .update({
+          email_status: "failed",
+          email_error: message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", data.id);
+      emailDelivery = { sent: false, error: message };
+    }
     
     return res.status(200).json({
       success: true,
       message: "Feedback submitted successfully",
-      feedbackId: data?.id
+      feedbackId: data?.id,
+      emailSent: Boolean(emailDelivery.sent)
     });
     
   } catch (err) {
@@ -316,7 +367,10 @@ app.put("/api/user/profile", requireAuth, async (req, res) => {
     const { displayName, bio, customStatus, accentColor, fontSize, uiDensity, bubbleStyle, avatarUrl, bannerUrl } = req.body;
     
     const updateData = {};
-    if (displayName !== undefined) updateData.display_name = displayName;
+    if (displayName !== undefined) {
+      const trimmed = typeof displayName === "string" ? displayName.trim() : "";
+      updateData.display_name = trimmed || null;
+    }
     if (bio !== undefined) updateData.bio = bio;
     if (customStatus !== undefined) updateData.custom_status = customStatus;
     if (accentColor !== undefined) updateData.accent_color = accentColor;
@@ -705,9 +759,9 @@ app.get("/api/admin/users", requireAuth, async (req, res) => {
       return res.status(403).json({ success: false, error: "Not authorized" });
     }
     
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from("users")
-      .select("id, username, avatar_url, is_admin")
+      .select("id, username, avatar_url, is_admin, created_at", { count: "exact" })
       .order("username", { ascending: true });
     
     if (error) return res.status(500).json({ success: false, error: error.message });
@@ -721,7 +775,11 @@ app.get("/api/admin/users", requireAuth, async (req, res) => {
     }));
     
     console.log("[ADMIN-USERS] Returning", usersWithStatus.length, "users");
-    return res.json({ success: true, users: usersWithStatus });
+    return res.json({
+      success: true,
+      users: usersWithStatus,
+      total: count ?? usersWithStatus.length,
+    });
   } catch (err) {
     console.error("[ADMIN-USERS] Error:", err);
     return res.status(500).json({ success: false, error: err.message });
@@ -746,9 +804,20 @@ console.log("  - /api/admin/users");
 console.log("  - /api/test (no auth)");
 console.log("  - /api/status");
 console.log("  - /health");
+console.log("  - /robots.txt");
+console.log("  - /sitemap.xml (+ pages/html; invites/announcements excluded from index)");
 
 // Static files
 app.use("/media/files", express.static(path.join(__dirname, "uploads")));
+
+// Discord-style invite deep links → root query.
+// Vite builds with base "./", so serving the SPA under /invite/:code breaks
+// relative asset URLs (./assets/...) and leaves the boot splash stuck.
+app.get(["/invite/:code", "/i/:code"], (req, res) => {
+  const code = String(req.params.code || "").trim();
+  if (!code) return res.redirect(302, "/");
+  return res.redirect(302, `/?invite=${encodeURIComponent(code)}`);
+});
 
 // Serve React frontend (Vite build output: frontend/dist)
 const fs = require("fs");
@@ -758,7 +827,9 @@ const hasFrontend = fs.existsSync(indexPath);
 
 const API_PREFIXES = [
   "/api", "/auth", "/admin", "/media", "/groups",
-  "/friends", "/guilds", "/reactions", "/health", "/debug",
+  "/friends", "/guilds", "/reactions", "/health", "/debug", "/lfg", "/calls", "/riot",
+  "/sitemap.xml", "/sitemap-pages.xml", "/sitemap-invites.xml",
+  "/sitemap-announcements.xml", "/sitemap.html", "/sitemap.xsl", "/robots.txt",
 ];
 
 if (hasFrontend) {

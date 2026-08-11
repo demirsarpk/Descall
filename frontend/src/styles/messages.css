@@ -23,6 +23,7 @@
   border-radius: 8px;
   transition: background 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
+  overflow: visible;
 }
 
 .message-group:hover {
@@ -53,6 +54,10 @@
 }
 
 .message-author {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-0);
@@ -68,6 +73,7 @@
   flex-direction: column;
   gap: 4px;
   width: 100%;
+  overflow: visible;
 }
 
 /* ─── Bubble ─── */
@@ -81,6 +87,8 @@
   border-radius: 12px;
   background: var(--surface-2);
   position: relative;
+  overflow: visible;
+  touch-action: pan-y;
 }
 
 .message-bubble.own {

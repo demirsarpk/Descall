@@ -3,11 +3,13 @@
 const supabase = require("../db/supabase");
 const {
   loadUserProfile,
+  savePresenceStatus,
   cacheUserProfile,
   broadcastUserProfileUpdate,
   enrichFriendEntry,
   toPublicUser,
   getCachedPublicUser,
+  publicPresenceStatus,
 } = require("../lib/userProfile");
 const {
   presence,
@@ -29,11 +31,21 @@ const {
   userSessionStartMs,
   userOnlineAccumMs,
   dmBlockPairs,
+  activeGroupCalls,
   appendAudit,
   appendErrorLog,
 } = require("../runtime/sharedState");
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
+const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
+const { trackOffer, markAnswered, finalizeCall } = require("../lib/dmCallLog");
+
+async function notifyCallHistory(io, record) {
+  if (!record) return;
+  const payload = { call: record };
+  emitToUser(io, record.callerId, "calls:updated", payload);
+  emitToUser(io, record.calleeId, "calls:updated", payload);
+}
 
 function ensureSet(map, key) {
   if (!map.has(key)) map.set(key, new Set());
@@ -52,6 +64,188 @@ function ensureDmUnreadMap(userId) {
 
 function convKey(a, b) {
   return [a, b].sort().join("::");
+}
+
+/** Last-message preview text for DM list rows. */
+function formatDmPreview(msg) {
+  if (!msg) return null;
+  const raw = String(msg.text || "").trim();
+  if (raw && !raw.startsWith("__voice__:")) return raw;
+  if (msg.mediaType === "image") return "📷 Photo";
+  if (msg.mediaType === "voice" || msg.mediaType === "audio" || raw.startsWith("__voice__:")) {
+    return "🎤 Voice message";
+  }
+  if (msg.mediaUrl) return "📎 Attachment";
+  return null;
+}
+
+function getLastDmMessage(myId, peerId) {
+  const arr = dmHistory.get(convKey(myId, peerId));
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  return arr[arr.length - 1];
+}
+
+function cacheDmMessages(key, messages) {
+  const cached = dmHistory.get(key) || [];
+  const byId = new Map(cached.map((message) => [message.id, message]));
+  for (const message of messages) byId.set(message.id, message);
+  const merged = Array.from(byId.values())
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .slice(-MAX_DM_PER_CONV);
+  dmHistory.set(key, merged);
+  return merged;
+}
+
+function mapDmRow(row, usersById) {
+  const profile = usersById.get(row.from_user_id);
+  if (profile) cacheUserProfile(profile);
+  return {
+    id: row.id,
+    from: messageSender(row.from_user_id, profile?.username || usernameById.get(row.from_user_id)),
+    to: { id: row.to_user_id },
+    text: row.content || "",
+    mediaUrl: row.media_url || null,
+    mediaType: row.media_type || null,
+    mimeType: row.mime_type || null,
+    size: row.file_size ?? null,
+    originalName: row.original_name || null,
+    duration: row.duration ?? null,
+    replyTo: row.reply_to || null,
+    timestamp: row.created_at,
+    deliveredAt: row.delivered_at || null,
+    readAt: row.read_at || null,
+    editedAt: row.edited_at || null,
+    editHistory: row.edit_history || [],
+  };
+}
+
+async function loadDmMessages(myId, peerId, { before, limit = 100 } = {}) {
+  const pageSize = Math.min(Math.max(Number(limit) || 100, 1), 100);
+  let query = supabase
+    .from("dm_messages")
+    .select("id, from_user_id, to_user_id, content, media_url, media_type, mime_type, file_size, original_name, duration, reply_to, delivered_at, read_at, edited_at, edit_history, created_at")
+    .or(`and(from_user_id.eq.${myId},to_user_id.eq.${peerId}),and(from_user_id.eq.${peerId},to_user_id.eq.${myId})`)
+    .order("created_at", { ascending: false })
+    .limit(pageSize + 1);
+  if (before) query = query.lt("created_at", before);
+
+  const { data: rows, error } = await query;
+  if (error) throw error;
+
+  const hasMore = (rows || []).length > pageSize;
+  const page = hasMore ? rows.slice(0, pageSize) : (rows || []);
+  const userIds = [...new Set(page.map((row) => row.from_user_id))];
+  const { data: profiles, error: profileError } = userIds.length
+    ? await supabase
+      .from("users")
+      .select("id, username, avatar_url, display_name, updated_at, is_admin")
+      .in("id", userIds)
+    : { data: [], error: null };
+  if (profileError) console.warn("[DM] Sender profile lookup failed:", profileError.message);
+
+  const usersById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  const messages = page.reverse().map((row) => mapDmRow(row, usersById));
+  cacheDmMessages(convKey(myId, peerId), messages);
+  return { messages, hasMore };
+}
+
+/** Build preview + activity maps for every DM thread involving this user.
+ * The in-memory history is only a cache, so cold/restarted servers must use
+ * persisted messages rather than rendering every thread as empty.
+ */
+async function buildDmPreviewMaps(userId) {
+  const dmPreviewsByPeer = {};
+  const dmLastActivityByPeer = {};
+  const missingPeerIds = [];
+  const friendIds = friends.get(userId) || new Set();
+
+  for (const [key, arr] of dmHistory) {
+    const parts = String(key).split("::");
+    if (parts.length !== 2 || !parts.includes(userId)) continue;
+    const peerId = parts[0] === userId ? parts[1] : parts[0];
+    if (!Array.isArray(arr) || arr.length === 0) {
+      missingPeerIds.push(peerId);
+      continue;
+    }
+    const last = arr[arr.length - 1];
+    const preview = formatDmPreview(last);
+    if (preview) dmPreviewsByPeer[peerId] = preview;
+    const ts = last?.timestamp || last?.created_at || null;
+    if (ts) dmLastActivityByPeer[peerId] = ts;
+  }
+
+  // A process restart leaves dmHistory empty, so make every accepted friend a
+  // candidate for a persisted preview, not only conversations touched in this
+  // process. This keeps the sidebar and its ordering durable.
+  for (const peerId of friendIds) {
+    if (!dmLastActivityByPeer[peerId] && !missingPeerIds.includes(peerId)) {
+      missingPeerIds.push(peerId);
+    }
+  }
+
+  await Promise.all(missingPeerIds.map(async (peerId) => {
+    try {
+      const { data, error } = await supabase
+        .from("dm_messages")
+        .select("content, media_url, media_type, created_at")
+        .or(
+          `and(from_user_id.eq.${userId},to_user_id.eq.${peerId}),and(from_user_id.eq.${peerId},to_user_id.eq.${userId})`,
+        )
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      const preview = formatDmPreview({
+        text: data.content,
+        mediaUrl: data.media_url,
+        mediaType: data.media_type,
+      });
+      if (preview) dmPreviewsByPeer[peerId] = preview;
+      if (data.created_at) dmLastActivityByPeer[peerId] = data.created_at;
+    } catch (error) {
+      console.warn("[DM] Preview lookup failed:", error?.message || error);
+    }
+  }));
+
+  return { dmPreviewsByPeer, dmLastActivityByPeer };
+}
+
+/** Attach persisted emoji reactions onto an in-memory message list. */
+async function attachReactions(messages, conversationType, conversationId) {
+  if (!Array.isArray(messages) || messages.length === 0 || !conversationType || !conversationId) {
+    return messages || [];
+  }
+  const ids = messages.map((m) => m?.id).filter(Boolean);
+  if (ids.length === 0) return messages;
+  try {
+    const { data, error } = await supabase
+      .from("reactions")
+      .select("message_id, emoji, user_id")
+      .eq("conversation_type", conversationType)
+      .eq("conversation_id", conversationId)
+      .in("message_id", ids);
+    if (error) {
+      console.warn("[reactions] attach failed (run reactionsMigration.sql?):", error.message);
+      return messages;
+    }
+    const byMsg = new Map();
+    for (const r of data || []) {
+      if (!byMsg.has(r.message_id)) byMsg.set(r.message_id, []);
+      byMsg.get(r.message_id).push({
+        emoji: r.emoji,
+        userId: r.user_id,
+        messageId: r.message_id,
+      });
+    }
+    return messages.map((m) => ({
+      ...m,
+      reactions: byMsg.get(m.id) || m.reactions || [],
+    }));
+  } catch (err) {
+    console.warn("[reactions] attach error:", err.message);
+    return messages;
+  }
 }
 
 function getNotifications(userId) {
@@ -79,15 +273,24 @@ function pushNotification(io, userId, n) {
 function broadcastUsers(io) {
   const list = [];
   for (const [id, p] of presence) {
+    // Invisible users must not appear in the online roster at all —
+    // remapping status to "offline" still leaked them via membership checks.
+    if (p.status === "invisible") continue;
     const cached = getCachedPublicUser(id);
+    const username = cached?.username || p.username;
+    const isAdmin = Boolean(cached?.is_admin || cached?.isAdmin) || username === "admin";
     list.push({
       id,
-      username: cached?.username || p.username,
-      status: p.status || "online",
+      username,
+      displayName: cached?.displayName || null,
+      display_name: cached?.displayName || null,
+      status: publicPresenceStatus(p.status),
       avatarUrl: cached?.avatarUrl || p.avatar_url || null,
       avatar_url: cached?.avatarUrl || p.avatar_url || null,
       avatarVersion: cached?.avatarVersion || cached?.updated_at || null,
       updated_at: cached?.updated_at || null,
+      is_admin: isAdmin,
+      isAdmin,
     });
   }
   io.emit("users:update", list);
@@ -96,20 +299,30 @@ function broadcastUsers(io) {
 function messageSender(userId, fallbackUsername, fallbackAvatar) {
   const cached = getCachedPublicUser(userId);
   if (cached) {
+    const isAdmin = Boolean(cached.is_admin || cached.isAdmin) || cached.username === "admin";
     return {
       id: userId,
       username: cached.username,
+      displayName: cached.displayName || null,
+      display_name: cached.displayName || null,
       avatarUrl: cached.avatarUrl,
       avatar_url: cached.avatarUrl,
       avatarVersion: cached.avatarVersion,
       updated_at: cached.updated_at,
+      is_admin: isAdmin,
+      isAdmin,
     };
   }
+  const isAdmin = fallbackUsername === "admin";
   return {
     id: userId,
     username: fallbackUsername,
+    displayName: null,
+    display_name: null,
     avatarUrl: fallbackAvatar || null,
     avatar_url: fallbackAvatar || null,
+    is_admin: isAdmin,
+    isAdmin,
   };
 }
 
@@ -124,7 +337,12 @@ function getFriendList(userId) {
   if (!set) return [];
   const out = [];
   for (const fid of set) {
-    out.push(enrichFriendEntry(fid));
+    const last = getLastDmMessage(userId, fid);
+    out.push({
+      ...enrichFriendEntry(fid),
+      lastMessage: formatDmPreview(last),
+      lastActivity: last?.timestamp || last?.created_at || null,
+    });
   }
   return out.sort((a, b) => a.username.localeCompare(b.username));
 }
@@ -151,16 +369,28 @@ function emitToUser(io, userId, event, payload) {
   }
 }
 
-function buildSyncState(userId) {
+async function buildSyncState(userId) {
   const dmMap = ensureDmUnreadMap(userId);
   const dmUnreadByPeer = {};
   for (const [k, v] of dmMap) {
     dmUnreadByPeer[k] = v;
   }
+  const { dmPreviewsByPeer, dmLastActivityByPeer } = await buildDmPreviewMaps(userId);
   return {
     dmUnreadByPeer,
+    dmPreviewsByPeer,
+    dmLastActivityByPeer,
     notifications: getNotifications(userId),
   };
+}
+
+function emitSyncState(io, userId, socket = null) {
+  buildSyncState(userId)
+    .then((state) => {
+      if (socket) socket.emit("sync:state", state);
+      else emitToUser(io, userId, "sync:state", state);
+    })
+    .catch((error) => console.warn("[DM] Sync state build failed:", error?.message || error));
 }
 
 async function findUserByUsername(username) {
@@ -203,10 +433,10 @@ async function loadFriendsFromDB(userId) {
       return new Set();
     }
 
-    // Batch-fetch usernames
+    // Batch-fetch profile fields for friend rows / hover cards
     const { data: users, error: usersError } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, updated_at")
+      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at")
       .in("id", friendIds);
 
     if (usersError) console.error("[FRIENDS] loadFriendsFromDB users fetch error:", usersError);
@@ -225,6 +455,15 @@ async function loadFriendsFromDB(userId) {
     console.error("[FRIENDS] Error in loadFriendsFromDB:", e);
     return new Set();
   }
+}
+
+async function isAcceptedFriend(userId, otherUserId) {
+  let friendSet = friends.get(userId);
+  // A socket can receive dm:history before its asynchronous boot-time friend
+  // load completes. Hydrate from the durable source instead of treating the
+  // temporary cache miss as a denial.
+  if (!friendSet) friendSet = await loadFriendsFromDB(userId);
+  return Boolean(friendSet?.has(otherUserId));
 }
 
 // Load pending friend requests from DB into memory
@@ -271,21 +510,84 @@ async function loadPendingRequestsFromDB(userId) {
   }
 }
 
-// Accept the pending friend request in the 'friends' table (one row, requester → acceptor)
+// Accept the pending friend request in the 'friendships' table (one row, requester → acceptor)
 async function saveFriendshipToDB(requesterId, acceptorId) {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("friendships")
       .update({ status: "accepted" })
       .eq("user_id", requesterId)
       .eq("friend_id", acceptorId)
-      .eq("status", "pending");
+      .eq("status", "pending")
+      .select("id");
 
-    if (error) console.error("[FRIENDS] Error accepting friendship in DB:", error);
-    return !error;
+    if (error) {
+      console.error("[FRIENDS] Error accepting friendship in DB:", error);
+      return false;
+    }
+    if (Array.isArray(data) && data.length > 0) return true;
+
+    // No pending row (e.g. socket-only legacy request) — upsert accepted friendship.
+    const { error: upsertError } = await supabase.from("friendships").upsert(
+      {
+        user_id: requesterId,
+        friend_id: acceptorId,
+        status: "accepted",
+      },
+      { onConflict: "user_id,friend_id" }
+    );
+    if (upsertError) {
+      console.error("[FRIENDS] Error upserting accepted friendship:", upsertError);
+      return false;
+    }
+    return true;
   } catch (e) {
     console.error("[FRIENDS] Error in saveFriendshipToDB:", e);
     return false;
+  }
+}
+
+/** Persist a pending friend request (requester → target). */
+async function createPendingFriendshipInDB(requesterId, targetId) {
+  try {
+    // Clear any stale non-accepted rows either direction, then insert pending.
+    await supabase
+      .from("friendships")
+      .delete()
+      .or(
+        `and(user_id.eq.${requesterId},friend_id.eq.${targetId}),and(user_id.eq.${targetId},friend_id.eq.${requesterId})`
+      )
+      .neq("status", "accepted");
+
+    const { data: existingAccepted } = await supabase
+      .from("friendships")
+      .select("id")
+      .or(
+        `and(user_id.eq.${requesterId},friend_id.eq.${targetId}),and(user_id.eq.${targetId},friend_id.eq.${requesterId})`
+      )
+      .eq("status", "accepted")
+      .limit(1);
+
+    if (existingAccepted?.length) return { ok: false, reason: "already_friends" };
+
+    const { error } = await supabase.from("friendships").insert({
+      user_id: requesterId,
+      friend_id: targetId,
+      status: "pending",
+    });
+
+    if (error) {
+      // Unique conflict — treat as already pending
+      if (String(error.code) === "23505" || /duplicate|unique/i.test(error.message || "")) {
+        return { ok: false, reason: "already_pending" };
+      }
+      console.error("[FRIENDS] Error creating pending friendship:", error);
+      return { ok: false, reason: "db_error", error };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error("[FRIENDS] Error in createPendingFriendshipInDB:", e);
+    return { ok: false, reason: "db_error", error: e };
   }
 }
 
@@ -317,52 +619,73 @@ function registerSocketHandlers(io) {
     }
 
     if (!userRoles.has(myId)) {
-      userRoles.set(myId, me.username === "admin" ? "admin" : "user");
+      userRoles.set(myId, me.username === "admin" || me.is_admin ? "admin" : "user");
     }
     userSessionStartMs.set(myId, Date.now());
 
     usernameById.set(myId, me.username);
 
+    const existingPresence = presence.get(myId);
     presence.set(myId, {
       username: me.username,
-      status: "online",
+      status: existingPresence?.status || "online",
       socketId: socket.id,
-      avatar_url: me.avatar_url || null,
+      avatar_url: existingPresence?.avatar_url || me.avatar_url || null,
     });
     socket.join(`user:${myId}`);
     socketToUser.set(socket.id, myId);
     socket.data.activeDmPeer = null;
 
-    // Load full profile from DB (avatar, display name, etc.)
-    loadUserProfile(myId).then((profile) => {
-      if (!profile) return;
-      me.avatar_url = profile.avatar_url;
-      socket.user.avatar_url = profile.avatar_url;
-      const p = presence.get(myId);
-      if (p) {
-        p.avatar_url = profile.avatar_url;
-        presence.set(myId, p);
-      }
-    }).catch(() => {});
-
     setupAdminSocket(io, socket);
 
-    // Load friends and pending requests from DB, then fire all initial events together
+    // Load friends + full profile, then emit connected with displayName etc.
     Promise.all([
       loadFriendsFromDB(myId),
       loadPendingRequestsFromDB(myId),
-    ]).then(() => {
+      loadUserProfile(myId),
+    ]).then(([, , profile]) => {
+      if (profile) {
+        me.avatar_url = profile.avatar_url;
+        me.display_name = profile.display_name;
+        me.displayName = profile.display_name;
+        me.bio = profile.bio;
+        me.custom_status = profile.custom_status;
+        me.banner_url = profile.banner_url;
+        me.updated_at = profile.updated_at;
+        me.is_admin = Boolean(profile.is_admin);
+        socket.user.avatar_url = profile.avatar_url;
+        socket.user.display_name = profile.display_name;
+        socket.user.displayName = profile.display_name;
+        socket.user.is_admin = Boolean(profile.is_admin);
+        if (profile.is_admin || me.username === "admin") {
+          userRoles.set(myId, "admin");
+        }
+        const p = presence.get(myId);
+        if (p) {
+          p.avatar_url = profile.avatar_url;
+          if (!existingPresence) {
+            const allowed = ["online", "idle", "dnd", "invisible"];
+            const restored = allowed.includes(profile.presence_status)
+              ? profile.presence_status
+              : "online";
+            p.status = restored;
+          }
+          presence.set(myId, p);
+        }
+      }
+
       socket.emit("connected", {
-        user: me,
+        user: profile ? toPublicUser(profile) : me,
         message: "Socket connected successfully.",
       });
+      socket.emit("status:current", { status: presence.get(myId)?.status || "online" });
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
-      socket.emit("sync:state", buildSyncState(myId));
+      emitSyncState(io, myId, socket);
       broadcastUsers(io);
     });
 
-    socket.on("status:set", ({ status } = {}) => {
+    socket.on("status:set", async ({ status } = {}) => {
       const allowed = ["online", "idle", "dnd", "invisible"];
       const s = allowed.includes(status) ? status : "online";
       const p = presence.get(myId);
@@ -370,6 +693,8 @@ function registerSocketHandlers(io) {
         p.status = s;
         presence.set(myId, p);
       }
+      await savePresenceStatus(myId, s);
+      socket.emit("status:current", { status: s });
       broadcastUsers(io);
       io.to(socket.id).emit("friend:list", getFriendList(myId));
     });
@@ -394,21 +719,52 @@ function registerSocketHandlers(io) {
           return socket.emit("friend:error", { message: "You cannot add yourself." });
         }
         const myFriends = ensureSet(friends, myId);
-        if (myFriends.has(target.id)) {
+        if (myFriends.has(target.id) || ensureSet(friends, target.id).has(myId)) {
           appendErrorLog("friend:request", "Already friends", { targetId: target.id, targetUsername: target.username }, myId, me.username);
           return socket.emit("friend:error", { message: "Already friends." });
         }
+
+        // DB is source of truth — also catches REST-sent / cross-instance pending rows
+        const { data: existingRows } = await supabase
+          .from("friendships")
+          .select("id, status, user_id, friend_id")
+          .or(
+            `and(user_id.eq.${myId},friend_id.eq.${target.id}),and(user_id.eq.${target.id},friend_id.eq.${myId})`
+          );
+
+        if (existingRows?.some((r) => r.status === "accepted")) {
+          ensureSet(friends, myId).add(target.id);
+          ensureSet(friends, target.id).add(myId);
+          return socket.emit("friend:error", { message: "Already friends." });
+        }
+        if (existingRows?.some((r) => r.status === "pending")) {
+          return socket.emit("friend:error", { message: "Request already pending." });
+        }
+
         const theirPending = ensurePending(target.id);
         if (theirPending.has(myId)) {
           appendErrorLog("friend:request", "Request already pending", { targetId: target.id }, myId, me.username);
           return socket.emit("friend:error", { message: "Request already pending." });
         }
 
-        theirPending.set(myId, { id: myId, username: me.username });
+        const created = await createPendingFriendshipInDB(myId, target.id);
+        if (!created.ok) {
+          if (created.reason === "already_friends") {
+            return socket.emit("friend:error", { message: "Already friends." });
+          }
+          if (created.reason === "already_pending") {
+            return socket.emit("friend:error", { message: "Request already pending." });
+          }
+          return socket.emit("friend:error", { message: "Could not send request." });
+        }
+
+        theirPending.set(myId, { id: myId, username: me.username, avatarUrl: me.avatar_url || null });
         usernameById.set(myId, me.username);
         emitToUser(io, target.id, "friend:request:incoming", {
           from: enrichFriendEntry(myId),
         });
+        // Keep recipient's pending list in sync even if they missed the incoming event
+        emitToUser(io, target.id, "friend:requests", getPendingList(target.id));
         pushNotification(io, target.id, {
           type: "friend_request",
           title: "Friend request",
@@ -417,12 +773,14 @@ function registerSocketHandlers(io) {
         });
         socket.emit("friend:request:sent", { to: target.username });
       } catch (e) {
+        console.error("[Friends] request error:", e);
         socket.emit("friend:error", { message: "Could not send request." });
       }
     });
 
-    socket.on("friend:accept", async ({ fromUserId } = {}) => {
-      if (typeof fromUserId !== "string") {
+    socket.on("friend:accept", async (payload = {}) => {
+      const fromUserId = String(payload?.fromUserId || payload?.userId || "").trim();
+      if (!fromUserId) {
         socket.emit("friend:error", { message: "Invalid user ID" });
         return;
       }
@@ -442,14 +800,17 @@ function registerSocketHandlers(io) {
         return;
       }
 
-      if (!pendingRow) {
+      const theirPending = pendingRequests.get(myId);
+      const inMemory = Boolean(theirPending?.has(fromUserId));
+
+      if (!pendingRow && !inMemory) {
         console.log("[Friends] No pending request found:", { fromUserId, myId });
         socket.emit("friend:error", { message: "Friend request not found or already processed" });
+        socket.emit("friend:requests", getPendingList(myId));
         return;
       }
 
       // Update memory
-      const theirPending = pendingRequests.get(myId);
       const fromProf = theirPending?.get(fromUserId);
       if (theirPending?.has(fromUserId)) {
         theirPending.delete(fromUserId);
@@ -460,12 +821,15 @@ function registerSocketHandlers(io) {
       ensureSet(friends, fromUserId).add(myId);
       if (fromProf?.username) usernameById.set(fromUserId, fromProf.username);
 
-      // Accept in DB — only one pending row (requester → acceptor)
-      try {
-        await saveFriendshipToDB(fromUserId, myId);
-      } catch (err) {
-        console.error("[Friends] Accept save error:", err);
+      // Accept in DB — update pending, or upsert accepted for legacy memory-only requests
+      const saved = await saveFriendshipToDB(fromUserId, myId);
+      if (!saved) {
+        // Roll back memory so UI can restore the pending request
+        ensureSet(friends, myId).delete(fromUserId);
+        ensureSet(friends, fromUserId).delete(myId);
+        ensurePending(myId).set(fromUserId, fromProf || { id: fromUserId, username: usernameById.get(fromUserId) || "?" });
         socket.emit("friend:error", { message: "Failed to save friendship" });
+        socket.emit("friend:requests", getPendingList(myId));
         return;
       }
 
@@ -477,17 +841,20 @@ function registerSocketHandlers(io) {
         meta: { userId: myId },
       });
 
+      socket.emit("friend:accepted", { by: { id: fromUserId } });
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
-      socket.emit("sync:state", buildSyncState(myId));
+      emitSyncState(io, myId, socket);
       emitToUser(io, fromUserId, "friend:list", getFriendList(fromUserId));
-      emitToUser(io, fromUserId, "sync:state", buildSyncState(fromUserId));
+      emitToUser(io, fromUserId, "friend:requests", getPendingList(fromUserId));
+      emitSyncState(io, fromUserId);
       
       console.log("[Friends] Request accepted:", { fromUserId, by: myId });
     });
 
-    socket.on("friend:decline", async ({ fromUserId } = {}) => {
-      if (typeof fromUserId !== "string") {
+    socket.on("friend:decline", async (payload = {}) => {
+      const fromUserId = String(payload?.fromUserId || payload?.userId || "").trim();
+      if (!fromUserId) {
         socket.emit("friend:error", { message: "Invalid user ID" });
         return;
       }
@@ -540,9 +907,9 @@ function registerSocketHandlers(io) {
       await removeFriendshipFromDB(myId, friendId);
       
       socket.emit("friend:list", getFriendList(myId));
-      socket.emit("sync:state", buildSyncState(myId));
+      emitSyncState(io, myId, socket);
       emitToUser(io, friendId, "friend:list", getFriendList(friendId));
-      emitToUser(io, friendId, "sync:state", buildSyncState(friendId));
+      emitSyncState(io, friendId);
     });
 
     socket.on("dm:set_active", ({ withUserId } = {}) => {
@@ -569,40 +936,63 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("dm:send", async ({ toUserId, tempId, text, mediaUrl, mediaType, mimeType, size, originalName } = {}) => {
+    socket.on("dm:send", async ({ toUserId, tempId, text, mediaUrl, mediaType, mimeType, size, originalName, duration, replyTo } = {}) => {
       if (bannedUserIds.has(myId)) {
         appendErrorLog("dm:send", "User is banned", { toUserId }, myId, me.username);
-        return socket.emit("dm:error", { message: "You are banned." });
+        return socket.emit("dm:error", { message: "You are banned.", tempId: tempId || null, toUserId });
       }
       if (dmBlockPairs.has(convKey(myId, toUserId))) {
         appendErrorLog("dm:send", "Conversation blocked", { toUserId }, myId, me.username);
-        return socket.emit("dm:error", { message: "Conversation blocked." });
+        return socket.emit("dm:error", { message: "Conversation blocked.", tempId: tempId || null, toUserId });
       }
       const now = Date.now();
       const last = rateLimitDm.get(myId) || 0;
       if (now - last < systemConfig.dmRateLimitMs) {
         appendErrorLog("dm:send", "Rate limited", { toUserId }, myId, me.username);
-        return socket.emit("dm:error", { message: "Rate limited." });
+        return socket.emit("dm:error", { message: "Rate limited.", tempId: tempId || null, toUserId });
       }
       rateLimitDm.set(myId, now);
       socket.data.activeDmPeer = toUserId;
-      const messageId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      const arr = dmHistory.get(convKey(myId, toUserId)) || [];
       const sender = messageSender(myId, me.username, me.avatar_url || socket.user?.avatar_url);
-      arr.push({
-        id: messageId,
-        from: sender,
-        to: { id: toUserId },
-        text: text || "",
-        mediaUrl,
-        mediaType,
-        mimeType,
-        size,
-        originalName,
-        timestamp: new Date().toISOString(),
-      });
-      if (arr.length > MAX_DM_PER_CONV) arr.length = MAX_DM_PER_CONV;
-      dmHistory.set(convKey(myId, toUserId), arr);
+      const replyMeta = replyTo && typeof replyTo === "object"
+        ? {
+            id: replyTo.id || null,
+            text: replyTo.text || "",
+            mediaType: replyTo.mediaType || null,
+            from: replyTo.from || null,
+          }
+        : null;
+      const isVoice = mediaType === "voice" || mediaType === "audio";
+      const voiceDuration = isVoice ? Math.max(0, Math.round(Number(duration) || 0)) : null;
+      const storedText = isVoice
+        ? (String(text || "").startsWith("__voice__:") ? text : `__voice__:${voiceDuration || 1}`)
+        : (text || "");
+      const { data: row, error: persistError } = await supabase
+        .from("dm_messages")
+        .insert({
+          from_user_id: myId,
+          to_user_id: toUserId,
+          content: storedText,
+          media_url: mediaUrl || null,
+          media_type: isVoice ? "voice" : (mediaType || null),
+          mime_type: mimeType || null,
+          file_size: size ?? null,
+          original_name: originalName || null,
+          duration: voiceDuration,
+          reply_to: replyMeta,
+        })
+        .select("id, created_at")
+        .single();
+      if (persistError || !row) {
+        console.error("[DM] Database insert failed:", persistError?.message || "No row returned");
+        return socket.emit("dm:error", {
+          message: "Failed to send message. Please try again.",
+          tempId: tempId || null,
+          toUserId,
+        });
+      }
+      const messageId = row.id;
+      const timestamp = row.created_at;
 
       // Unread for recipient — skip if they currently have this DM open
       const recipientSocket = getSocketForUser(io, toUserId);
@@ -619,14 +1009,17 @@ function registerSocketHandlers(io) {
       const messagePayload = {
         id: messageId,
         from: sender,
-        text,
+        text: isVoice ? "" : storedText,
         mediaUrl,
-        mediaType,
+        mediaType: isVoice ? "voice" : mediaType,
         mimeType,
         size,
         originalName,
-        timestamp: new Date().toISOString(),
+        duration: voiceDuration,
+        replyTo: replyMeta,
+        timestamp,
       };
+      cacheDmMessages(convKey(myId, toUserId), [{ ...messagePayload, to: { id: toUserId } }]);
       emitToUser(io, toUserId, "dm:message", { ...messagePayload, convWith: myId });
       // Echo back to sender with tempId so client can replace the optimistic message
       socket.emit("dm:message", { ...messagePayload, tempId, convWith: toUserId });
@@ -652,26 +1045,40 @@ function registerSocketHandlers(io) {
       }
     });
 
-    socket.on("dm:delivered", ({ msgId, fromUserId } = {}) => {
+    socket.on("dm:delivered", async ({ msgId, fromUserId } = {}) => {
       if (typeof msgId !== "string" || typeof fromUserId !== "string") return;
       const key = convKey(myId, fromUserId);
       const arr = dmHistory.get(key);
       const m = arr?.find((x) => x.id === msgId);
-      if (!m || m.from?.id !== fromUserId || m.to?.id !== myId) return;
       const at = new Date().toISOString();
-      m.deliveredAt = m.deliveredAt || at;
+      const { error } = await supabase
+        .from("dm_messages")
+        .update({ delivered_at: at })
+        .eq("id", msgId)
+        .eq("from_user_id", fromUserId)
+        .eq("to_user_id", myId)
+        .is("delivered_at", null);
+      if (error) return console.error("[DM] Delivery update failed:", error.message);
+      if (m) m.deliveredAt = m.deliveredAt || at;
       emitToUser(io, fromUserId, "dm:message:update", {
         msgId,
         convWith: myId,
-        deliveredAt: m.deliveredAt,
+        deliveredAt: m?.deliveredAt || at,
       });
     });
 
-    socket.on("dm:mark_read", ({ withUserId } = {}) => {
+    socket.on("dm:mark_read", async ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
       const key = convKey(myId, withUserId);
       const arr = dmHistory.get(key);
       const at = new Date().toISOString();
+      const { error } = await supabase
+        .from("dm_messages")
+        .update({ read_at: at })
+        .eq("from_user_id", withUserId)
+        .eq("to_user_id", myId)
+        .is("read_at", null);
+      if (error) return console.error("[DM] Read update failed:", error.message);
       if (arr) {
         for (const m of arr) {
           if (m.from?.id === withUserId && m.to?.id === myId) {
@@ -685,30 +1092,37 @@ function registerSocketHandlers(io) {
       emitToUser(io, withUserId, "dm:peer_read", { peerId: myId, at });
     });
 
-    socket.on("dm:history", ({ withUserId } = {}) => {
+    socket.on("dm:history", async ({ withUserId } = {}) => {
       if (typeof withUserId !== "string") return;
-      const key = convKey(myId, withUserId);
-      const all = dmHistory.get(key) || [];
-      socket.emit("dm:history", {
-        withUserId,
-        messages: all.slice(-100),
-      });
+      if (!(await isAcceptedFriend(myId, withUserId))) {
+        return socket.emit("dm:history", { withUserId, messages: [] });
+      }
+      try {
+        const { messages } = await loadDmMessages(myId, withUserId);
+        const withReactions = await attachReactions(messages, "dm", convKey(myId, withUserId));
+        socket.emit("dm:history", { withUserId, messages: withReactions });
+      } catch (error) {
+        console.error("[DM] History load failed:", error.message);
+        socket.emit("dm:error", { message: "Failed to load message history.", toUserId: withUserId });
+      }
     });
 
-    socket.on("dm:fetch", ({ withUserId, before, limit = 50 } = {}) => {
+    socket.on("dm:fetch", async ({ withUserId, before, limit = 50 } = {}) => {
       if (typeof withUserId !== "string") return;
-      if (!friends.get(myId)?.has(withUserId)) {
+      if (!(await isAcceptedFriend(myId, withUserId))) {
         return socket.emit("dm:page", { withUserId, messages: [], hasMore: false });
       }
-      const key = convKey(myId, withUserId);
-      const arr = dmHistory.get(key) || [];
-      const pool = typeof before === "string" ? arr.filter((m) => m.timestamp < before) : arr;
-      const slice = pool.slice(-limit);
-      socket.emit("dm:page", {
-        withUserId,
-        messages: slice,
-        hasMore: slice.length === limit,
-      });
+      try {
+        const { messages, hasMore } = await loadDmMessages(myId, withUserId, {
+          before: typeof before === "string" ? before : null,
+          limit,
+        });
+        const withReactions = await attachReactions(messages, "dm", convKey(myId, withUserId));
+        socket.emit("dm:page", { withUserId, messages: withReactions, hasMore });
+      } catch (error) {
+        console.error("[DM] Page load failed:", error.message);
+        socket.emit("dm:error", { message: "Failed to load older messages.", toUserId: withUserId });
+      }
     });
 
     socket.on("notification:read", ({ id } = {}) => {
@@ -736,6 +1150,12 @@ function registerSocketHandlers(io) {
       const presenceHit = Boolean(presence.get(targetId)?.socketId);
       const delivered = (room && room.size > 0) || presenceHit;
 
+      trackOffer({
+        callerId: myId,
+        calleeId: targetId,
+        callType: callType || "voice",
+      });
+
       emitToUser(io, targetId, "call:offer", {
         fromUser: {
           id: myId,
@@ -760,6 +1180,8 @@ function registerSocketHandlers(io) {
 
     socket.on("call:answer", ({ toUserId, answer } = {}) => {
       if (typeof toUserId !== "string" || !answer) return;
+      // Callee answers → caller is toUserId
+      markAnswered({ callerId: toUserId, calleeId: myId });
       emitToUser(io, toUserId, "call:answer", {
         fromUserId: myId,
         answer,
@@ -774,19 +1196,38 @@ function registerSocketHandlers(io) {
       });
     });
 
-    socket.on("call:end", ({ toUserId } = {}) => {
+    socket.on("call:end", async ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
       emitToUser(io, toUserId, "call:ended", { fromUserId: myId });
+      try {
+        const record = await finalizeCall(myId, toUserId, "completed");
+        await notifyCallHistory(io, record);
+      } catch (err) {
+        console.warn("[Call] finalize end failed:", err?.message || err);
+      }
     });
 
-    socket.on("call:cancel", ({ toUserId } = {}) => {
+    socket.on("call:cancel", async ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
       emitToUser(io, toUserId, "call:cancelled", { fromUserId: myId });
+      try {
+        // Unanswered cancel = missed for the callee history
+        const record = await finalizeCall(myId, toUserId, "missed");
+        await notifyCallHistory(io, record);
+      } catch (err) {
+        console.warn("[Call] finalize cancel failed:", err?.message || err);
+      }
     });
 
-    socket.on("call:decline", ({ toUserId } = {}) => {
+    socket.on("call:decline", async ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
       emitToUser(io, toUserId, "call:declined", { fromUserId: myId });
+      try {
+        const record = await finalizeCall(myId, toUserId, "declined");
+        await notifyCallHistory(io, record);
+      } catch (err) {
+        console.warn("[Call] finalize decline failed:", err?.message || err);
+      }
     });
 
     socket.on("screen:share-start", ({ toUserId } = {}) => {
@@ -797,6 +1238,17 @@ function registerSocketHandlers(io) {
     socket.on("screen:share-stop", ({ toUserId } = {}) => {
       if (typeof toUserId !== "string") return;
       emitToUser(io, toUserId, "screen:share-stop", { fromUserId: myId });
+    });
+
+    // Media state is presentation-only; it lets the remote tile immediately
+    // show muted/camera-off status instead of inferring it from a frozen track.
+    socket.on("call:media-state", ({ toUserId, muted, cameraOn } = {}) => {
+      if (typeof toUserId !== "string") return;
+      emitToUser(io, toUserId, "call:media-state", {
+        fromUserId: myId,
+        muted: Boolean(muted),
+        cameraOn: Boolean(cameraOn),
+      });
     });
 
     socket.on("room:join", (roomId) => {
@@ -829,20 +1281,33 @@ function registerSocketHandlers(io) {
       
       // Verify user is part of this conversation
       let otherId = null;
+      let dmKey = conversationId;
       if (conversationType === "dm") {
-        // conversationId should be in format "smallerId::largerId"
-        const ids = conversationId.split("::");
-        console.log("[reaction:add] DM ids:", ids);
-        if (ids.length !== 2) {
-          console.log("[reaction:add] Invalid conversationId format");
-          return;
+        // Accept either "a::b" or a bare peer user id
+        if (typeof conversationId === "string" && conversationId.includes("::")) {
+          const ids = conversationId.split("::");
+          if (ids.length !== 2) {
+            console.log("[reaction:add] Invalid conversationId format");
+            return;
+          }
+          otherId = ids[0] === myId ? ids[1] : ids[0];
+          dmKey = convKey(myId, otherId);
+        } else {
+          otherId = conversationId;
+          dmKey = convKey(myId, otherId);
         }
-        otherId = ids[0] === myId ? ids[1] : ids[0];
         console.log("[reaction:add] otherId:", otherId, "isFriend:", friends.get(myId)?.has(otherId));
-        if (!otherId || !friends.get(myId)?.has(otherId)) {
-          console.log("[reaction:add] Not friends, returning");
+        if (!otherId || otherId === myId) {
+          console.log("[reaction:add] Invalid DM peer, returning");
           return;
         }
+        // Soft-check friendship: still allow if already in an open DM thread
+        const knownThread = dmHistory.has(dmKey);
+        if (!friends.get(myId)?.has(otherId) && !knownThread) {
+          console.log("[reaction:add] Not friends / no DM thread, returning");
+          return;
+        }
+        conversationId = dmKey;
       } else if (conversationType === "group") {
         // Check group membership - room has 'group:' prefix
         const roomId = `group:${conversationId}`;
@@ -851,8 +1316,23 @@ function registerSocketHandlers(io) {
         const isMember = socket.rooms.has(roomId);
         console.log("[reaction:add] isMember:", isMember);
         if (!isMember) {
-          console.log("[reaction:add] Not a member of this group, returning");
-          return;
+          // Fallback: allow if user is in the group's member list in DB / previously joined
+          try {
+            const { data: mem } = await supabase
+              .from("group_members")
+              .select("user_id")
+              .eq("group_id", conversationId)
+              .eq("user_id", myId)
+              .maybeSingle();
+            if (!mem) {
+              console.log("[reaction:add] Not a member of this group, returning");
+              return;
+            }
+            socket.join(roomId);
+          } catch {
+            console.log("[reaction:add] Not a member of this group, returning");
+            return;
+          }
         }
       }
 
@@ -909,9 +1389,15 @@ function registerSocketHandlers(io) {
       // Get otherId for DM
       let otherId = null;
       if (conversationType === "dm") {
-        const ids = conversationId.split("::");
-        if (ids.length === 2) {
-          otherId = ids[0] === myId ? ids[1] : ids[0];
+        if (typeof conversationId === "string" && conversationId.includes("::")) {
+          const ids = conversationId.split("::");
+          if (ids.length === 2) {
+            otherId = ids[0] === myId ? ids[1] : ids[0];
+            conversationId = convKey(myId, otherId);
+          }
+        } else {
+          otherId = conversationId;
+          conversationId = convKey(myId, otherId);
         }
       }
 
@@ -949,26 +1435,39 @@ function registerSocketHandlers(io) {
     // Message Edit - DM
     socket.on("dm:message:edit", async ({ messageId, newText, toUserId } = {}) => {
       if (!messageId || !newText || !toUserId) return;
-      
+
       // Verify friendship
       if (!friends.get(myId)?.has(toUserId)) return;
-      
-      const convKey = [myId, toUserId].sort().join("::");
-      const arr = dmHistory.get(convKey) || [];
-      const msg = arr.find(m => m.id === messageId && m.from === myId);
-      
-      if (!msg) return;
-      
-      // Save old version to edit history
-      if (!msg.editHistory) msg.editHistory = [];
-      msg.editHistory.push({
-        text: msg.text,
-        editedAt: new Date().toISOString()
-      });
-      
-      msg.text = newText;
-      msg.editedAt = new Date().toISOString();
-      
+
+      const key = convKey(myId, toUserId);
+      const arr = dmHistory.get(key) || [];
+      const msg = arr.find((message) => message.id === messageId && message.from?.id === myId);
+      const editedAt = new Date().toISOString();
+      const nextEditHistory = [
+        ...(msg?.editHistory || []),
+        ...(msg ? [{ text: msg.text, editedAt }] : []),
+      ];
+      const { data, error } = await supabase
+        .from("dm_messages")
+        .update({
+          content: newText,
+          edited_at: editedAt,
+          edit_history: nextEditHistory,
+        })
+        .eq("id", messageId)
+        .eq("from_user_id", myId)
+        .eq("to_user_id", toUserId)
+        .select("id")
+        .maybeSingle();
+      if (error || !data) {
+        console.error("[DM] Edit failed:", error?.message || "Message not found");
+        return socket.emit("dm:error", { message: "Failed to edit message.", toUserId });
+      }
+      if (msg) {
+        msg.editHistory = nextEditHistory;
+        msg.text = newText;
+        msg.editedAt = editedAt;
+      }
       // Broadcast to other user
       emitToUser(io, toUserId, "dm:message:edited", {
         messageId,
@@ -1027,12 +1526,21 @@ function registerSocketHandlers(io) {
     });
 
     socket.on("disconnect", async () => {
-      await removeUserFromAllGroupCalls(io, myId, socket);
+      // Only drop group-call participation when THIS user has no other live
+      // sockets (other tabs / reconnect). Removing on every socket disconnect
+      // kicked the remaining participant out of the room on brief blips and
+      // made "peer hangup" look like mutual disconnect.
+      const remaining = io.sockets?.adapter?.rooms?.get(`user:${myId}`);
+      const hasOtherSockets = Boolean(remaining && remaining.size > 0);
+      if (!hasOtherSockets) {
+        for (const groupId of activeGroupCalls.keys()) {
+          scheduleParticipantDisconnectGrace(io, groupId, myId);
+        }
+      }
       socketToUser.delete(socket.id);
 
       // Keep presence if another tab/socket for this user is still connected.
-      const remaining = io.sockets?.adapter?.rooms?.get(`user:${myId}`);
-      if (remaining && remaining.size > 0) {
+      if (hasOtherSockets) {
         const nextSocketId = remaining.values().next().value;
         const prev = presence.get(myId);
         if (prev) {

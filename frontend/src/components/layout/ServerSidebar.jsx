@@ -3,14 +3,22 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Settings, Hash,
-  ChevronDown, ChevronRight, Bell, UserPlus, X, User, Users, Megaphone,
-  MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus, RefreshCw, MessageSquarePlus, Star, Bug, Lightbulb, ChevronDown as ChevronDownIcon
+  ChevronDown, Bell, UserPlus, X, User, Users, Megaphone,
+  MoreHorizontal, LogOut, Edit3, Check, UserRoundPlus, RefreshCw, MessageSquarePlus, Star, Bug, Lightbulb, ChevronDown as ChevronDownIcon,
+  Link2,
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { addMemberToGroup } from "../../api/groups";
+import { resolveDisplayName } from "../../lib/userProfile";
+import { isVisiblyOnline } from "../../lib/presence";
+import CallsView from "../calls/CallsView";
+import GroupInviteModal from "../groups/GroupInviteModal";
+import { markFeedbackSubmitted } from "../../lib/feedbackNudge";
+import { useLocale, useT } from "../../context/LocaleContext";
+import AdminBadge from "../social/AdminBadge";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -56,7 +64,13 @@ export default function ServerSidebar({
   isMobile = false,
   dmUnread = {},
   groupUnread = {},
+  me = null,
+  onStartCall,
+  onOpenChatFromCalls,
+  onStartGroupCall,
+  onOpenGroupFromCalls,
 }) {
+  const t = useT();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({
     dms: true,
@@ -87,13 +101,28 @@ export default function ServerSidebar({
   const [feedbackSending, setFeedbackSending] = useState(false);
 
   useEffect(() => {
+    const onOpen = (e) => {
+      const type = e?.detail?.type;
+      setShowFeedback(true);
+      setFeedbackSent(false);
+      setFeedbackText("");
+      setFeedbackRating(0);
+      setFeedbackType(
+        type === "bug" || type === "praise" || type === "suggestion" ? type : "suggestion"
+      );
+    };
+    window.addEventListener("descall:open-feedback", onOpen);
+    return () => window.removeEventListener("descall:open-feedback", onOpen);
+  }, []);
+
+  useEffect(() => {
     if (!socket) return;
     const onFriendError = ({ message }) => {
-      setAddError(message || "Friend action failed.");
+      setAddError(message || t("Friend action failed."));
       setTimeout(() => setAddError(""), 4000);
     };
     const onFriendSent = ({ to } = {}) => {
-      setAddSuccess(to ? `Request sent to ${to}` : "Request sent.");
+      setAddSuccess(to ? t("Request sent to {to}", { to }) : t("Request sent."));
       setTimeout(() => setAddSuccess(""), 3000);
     };
     socket.on("friend:error", onFriendError);
@@ -102,7 +131,7 @@ export default function ServerSidebar({
       socket.off("friend:error", onFriendError);
       socket.off("friend:request:sent", onFriendSent);
     };
-  }, [socket]);
+  }, [socket, t]);
 
   useEffect(() => {
     if (showAnnouncements && announcements.length === 0) {
@@ -134,7 +163,7 @@ export default function ServerSidebar({
       socket?.emit("friend:request", { toUsername: friendUsername.trim() });
       setFriendUsername("");
     } catch (err) {
-      setAddError("Failed to send friend request");
+      setAddError(t("Failed to send friend request"));
     } finally {
       setAddLoading(false);
     }
@@ -157,8 +186,8 @@ export default function ServerSidebar({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.details || `Failed to create group (status ${res.status})`);
-      setAddSuccess(`Group "${groupName.trim()}" created`);
+      if (!res.ok) throw new Error(data.error || data.details || t("Failed to create group (status {status})", { status: res.status }));
+      setAddSuccess(t('Group "{name}" created', { name: groupName.trim() }));
       setGroupName("");
       setSelectedGroupMembers([]);
       setTimeout(() => setAddSuccess(""), 3000);
@@ -167,7 +196,7 @@ export default function ServerSidebar({
       if (data.group) onGroupCreated?.(data.group);
       onRefreshGroups?.();
     } catch (err) {
-      setAddError(err.message || "Network error. Is backend deployed?");
+      setAddError(err.message || t("Network error. Is backend deployed?"));
     } finally {
       setAddLoading(false);
     }
@@ -188,7 +217,7 @@ export default function ServerSidebar({
     if (!Array.isArray(dms)) return [];
     if (!searchQuery) return dms;
     return dms.filter(dm => 
-      dm.username?.toLowerCase().includes(searchQuery.toLowerCase())
+      (dm.displayName || dm.username || "").toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [dms, searchQuery]);
 
@@ -218,21 +247,21 @@ export default function ServerSidebar({
         {/* Header */}
         <div className="sidebar-header">
           <h2 className="sidebar-title">
-            {activeView === "chat" && "Chats"}
-            {activeView === "dms" && "Direct Messages"}
-            {activeView === "groups" && "Groups"}
-            {activeView === "friends" && "Friends"}
-            {activeView === "calls" && "Calls"}
+            {activeView === "chat" && t("Chats")}
+            {activeView === "dms" && t("Direct Messages")}
+            {activeView === "groups" && t("Groups")}
+            {activeView === "friends" && t("Friends")}
+            {activeView === "calls" && t("Calls")}
           </h2>
           <div className="sidebar-actions">
             {onMobileClose && (
-              <button type="button" className="icon-btn mobile-sidebar-close" onClick={onMobileClose} title="Close">
+              <button type="button" className="icon-btn mobile-sidebar-close" onClick={onMobileClose} title={t("Close")}>
                 <X size={18} />
               </button>
             )}
             <button
               className="icon-btn"
-              title="Refresh"
+              title={t("Refresh")}
               onClick={async () => {
                 setIsRefreshing(true);
                 await onRefresh?.();
@@ -244,7 +273,7 @@ export default function ServerSidebar({
             </button>
             <button
               className="icon-btn"
-              title="Search"
+              title={t("Search")}
               onClick={() => {
                 const searchInput = document.querySelector('.search-input');
                 searchInput?.focus();
@@ -254,21 +283,21 @@ export default function ServerSidebar({
             </button>
             <button
               className="icon-btn"
-              title="Announcements"
+              title={t("Announcements")}
               onClick={() => setShowAnnouncements(!showAnnouncements)}
             >
               <Megaphone size={18} />
             </button>
             <button
               className="icon-btn"
-              title="Send Feedback"
+              title={t("Send Feedback")}
               onClick={() => { setShowFeedback(true); setFeedbackSent(false); setFeedbackText(''); setFeedbackRating(0); setFeedbackType('suggestion'); }}
             >
               <MessageSquarePlus size={18} />
             </button>
             <button
               className="icon-btn"
-              title="Add"
+              title={t("Add")}
               onClick={() => {
                 setShowAddModal(true);
                 setAddTab(activeView === "groups" ? "group" : "friend");
@@ -301,45 +330,45 @@ export default function ServerSidebar({
                 {feedbackSent ? (
                   <div className="feedback-success">
                     <div className="feedback-success-icon">✓</div>
-                    <h3>Thanks for your feedback!</h3>
-                    <p>We review every submission and use it to make Descall better.</p>
-                    <button className="feedback-close-btn" onClick={() => { setShowFeedback(false); setFeedbackSent(false); }}>Close</button>
+                    <h3>{t("Thanks for your feedback!")}</h3>
+                    <p>{t("We review every submission and use it to make Descall better.")}</p>
+                    <button className="feedback-close-btn" onClick={() => { setShowFeedback(false); setFeedbackSent(false); }}>{t("Close")}</button>
                   </div>
                 ) : (
                   <>
                     <div className="feedback-header">
                       <div className="feedback-header-left">
                         <MessageSquarePlus size={20} />
-                        <h3>Send Feedback</h3>
+                        <h3>{t("Send Feedback")}</h3>
                       </div>
                       <button className="icon-btn" onClick={() => setShowFeedback(false)}><X size={18} /></button>
                     </div>
 
                     <div className="feedback-type-row">
                       {[
-                        { id: 'suggestion', label: 'Suggestion', icon: <Lightbulb size={14} /> },
-                        { id: 'bug', label: 'Bug Report', icon: <Bug size={14} /> },
-                        { id: 'praise', label: 'Praise', icon: <Star size={14} /> },
-                      ].map(t => (
+                        { id: 'suggestion', label: t('Suggestion'), icon: <Lightbulb size={14} /> },
+                        { id: 'bug', label: t('Bug Report'), icon: <Bug size={14} /> },
+                        { id: 'praise', label: t('Praise'), icon: <Star size={14} /> },
+                      ].map(ft => (
                         <button
-                          key={t.id}
-                          className={`feedback-type-btn${feedbackType === t.id ? ' active' : ''}`}
-                          onClick={() => setFeedbackType(t.id)}
+                          key={ft.id}
+                          className={`feedback-type-btn${feedbackType === ft.id ? ' active' : ''}`}
+                          onClick={() => setFeedbackType(ft.id)}
                         >
-                          {t.icon} {t.label}
+                          {ft.icon} {ft.label}
                         </button>
                       ))}
                     </div>
 
                     <div className="feedback-rating-row">
-                      <span className="feedback-rating-label">Overall experience</span>
+                      <span className="feedback-rating-label">{t("Overall experience")}</span>
                       <div className="feedback-stars">
                         {[1,2,3,4,5].map(n => (
                           <button
                             key={n}
                             className={`feedback-star${feedbackRating >= n ? ' active' : ''}`}
                             onClick={() => setFeedbackRating(n)}
-                            aria-label={`${n} star`}
+                            aria-label={t("{n} star", { n })}
                           >
                             <Star size={18} />
                           </button>
@@ -349,7 +378,7 @@ export default function ServerSidebar({
 
                     <textarea
                       className="feedback-textarea"
-                      placeholder={feedbackType === 'bug' ? 'Describe the bug — what happened and how to reproduce it…' : feedbackType === 'praise' ? 'Tell us what you love about Descall…' : 'Share your idea or suggestion…'}
+                      placeholder={feedbackType === 'bug' ? t('Describe the bug — what happened and how to reproduce it…') : feedbackType === 'praise' ? t('Tell us what you love about Descall…') : t('Share your idea or suggestion…')}
                       value={feedbackText}
                       onChange={e => setFeedbackText(e.target.value)}
                       rows={5}
@@ -376,9 +405,10 @@ export default function ServerSidebar({
                         } catch (_) {}
                         setFeedbackSending(false);
                         setFeedbackSent(true);
+                        markFeedbackSubmitted();
                       }}
                     >
-                      {feedbackSending ? 'Sending…' : 'Submit Feedback'}
+                      {feedbackSending ? t('Sending…') : t('Submit Feedback')}
                     </button>
                   </>
                 )}
@@ -392,7 +422,7 @@ export default function ServerSidebar({
           <Search size={16} className="search-icon" />
           <input
             type="text"
-            placeholder="Search"
+            placeholder={t("Search")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="search-input"
@@ -442,6 +472,27 @@ export default function ServerSidebar({
               isMobile={isMobile}
             />
           )}
+
+          {activeView === "calls" && (
+            <CallsView
+              compact
+              me={me}
+              friends={friends}
+              groups={groups}
+              onlineUsers={onlineUsers}
+              socket={socket}
+              onStartCall={onStartCall}
+              onStartGroupCall={onStartGroupCall}
+              onOpenChat={(user) => {
+                onOpenChatFromCalls?.(user);
+                onMobileClose?.();
+              }}
+              onOpenGroup={(group) => {
+                onOpenGroupFromCalls?.(group);
+                onMobileClose?.();
+              }}
+            />
+          )}
         </div>
 
         {/* Add Friend / Create Group Modal - Moved to main component scope */}
@@ -463,35 +514,35 @@ export default function ServerSidebar({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="add-modal-header">
-                  <h3>Create New</h3>
+                  <h3>{t("Create New")}</h3>
                   <button className="icon-btn" onClick={() => setShowAddModal(false)}><X size={18} /></button>
                 </div>
 
                 <div className="add-modal-tabs">
                   <button className={`add-modal-tab ${addTab === "friend" ? "active" : ""}`} onClick={() => { setAddTab("friend"); setAddError(""); setAddSuccess(""); }}>
-                    <User size={16} /> Add Friend
+                    <User size={16} /> {t("Add Friend")}
                   </button>
                   <button className={`add-modal-tab ${addTab === "group" ? "active" : ""}`} onClick={() => { setAddTab("group"); setAddError(""); setAddSuccess(""); }}>
-                    <Users size={16} /> Create Group
+                    <Users size={16} /> {t("Create Group")}
                   </button>
                 </div>
 
                 <div className="add-modal-body">
                   {addTab === "friend" && (
                     <>
-                      <label className="add-modal-label">Enter a username to add</label>
-                      <input className="add-modal-input" value={friendUsername} onChange={(e) => setFriendUsername(e.target.value)} placeholder="e.g. johndoe" onKeyDown={(e) => e.key === "Enter" && handleAddFriend()} />
-                      <motion.button className="settings-action-btn" onClick={handleAddFriend} disabled={addLoading || !friendUsername.trim()} whileTap={{ scale: 0.97 }}>
-                        {addLoading ? "Sending..." : "Send Friend Request"}
+                      <label className="add-modal-label">{t("Enter a username to add")}</label>
+                      <input className="add-modal-input" value={friendUsername} onChange={(e) => setFriendUsername(e.target.value)} placeholder={t("e.g. johndoe")} onKeyDown={(e) => e.key === "Enter" && handleAddFriend()} />
+                      <motion.button type="button" className="add-modal-btn" onClick={handleAddFriend} disabled={addLoading || !friendUsername.trim()} whileTap={{ scale: 0.97 }}>
+                        {addLoading ? t("Sending...") : t("Send Friend Request")}
                       </motion.button>
                     </>
                   )}
                   {addTab === "group" && (
                     <>
-                      <label className="add-modal-label">Group name</label>
-                      <input className="add-modal-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="e.g. Gaming Squad" onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()} />
+                      <label className="add-modal-label">{t("Group name")}</label>
+                      <input className="add-modal-input" value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder={t("e.g. Gaming Squad")} onKeyDown={(e) => e.key === "Enter" && handleCreateGroup()} />
                       
-                      <label className="add-modal-label" style={{ marginTop: 12 }}>Add members (optional)</label>
+                      <label className="add-modal-label" style={{ marginTop: 12 }}>{t("Add members (optional)")}</label>
                       <div className="group-members-select" style={{ maxHeight: 150, overflowY: "auto", marginBottom: 12 }}>
                         {Array.isArray(friends) && friends.length > 0 ? (
                           friends.map(friend => {
@@ -513,20 +564,20 @@ export default function ServerSidebar({
                                 }}
                               >
                                 <Avatar user={friend} size={24} />
-                                <span style={{ fontSize: 13 }}>{friend.username}</span>
+                                <span style={{ fontSize: 13 }}>{resolveDisplayName(friend)}</span>
                                 {isSelected && <span style={{ marginLeft: "auto", color: "var(--primary)" }}>✓</span>}
                               </div>
                             );
                           })
                         ) : (
                           <div style={{ padding: 8, color: "var(--text-muted)", fontSize: 12 }}>
-                            No friends to add. Add friends first.
+                            {t("No friends to add. Add friends first.")}
                           </div>
                         )}
                       </div>
                       
-                      <motion.button className="settings-action-btn" onClick={handleCreateGroup} disabled={addLoading || !groupName.trim()} whileTap={{ scale: 0.97 }}>
-                        {addLoading ? "Creating..." : "Create Group"}
+                      <motion.button type="button" className="add-modal-btn" onClick={handleCreateGroup} disabled={addLoading || !groupName.trim()} whileTap={{ scale: 0.97 }}>
+                        {addLoading ? t("Creating...") : t("Create Group")}
                       </motion.button>
                     </>
                   )}
@@ -563,16 +614,16 @@ export default function ServerSidebar({
 
                 <div className="announcements-modal-content">
                   {announcementsLoading ? (
-                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>Loading announcements...</div>
+                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>{t("Loading announcements...")}</div>
                   ) : announcements.length === 0 ? (
-                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>No announcements</div>
+                    <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "14px", textAlign: "center" }}>{t("No announcements")}</div>
                   ) : (
                     announcements.map((a) => (
                       <div key={a.id} className="announcement-item">
                         <div className="announcement-title">{a.title}</div>
                         <div className="announcement-content">{a.content}</div>
                         <div className="announcement-meta">
-                          {a.author && <span className="announcement-author">By {a.author}</span>}
+                          {a.author && <span className="announcement-author">{t("By {author}", { author: a.author })}</span>}
                           {a.createdAt && <span className="announcement-date">{new Date(a.createdAt).toLocaleDateString()}</span>}
                         </div>
                       </div>
@@ -588,45 +639,67 @@ export default function ServerSidebar({
   );
 }
 
-function SidebarSectionContent({ expanded, isMobile, children }) {
-  if (!expanded) return null;
-  if (isMobile) {
-    return <div className="section-content">{children}</div>;
-  }
+function SidebarSectionContent({ expanded, children }) {
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ height: 0, opacity: 0 }}
-        animate={{ height: "auto", opacity: 1 }}
-        exit={{ height: 0, opacity: 0 }}
-        transition={{ duration: 0.2, ease: "easeInOut" }}
-        className="section-content"
-      >
-        {children}
-      </motion.div>
+    <AnimatePresence initial={false}>
+      {expanded && (
+        <motion.div
+          key="section-body"
+          className="section-content"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          style={{ overflow: "hidden" }}
+        >
+          <motion.div
+            initial={{ y: -6 }}
+            animate={{ y: 0 }}
+            exit={{ y: -4 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {children}
+          </motion.div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 }
 
-function formatConversationTime(iso) {
+function SectionChevron({ expanded }) {
+  return (
+    <motion.span
+      className="section-chevron"
+      animate={{ rotate: expanded ? 0 : -90 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      style={{ display: "inline-flex", transformOrigin: "50% 50%" }}
+      aria-hidden="true"
+    >
+      <ChevronDown size={16} />
+    </motion.span>
+  );
+}
+
+function formatConversationTime(iso, t, locale) {
   if (!iso) return "";
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
     const now = new Date();
+    const loc = locale === "tr" ? "tr-TR" : locale === "en" ? "en-US" : undefined;
     const sameDay = d.toDateString() === now.toDateString();
     if (sameDay) {
-      return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
     }
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
-    if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+    if (d.toDateString() === yesterday.toDateString()) return t("Yesterday");
     const weekAgo = new Date(now);
     weekAgo.setDate(now.getDate() - 6);
     if (d >= weekAgo) {
-      return d.toLocaleDateString(undefined, { weekday: "short" });
+      return d.toLocaleDateString(loc, { weekday: "short" });
     }
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return d.toLocaleDateString(loc, { month: "short", day: "numeric" });
   } catch {
     return "";
   }
@@ -666,6 +739,8 @@ const LIST_LAYOUT_TRANSITION = {
 };
 
 function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect, isMobile, unreadById = {} }) {
+  const t = useT();
+  const { locale } = useLocale();
   const safeDms = Array.isArray(dms) ? dms : [];
 
   return (
@@ -674,22 +749,22 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
         className="section-header"
         onClick={onToggle}
       >
-        <span className="section-title">Chats</span>
-        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        <span className="section-title">{t("CHATS")}</span>
+        <SectionChevron expanded={expanded} />
       </button>
 
-      <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
+      <SidebarSectionContent expanded={expanded}>
         {safeDms.length === 0 ? (
           <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
-            No conversations yet
+            {t("No conversations yet")}
           </div>
         ) : (
           <div className="conv-list">
             {safeDms.map((dm) => {
-              const isOnline = onlineUsers?.some((u) => u.id === dm.id);
+              const isOnline = isVisiblyOnline(onlineUsers, dm.id);
               const isActive = activeDmUser?.id === dm.id;
               const unread = dm.unreadCount || unreadById[dm.id] || 0;
-              const timeLabel = formatConversationTime(dm.lastActivity);
+              const timeLabel = formatConversationTime(dm.lastActivity, t, locale);
 
               return (
                 <motion.button
@@ -702,22 +777,22 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
                 >
                   <div className="dm-avatar">
                     <Avatar
-                      name={dm.username}
+                      name={resolveDisplayName(dm)}
                       size={40}
                       user={dm}
                     />
-                    <StatusBadge status={isOnline ? "online" : "offline"} />
+                    <StatusBadge status={onlineUsers?.find((u) => u.id === dm.id)?.status || (isOnline ? "online" : "offline")} />
                   </div>
                   <div className="dm-info conv-row-body">
                     <div className="conv-row-top">
-                      <span className={`dm-name ${unread > 0 ? "unread" : ""}`}>{dm.username}</span>
+                      <span className={`dm-name ${unread > 0 ? "unread" : ""}`}>{resolveDisplayName(dm)}</span>
                       {timeLabel && (
                         <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
                       )}
                     </div>
                     <div className="conv-row-bottom">
                       <span className={`dm-preview ${unread > 0 ? "unread" : ""}`}>
-                        {dm.lastMessage || "No messages yet"}
+                        {dm.lastMessage || t("No messages yet")}
                       </span>
                       <UnreadBadge count={unread} />
                     </div>
@@ -733,6 +808,7 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
 }
 
 function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -804,7 +880,7 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
               <UserRoundPlus size={16} />
             </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-0)" }}>Add Member</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-0)" }}>{t("Add Member")}</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{group.name}</div>
             </div>
           </div>
@@ -834,7 +910,7 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search friends…"
+              placeholder={t("Search friends…")}
               style={{
                 width: "100%", padding: "8px 10px 8px 32px",
                 background: "var(--surface-2)", border: "1px solid var(--border-3)",
@@ -851,7 +927,7 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
         <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
           {filtered.length === 0 ? (
             <div style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
-              {(friends || []).length === 0 ? "No friends to add" : "No results"}
+              {(friends || []).length === 0 ? t("No friends to add") : t("No results")}
             </div>
           ) : (
             filtered.map((friend) => (
@@ -869,9 +945,9 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
                 <div style={{ flexShrink: 0 }}>
-                  <Avatar name={friend.username} size={34} user={friend} />
+                  <Avatar name={resolveDisplayName(friend)} size={34} user={friend} />
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{friend.username}</span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{resolveDisplayName(friend)}</span>
                 <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4,
                   fontSize: 11, color: "var(--primary)", fontWeight: 600,
                 }}>
@@ -899,7 +975,8 @@ function AddMemberDialog({ group, friends, onClose, onMemberAdded }) {
   );
 }
 
-function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anchorRef }) {
+function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, onInvite, anchorRef }) {
+  const t = useT();
   const menuRef = useRef(null);
   const [position, setPosition] = useState({ top: 0, left: 0, visibility: "hidden" });
 
@@ -978,6 +1055,21 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anch
       onClick={(e) => e.stopPropagation()}
     >
       <button
+        onClick={() => { onInvite?.(); onClose(); }}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 14px", background: "none", border: "none",
+          cursor: "pointer", fontSize: 13, color: "var(--text-1)",
+          transition: "background 0.1s",
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-3)"}
+        onMouseLeave={(e) => e.currentTarget.style.background = "none"}
+      >
+        <Link2 size={14} style={{ color: "var(--primary)" }} />
+        {t("Invite People")}
+      </button>
+      <div style={{ height: 1, background: "var(--border-2)", margin: "2px 0" }} />
+      <button
         onClick={() => { onAddMember(); onClose(); }}
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 10,
@@ -988,8 +1080,8 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anch
         onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-3)"}
         onMouseLeave={(e) => e.currentTarget.style.background = "none"}
       >
-        <UserRoundPlus size={14} style={{ color: "var(--primary)" }} />
-        Add Member
+        <UserRoundPlus size={14} style={{ color: "var(--text-muted)" }} />
+        {t("Add Member")}
       </button>
       <div style={{ height: 1, background: "var(--border-2)", margin: "2px 0" }} />
       <button
@@ -1004,7 +1096,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anch
         onMouseLeave={(e) => e.currentTarget.style.background = "none"}
       >
         <Edit3 size={14} style={{ color: "var(--text-muted)" }} />
-        Rename Group
+        {t("Rename Group")}
       </button>
       <div style={{ height: 1, background: "var(--border-2)", margin: "2px 0" }} />
       <button
@@ -1019,7 +1111,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anch
         onMouseLeave={(e) => e.currentTarget.style.background = "none"}
       >
         <LogOut size={14} />
-        Leave Group
+        {t("Leave Group")}
       </button>
     </motion.div>,
     document.body
@@ -1027,6 +1119,7 @@ function GroupContextMenu({ group, onClose, onLeave, onRename, onAddMember, anch
 }
 
 function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger = false, onConfirm, onCancel }) {
+  const t = useT();
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1066,7 +1159,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger = fals
               fontSize: 13, fontWeight: 600,
             }}
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             onClick={onConfirm}
@@ -1085,6 +1178,7 @@ function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger = fals
 }
 
 function RenameDialog({ group, onConfirm, onCancel }) {
+  const t = useT();
   const [value, setValue] = useState(group.name);
   const trimmed = value.trim();
   const valid = trimmed.length >= 2 && trimmed.length <= 50 && trimmed !== group.name;
@@ -1117,7 +1211,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "var(--text-0)" }}>Rename Group</h3>
+        <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "var(--text-0)" }}>{t("Rename Group")}</h3>
         <input
           autoFocus
           value={value}
@@ -1143,7 +1237,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
               fontSize: 13, fontWeight: 600,
             }}
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             onClick={() => valid && onConfirm(trimmed)}
@@ -1157,7 +1251,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
             }}
           >
             <Check size={13} style={{ display: "inline", marginRight: 5, verticalAlign: "middle" }} />
-            Rename
+            {t("Rename")}
           </button>
         </div>
       </motion.div>
@@ -1166,12 +1260,16 @@ function RenameDialog({ group, onConfirm, onCancel }) {
 }
 
 function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed, isMobile, unreadById = {} }) {
+  const t = useT();
+  const { locale } = useLocale();
   const safeGroups = Array.isArray(groups) ? groups : [];
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmLeave, setConfirmLeave] = useState(null);   // group object
   const [confirmRename, setConfirmRename] = useState(null); // group object
   const [addMemberGroup, setAddMemberGroup] = useState(null); // group object
+  const [inviteGroup, setInviteGroup] = useState(null); // group object
   const [actionError, setActionError] = useState("");
+  const [swipeOpenId, setSwipeOpenId] = useState(null);
   const menuRef = useRef(null);
   const dotBtnRefs = useRef({});
 
@@ -1221,6 +1319,15 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
     }
   };
 
+  const openAction = (group, action) => {
+    setSwipeOpenId(null);
+    setOpenMenuId(null);
+    if (action === "invite") setInviteGroup(group);
+    else if (action === "add") setAddMemberGroup(group);
+    else if (action === "rename") setConfirmRename(group);
+    else if (action === "leave") setConfirmLeave(group);
+  };
+
   return (
     <>
       {actionError && (
@@ -1237,93 +1344,98 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
           className="section-header"
           onClick={onToggle}
         >
-          <span className="section-title">Groups</span>
-          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          <span className="section-title">{t("GROUPS")}</span>
+          <SectionChevron expanded={expanded} />
         </button>
 
-        <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
+        <SidebarSectionContent expanded={expanded}>
               {safeGroups.length === 0 ? (
                 <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
-                  No groups yet
+                  {t("No groups yet")}
                 </div>
               ) : (
                 safeGroups.map((group) => {
                   const isActive = activeGroup?.id === group.id;
                   const unread = group.unreadCount || unreadById[group.id] || 0;
-                  const timeLabel = formatConversationTime(group.lastActivity);
-                  const preview = group.lastMessage || `${group.memberCount || 0} members`;
+                  const timeLabel = formatConversationTime(group.lastActivity, t, locale);
+                  const preview = group.lastMessage || t("No messages yet");
+                  const swipeOpen = isMobile && swipeOpenId === group.id;
 
                   return (
                     <motion.div
                       key={group.id}
-                      layout
+                      layout={!isMobile}
                       ref={openMenuId === group.id ? menuRef : null}
-                      className="conv-group-wrap"
+                      className={`conv-group-wrap${isMobile ? " is-swipeable" : ""}${swipeOpen ? " swipe-open" : ""}`}
                       transition={LIST_LAYOUT_TRANSITION}
                       style={{ position: "relative" }}
                     >
-                      <motion.button
-                        layout
-                        className={`group-item conv-row ${isActive ? "active" : ""} ${unread > 0 ? "has-unread" : ""}`}
-                        onClick={() => onGroupSelect?.(group)}
-                        whileHover={{ scale: 1.01 }}
-                        transition={LIST_LAYOUT_TRANSITION}
-                        style={{ width: "100%", paddingRight: isActive ? 40 : undefined }}
-                      >
-                        <div className="group-icon" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-                          {group.icon ? (
-                            <img src={group.icon} alt={group.name} style={{ width: "100%", height: "100%", borderRadius: 10, objectFit: "cover" }} />
-                          ) : (
-                            <span>{group.name?.charAt(0)?.toUpperCase()}</span>
-                          )}
-                        </div>
-                        <div className="group-info conv-row-body">
-                          <div className="conv-row-top">
-                            <span className={`group-name ${unread > 0 ? "unread" : ""}`}>{group.name}</span>
-                            {timeLabel && (
-                              <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
-                            )}
-                          </div>
-                          <div className="conv-row-bottom">
-                            <span className={`group-members dm-preview ${unread > 0 ? "unread" : ""}`}>{preview}</span>
-                            {!isActive && <UnreadBadge count={unread} />}
-                          </div>
-                        </div>
-                      </motion.button>
-
-                      {/* Three-dot menu button — visible only on active group */}
-                      {isActive && (
-                        <button
-                          ref={(el) => { dotBtnRefs.current[group.id] = el; }}
-                          onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === group.id ? null : group.id); }}
-                          style={{
-                            position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
-                            width: 26, height: 26, borderRadius: 6, border: "none",
-                            background: openMenuId === group.id ? "var(--surface-active)" : "var(--surface-3)",
-                            color: "var(--text-2)", cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            transition: "background 0.15s",
-                            zIndex: 10,
+                      {isMobile ? (
+                        <SwipeableGroupRow
+                          group={group}
+                          isActive={isActive}
+                          unread={unread}
+                          timeLabel={timeLabel}
+                          preview={preview}
+                          swipeOpen={swipeOpen}
+                          onOpen={() => onGroupSelect?.(group)}
+                          onAction={(action) => openAction(group, action)}
+                          onSwipeOpenChange={(open) => {
+                            setSwipeOpenId(open ? group.id : null);
+                            if (open) setOpenMenuId(null);
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-active)"}
-                          onMouseLeave={(e) => e.currentTarget.style.background = openMenuId === group.id ? "var(--surface-active)" : "var(--surface-3)"}
-                        >
-                          <MoreHorizontal size={14} />
-                        </button>
-                      )}
-
-                      <AnimatePresence>
-                        {openMenuId === group.id && (
-                          <GroupContextMenu
+                          onCloseOthers={() => {
+                            if (swipeOpenId && swipeOpenId !== group.id) setSwipeOpenId(null);
+                          }}
+                        />
+                      ) : (
+                        <>
+                          <GroupRowFront
                             group={group}
-                            onClose={() => setOpenMenuId(null)}
-                            onLeave={() => setConfirmLeave(group)}
-                            onRename={() => setConfirmRename(group)}
-                            onAddMember={() => setAddMemberGroup(group)}
-                            anchorRef={{ current: dotBtnRefs.current[group.id] }}
+                            isActive={isActive}
+                            unread={unread}
+                            timeLabel={timeLabel}
+                            preview={preview}
+                            isMobile={false}
+                            swipeOpen={false}
+                            onOpen={() => onGroupSelect?.(group)}
+                            onSwipeOpenChange={() => {}}
+                            onCloseOthers={() => {}}
                           />
-                        )}
-                      </AnimatePresence>
+                          {isActive && (
+                            <button
+                              ref={(el) => { dotBtnRefs.current[group.id] = el; }}
+                              onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === group.id ? null : group.id); }}
+                              style={{
+                                position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                                width: 26, height: 26, borderRadius: 6, border: "none",
+                                background: openMenuId === group.id ? "var(--surface-active)" : "var(--surface-3)",
+                                color: "var(--text-2)", cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                transition: "background 0.15s",
+                                zIndex: 10,
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-active)"}
+                              onMouseLeave={(e) => e.currentTarget.style.background = openMenuId === group.id ? "var(--surface-active)" : "var(--surface-3)"}
+                            >
+                              <MoreHorizontal size={14} />
+                            </button>
+                          )}
+                          <AnimatePresence>
+                            {openMenuId === group.id && (
+                              <GroupContextMenu
+                                group={group}
+                                onClose={() => setOpenMenuId(null)}
+                                onLeave={() => setConfirmLeave(group)}
+                                onRename={() => setConfirmRename(group)}
+                                onAddMember={() => setAddMemberGroup(group)}
+                                onInvite={() => setInviteGroup(group)}
+                                anchorRef={{ current: dotBtnRefs.current[group.id] }}
+                              />
+                            )}
+                          </AnimatePresence>
+                        </>
+                      )}
                     </motion.div>
                   );
                 })
@@ -1334,9 +1446,9 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
       <AnimatePresence>
         {confirmLeave && (
           <ConfirmDialog
-            title="Leave Group"
-            message={`Are you sure you want to leave "${confirmLeave.name}"? You won't be able to see its messages anymore.`}
-            confirmLabel="Leave"
+            title={t("Leave Group")}
+            message={t('Are you sure you want to leave "{name}"? You won\'t be able to see its messages anymore.', { name: confirmLeave.name })}
+            confirmLabel={t("Leave")}
             danger
             onConfirm={() => handleLeave(confirmLeave)}
             onCancel={() => setConfirmLeave(null)}
@@ -1364,21 +1476,228 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
           />
         )}
       </AnimatePresence>
+
+      <GroupInviteModal
+        group={inviteGroup}
+        open={Boolean(inviteGroup)}
+        onClose={() => setInviteGroup(null)}
+      />
     </>
   );
 }
 
+const GROUP_SWIPE_WIDTH = 248;
+
+function GroupRowContent({ group, unread, timeLabel, preview }) {
+  return (
+    <>
+      <div className="group-icon" style={{ width: 36, height: 36, borderRadius: 10, background: "var(--primary-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+        {group.icon ? (
+          <img src={group.icon} alt={group.name} style={{ width: "100%", height: "100%", borderRadius: 10, objectFit: "cover" }} />
+        ) : (
+          <span>{group.name?.charAt(0)?.toUpperCase()}</span>
+        )}
+      </div>
+      <div className="group-info conv-row-body">
+        <div className="conv-row-top">
+          <span className={`group-name ${unread > 0 ? "unread" : ""}`}>{group.name}</span>
+          {timeLabel && (
+            <span className={`conv-time ${unread > 0 ? "unread" : ""}`}>{timeLabel}</span>
+          )}
+        </div>
+        <div className="conv-row-bottom">
+          <span className={`group-members dm-preview ${unread > 0 ? "unread" : ""}`}>{preview}</span>
+          <UnreadBadge count={unread} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** Mobile swipe-to-reveal: front + actions as flex siblings (same row height). */
+function SwipeableGroupRow({
+  group,
+  isActive,
+  unread,
+  timeLabel,
+  preview,
+  swipeOpen,
+  onOpen,
+  onAction,
+  onSwipeOpenChange,
+  onCloseOthers,
+}) {
+  const t = useT();
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const startOffset = useRef(0);
+  const axisLock = useRef(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragOffsetRef = useRef(0);
+
+  const setOffset = (value) => {
+    dragOffsetRef.current = value;
+    setDragOffset(value);
+  };
+
+  const visualOffset = isDragging
+    ? dragOffset
+    : swipeOpen
+      ? -GROUP_SWIPE_WIDTH
+      : 0;
+
+  const onTouchStart = (e) => {
+    const t = e.touches[0];
+    startX.current = t.clientX;
+    startY.current = t.clientY;
+    startOffset.current = swipeOpen ? -GROUP_SWIPE_WIDTH : 0;
+    axisLock.current = null;
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    setOffset(startOffset.current);
+    onCloseOthers?.();
+  };
+
+  const onTouchMove = (e) => {
+    if (!isDraggingRef.current) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startX.current;
+    const dy = t.clientY - startY.current;
+    if (!axisLock.current) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      axisLock.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (axisLock.current === "y") {
+        isDraggingRef.current = false;
+        setIsDragging(false);
+        setOffset(swipeOpen ? -GROUP_SWIPE_WIDTH : 0);
+        return;
+      }
+    }
+    if (axisLock.current !== "x") return;
+    if (e.cancelable) e.preventDefault();
+    const next = Math.min(0, Math.max(-GROUP_SWIPE_WIDTH, startOffset.current + dx));
+    setOffset(next);
+  };
+
+  const onTouchEnd = () => {
+    if (!isDraggingRef.current) {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      return;
+    }
+    const shouldOpen = dragOffsetRef.current < -GROUP_SWIPE_WIDTH * 0.35;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    onSwipeOpenChange?.(shouldOpen);
+    setOffset(shouldOpen ? -GROUP_SWIPE_WIDTH : 0);
+  };
+
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    setOffset(swipeOpen ? -GROUP_SWIPE_WIDTH : 0);
+  }, [swipeOpen]);
+
+  return (
+    <div
+      className="group-swipe-viewport"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+    >
+      <div
+        className="group-swipe-track"
+        style={{
+          transform: `translate3d(${visualOffset}px,0,0)`,
+          transition: isDragging ? "none" : "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)",
+        }}
+      >
+        <button
+          type="button"
+          className={`group-item conv-row group-row-front ${isActive ? "active" : ""} ${unread > 0 ? "has-unread" : ""}`}
+          onClick={() => {
+            if (swipeOpen) {
+              onSwipeOpenChange?.(false);
+              return;
+            }
+            onOpen?.();
+          }}
+        >
+          <GroupRowContent group={group} unread={isActive ? 0 : unread} timeLabel={timeLabel} preview={preview} />
+        </button>
+        <div className="group-swipe-actions" aria-hidden={!swipeOpen}>
+          <button type="button" className="group-swipe-btn invite" onClick={() => onAction?.("invite")}>
+            <Link2 size={15} />
+            <span>{t("Invite")}</span>
+          </button>
+          <button type="button" className="group-swipe-btn add" onClick={() => onAction?.("add")}>
+            <UserRoundPlus size={15} />
+            <span>{t("Add")}</span>
+          </button>
+          <button type="button" className="group-swipe-btn rename" onClick={() => onAction?.("rename")}>
+            <Edit3 size={15} />
+            <span>{t("Rename")}</span>
+          </button>
+          <button type="button" className="group-swipe-btn leave" onClick={() => onAction?.("leave")}>
+            <LogOut size={15} />
+            <span>{t("Leave")}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GroupRowFront({
+  group,
+  isActive,
+  unread,
+  timeLabel,
+  preview,
+  isMobile,
+  swipeOpen,
+  onOpen,
+  onSwipeOpenChange,
+}) {
+  return (
+    <motion.button
+      layout={!isMobile}
+      type="button"
+      className={`group-item conv-row group-row-front ${isActive ? "active" : ""} ${unread > 0 ? "has-unread" : ""}`}
+      onClick={() => {
+        if (isMobile && swipeOpen) {
+          onSwipeOpenChange?.(false);
+          return;
+        }
+        onOpen?.();
+      }}
+      whileHover={isMobile ? undefined : { scale: 1.01 }}
+      transition={LIST_LAYOUT_TRANSITION}
+      style={{
+        width: "100%",
+        paddingRight: !isMobile && isActive ? 40 : undefined,
+      }}
+    >
+      <GroupRowContent
+        group={group}
+        unread={isActive ? 0 : unread}
+        timeLabel={timeLabel}
+        preview={preview}
+      />
+    </motion.button>
+  );
+}
+
 function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend, isMobile }) {
+  const t = useT();
   const safeFriends = Array.isArray(friends) ? friends : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
   const pendingRequests = Array.isArray(friendRequests) ? friendRequests : [];
 
-  const onlineFriends = safeFriends.filter(f =>
-    safeOnlineUsers.some(u => u.id === f.id)
-  );
-  const offlineFriends = safeFriends.filter(f =>
-    !safeOnlineUsers.some(u => u.id === f.id)
-  );
+  const onlineFriends = safeFriends.filter((f) => isVisiblyOnline(safeOnlineUsers, f.id));
+  const offlineFriends = safeFriends.filter((f) => !isVisiblyOnline(safeOnlineUsers, f.id));
 
   return (
     <div className="sidebar-section">
@@ -1387,23 +1706,24 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
         onClick={onToggle}
         style={{ position: "relative" }}
       >
-        <span className="section-title">Friends</span>
+        <span className="section-title" style={{ flex: 1, textAlign: "left" }}>{t("FRIENDS")}</span>
         {pendingRequests.length > 0 && (
           <span style={{
             background: "var(--danger)", color: "#fff", fontSize: 10, fontWeight: 700,
             borderRadius: 10, padding: "1px 6px", minWidth: 16, textAlign: "center", lineHeight: "16px",
+            marginRight: 6,
           }}>
             {pendingRequests.length}
           </span>
         )}
-        {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        <SectionChevron expanded={expanded} />
       </button>
 
-      <SidebarSectionContent expanded={expanded} isMobile={isMobile}>
+      <SidebarSectionContent expanded={expanded}>
             {pendingRequests.length > 0 && (
               <div className="friend-category">
                 <span className="category-label" style={{ color: "var(--warning)" }}>
-                  Pending — {pendingRequests.length}
+                  {t("Pending — {count}", { count: pendingRequests.length })}
                 </span>
                 {pendingRequests.map((req) => (
                   <div
@@ -1419,32 +1739,46 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                     </div>
                     <span className="friend-name" style={{ flex: 1, fontSize: 13 }}>{req.username}</span>
                     <button
-                      title="Accept"
-                      onClick={() => onAcceptFriend?.(req.id)}
+                      type="button"
+                      title={t("Accept")}
+                      aria-label={t("Accept Friend")}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onAcceptFriend?.(req.id);
+                      }}
                       style={{
-                        width: 26, height: 26, borderRadius: 6, border: "none",
+                        width: 32, height: 32, borderRadius: 8, border: "none",
                         background: "var(--success-soft)", color: "var(--success)",
                         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                         flexShrink: 0, transition: "background 0.15s",
+                        touchAction: "manipulation",
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--success)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "var(--success-soft)"}
                     >
-                      <UserPlus size={13} />
+                      <UserPlus size={14} />
                     </button>
                     <button
-                      title="Decline"
-                      onClick={() => onDeclineFriend?.(req.id)}
+                      type="button"
+                      title={t("Decline")}
+                      aria-label={t("Decline")}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onDeclineFriend?.(req.id);
+                      }}
                       style={{
-                        width: 26, height: 26, borderRadius: 6, border: "none",
+                        width: 32, height: 32, borderRadius: 8, border: "none",
                         background: "var(--danger-soft)", color: "var(--danger)",
                         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                         flexShrink: 0, transition: "background 0.15s",
+                        touchAction: "manipulation",
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--danger)"}
                       onMouseLeave={(e) => e.currentTarget.style.background = "var(--danger-soft)"}
                     >
-                      <X size={13} />
+                      <X size={14} />
                     </button>
                   </div>
                 ))}
@@ -1453,7 +1787,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
 
             {onlineFriends.length > 0 && (
               <div className="friend-category">
-                <span className="category-label">Online — {onlineFriends.length}</span>
+                <span className="category-label">{t("Online — {count}", { count: onlineFriends.length })}</span>
                 {onlineFriends.map((friend) => (
                   <motion.button
                     key={friend.id}
@@ -1464,13 +1798,25 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                   >
                     <div className="friend-avatar">
                       <Avatar 
-                        name={friend.username} 
+                        name={resolveDisplayName(friend)} 
                         size={32}
                         user={friend}
                       />
-                      <StatusBadge status="online" />
+                      <StatusBadge
+                        status={safeOnlineUsers.find((u) => u.id === friend.id)?.status || "online"}
+                      />
                     </div>
-                    <span className="friend-name">{friend.username}</span>
+                    <div className="friend-meta">
+                      <span className="friend-name">
+                        {resolveDisplayName(friend)}
+                        <AdminBadge user={friend} variant="inline" />
+                      </span>
+                      {(friend.customStatus || friend.custom_status) && (
+                        <span className="friend-custom-status">
+                          {friend.customStatus || friend.custom_status}
+                        </span>
+                      )}
+                    </div>
                   </motion.button>
                 ))}
               </div>
@@ -1478,7 +1824,7 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
 
             {offlineFriends.length > 0 && (
               <div className="friend-category">
-                <span className="category-label">Offline — {offlineFriends.length}</span>
+                <span className="category-label">{t("Offline — {count}", { count: offlineFriends.length })}</span>
                 {offlineFriends.map((friend) => (
                   <motion.button
                     key={friend.id}
@@ -1489,20 +1835,35 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                   >
                     <div className="friend-avatar">
                       <Avatar
-                        name={friend.username}
+                        name={resolveDisplayName(friend)}
                         size={32}
                         user={friend}
                       />
                       <StatusBadge status="offline" />
                     </div>
-                    <span className="friend-name">{friend.username}</span>
+                    <div className="friend-meta">
+                      <span className="friend-name">
+                        {resolveDisplayName(friend)}
+                        <AdminBadge user={friend} variant="inline" />
+                      </span>
+                      {(friend.customStatus || friend.custom_status) && (
+                        <span className="friend-custom-status">
+                          {friend.customStatus || friend.custom_status}
+                        </span>
+                      )}
+                    </div>
                   </motion.button>
                 ))}
               </div>
             )}
             {safeFriends.length === 0 && pendingRequests.length === 0 && (
-              <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
-                No friends yet
+              <div className="sidebar-empty-friends">
+                <div className="empty-illustration empty-illu-friends compact" aria-hidden="true">
+                  <div className="empty-illu-blob" />
+                  <div className="empty-illu-blob secondary" />
+                </div>
+                <strong>{t("No friends yet")}</strong>
+                <span>{t("Add someone to start chatting and calling.")}</span>
               </div>
             )}
       </SidebarSectionContent>

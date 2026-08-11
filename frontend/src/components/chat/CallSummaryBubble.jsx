@@ -1,10 +1,11 @@
 import { Video, Phone, Users, Clock } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * WhatsApp-style ended call summary bubble rendered inside the message list.
- * Shown after a group call ends.
  */
 export default function CallSummaryBubble({ summary }) {
+  const t = useT();
   if (!summary) return null;
 
   const isVideo = summary.callType === "video";
@@ -16,87 +17,44 @@ export default function CallSummaryBubble({ summary }) {
       ? `${mins}m${secs > 0 ? ` ${secs}s` : ""}`
       : secs > 0
       ? `${secs}s`
-      : "< 1s";
+      : t("< 1s");
 
   const timeLabel = summary.endedAt
-    ? new Date(summary.endedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(summary.endedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
     : "";
 
   return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        padding: "6px 16px",
-      }}
-    >
-      <div
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 14,
-          background: "var(--surface-2, #2b2d33)",
-          border: "1px solid var(--border, rgba(255,255,255,0.07))",
-          borderRadius: 14,
-          padding: "12px 18px",
-          maxWidth: 340,
-          width: "100%",
-        }}
-      >
-        {/* Icon block */}
-        <div
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 12,
-            background: "rgba(255,255,255,0.06)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          {isVideo ? (
-            <Video size={22} color="#b5bac1" />
-          ) : (
-            <Phone size={22} color="#b5bac1" />
-          )}
+    <div className="call-summary-wrap">
+      <div className="call-summary-card">
+        <div className="call-summary-icon">
+          {isVideo ? <Video size={22} /> : <Phone size={22} />}
         </div>
 
-        {/* Text block */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 4 }}>
-            {isVideo ? "Video call" : "Voice call"}
+          <div className="call-summary-title">
+            {isVideo ? t("Video call") : t("Voice call")}
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 10px" }}>
+          <div className="call-summary-meta">
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Clock size={11} color="#b5bac1" />
-              <span style={{ fontSize: 12, color: "#b5bac1" }}>{durationLabel}</span>
+              <Clock size={11} />
+              <span>{durationLabel}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Users size={11} color="#b5bac1" />
-              <span style={{ fontSize: 12, color: "#b5bac1" }}>
-                {summary.participantCount} participant{summary.participantCount !== 1 ? "s" : ""} joined
+              <Users size={11} />
+              <span>
+                {t("{count} participants joined", { count: summary.participantCount ?? 0 })}
               </span>
             </div>
           </div>
           {summary.initiatorUsername && (
-            <div style={{ fontSize: 11, color: "#72767d", marginTop: 3 }}>
-              Started by {summary.initiatorUsername}
+            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
+              {t("Started by {name}", { name: summary.initiatorUsername })}
             </div>
           )}
         </div>
 
-        {/* Timestamp */}
         {timeLabel && (
-          <span
-            style={{
-              fontSize: 11,
-              color: "#72767d",
-              alignSelf: "flex-end",
-              flexShrink: 0,
-            }}
-          >
+          <span style={{ fontSize: 11, color: "var(--text-muted)", alignSelf: "flex-end", flexShrink: 0 }}>
             {timeLabel}
           </span>
         )}

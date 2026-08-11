@@ -160,6 +160,9 @@ router.post("/accept", requireAuth, async (req, res) => {
     // Notify both sides to refresh their friend list
     const io = req.app.get("io");
     if (io) {
+      // Prefer durable user rooms (multi-tab safe)
+      io.to(`user:${userId}`).emit("friend:accepted", { by: { id: fromUserId } });
+      io.to(`user:${fromUserId}`).emit("friend:accepted", { by: { id: userId } });
       emitToUserViaIo(io, userId, "friend:accepted", { by: { id: fromUserId } });
       emitToUserViaIo(io, fromUserId, "friend:accepted", { by: { id: userId } });
     }

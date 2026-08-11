@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { 
   Shield, Users, MessageSquare, Activity, AlertCircle, Settings, 
@@ -22,30 +22,32 @@ import RippleButton from "../ui/RippleButton";
 import AdminFeedback from "./AdminFeedback";
 import AdminErrorLogs from "./AdminErrorLogs";
 import { Avatar } from "../ui/Avatar";
+import { useT } from "../../context/LocaleContext";
 
 const TABS = [
-  { id: "overview", label: "Overview", icon: BarChart3 },
-  { id: "activity", label: "Activity", icon: ActivityIcon },
-  { id: "engagement", label: "Engagement", icon: Zap },
-  { id: "growth", label: "Growth", icon: TrendingUp },
-  { id: "topusers", label: "Top Users", icon: Star },
-  { id: "users", label: "Users", icon: Users },
-  { id: "messages", label: "Messages", icon: MessageSquare },
-  { id: "dm", label: "DM", icon: Mail },
-  { id: "sockets", label: "Sockets", icon: Wifi },
-  { id: "errors", label: "Error Logs", icon: AlertCircle },
-  { id: "feedback", label: "Feedback", icon: Bell },
-  { id: "announcements", label: "Announcements", icon: Megaphone },
-  { id: "casino", label: "Casino", icon: Coins },
-  { id: "moderation", label: "Moderation", icon: Shield },
-  { id: "analytics", label: "Analytics", icon: Activity },
-  { id: "system", label: "System", icon: Settings },
-  { id: "security", label: "Security", icon: Lock },
-  { id: "maintenance", label: "Maintenance", icon: Server },
-  { id: "audit", label: "Audit", icon: FileText },
+  { id: "overview", label: "admin.overview", icon: BarChart3 },
+  { id: "activity", label: "admin.activity", icon: ActivityIcon },
+  { id: "engagement", label: "admin.engagement", icon: Zap },
+  { id: "growth", label: "admin.growth", icon: TrendingUp },
+  { id: "topusers", label: "admin.topUsers", icon: Star },
+  { id: "users", label: "admin.users", icon: Users },
+  { id: "messages", label: "admin.messages", icon: MessageSquare },
+  { id: "dm", label: "admin.dm", icon: Mail },
+  { id: "sockets", label: "admin.sockets", icon: Wifi },
+  { id: "errors", label: "admin.errors", icon: AlertCircle },
+  { id: "feedback", label: "admin.feedback", icon: Bell },
+  { id: "announcements", label: "admin.announcements", icon: Megaphone },
+  { id: "casino", label: "admin.casino", icon: Coins },
+  { id: "moderation", label: "admin.moderation", icon: Shield },
+  { id: "analytics", label: "admin.analytics", icon: Activity },
+  { id: "system", label: "admin.system", icon: Settings },
+  { id: "security", label: "admin.security", icon: Lock },
+  { id: "maintenance", label: "admin.maintenance", icon: Server },
+  { id: "audit", label: "admin.audit", icon: FileText },
 ];
 
 export default function AdminPanel({ socket, onClose, onAdminChanged }) {
+  const t = useT();
   const [tab, setTab] = useState("overview");
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -221,7 +223,11 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
       const d = await res.json();
       
       console.log("[ADMIN] Users response:", d);
-      setUsers(d.users || []);
+      const list = (d.users || []).map((u) => ({
+        ...u,
+        is_admin: Boolean(u.is_admin) || u.role === "admin" || u.username === "admin",
+      }));
+      setUsers(list);
     } catch (e) {
       console.error("[ADMIN] Failed to load users:", e);
       setErr(e.message);
@@ -276,8 +282,8 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
     try {
       console.log("[ADMIN] Loading activity data...");
       
-      // Fetch all users
-      const d = await adminFetch("/users");
+      // Fetch all users (high limit for accurate 24h activity)
+      const d = await adminFetch("/users?limit=500");
       console.log("[ADMIN] Users data:", d);
       
       const allUsers = d.users || [];
@@ -338,7 +344,7 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
       const allMessages = messagesRes.messages || [];
       
       // Fetch users for activity data
-      const usersRes = await adminFetch("/users");
+      const usersRes = await adminFetch("/users?limit=500");
       const allUsers = usersRes.users || [];
       
       // Calculate engagement stats
@@ -389,8 +395,9 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
   const loadGrowth = useCallback(async () => {
     setGrowthLoading(true);
     try {
-      const d = await adminFetch("/users");
+      const d = await adminFetch("/users?limit=500");
       const allUsers = d.users || [];
+      const totalUsersCount = Number(d.total) || allUsers.length;
       
       // Generate daily growth data based on registration dates
       const dailyData = {};
@@ -414,8 +421,9 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
         }
       });
       
-      // Calculate cumulative totals
-      let runningTotal = allUsers.length - Object.values(dailyData).reduce((sum, d) => sum + d.newUsers, 0);
+      // Calculate cumulative totals (prefer API exact total when available)
+      const windowRegs = Object.values(dailyData).reduce((sum, day) => sum + day.newUsers, 0);
+      let runningTotal = Math.max(0, totalUsersCount - windowRegs);
       Object.keys(dailyData).sort().forEach(dateKey => {
         runningTotal += dailyData[dateKey].newUsers;
         dailyData[dateKey].totalUsers = runningTotal;
@@ -439,7 +447,7 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
       const allMessages = messagesRes.messages || [];
       
       // Fetch users
-      const usersRes = await adminFetch("/users");
+      const usersRes = await adminFetch("/users?limit=500");
       const allUsers = usersRes.users || [];
       
       // Calculate message counts per user
@@ -500,12 +508,16 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
         method: "POST",
         body: JSON.stringify({ userId, amount: numericAmount, operation, reason })
       });
-      setSuccessMessage(`Credits ${operation === 'add' ? 'added to' : 'removed from'} user successfully`);
+      setSuccessMessage(
+        operation === "add"
+          ? t("Credits added to user successfully")
+          : t("Credits removed from user successfully")
+      );
       await loadCasinoData(); // Refresh data
       return res;
     } catch (e) {
       console.error("[Admin] Credit update error:", e);
-      setErrorMessage(`Failed to update credits: ${e.message}`);
+      setErrorMessage(t("Failed to update credits: {message}", { message: e.message }));
       throw e;
     }
   };
@@ -612,7 +624,7 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
   };
 
 // Helper function to format time ago
-function getTimeAgo(date) {
+function getTimeAgo(date, t) {
   const now = new Date();
   const diffMs = now - date;
   const diffSec = Math.floor(diffMs / 1000);
@@ -620,12 +632,31 @@ function getTimeAgo(date) {
   const diffHour = Math.floor(diffMin / 60);
   const diffDay = Math.floor(diffHour / 24);
 
-  if (diffSec < 60) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHour < 24) return `${diffHour}h ago`;
-  if (diffDay < 7) return `${diffDay}d ago`;
+  if (diffSec < 60) return t("Just now");
+  if (diffMin < 60) return t("{count}m ago", { count: diffMin });
+  if (diffHour < 24) return t("{count}h ago", { count: diffHour });
+  if (diffDay < 7) return t("{count}d ago", { count: diffDay });
   return date.toLocaleDateString();
 }
+
+  const filteredUsers = useMemo(() => {
+    const q = userQ.trim().toLowerCase();
+    if (!q) return users || [];
+    return (users || []).filter((u) => {
+      const name = String(u.username || "").toLowerCase();
+      const id = String(u.id || "").toLowerCase();
+      return name.includes(q) || id.includes(q);
+    });
+  }, [users, userQ]);
+
+  const usersOnlineCount = useMemo(
+    () => (users || []).filter((u) => u.isOnline).length,
+    [users]
+  );
+  const usersAdminCount = useMemo(
+    () => (users || []).filter((u) => u.is_admin).length,
+    [users]
+  );
 
   return (
     <motion.div
@@ -674,8 +705,8 @@ function getTimeAgo(date) {
             <Shield size={32} />
           </div>
           <div>
-            <h1>Admin Panel</h1>
-            <p className="admin-sub">System administration & moderation</p>
+            <h1>{t("admin.title")}</h1>
+            <p className="admin-sub">{t("admin.subtitle")}</p>
           </div>
         </div>
         <RippleButton type="button" className="admin-close" onClick={onClose}>
@@ -695,19 +726,19 @@ function getTimeAgo(date) {
       )}
 
       <nav className="admin-tabs">
-        {TABS.map((t) => {
-          const Icon = t.icon;
+        {TABS.map((tabDef) => {
+          const Icon = tabDef.icon;
           return (
             <motion.button
-              key={t.id}
+              key={tabDef.id}
               type="button"
-              className={`admin-tab ${tab === t.id ? "active" : ""}`}
-              onClick={() => setTab(t.id)}
+              className={`admin-tab ${tab === tabDef.id ? "active" : ""}`}
+              onClick={() => setTab(tabDef.id)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
               <Icon size={16} />
-              {t.label}
+              {t(tabDef.label)}
             </motion.button>
           );
         })}
@@ -716,41 +747,41 @@ function getTimeAgo(date) {
       <div className="admin-body">
         {tab === "overview" && (
           <section className="admin-section">
-            <h2>Server stats</h2>
+            <h2>{t("Server stats")}</h2>
             {stats && (
               <div className="admin-grid">
                 <div className="admin-card">
-                  <span>Uptime (s)</span>
+                  <span>{t("Uptime (s)")}</span>
                   <strong>{Math.floor(stats.uptime)}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>Online</span>
+                  <span>{t("Online")}</span>
                   <strong>{stats.onlineUsers}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>#general msgs</span>
+                  <span>{t("#general msgs")}</span>
                   <strong>{stats.generalMessageCount}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>DM threads</span>
+                  <span>{t("DM threads")}</span>
                   <strong>{stats.dmConversationKeys}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>Banned</span>
+                  <span>{t("Banned")}</span>
                   <strong>{stats.bannedUsers}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>Audit entries</span>
+                  <span>{t("Audit entries")}</span>
                   <strong>{stats.auditEntries}</strong>
                 </div>
               </div>
             )}
             <RippleButton type="button" onClick={() => act(loadStats)} disabled={busy}>
-              Refresh
+              {t("Refresh")}
             </RippleButton>
             {snapshot && (
               <div className="admin-live">
-                <h3>Live socket snapshot</h3>
+                <h3>{t("Live socket snapshot")}</h3>
                 <pre className="admin-pre">{JSON.stringify(snapshot, null, 2)}</pre>
               </div>
             )}
@@ -762,9 +793,9 @@ function getTimeAgo(date) {
             {/* Activity Header with Stats */}
             <div className="activity-header">
               <div className="activity-title-section">
-                <h2>24-Hour Activity Monitor</h2>
+                <h2>{t("24-Hour Activity Monitor")}</h2>
                 <p className="activity-subtitle">
-                  Real-time tracking of user registrations and online activity
+                  {t("Real-time tracking of user registrations and online activity")}
                 </p>
               </div>
               <div className="activity-stats-grid">
@@ -779,8 +810,8 @@ function getTimeAgo(date) {
                   </div>
                   <div className="stat-content">
                     <span className="stat-number">{recentRegistrations.length}</span>
-                    <span className="stat-label">New Registrations</span>
-                    <span className="stat-time">Last 24h</span>
+                    <span className="stat-label">{t("New Registrations")}</span>
+                    <span className="stat-time">{t("Last 24h")}</span>
                   </div>
                 </motion.div>
                 <motion.div 
@@ -794,8 +825,8 @@ function getTimeAgo(date) {
                   </div>
                   <div className="stat-content">
                     <span className="stat-number">{recentOnlineUsers.length}</span>
-                    <span className="stat-label">Active Users</span>
-                    <span className="stat-time">Last 24h</span>
+                    <span className="stat-label">{t("Active Users")}</span>
+                    <span className="stat-time">{t("Last 24h")}</span>
                   </div>
                 </motion.div>
               </div>
@@ -806,9 +837,9 @@ function getTimeAgo(date) {
               <div className="last-updated">
                 <Clock size={14} />
                 <span>
-                  Last updated: {activityLastUpdated 
+                  {t("Last updated")}: {activityLastUpdated 
                     ? activityLastUpdated.toLocaleTimeString() 
-                    : "Never"}
+                    : t("Never")}
                 </span>
               </div>
               <RippleButton 
@@ -818,7 +849,7 @@ function getTimeAgo(date) {
                 className="refresh-btn"
               >
                 <RefreshCw size={16} className={activityLoading ? "spin" : ""} />
-                {activityLoading ? "Loading..." : "Refresh Now"}
+                {activityLoading ? t("Loading...") : t("Refresh Now")}
               </RippleButton>
             </div>
 
@@ -830,7 +861,7 @@ function getTimeAgo(date) {
                 onClick={() => setActivitySubTab("registrations")}
               >
                 <UserCheck size={16} />
-                New Registrations
+                {t("New Registrations")}
                 <span className="badge">{recentRegistrations.length}</span>
               </button>
               <button
@@ -839,7 +870,7 @@ function getTimeAgo(date) {
                 onClick={() => setActivitySubTab("online")}
               >
                 <Wifi size={16} />
-                Online Activity
+                {t("Online Activity")}
                 <span className="badge">{recentOnlineUsers.length}</span>
               </button>
             </div>
@@ -855,13 +886,13 @@ function getTimeAgo(date) {
                 {recentRegistrations.length === 0 ? (
                   <div className="empty-state">
                     <Users size={48} className="empty-icon" />
-                    <h3>No New Registrations</h3>
-                    <p>No users registered in the last 24 hours</p>
+                    <h3>{t("No New Registrations")}</h3>
+                    <p>{t("No users registered in the last 24 hours")}</p>
                   </div>
                 ) : (
                   <div className="activity-timeline">
                     {recentRegistrations.map((user, index) => {
-                      const timeAgo = getTimeAgo(new Date(user.created_at));
+                      const timeAgo = getTimeAgo(new Date(user.created_at), t);
                       return (
                         <motion.div
                           key={user.id}
@@ -907,13 +938,13 @@ function getTimeAgo(date) {
                 {recentOnlineUsers.length === 0 ? (
                   <div className="empty-state">
                     <WifiOff size={48} className="empty-icon" />
-                    <h3>No Online Activity</h3>
-                    <p>No users were online in the last 24 hours</p>
+                    <h3>{t("No Online Activity")}</h3>
+                    <p>{t("No users were online in the last 24 hours")}</p>
                   </div>
                 ) : (
                   <div className="activity-timeline">
                     {recentOnlineUsers.map((user, index) => {
-                      const timeAgo = getTimeAgo(new Date(user.last_seen));
+                      const timeAgo = getTimeAgo(new Date(user.last_seen), t);
                       const isCurrentlyOnline = user.isOnline;
                       return (
                         <motion.div
@@ -933,7 +964,7 @@ function getTimeAgo(date) {
                                 <span className="username">
                                   {user.username}
                                   {isCurrentlyOnline && (
-                                    <span className="online-indicator">● Online Now</span>
+                                    <span className="online-indicator">● {t("Online Now")}</span>
                                   )}
                                 </span>
                                 <span className="user-id">{user.id.slice(0, 8)}...</span>
@@ -941,7 +972,7 @@ function getTimeAgo(date) {
                             </div>
                             <div className="time-info">
                               <span className={`time-badge ${isCurrentlyOnline ? "online" : ""}`}>
-                                {isCurrentlyOnline ? "Currently Online" : timeAgo}
+                                {isCurrentlyOnline ? t("Currently Online") : timeAgo}
                               </span>
                               <span className="exact-time">
                                 {new Date(user.last_seen).toLocaleString()}
@@ -963,9 +994,9 @@ function getTimeAgo(date) {
             {/* Engagement Header */}
             <div className="activity-header">
               <div className="activity-title-section">
-                <h2>User Engagement Analytics</h2>
+                <h2>{t("User Engagement Analytics")}</h2>
                 <p className="activity-subtitle">
-                  Message activity and user interaction statistics
+                  {t("Message activity and user interaction statistics")}
                 </p>
               </div>
               <div className="activity-stats-grid">
@@ -980,7 +1011,7 @@ function getTimeAgo(date) {
                   </div>
                   <div className="stat-content">
                     <span className="stat-number">{engagementStats?.totalMessages || 0}</span>
-                    <span className="stat-label">Total Messages</span>
+                    <span className="stat-label">{t("Total Messages")}</span>
                   </div>
                 </motion.div>
                 <motion.div 
@@ -994,7 +1025,7 @@ function getTimeAgo(date) {
                   </div>
                   <div className="stat-content">
                     <span className="stat-number">{engagementStats?.activeUsers || 0}</span>
-                    <span className="stat-label">Active Users</span>
+                    <span className="stat-label">{t("Active Users")}</span>
                   </div>
                 </motion.div>
               </div>
@@ -1005,9 +1036,9 @@ function getTimeAgo(date) {
               <div className="last-updated">
                 <Clock size={14} />
                 <span>
-                  Last updated: {engagementLastUpdated 
+                  {t("Last updated")}: {engagementLastUpdated 
                     ? engagementLastUpdated.toLocaleTimeString() 
-                    : "Never"}
+                    : t("Never")}
                 </span>
               </div>
               <RippleButton 
@@ -1017,26 +1048,26 @@ function getTimeAgo(date) {
                 className="refresh-btn"
               >
                 <RefreshCw size={16} className={engagementLoading ? "spin" : ""} />
-                {engagementLoading ? "Loading..." : "Refresh"}
+                {engagementLoading ? t("Loading...") : t("Refresh")}
               </RippleButton>
             </div>
 
             {/* Stats Grid */}
             <div className="engagement-stats-grid">
               <div className="stat-card">
-                <h4>Messages (24h)</h4>
+                <h4>{t("Messages (24h)")}</h4>
                 <span className="big-number">{engagementStats?.messagesLast24h || 0}</span>
               </div>
               <div className="stat-card">
-                <h4>Messages (7d)</h4>
+                <h4>{t("Messages (7d)")}</h4>
                 <span className="big-number">{engagementStats?.messagesLast7d || 0}</span>
               </div>
               <div className="stat-card">
-                <h4>Avg Messages/User</h4>
+                <h4>{t("Avg Messages/User")}</h4>
                 <span className="big-number">{engagementStats?.avgMessagesPerUser || 0}</span>
               </div>
               <div className="stat-card peak-hours">
-                <h4>Peak Activity Hours</h4>
+                <h4>{t("Peak Activity Hours")}</h4>
                 <div className="peak-hours-list">
                   {(engagementStats?.peakHours || []).slice(0, 3).map((peak, i) => (
                     <div key={i} className="peak-hour-item">
@@ -1047,7 +1078,7 @@ function getTimeAgo(date) {
                           style={{ width: `${Math.min(100, (peak.count / (engagementStats?.peakHours[0]?.count || 1)) * 100)}%` }}
                         />
                       </div>
-                      <span className="count">{peak.count} msgs</span>
+                      <span className="count">{t("{count} msgs", { count: peak.count })}</span>
                     </div>
                   ))}
                 </div>
@@ -1056,121 +1087,144 @@ function getTimeAgo(date) {
           </section>
         )}
 
-        {tab === "growth" && (
+        {tab === "growth" && (() => {
+          const days =
+            growthPeriod === "24h" ? 1 : growthPeriod === "7d" ? 7 : 30;
+          const chartDays = growthData.slice(-days);
+          const maxUsers = Math.max(...chartDays.map((d) => d.newUsers), 1);
+          const periodNew = chartDays.reduce((sum, d) => sum + d.newUsers, 0);
+          const weekNew = growthData.slice(-7).reduce((sum, d) => sum + d.newUsers, 0);
+          const monthNew = growthData.slice(-30).reduce((sum, d) => sum + d.newUsers, 0);
+          const totalUsers = growthData[growthData.length - 1]?.totalUsers || 0;
+
+          return (
           <section className="admin-section admin-growth-section">
-            {/* Growth Header */}
             <div className="activity-header">
               <div className="activity-title-section">
-                <h2>User Growth Analytics</h2>
+                <h2>{t("admin.growthTitle")}</h2>
                 <p className="activity-subtitle">
-                  Daily registration trends and growth metrics
+                  {t("admin.growthSubtitle")}
                 </p>
               </div>
-              <div className="period-selector">
-                <button 
+              <div className="period-selector" role="tablist" aria-label={t("Growth period")}>
+                <button
+                  type="button"
                   className={growthPeriod === "24h" ? "active" : ""}
                   onClick={() => setGrowthPeriod("24h")}
                 >
                   24h
                 </button>
-                <button 
+                <button
+                  type="button"
                   className={growthPeriod === "7d" ? "active" : ""}
                   onClick={() => setGrowthPeriod("7d")}
                 >
-                  7 Days
+                  {t("7 Days")}
                 </button>
-                <button 
+                <button
+                  type="button"
                   className={growthPeriod === "30d" ? "active" : ""}
                   onClick={() => setGrowthPeriod("30d")}
                 >
-                  30 Days
+                  {t("30 Days")}
                 </button>
               </div>
             </div>
 
-            {/* Toolbar */}
             <div className="activity-toolbar">
               <div className="last-updated">
                 <Clock size={14} />
                 <span>
-                  Last updated: {growthLastUpdated 
-                    ? growthLastUpdated.toLocaleTimeString() 
-                    : "Never"}
+                  {t("Last updated")}: {growthLastUpdated
+                    ? growthLastUpdated.toLocaleTimeString()
+                    : t("Never")}
                 </span>
               </div>
-              <RippleButton 
-                type="button" 
-                onClick={() => act(loadGrowth)} 
+              <RippleButton
+                type="button"
+                onClick={() => act(loadGrowth)}
                 disabled={growthLoading}
                 className="refresh-btn"
               >
                 <RefreshCw size={16} className={growthLoading ? "spin" : ""} />
-                {growthLoading ? "Loading..." : "Refresh"}
+                {growthLoading ? t("Loading...") : t("Refresh")}
               </RippleButton>
             </div>
 
-            {/* Growth Chart */}
-            <div className="growth-chart-container">
-              <h3>Daily New Registrations</h3>
-              <div className="growth-chart">
-                {growthData.slice(-7).map((day, index) => {
-                  const maxUsers = Math.max(...growthData.slice(-7).map(d => d.newUsers), 1);
-                  const height = day.newUsers > 0 ? (day.newUsers / maxUsers) * 100 : 0;
-                  return (
-                    <div key={day.date} className="chart-bar-wrapper">
-                      <div className="chart-bar-container">
-                        <motion.div 
-                          className="chart-bar"
-                          initial={{ height: 0 }}
-                          animate={{ height: `${height}%` }}
-                          transition={{ delay: index * 0.1, duration: 0.5 }}
-                        >
-                          {day.newUsers > 0 && (
-                            <span className="bar-value">{day.newUsers}</span>
-                          )}
-                        </motion.div>
-                      </div>
-                      <span className="bar-label">
-                        {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+            <div className="growth-summary">
+              <motion.div className="summary-card accent-green" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <span className="summary-label">{t("New ({period})", { period: growthPeriod })}</span>
+                <span className="summary-value">{periodNew}</span>
+              </motion.div>
+              <motion.div className="summary-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                <span className="summary-label">{t("New (7 days)")}</span>
+                <span className="summary-value">{weekNew}</span>
+              </motion.div>
+              <motion.div className="summary-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <span className="summary-label">{t("New (30 days)")}</span>
+                <span className="summary-value">{monthNew}</span>
+              </motion.div>
+              <motion.div className="summary-card accent-blue" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+                <span className="summary-label">{t("Total Users")}</span>
+                <span className="summary-value">{totalUsers}</span>
+              </motion.div>
             </div>
 
-            {/* Growth Stats */}
-            <div className="growth-summary">
-              <div className="summary-card">
-                <span className="summary-label">New (7 days)</span>
-                <span className="summary-value">
-                  {growthData.slice(-7).reduce((sum, d) => sum + d.newUsers, 0)}
-                </span>
-              </div>
-              <div className="summary-card">
-                <span className="summary-label">New (30 days)</span>
-                <span className="summary-value">
-                  {growthData.slice(-30).reduce((sum, d) => sum + d.newUsers, 0)}
-                </span>
-              </div>
-              <div className="summary-card">
-                <span className="summary-label">Total Users</span>
-                <span className="summary-value">
-                  {growthData[growthData.length - 1]?.totalUsers || 0}
-                </span>
-              </div>
+            <div className="growth-chart-container">
+              <h3>{t("admin.dailyRegs")}</h3>
+              {chartDays.length === 0 ? (
+                <div className="empty-state">
+                  <TrendingUp size={40} className="empty-icon" />
+                  <h3>{t("No growth data yet")}</h3>
+                  <p>{t("Registration trends will appear here")}</p>
+                </div>
+              ) : (
+                <div className="growth-chart" role="img" aria-label={t("Daily New Registrations")}>
+                  {chartDays.map((day, index) => {
+                    const height = day.newUsers > 0 ? Math.max(8, (day.newUsers / maxUsers) * 100) : 0;
+                    const d = new Date(day.date);
+                    return (
+                      <div key={day.date} className="chart-bar-wrapper" title={t("{date}: {count} new", { date: day.date, count: day.newUsers })}>
+                        <div className="chart-bar-container">
+                          <motion.div
+                            className={`chart-bar${day.newUsers === 0 ? " is-empty" : ""}`}
+                            initial={{ height: 0 }}
+                            animate={{ height: day.newUsers > 0 ? `${height}%` : 4 }}
+                            transition={{ delay: Math.min(index * 0.04, 0.5), duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                          >
+                            {day.newUsers > 0 && (
+                              <span className="bar-value">{day.newUsers}</span>
+                            )}
+                          </motion.div>
+                        </div>
+                        <span className="bar-label">
+                          {growthPeriod === "30d"
+                            ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                            : d.toLocaleDateString("en-US", { weekday: "short" })}
+                          {growthPeriod !== "30d" && (
+                            <span className="bar-date">
+                              {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </section>
-        )}
+          );
+        })()}
 
         {tab === "topusers" && (
           <section className="admin-section admin-topusers-section">
             {/* Top Users Header */}
             <div className="activity-header">
               <div className="activity-title-section">
-                <h2>Top Active Users</h2>
+                <h2>{t("Top Active Users")}</h2>
                 <p className="activity-subtitle">
-                  Leaderboard of most engaged users
+                  {t("Leaderboard of most engaged users")}
                 </p>
               </div>
               <div className="metric-selector">
@@ -1179,14 +1233,14 @@ function getTimeAgo(date) {
                   onClick={() => setTopUsersMetric("messages")}
                 >
                   <MessageSquare size={14} />
-                  By Messages
+                  {t("By Messages")}
                 </button>
                 <button 
                   className={topUsersMetric === "activity" ? "active" : ""}
                   onClick={() => setTopUsersMetric("activity")}
                 >
                   <ActivityIcon size={14} />
-                  By Activity
+                  {t("By Activity")}
                 </button>
               </div>
             </div>
@@ -1196,9 +1250,9 @@ function getTimeAgo(date) {
               <div className="last-updated">
                 <Clock size={14} />
                 <span>
-                  Last updated: {topUsersLastUpdated 
+                  {t("Last updated")}: {topUsersLastUpdated 
                     ? topUsersLastUpdated.toLocaleTimeString() 
-                    : "Never"}
+                    : t("Never")}
                 </span>
               </div>
               <RippleButton 
@@ -1208,13 +1262,20 @@ function getTimeAgo(date) {
                 className="refresh-btn"
               >
                 <RefreshCw size={16} className={topUsersLoading ? "spin" : ""} />
-                {topUsersLoading ? "Loading..." : "Refresh"}
+                {topUsersLoading ? t("Loading...") : t("Refresh")}
               </RippleButton>
             </div>
 
             {/* Top Users List */}
             <div className="top-users-list">
-              {topUsers.slice(0, 20).map((user, index) => (
+              {(topUsersMetric === "activity"
+                ? [...topUsers].sort((a, b) => {
+                    const ta = a.lastActive ? new Date(a.lastActive).getTime() : 0;
+                    const tb = b.lastActive ? new Date(b.lastActive).getTime() : 0;
+                    return tb - ta;
+                  })
+                : topUsers
+              ).slice(0, 20).map((user, index) => (
                 <motion.div
                   key={user.id}
                   className="top-user-item"
@@ -1229,7 +1290,9 @@ function getTimeAgo(date) {
                   <div className="user-details">
                     <span className="username">{user.username}</span>
                     <span className="user-meta">
-                      {user.messageCount} messages • {user.lastActive ? getTimeAgo(user.lastActive) + ' ago' : 'Never active'}
+                      {user.lastActive
+                        ? t("{count} messages • {ago}", { count: user.messageCount, ago: getTimeAgo(new Date(user.lastActive), t) })
+                        : t("{count} messages • {ago}", { count: user.messageCount, ago: t("Never active") })}
                     </span>
                   </div>
                   <div className="user-stats">
@@ -1240,7 +1303,7 @@ function getTimeAgo(date) {
                     {user.isOnline && (
                       <div className="stat-badge online">
                         <Wifi size={12} />
-                        Online
+                        {t("Online")}
                       </div>
                     )}
                   </div>
@@ -1252,31 +1315,73 @@ function getTimeAgo(date) {
 
         {tab === "users" && (
           <section className="admin-section">
+            <div className="activity-header">
+              <div className="activity-title-section">
+                <h2>{t("admin.users")}</h2>
+                <p className="activity-subtitle">
+                  {t("admin.manageUsers")}
+                </p>
+              </div>
+              <RippleButton
+                type="button"
+                onClick={() => act(loadAllUsers)}
+                disabled={busy}
+                className="refresh-btn"
+              >
+                <RefreshCw size={16} className={busy ? "spin" : ""} />
+                {t("Refresh")}
+              </RippleButton>
+            </div>
+
+            <div className="admin-users-hero">
+              <motion.div className="hero-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <div className="hero-label">{t("Total Users")}</div>
+                <div className="hero-value">{users.length}</div>
+              </motion.div>
+              <motion.div className="hero-card online" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+                <div className="hero-label">{t("Online Now")}</div>
+                <div className="hero-value">{usersOnlineCount}</div>
+              </motion.div>
+              <motion.div className="hero-card admins" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <div className="hero-label">{t("Admins")}</div>
+                <div className="hero-value">{usersAdminCount}</div>
+              </motion.div>
+            </div>
+
             <div className="admin-toolbar">
               <input
                 className="admin-input"
-                placeholder="Search username…"
+                placeholder={t("Search username or ID…")}
                 value={userQ}
                 onChange={(e) => setUserQ(e.target.value)}
               />
               <RippleButton type="button" onClick={() => act(loadAllUsers)} disabled={busy}>
-                Search
+                {t("Search")}
               </RippleButton>
             </div>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Username</th>
-                  <th>ID</th>
-                  <th>Status</th>
-                  <th>Joined</th>
-                  <th>Admin</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
+
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>{t("Username")}</th>
+                    <th>{t("ID")}</th>
+                    <th>{t("Status")}</th>
+                    <th>{t("Joined")}</th>
+                    <th>{t("Admin")}</th>
+                    <th>{t("Actions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: "center", color: "rgba(244,246,251,0.45)", padding: 28 }}>
+                        {users.length === 0 ? t("No users loaded") : t("No users match your search")}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((u) => (
                   <motion.tr key={u.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <td>
                       <Avatar name={u.username} size={36} user={u} />
@@ -1285,9 +1390,9 @@ function getTimeAgo(date) {
                     <td className="mono">{u.id.slice(0, 8)}…</td>
                     <td className="admin-status">
                       {u.isOnline ? (
-                        <span className="admin-badge online">Online</span>
+                        <span className="admin-badge online">{t("Online")}</span>
                       ) : (
-                        <span className="admin-badge offline">Offline</span>
+                        <span className="admin-badge offline">{t("Offline")}</span>
                       )}
                     </td>
                     <td style={{ fontSize: 12, color: "var(--text-muted)" }}>
@@ -1295,9 +1400,9 @@ function getTimeAgo(date) {
                     </td>
                     <td className="admin-status">
                       {u.is_admin ? (
-                        <span className="admin-badge">Admin</span>
+                        <span className="admin-badge">{t("Admin")}</span>
                       ) : (
-                        <span className="admin-badge-false">User</span>
+                        <span className="admin-badge-false">{t("User")}</span>
                       )}
                     </td>
                     <td className="admin-actions">
@@ -1307,57 +1412,64 @@ function getTimeAgo(date) {
                           className="admin-btn-red"
                           onClick={() =>
                             act(async () => {
-                              console.log("[ADMIN] Removing admin for user:", u.id);
                               const token = localStorage.getItem("descall_token");
                               const res = await fetch(`${API_BASE_URL}/api/admin/remove-admin/${u.id}`, {
                                 method: "PUT",
                                 headers: { Authorization: `Bearer ${token}` },
                               });
-                              console.log("[ADMIN] Remove admin response:", res.status);
                               if (res.ok) {
+                                setUsers((prev) =>
+                                  (prev || []).map((x) =>
+                                    x.id === u.id ? { ...x, is_admin: false, role: "user" } : x
+                                  )
+                                );
                                 await loadAllUsers();
-                                console.log("[ADMIN] Calling onAdminChanged...");
                                 onAdminChanged?.();
+                              } else {
+                                const body = await res.json().catch(() => ({}));
+                                setErr(body.error || body.message || `Remove admin failed (${res.status})`);
                               }
                             })
                           }
                         >
-                          Remove Admin
+                          {t("Remove Admin")}
                         </button>
                       ) : (
                         <button
                           type="button"
                           className="admin-btn-green"
-                          onClick={async () => {
-                            console.log("[ADMIN] Make Admin button clicked for user:", u.id);
-                            try {
+                          onClick={() =>
+                            act(async () => {
                               const token = localStorage.getItem("descall_token");
-                              console.log("[ADMIN] Token:", !!token);
                               const res = await fetch(`${API_BASE_URL}/api/admin/make-admin/${u.id}`, {
                                 method: "PUT",
                                 headers: { Authorization: `Bearer ${token}` },
                               });
-                              console.log("[ADMIN] Make admin response:", res.status);
                               if (res.ok) {
+                                setUsers((prev) =>
+                                  (prev || []).map((x) =>
+                                    x.id === u.id ? { ...x, is_admin: true, role: "admin" } : x
+                                  )
+                                );
                                 await loadAllUsers();
-                                console.log("[ADMIN] Calling onAdminChanged...");
                                 onAdminChanged?.();
                               } else {
-                                console.error("[ADMIN] Make admin failed:", res.status);
+                                const body = await res.json().catch(() => ({}));
+                                setErr(body.error || body.message || `Make admin failed (${res.status})`);
                               }
-                            } catch (err) {
-                              console.error("[ADMIN] Make admin error:", err);
-                            }
-                          }}
+                            })
+                          }
                         >
-                          Make Admin
+                          {t("Make Admin")}
                         </button>
                       )}
                     </td>
                   </motion.tr>
-                ))}
-              </tbody>
-            </table>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
 
@@ -1366,20 +1478,20 @@ function getTimeAgo(date) {
             <div className="admin-toolbar">
               <input
                 className="admin-input"
-                placeholder="Search text…"
+                placeholder={t("Search text…")}
                 value={msgQ}
                 onChange={(e) => setMsgQ(e.target.value)}
               />
               <RippleButton type="button" onClick={() => act(loadMessages)} disabled={busy}>
-                Load
+                {t("Load")}
               </RippleButton>
             </div>
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>User</th>
-                  <th>Text</th>
+                  <th>{t("Time")}</th>
+                  <th>{t("User")}</th>
+                  <th>{t("Text")}</th>
                   <th />
                 </tr>
               </thead>
@@ -1399,7 +1511,7 @@ function getTimeAgo(date) {
                           })
                         }
                       >
-                        Delete
+                        {t("Delete")}
                       </button>
                     </td>
                   </motion.tr>
@@ -1411,11 +1523,11 @@ function getTimeAgo(date) {
 
         {tab === "dm" && (
           <section className="admin-section">
-            <h2>DM conversations (in-memory keys)</h2>
+            <h2>{t("DM conversations (in-memory keys)")}</h2>
             <ul className="admin-list">
               {conversations.map((c) => (
                 <li key={c.key}>
-                  <code>{c.key}</code> — {c.messageCount} msgs
+                  <code>{c.key}</code> — {t("{count} msgs", { count: c.messageCount })}
                 </li>
               ))}
             </ul>
@@ -1432,15 +1544,15 @@ function getTimeAgo(date) {
                 })
               }
             >
-              Export DM JSON
+              {t("Export DM JSON")}
             </RippleButton>
           </section>
         )}
 
         {tab === "sockets" && (
           <section className="admin-section">
-            <h2>Connected sockets</h2>
-            <p className="muted">From latest admin:sync / admin:update</p>
+            <h2>{t("Connected sockets")}</h2>
+            <p className="muted">{t("From latest admin:sync / admin:update")}</p>
             <pre className="admin-pre">{JSON.stringify(snapshot?.sockets || [], null, 2)}</pre>
             <div className="admin-row">
               <RippleButton
@@ -1452,7 +1564,7 @@ function getTimeAgo(date) {
                   })
                 }
               >
-                Disconnect everyone
+                {t("Disconnect everyone")}
               </RippleButton>
             </div>
           </section>
@@ -1476,20 +1588,20 @@ function getTimeAgo(date) {
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
               <div>
                 <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
-                  <Megaphone size={22} style={{ color: "#5865F2" }} /> Announcements
+                  <Megaphone size={22} style={{ color: "#5865F2" }} /> {t("Announcements")}
                 </h2>
-                <p className="muted" style={{ marginTop: 4 }}>Broadcast messages to all users in real-time</p>
+                <p className="muted" style={{ marginTop: 4 }}>{t("Broadcast messages to all users in real-time")}</p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <RippleButton type="button" onClick={() => act(loadAnnouncements)} disabled={busy} style={{ minWidth: 90 }}>
-                  <RefreshCw size={14} /> Refresh
+                  <RefreshCw size={14} /> {t("Refresh")}
                 </RippleButton>
                 <RippleButton
                   type="button"
                   className={showComposePanel ? "admin-btn-red" : "admin-btn-green"}
                   onClick={() => { setShowComposePanel((v) => !v); setAnnouncementError(""); }}
                 >
-                  {showComposePanel ? <><X size={14} /> Cancel</> : <><Send size={14} /> Compose</>}
+                  {showComposePanel ? <><X size={14} /> {t("Cancel")}</> : <><Send size={14} /> {t("Compose")}</>}
                 </RippleButton>
               </div>
             </div>
@@ -1513,13 +1625,13 @@ function getTimeAgo(date) {
                   }}
                 >
                   <h3 style={{ margin: "0 0 20px", fontSize: 15, fontWeight: 700, color: "var(--text-0)", display: "flex", alignItems: "center", gap: 8 }}>
-                    <Edit3 size={16} style={{ color: announcementDraft.color }} /> New Announcement
+                    <Edit3 size={16} style={{ color: announcementDraft.color }} /> {t("New Announcement")}
                   </h3>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
                     {/* Emoji picker quick-select */}
                     <div>
-                      <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Icon</label>
+                      <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("Icon")}</label>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {["📢", "🚨", "✅", "⚠️", "🔔", "🎉", "🔧", "📌"].map((em) => (
                           <button
@@ -1541,7 +1653,7 @@ function getTimeAgo(date) {
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       <div style={{ display: "flex", gap: 8 }}>
                         <div style={{ flex: 1 }}>
-                          <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Priority</label>
+                          <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("Priority")}</label>
                           <select
                             className="admin-input"
                             value={announcementDraft.priority}
@@ -1551,13 +1663,13 @@ function getTimeAgo(date) {
                             }}
                             style={{ width: "100%" }}
                           >
-                            <option value="normal">🔵 Normal</option>
-                            <option value="important">🟡 Important</option>
-                            <option value="urgent">🔴 Urgent</option>
+                            <option value="normal">{t("🔵 Normal")}</option>
+                            <option value="important">{t("🟡 Important")}</option>
+                            <option value="urgent">{t("🔴 Urgent")}</option>
                           </select>
                         </div>
                         <div>
-                          <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Color</label>
+                          <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("Color")}</label>
                           <input
                             type="color"
                             value={announcementDraft.color}
@@ -1567,16 +1679,16 @@ function getTimeAgo(date) {
                         </div>
                       </div>
                       <div>
-                        <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Target Audience</label>
+                        <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("Target Audience")}</label>
                         <select
                           className="admin-input"
                           value={announcementDraft.target}
                           onChange={(e) => setAnnouncementDraft((d) => ({ ...d, target: e.target.value }))}
                           style={{ width: "100%" }}
                         >
-                          <option value="all">👥 All Users</option>
-                          <option value="online">🟢 Online Users</option>
-                          <option value="admins">🛡️ Admins Only</option>
+                          <option value="all">{t("👥 All Users")}</option>
+                          <option value="online">{t("🟢 Online Users")}</option>
+                          <option value="admins">{t("🛡️ Admins Only")}</option>
                         </select>
                       </div>
                     </div>
@@ -1584,10 +1696,10 @@ function getTimeAgo(date) {
 
                   {/* Title */}
                   <div style={{ marginBottom: 12 }}>
-                    <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Title</label>
+                    <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("Title")}</label>
                     <input
                       className="admin-input"
-                      placeholder="Announcement title..."
+                      placeholder={t("Announcement title...")}
                       value={announcementDraft.title}
                       onChange={(e) => setAnnouncementDraft((d) => ({ ...d, title: e.target.value }))}
                       maxLength={100}
@@ -1597,10 +1709,10 @@ function getTimeAgo(date) {
 
                   {/* Content */}
                   <div style={{ marginBottom: 16 }}>
-                    <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Message</label>
+                    <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{t("Message")}</label>
                     <textarea
                       className="admin-input"
-                      placeholder="Write your announcement content..."
+                      placeholder={t("Write your announcement content...")}
                       value={announcementDraft.content}
                       onChange={(e) => setAnnouncementDraft((d) => ({ ...d, content: e.target.value }))}
                       rows={4}
@@ -1626,15 +1738,15 @@ function getTimeAgo(date) {
                         transition: "all 0.15s",
                       }}
                     >
-                      <Flag size={13} /> {announcementDraft.pinned ? "Pinned" : "Pin to top"}
+                      <Flag size={13} /> {announcementDraft.pinned ? t("Pinned") : t("Pin to top")}
                     </button>
-                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Pinned announcements appear at the top of the list</span>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("Pinned announcements appear at the top of the list")}</span>
                   </div>
 
                   {/* Live Preview */}
                   {(announcementDraft.title || announcementDraft.content) && (
                     <div style={{ marginBottom: 20 }}>
-                      <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 8 }}>Preview</label>
+                      <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", display: "block", marginBottom: 8 }}>{t("Preview")}</label>
                       <div style={{
                         background: "var(--surface-1)", borderRadius: 12, padding: "14px 16px",
                         borderLeft: `4px solid ${announcementDraft.color}`,
@@ -1642,7 +1754,7 @@ function getTimeAgo(date) {
                       }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                           <span style={{ fontSize: 18 }}>{announcementDraft.emoji}</span>
-                          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-0)" }}>{announcementDraft.title || "Untitled"}</span>
+                          <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-0)" }}>{announcementDraft.title || t("Untitled")}</span>
                           {announcementDraft.pinned && <Flag size={12} style={{ color: announcementDraft.color }} />}
                           <span style={{
                             marginLeft: "auto", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
@@ -1651,7 +1763,7 @@ function getTimeAgo(date) {
                             color: announcementDraft.priority === "urgent" ? "#DA373C" : announcementDraft.priority === "important" ? "#F0B232" : "#5865F2",
                           }}>{announcementDraft.priority}</span>
                         </div>
-                        <p style={{ margin: 0, fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{announcementDraft.content || "No message yet."}</p>
+                        <p style={{ margin: 0, fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{announcementDraft.content || t("No message yet.")}</p>
                       </div>
                     </div>
                   )}
@@ -1663,7 +1775,7 @@ function getTimeAgo(date) {
                   )}
 
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                    <RippleButton type="button" onClick={() => setShowComposePanel(false)}>Cancel</RippleButton>
+                    <RippleButton type="button" onClick={() => setShowComposePanel(false)}>{t("Cancel")}</RippleButton>
                     <RippleButton
                       type="button"
                       className="admin-btn-green"
@@ -1692,7 +1804,7 @@ function getTimeAgo(date) {
                         }
                       }}
                     >
-                      {announcementSubmitting ? "Sending..." : <><Send size={14} /> Publish</>}
+                      {announcementSubmitting ? t("Sending...") : <><Send size={14} /> {t("Publish")}</>}
                     </RippleButton>
                   </div>
                 </motion.div>
@@ -1703,8 +1815,8 @@ function getTimeAgo(date) {
             {announcements.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
                 <Megaphone size={44} style={{ opacity: 0.3, marginBottom: 14 }} />
-                <p style={{ margin: 0, fontSize: 15 }}>No announcements yet</p>
-                <p style={{ margin: "6px 0 0", fontSize: 13 }}>Compose one above to broadcast to your users.</p>
+                <p style={{ margin: 0, fontSize: 15 }}>{t("No announcements yet")}</p>
+                <p style={{ margin: "6px 0 0", fontSize: 13 }}>{t("Compose one above to broadcast to your users.")}</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -1732,7 +1844,7 @@ function getTimeAgo(date) {
                             <span style={{ fontWeight: 700, fontSize: 15, color: "var(--text-0)" }}>{a.title}</span>
                             {a.pinned && (
                               <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: a.color || "#5865F2", fontWeight: 600 }}>
-                                <Flag size={11} /> Pinned
+                                <Flag size={11} /> {t("Pinned")}
                               </span>
                             )}
                             <span style={{
@@ -1749,7 +1861,7 @@ function getTimeAgo(date) {
                           </div>
                           <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{a.content}</p>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "var(--text-muted)" }}>
-                            {a.author && <span>By <strong style={{ color: "var(--text-3)" }}>{a.author}</strong></span>}
+                            {a.author && <span>{t("By")} <strong style={{ color: "var(--text-3)" }}>{a.author}</strong></span>}
                             <span>·</span>
                             <span>{new Date(a.created_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</span>
                           </div>
@@ -1757,7 +1869,7 @@ function getTimeAgo(date) {
                         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                           <button
                             type="button"
-                            title={a.pinned ? "Unpin" : "Pin"}
+                            title={a.pinned ? t("Unpin") : t("Pin")}
                             onClick={async () => {
                               try {
                                 const token = localStorage.getItem("descall_token");
@@ -1781,7 +1893,7 @@ function getTimeAgo(date) {
                           </button>
                           <button
                             type="button"
-                            title="Delete"
+                            title={t("Delete")}
                             onClick={async () => {
                               try {
                                 const token = localStorage.getItem("descall_token");
@@ -1817,13 +1929,13 @@ function getTimeAgo(date) {
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
               <div>
                 <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 10 }}>
-                  <Coins size={22} style={{ color: "#f59e0b" }} /> Casino / Credits Management
+                  <Coins size={22} style={{ color: "#f59e0b" }} /> {t("Casino / Credits Management")}
                 </h2>
-                <p className="muted" style={{ marginTop: 4 }}>Manage user credits and view Blackjack statistics</p>
+                <p className="muted" style={{ marginTop: 4 }}>{t("Manage user credits and view Blackjack statistics")}</p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <RippleButton type="button" onClick={() => act(loadCasinoData)} disabled={busy} style={{ minWidth: 90 }}>
-                  <RefreshCw size={14} /> Refresh
+                  <RefreshCw size={14} /> {t("Refresh")}
                 </RippleButton>
               </div>
             </div>
@@ -1832,19 +1944,19 @@ function getTimeAgo(date) {
             {creditStats && (
               <div className="admin-grid" style={{ marginBottom: 24 }}>
                 <div className="admin-card" style={{ background: "linear-gradient(135deg, #f59e0b22, #d9770622)", borderColor: "#f59e0b44" }}>
-                  <span style={{ color: "#f59e0b" }}>Total Credits in System</span>
+                  <span style={{ color: "#f59e0b" }}>{t("Total Credits in System")}</span>
                   <strong style={{ color: "#f59e0b", fontSize: 24 }}>{(creditStats.totalCredits || 0).toLocaleString()}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>Total Players</span>
+                  <span>{t("Total Players")}</span>
                   <strong>{creditStats.totalPlayers || 0}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>Games Played</span>
+                  <span>{t("Games Played")}</span>
                   <strong>{creditStats.totalGames || 0}</strong>
                 </div>
                 <div className="admin-card">
-                  <span>Avg Credits/User</span>
+                  <span>{t("Avg Credits/User")}</span>
                   <strong>{Math.round((creditStats.totalCredits || 0) / (creditStats.totalPlayers || 1)).toLocaleString()}</strong>
                 </div>
               </div>
@@ -1855,12 +1967,12 @@ function getTimeAgo(date) {
               {/* Search and Manage Users */}
               <div style={{ background: "var(--surface-2)", borderRadius: 14, padding: 20, border: "1px solid var(--border-2)" }}>
                 <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
-                  <Search size={18} /> Find User
+                  <Search size={18} /> {t("Find User")}
                 </h3>
                 <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                   <input
                     className="admin-input"
-                    placeholder="Search by username..."
+                    placeholder={t("Search by username...")}
                     value={creditSearch}
                     onChange={(e) => setCreditSearch(e.target.value)}
                     style={{ flex: 1 }}
@@ -1898,8 +2010,8 @@ function getTimeAgo(date) {
                             {user.username?.[0]?.toUpperCase() || "?"}
                           </div>
                           <div>
-                            <div style={{ fontWeight: 600, fontSize: 14 }}>{user.username || "Unknown"}</div>
-                            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>ID: {user.user_id?.slice(0, 8)}...</div>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{user.username || t("Unknown")}</div>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("ID: {id}...", { id: user.user_id?.slice(0, 8) })}</div>
                           </div>
                         </div>
                         <div style={{ textAlign: "right" }}>
@@ -1908,14 +2020,14 @@ function getTimeAgo(date) {
                             {user.credits?.toLocaleString() || 0}
                           </div>
                           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                            {user.games_played || 0} games
+                            {t("{count} games", { count: user.games_played || 0 })}
                           </div>
                         </div>
                       </motion.div>
                     ))}
                   {userCredits.filter(u => !creditSearch || u.username?.toLowerCase().includes(creditSearch.toLowerCase())).length === 0 && (
                     <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
-                      <p>No users found</p>
+                      <p>{t("No users found")}</p>
                     </div>
                   )}
                 </div>
@@ -1924,7 +2036,7 @@ function getTimeAgo(date) {
               {/* Credit Operations */}
               <div style={{ background: "var(--surface-2)", borderRadius: 14, padding: 20, border: "1px solid var(--border-2)" }}>
                 <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
-                  <DollarSign size={18} /> Manage Credits
+                  <DollarSign size={18} /> {t("Manage Credits")}
                 </h3>
                 
                 {selectedCreditUser ? (
@@ -1940,7 +2052,7 @@ function getTimeAgo(date) {
                     }}>
                       <div>
                         <div style={{ fontWeight: 600 }}>{selectedCreditUser.username}</div>
-                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Current Balance</div>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("Current Balance")}</div>
                       </div>
                       <div style={{ fontSize: 28, fontWeight: 700, color: "#f59e0b" }}>
                         {selectedCreditUser.credits?.toLocaleString() || 0}
@@ -1963,7 +2075,7 @@ function getTimeAgo(date) {
                           }}
                         >
                           <Plus size={14} style={{ display: "inline", marginRight: 6 }} />
-                          Add Credits
+                          {t("Add Credits")}
                         </button>
                         <button
                           onClick={() => setCreditOperation("remove")}
@@ -1979,12 +2091,12 @@ function getTimeAgo(date) {
                           }}
                         >
                           <Minus size={14} style={{ display: "inline", marginRight: 6 }} />
-                          Remove Credits
+                          {t("Remove Credits")}
                         </button>
                       </div>
 
                       <div>
-                        <label style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Amount</label>
+                        <label style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>{t("Amount")}</label>
                         <input
                           type="number"
                           className="admin-input"
@@ -1997,12 +2109,12 @@ function getTimeAgo(date) {
                       </div>
 
                       <div>
-                        <label style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>Reason (optional)</label>
+                        <label style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6, display: "block" }}>{t("Reason (optional)")}</label>
                         <input
                           className="admin-input"
                           value={creditReason}
                           onChange={(e) => setCreditReason(e.target.value)}
-                          placeholder="e.g., Bonus, Correction, etc."
+                          placeholder={t("e.g., Bonus, Correction, etc.")}
                           style={{ width: "100%" }}
                         />
                       </div>
@@ -2014,8 +2126,8 @@ function getTimeAgo(date) {
                         disabled={busy || creditAmount <= 0}
                         style={{ width: "100%", marginTop: 8 }}
                       >
-                        {busy ? "Processing..." : (
-                          <>{creditOperation === "add" ? <Plus size={16} /> : <Minus size={16} />} {creditOperation === "add" ? "Add" : "Remove"} {creditAmount.toLocaleString()} Credits</>
+                        {busy ? t("Processing...") : (
+                          <>{creditOperation === "add" ? <Plus size={16} /> : <Minus size={16} />} {t("{op} {amount} Credits", { op: creditOperation === "add" ? t("Add") : t("Remove"), amount: creditAmount.toLocaleString() })}</>
                         )}
                       </RippleButton>
                     </div>
@@ -2023,7 +2135,7 @@ function getTimeAgo(date) {
                 ) : (
                   <div style={{ textAlign: "center", padding: 60, color: "var(--text-muted)" }}>
                     <Coins size={44} style={{ opacity: 0.3, marginBottom: 14 }} />
-                    <p>Select a user from the list to manage their credits</p>
+                    <p>{t("Select a user from the list to manage their credits")}</p>
                   </div>
                 )}
               </div>
@@ -2032,17 +2144,17 @@ function getTimeAgo(date) {
             {/* Recent Game History */}
             <div style={{ background: "var(--surface-2)", borderRadius: 14, padding: 20, border: "1px solid var(--border-2)" }}>
               <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8 }}>
-                <History size={18} /> Recent Game History
+                <History size={18} /> {t("Recent Game History")}
               </h3>
               <div className="admin-table-container">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>User</th>
-                      <th>Bet</th>
-                      <th>Result</th>
-                      <th>Win Amount</th>
-                      <th>Time</th>
+                      <th>{t("User")}</th>
+                      <th>{t("Bet")}</th>
+                      <th>{t("Result")}</th>
+                      <th>{t("Win Amount")}</th>
+                      <th>{t("Time")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2073,7 +2185,7 @@ function getTimeAgo(date) {
                     {gameHistory.length === 0 && (
                       <tr>
                         <td colSpan={5} style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
-                          No games played yet
+                          {t("No games played yet")}
                         </td>
                       </tr>
                     )}
@@ -2086,18 +2198,18 @@ function getTimeAgo(date) {
 
         {tab === "moderation" && (
           <section className="admin-section">
-            <h2>Content Moderation</h2>
-            <p className="muted">Manage banned users, flagged messages, and content filters</p>
+            <h2>{t("Content Moderation")}</h2>
+            <p className="muted">{t("Manage banned users, flagged messages, and content filters")}</p>
             
             <div className="admin-toolbar">
               <RippleButton type="button" onClick={() => act(loadSystem)} disabled={busy}>
-                Refresh
+                {t("Refresh")}
               </RippleButton>
             </div>
             
             {system && (
               <div className="admin-form">
-                <h3>Banned Users</h3>
+                <h3>{t("Banned Users")}</h3>
                 <div className="banned-users-list">
                   {system.bannedUserIds?.length > 0 ? (
                     system.bannedUserIds.map(id => (
@@ -2111,16 +2223,16 @@ function getTimeAgo(date) {
                             await loadSystem();
                           })}
                         >
-                          Unban
+                          {t("Unban")}
                         </RippleButton>
                       </div>
                     ))
                   ) : (
-                    <p className="muted">No banned users</p>
+                    <p className="muted">{t("No banned users")}</p>
                   )}
                 </div>
                 
-                <h3>Flagged Messages</h3>
+                <h3>{t("Flagged Messages")}</h3>
                 <div className="flagged-messages-list">
                   {system.flaggedMessages?.length > 0 ? (
                     system.flaggedMessages.map(msg => (
@@ -2130,14 +2242,14 @@ function getTimeAgo(date) {
                       </div>
                     ))
                   ) : (
-                    <p className="muted">No flagged messages</p>
+                    <p className="muted">{t("No flagged messages")}</p>
                   )}
                 </div>
                 
-                <h3>Profanity Filter</h3>
+                <h3>{t("Profanity Filter")}</h3>
                 <label>
-                  Add word to filter
-                  <input className="admin-input" id="prof-moderation" placeholder="Enter word..." />
+                  {t("Add word to filter")}
+                  <input className="admin-input" id="prof-moderation" placeholder={t("Enter word...")} />
                   <RippleButton
                     type="button"
                     onClick={() => {
@@ -2149,7 +2261,7 @@ function getTimeAgo(date) {
                       });
                     }}
                   >
-                    Add
+                    {t("Add")}
                   </RippleButton>
                 </label>
                 <div className="profanity-list">
@@ -2158,7 +2270,7 @@ function getTimeAgo(date) {
                       <span key={word} className="profanity-tag">{word}</span>
                     ))
                   ) : (
-                    <p className="muted">No filter words</p>
+                    <p className="muted">{t("No filter words")}</p>
                   )}
                 </div>
               </div>
@@ -2168,55 +2280,55 @@ function getTimeAgo(date) {
 
         {tab === "analytics" && (
           <section className="admin-section">
-            <h2>Analytics Dashboard</h2>
-            <p className="muted">Real-time system analytics and usage statistics</p>
+            <h2>{t("Analytics Dashboard")}</h2>
+            <p className="muted">{t("Real-time system analytics and usage statistics")}</p>
             
             <div className="analytics-grid">
               <div className="analytics-card">
-                <h3>User Activity</h3>
+                <h3>{t("User Activity")}</h3>
                 <div className="stat-row">
-                  <span>Online Now:</span>
+                  <span>{t("Online Now:")}</span>
                   <strong>{snapshot?.onlineCount || 0}</strong>
                 </div>
                 <div className="stat-row">
-                  <span>Total Connections:</span>
+                  <span>{t("Total Connections:")}</span>
                   <strong>{snapshot?.sockets?.length || 0}</strong>
                 </div>
                 <div className="stat-row">
-                  <span>Banned Users:</span>
+                  <span>{t("Banned Users:")}</span>
                   <strong>{snapshot?.bannedCount || 0}</strong>
                 </div>
               </div>
               
               <div className="analytics-card">
-                <h3>Message Statistics</h3>
+                <h3>{t("Message Statistics")}</h3>
                 <div className="stat-row">
-                  <span>Total Messages:</span>
+                  <span>{t("Total Messages:")}</span>
                   <strong>{stats?.totalMessages || 0}</strong>
                 </div>
                 <div className="stat-row">
-                  <span>DM Conversations:</span>
+                  <span>{t("DM Conversations:")}</span>
                   <strong>{stats?.totalDmConversations || 0}</strong>
                 </div>
                 <div className="stat-row">
-                  <span>Groups:</span>
+                  <span>{t("Groups:")}</span>
                   <strong>{stats?.totalGroups || 0}</strong>
                 </div>
               </div>
               
               <div className="analytics-card">
-                <h3>System Health</h3>
+                <h3>{t("System Health")}</h3>
                 <div className="stat-row">
-                  <span>Uptime:</span>
-                  <strong>{stats?.uptime || "N/A"}</strong>
+                  <span>{t("Uptime:")}</span>
+                  <strong>{stats?.uptime || t("N/A")}</strong>
                 </div>
                 <div className="stat-row">
-                  <span>Memory Usage:</span>
-                  <strong>{stats?.memoryUsage || "N/A"}</strong>
+                  <span>{t("Memory Usage:")}</span>
+                  <strong>{stats?.memoryUsage || t("N/A")}</strong>
                 </div>
                 <div className="stat-row">
-                  <span>Last Restart:</span>
-                  <strong>{stats?.lastRestart || "N/A"}</strong>
+                  <span>{t("Last Restart:")}</span>
+                  <strong>{stats?.lastRestart || t("N/A")}</strong>
                 </div>
               </div>
             </div>
@@ -2225,12 +2337,12 @@ function getTimeAgo(date) {
 
         {tab === "security" && (
           <section className="admin-section">
-            <h2>Security Center</h2>
-            <p className="muted">Security settings and access control</p>
+            <h2>{t("Security Center")}</h2>
+            <p className="muted">{t("Security settings and access control")}</p>
             
             <div className="security-grid">
               <div className="security-card">
-                <h3>Access Control</h3>
+                <h3>{t("Access Control")}</h3>
                 <label>
                   <input 
                     type="checkbox" 
@@ -2243,7 +2355,7 @@ function getTimeAgo(date) {
                       await loadSystem();
                     })}
                   />
-                  Allow new user registrations
+                  {t("Allow new user registrations")}
                 </label>
                 
                 <label>
@@ -2258,7 +2370,7 @@ function getTimeAgo(date) {
                       await loadSystem();
                     })}
                   />
-                  Enable direct messages
+                  {t("Enable direct messages")}
                 </label>
                 
                 <label>
@@ -2273,14 +2385,14 @@ function getTimeAgo(date) {
                       await loadSystem();
                     })}
                   />
-                  Allow group creation
+                  {t("Allow group creation")}
                 </label>
               </div>
               
               <div className="security-card">
-                <h3>Rate Limits</h3>
+                <h3>{t("Rate Limits")}</h3>
                 <label>
-                  Max login attempts per minute
+                  {t("Max login attempts per minute")}
                   <input 
                     type="number" 
                     className="admin-input"
@@ -2296,7 +2408,7 @@ function getTimeAgo(date) {
                 </label>
                 
                 <label>
-                  Max messages per minute
+                  {t("Max messages per minute")}
                   <input 
                     type="number" 
                     className="admin-input"
@@ -2317,76 +2429,76 @@ function getTimeAgo(date) {
 
         {tab === "maintenance" && (
           <section className="admin-section">
-            <h2>System Maintenance</h2>
-            <p className="muted">System maintenance and cleanup tools</p>
+            <h2>{t("System Maintenance")}</h2>
+            <p className="muted">{t("System maintenance and cleanup tools")}</p>
             
             <div className="maintenance-grid">
               <div className="maintenance-card">
-                <h3>Cache Management</h3>
+                <h3>{t("Cache Management")}</h3>
                 <RippleButton
                   type="button"
                   onClick={() =>
                     act(async () => {
                       await adminFetch("/cache/clear", { method: "POST" });
-                      setSuccessMessage("Cache cleared successfully");
+                      setSuccessMessage(t("Cache cleared successfully"));
                       setTimeout(() => setSuccessMessage(""), 3000);
                     })
                   }
                 >
-                  Clear System Cache
+                  {t("Clear System Cache")}
                 </RippleButton>
-                <p className="muted">Clears all temporary caches</p>
+                <p className="muted">{t("Clears all temporary caches")}</p>
               </div>
               
               <div className="maintenance-card">
-                <h3>Log Management</h3>
+                <h3>{t("Log Management")}</h3>
                 <RippleButton
                   type="button"
                   onClick={() =>
                     act(async () => {
                       await adminFetch("/logs/archive", { method: "POST" });
-                      setSuccessMessage("Old logs archived successfully");
+                      setSuccessMessage(t("Old logs archived successfully"));
                       setTimeout(() => setSuccessMessage(""), 3000);
                     })
                   }
                 >
-                  Archive Old Logs
+                  {t("Archive Old Logs")}
                 </RippleButton>
-                <p className="muted">Archives logs older than 30 days</p>
+                <p className="muted">{t("Archives logs older than 30 days")}</p>
               </div>
               
               <div className="maintenance-card">
-                <h3>Database</h3>
+                <h3>{t("Database")}</h3>
                 <RippleButton
                   type="button"
                   onClick={() =>
                     act(async () => {
                       const d = await adminFetch("/backup", { method: "POST" });
-                      setSuccessMessage("Backup created: " + d.backupId);
+                      setSuccessMessage(t("Backup created: {id}", { id: d.backupId }));
                       setTimeout(() => setSuccessMessage(""), 5000);
                     })
                   }
                 >
-                  Create Backup
+                  {t("Create Backup")}
                 </RippleButton>
-                <p className="muted">Creates a full system backup</p>
+                <p className="muted">{t("Creates a full system backup")}</p>
               </div>
               
               <div className="maintenance-card danger">
-                <h3>Danger Zone</h3>
+                <h3>{t("Danger Zone")}</h3>
                 <RippleButton
                   type="button"
                   className="danger"
                   onClick={() =>
                     act(async () => {
-                      if (!window.confirm("Restart Node process?\n\nAll connections will be lost.")) return;
+                      if (!window.confirm(t("Restart Node process?\n\nAll connections will be lost."))) return;
                       await adminFetch("/restart", { method: "POST" });
                     })
                   }
                 >
-                  Restart Server
+                  {t("Restart Server")}
                 </RippleButton>
-                <p className="muted warning">Immediately restarts the server</p>
+                <p className="muted warning">{t("Immediately restarts the server")}</p>
               </div>
             </div>
           </section>
@@ -2397,7 +2509,7 @@ function getTimeAgo(date) {
             {system && (
               <div className="admin-form">
                 <label>
-                  Max message length
+                  {t("Max message length")}
                   <input
                     type="number"
                     defaultValue={system.config?.maxMessageLength}
@@ -2413,7 +2525,7 @@ function getTimeAgo(date) {
                   />
                 </label>
                 <label>
-                  Rate limit (ms)
+                  {t("Rate limit (ms)")}
                   <input
                     type="number"
                     defaultValue={system.config?.rateLimitGlobalMs}
@@ -2429,7 +2541,7 @@ function getTimeAgo(date) {
                   />
                 </label>
                 <label>
-                  Slow mode (seconds)
+                  {t("Slow mode (seconds)")}
                   <input
                     type="number"
                     defaultValue={system.config?.slowModeSeconds}
@@ -2457,7 +2569,7 @@ function getTimeAgo(date) {
                       })
                     }
                   >
-                    Toggle chat freeze
+                    {t("Toggle chat freeze")}
                   </RippleButton>
                   <RippleButton
                     type="button"
@@ -2471,14 +2583,14 @@ function getTimeAgo(date) {
                       })
                     }
                   >
-                    Toggle maintenance
+                    {t("Toggle maintenance")}
                   </RippleButton>
                 </div>
                 <label>
-                  Broadcast
+                  {t("Broadcast")}
                   <textarea
                     className="admin-textarea"
-                    placeholder="Announcement text"
+                    placeholder={t("Announcement text")}
                     id="bc-text"
                   />
                   <RippleButton
@@ -2492,11 +2604,11 @@ function getTimeAgo(date) {
                       });
                     }}
                   >
-                    Send broadcast
+                    {t("Send broadcast")}
                   </RippleButton>
                 </label>
                 <label>
-                  Profanity word
+                  {t("Profanity word")}
                   <input className="admin-input" id="prof" />
                   <RippleButton
                     type="button"
@@ -2509,7 +2621,7 @@ function getTimeAgo(date) {
                       });
                     }}
                   >
-                    Add filter
+                    {t("Add filter")}
                   </RippleButton>
                 </label>
                 <div className="admin-row">
@@ -2521,19 +2633,19 @@ function getTimeAgo(date) {
                       })
                     }
                   >
-                    Memory backup (JSON response in network tab)
+                    {t("Memory backup (JSON response in network tab)")}
                   </RippleButton>
                   <RippleButton
                     type="button"
                     className="danger"
                     onClick={() =>
                       act(async () => {
-                        if (!window.confirm("Restart Node process?")) return;
+                        if (!window.confirm(t("Restart Node process?"))) return;
                         await adminFetch("/restart", { method: "POST", body: JSON.stringify({}) });
                       })
                     }
                   >
-                    Restart server
+                    {t("Restart server")}
                   </RippleButton>
                 </div>
               </div>
@@ -2546,10 +2658,10 @@ function getTimeAgo(date) {
             <table className="admin-table compact">
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>Actor</th>
-                  <th>Action</th>
-                  <th>Target</th>
+                  <th>{t("Time")}</th>
+                  <th>{t("Actor")}</th>
+                  <th>{t("Action")}</th>
+                  <th>{t("Target")}</th>
                 </tr>
               </thead>
               <tbody>

@@ -6,18 +6,33 @@
 const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernameById } = require("../runtime/sharedState");
 const supabase = require("../db/supabase");
 const { handleGameCommand, createGameMessage } = require("./gameHandlers");
+const { getCachedPublicUser, getAvatarUrl } = require("../lib/userProfile");
+const { sendWebPushToUsers } = require("../lib/webPush");
 const {
   broadcastToGroupMembers,
   emitBannerUpdate,
   endGroupCall,
   removeUserFromGroupCall,
   removeUserFromAllGroupCalls,
+  resumeParticipantInGroupCall,
 } = require("./groupCallLifecycle");
+const { sendGroupCallPush } = require("../lib/webPush");
+
+function resolveSocketAvatar(socket) {
+  const cached = getCachedPublicUser(socket.user?.id);
+  return (
+    cached?.avatarUrl ||
+    cached?.avatar_url ||
+    getAvatarUrl(socket.user?.id) ||
+    socket.user?.avatar_url ||
+    null
+  );
+}
 
 const MENTION_PATTERN = /@(\w{1,32})/g;
 
 // Game commands that should be intercepted
-const GAME_COMMANDS = ['bj', 'blackjack', 'hit', 'stand', 'stay', 'double', 'credits', 'bakiye', 'balance', 'top', 'lider', 'help', 'yardım', 'commands', 'jb'];
+const GAME_COMMANDS = ['bj', 'blackjack', 'hit', 'stand', 'stay', 'double', 'credits', 'bakiye', 'balance', 'top', 'lider', 'help', 'yardım', 'commands', 'jb', 'daily'];
 const COMMAND_REGEX = /^\/(\w+)(?:\s+(\S+))?/;
 
 function extractMentionedUsernames(text) {
@@ -87,13 +102,24 @@ function registerGroupHandlers(io, socket, state) {
   });
 
   // Group message — persist to DB then broadcast
-  socket.on("group:message", async ({ groupId, tempId, content, mediaUrl, mediaType }) => {
+  socket.on("group:message", async ({ groupId, tempId, content, mediaUrl, mediaType, duration, replyTo }) => {
     if (!groupId || (!content?.trim() && !mediaUrl)) {
       appendErrorLog("group:message", "Missing required parameters", { groupId, hasContent: !!content, hasMedia: !!mediaUrl }, myId, socket.user?.username);
+      if (tempId) {
+        socket.emit("group:message:error", { groupId, tempId, message: "Missing message content." });
+      }
       return;
     }
 
-    const trimmedContent = content?.trim() || null;
+    const isVoice = mediaType === "voice" || mediaType === "audio";
+    let trimmedContent = content?.trim() || null;
+    if (isVoice && mediaUrl) {
+      const dur = Math.max(0, Math.round(Number(duration) || 0));
+      // Persist duration in content so it survives page reload (no DB column needed)
+      if (!trimmedContent || !trimmedContent.startsWith("__voice__:")) {
+        trimmedContent = `__voice__:${dur || 1}`;
+      }
+    }
 
     // Check if this is a game command (starts with /)
     if (trimmedContent && trimmedContent.startsWith('/')) {
@@ -102,20 +128,16 @@ function registerGroupHandlers(io, socket, state) {
         const [, cmd] = match;
         const commandLower = cmd.toLowerCase();
         if (GAME_COMMANDS.includes(commandLower)) {
-          // This is a game command - handle it and don't save as regular message
+          // Game command — handle via casino bot; do NOT echo as a chat bubble
+          // (echoing /bj caused a flash then delete that also raced the board message).
           console.log(`[Game] Intercepted command: ${trimmedContent} from ${socket.user.username}`);
           await handleGameCommand(io, socket, myId, socket.user.username, groupId, trimmedContent);
-          // Echo back with tempId so frontend knows it was processed
-          socket.emit("group:message", { 
-            groupId, 
-            message: {
-              id: `game-${Date.now()}`,
-              sender: { id: myId, username: socket.user.username },
-              content: trimmedContent,
-              isGameCommand: true,
-              created_at: new Date().toISOString()
-            }, 
-            tempId 
+          // Ack only: clear optimistic "/bj …" bubble without inserting a real message
+          socket.emit("group:message:ack", {
+            groupId,
+            tempId: tempId || null,
+            suppress: true,
+            isGameCommand: true,
           });
           return;
         }
@@ -129,7 +151,7 @@ function registerGroupHandlers(io, socket, state) {
         sender_id: myId,
         content: trimmedContent,
         media_url: mediaUrl || null,
-        media_type: mediaType || null,
+        media_type: isVoice ? "voice" : (mediaType || null),
         message_type: "text",
       })
       .select("id, created_at")
@@ -137,20 +159,56 @@ function registerGroupHandlers(io, socket, state) {
 
     if (error) {
       console.error("[GroupMessage] DB insert error:", error.message);
+      socket.emit("group:message:error", {
+        groupId,
+        tempId: tempId || null,
+        message: "Failed to send message. Please try again.",
+      });
+      return;
     }
+
+    const replyMeta = replyTo && typeof replyTo === "object"
+      ? {
+          id: replyTo.id || null,
+          text: replyTo.text || "",
+          mediaType: replyTo.mediaType || null,
+          from: replyTo.from || null,
+        }
+      : null;
 
     const message = {
       id: row?.id ?? crypto.randomUUID(),
       sender_id: myId,
       content: trimmedContent,
       media_url: mediaUrl,
-      media_type: mediaType,
+      media_type: isVoice ? "voice" : mediaType,
+      duration: isVoice
+        ? Math.max(0, Math.round(Number(duration) || Number(String(trimmedContent || "").replace(/^__voice__:/, "")) || 0))
+        : null,
       created_at: row?.created_at ?? new Date().toISOString(),
-      sender: {
-        id: myId,
-        username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
-      },
+      reply_to: replyMeta,
+      replyTo: replyMeta,
+      sender: (() => {
+        const cached = getCachedPublicUser(myId);
+        const avatar = resolveSocketAvatar(socket);
+        const displayName = cached?.displayName || socket.user.display_name || socket.user.displayName || null;
+        const username = cached?.username || socket.user.username;
+        const isAdmin =
+          Boolean(cached?.is_admin || cached?.isAdmin || socket.user?.is_admin) ||
+          username === "admin";
+        return {
+          id: myId,
+          username,
+          displayName,
+          display_name: displayName,
+          avatar_url: avatar,
+          avatarUrl: avatar,
+          avatarVersion: cached?.avatarVersion || cached?.updated_at || null,
+          updated_at: cached?.updated_at || null,
+          is_admin: isAdmin,
+          isAdmin,
+        };
+      })(),
     };
 
     // Broadcast to all group members except sender
@@ -230,6 +288,9 @@ function registerGroupHandlers(io, socket, state) {
 
     console.log(`[GroupCall] ${myId} started ${callType} call in group ${groupId}`);
 
+    // Ensure initiator receives left/ended/participant events via group room
+    socket.join(`group:${groupId}`);
+
     // Resolve targets: client memberIds, else DB group_members (never rely only on room).
     let targets = Array.isArray(memberIds)
       ? [...new Set(memberIds)].filter((id) => id && id !== myId)
@@ -272,12 +333,13 @@ function registerGroupHandlers(io, socket, state) {
     activeGroupCalls.set(groupId, {
       initiatorId: myId,
       initiatorUsername: socket.user.username,
-      initiatorAvatarUrl: socket.user.avatar_url || null,
+      initiatorAvatarUrl: resolveSocketAvatar(socket),
       callType,
       participants: new Set([myId]),
       allParticipants: new Set([myId]),
       startTime: Date.now(),
       dbCallId: null,
+      disconnectGraceByUser: new Map(),
     });
 
     const payload = {
@@ -285,7 +347,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
       callType,
     };
@@ -294,7 +356,22 @@ function registerGroupHandlers(io, socket, state) {
     targets.forEach((targetUserId) => {
       io.to(`user:${targetUserId}`).emit("group:call:incoming", payload);
     });
+    // Backgrounded iOS PWAs cannot rely on Socket.IO; push contains no SDP/ICE.
+    void sendGroupCallPush(targets, {
+      type: "group-call",
+      groupId,
+      callType,
+      title: `${socket.user.username} started a ${callType} call`,
+      body: "Tap to join the group call",
+      deepLink: `/?group=${encodeURIComponent(groupId)}`,
+    });
     socket.to(`group:${groupId}`).emit("group:call:incoming", payload);
+    void sendWebPushToUsers(targets, {
+      title: `${socket.user.username} is calling`,
+      body: `Join the ${callType} call in your group.`,
+      tag: `group-call-${groupId}`,
+      deepLink: `/?group=${encodeURIComponent(groupId)}`,
+    });
 
     io.to(`group:${groupId}`).emit("group:call:started", {
       groupId,
@@ -302,11 +379,16 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
       callType,
     });
     void emitBannerUpdate(io, groupId);
+  });
+
+  socket.on("group:call:resume", ({ groupId } = {}) => {
+    if (!groupId) return;
+    resumeParticipantInGroupCall(io, groupId, myId, socket);
   });
 
   // Accept call and send offer
@@ -328,6 +410,9 @@ function registerGroupHandlers(io, socket, state) {
       }
     }
 
+    // Ensure acceptor is in the group room
+    socket.join(`group:${groupId}`);
+
     // Notify the initiator that someone accepted
     io.to(`user:${toUserId}`).emit("group:call:accepted", {
       groupId,
@@ -335,7 +420,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
     });
 
@@ -346,7 +431,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
     });
     void emitBannerUpdate(io, groupId);
@@ -362,18 +447,32 @@ function registerGroupHandlers(io, socket, state) {
       return;
     }
 
+    // Ensure joiner is in the group room for left/ended/screen events
+    socket.join(`group:${groupId}`);
+
     // Add participant to tracking
     activeCall.participants.add(myId);
     activeCall.allParticipants.add(myId);
 
-    // Notify all participants that someone is joining
+    if (activeCall.dbCallId) {
+      supabase.from("group_call_participants")
+        .insert({ call_id: activeCall.dbCallId, user_id: myId })
+        .then(({ error }) => {
+          // Unique violation if they rejoin — ignore
+          if (error && !String(error.message || "").includes("duplicate")) {
+            console.error("[GroupCall] Participant insert error:", error.message);
+          }
+        });
+    }
+
+    // Notify all participants that someone is joining (including other sockets)
     io.to(`group:${groupId}`).emit("group:call:participant-joined", {
       groupId,
       fromUserId: myId,
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url,
+        avatar_url: resolveSocketAvatar(socket),
       },
     });
 
@@ -428,7 +527,7 @@ function registerGroupHandlers(io, socket, state) {
       fromUser: {
         id: myId,
         username: socket.user.username,
-        avatar_url: socket.user.avatar_url || null,
+        avatar_url: resolveSocketAvatar(socket),
       },
       offer,
       callType,
@@ -473,6 +572,20 @@ function registerGroupHandlers(io, socket, state) {
     if (activeCall.initiatorId !== myId) return;
 
     await endGroupCall(io, groupId, myId, activeCall);
+  });
+
+  // Broadcast per-participant UI state. Media tracks can remain live after
+  // their sender is disabled, so receivers cannot reliably infer these flags.
+  socket.on("group:call:media-state", ({ groupId, muted, cameraOn } = {}) => {
+    if (!groupId) return;
+    const activeCall = activeGroupCalls.get(groupId);
+    if (!activeCall?.participants?.has(myId)) return;
+    socket.to(`group:${groupId}`).emit("group:call:media-state", {
+      groupId,
+      fromUserId: myId,
+      muted: Boolean(muted),
+      cameraOn: Boolean(cameraOn),
+    });
   });
 
   // Screen share started — persist session

@@ -1,6 +1,9 @@
 # Render Deploy — Descall (des-call)
 
-**Canlı URL:** https://des-call.onrender.com
+**Production (ana site):** https://des-call.onrender.com (`main`)  
+**Staging (test site):** https://des-call-staging.onrender.com (`staging`)
+
+Staging → production akışı için: [`docs/STAGING.md`](docs/STAGING.md)
 
 ## 1. İlk kurulum (Blueprint)
 
@@ -46,6 +49,21 @@ Alternatif: `render.env.example` dosyasını doldurup aynı şekilde yapıştır
 
 Supabase SQL Editor'da `supabase/migrations/` klasöründeki dosyaları sırayla çalıştır (veya Supabase CLI ile push).
 
+## Google Sign-In (OAuth)
+
+1. [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → Create **OAuth client ID** (Web application).
+2. Authorized JavaScript origins:
+   - `http://localhost:5173` (Vite dev)
+   - `http://localhost:3000` (local backend serving SPA)
+   - `https://des-call.onrender.com`
+   - `https://des-call-staging.onrender.com` (test)
+3. Render **Environment** (service `des-call`):
+   - `GOOGLE_CLIENT_ID` — same Web client ID (backend token verify)
+   - `VITE_GOOGLE_CLIENT_ID` — same value (embedded at Vite build time)
+4. Run SQL migration once in Supabase SQL editor:
+   - `supabase/migrations/20260729_add_google_oauth_columns.sql`
+5. Redeploy so the backend has `google-auth-library` and the `/auth/google` route.
+
 ## 4. Ortam değişkenleri özeti
 
 | Değişken | Zorunlu | Açıklama |
@@ -55,6 +73,8 @@ Supabase SQL Editor'da `supabase/migrations/` klasöründeki dosyaları sırayla
 | `JWT_SECRET` | Evet | Oturum imzalama (Render üretebilir) |
 | `JWT_EXPIRES_IN` | Hayır | Varsayılan `7d` |
 | `VITE_API_BASE_URL` | Evet | `https://des-call.onrender.com` |
+| `GOOGLE_CLIENT_ID` | Hayır | Google OAuth (backend) |
+| `VITE_GOOGLE_CLIENT_ID` | Hayır | Google OAuth (frontend build) |
 | `PORT` | Hayır | Render otomatik `3000` |
 
 ## 5. Sorun giderme
@@ -69,6 +89,9 @@ Supabase SQL Editor'da `supabase/migrations/` klasöründeki dosyaları sırayla
 **Deploy olmuyor**
 - Settings → **Auto Deploy: Yes**
 - veya Manual Deploy → Deploy latest commit
+
+**Deploy çok uzun sürüyor**
+- Manual Deploy → Clear build cache & deploy
 
 ## Linkler
 

@@ -10,18 +10,20 @@ import {
   Info,
 } from "lucide-react";
 import { GROUP_SCREEN_DEFAULT_QUALITY } from "../../lib/webrtcScreenShare";
+import { useIsNarrowViewport } from "../../lib/useIsNarrowViewport";
+import { useT } from "../../context/LocaleContext";
 
 export const SCREEN_RESOLUTION_PRESETS = [
-  { value: "480p", label: "480p", desc: "854×480", hint: "En akıcı — düşük bant" },
-  { value: "720p", label: "720p HD", desc: "1280×720", hint: "Önerilen denge" },
-  { value: "1080p", label: "1080p", desc: "1920×1080", hint: "Net metin / UI" },
+  { value: "480p", label: "480p", desc: "854×480", hintKey: "Smoothest — low bandwidth" },
+  { value: "720p", label: "720p HD", desc: "1280×720", hintKey: "Recommended balance" },
+  { value: "1080p", label: "1080p", desc: "1920×1080", hintKey: "Sharp text / UI" },
 ];
 
 export const SCREEN_FPS_PRESETS = [
-  { value: 15, label: "15 FPS", hint: "Sunum / slayt" },
-  { value: 20, label: "20 FPS", hint: "Varsayılan" },
-  { value: 24, label: "24 FPS", hint: "Akıcı hareket" },
-  { value: 30, label: "30 FPS", hint: "1:1 aramalar" },
+  { value: 15, label: "15 FPS", hintKey: "Presentations / slides" },
+  { value: 20, label: "20 FPS", hintKey: "Default" },
+  { value: 24, label: "24 FPS", hintKey: "Smooth motion" },
+  { value: 30, label: "30 FPS", hintKey: "1:1 calls" },
 ];
 
 /**
@@ -39,10 +41,12 @@ export default function ScreenShareQualityPanel({
   onStartWithQuality,
   onRestartWithQuality,
 }) {
+  const t = useT();
   const panelRef = useRef(null);
   const [applying, setApplying] = useState(false);
   const [appliedFlash, setAppliedFlash] = useState(false);
   const quality = screenQuality || GROUP_SCREEN_DEFAULT_QUALITY;
+  const narrow = useIsNarrowViewport(720);
 
   useEffect(() => {
     if (!open) return;
@@ -112,18 +116,35 @@ export default function ScreenShareQualityPanel({
         <motion.div
           ref={panelRef}
           role="dialog"
-          aria-label="Screen share quality"
-          initial={{ opacity: 0, y: 12, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 12, scale: 0.96 }}
+          aria-label={t("Screen share quality")}
+          initial={narrow ? { opacity: 0, y: 24 } : { opacity: 0, y: 12, x: "-50%", scale: 0.96 }}
+          animate={narrow ? { opacity: 1, y: 0 } : { opacity: 1, y: 0, x: "-50%", scale: 1 }}
+          exit={narrow ? { opacity: 0, y: 24 } : { opacity: 0, y: 12, x: "-50%", scale: 0.96 }}
           transition={{ type: "spring", damping: 26, stiffness: 340 }}
           style={{
-            position: "absolute",
-            bottom: "calc(100% + 14px)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "min(380px, calc(100vw - 32px))",
-            zIndex: 50,
+            ...(narrow
+              ? {
+                  position: "fixed",
+                  left: 12,
+                  right: 12,
+                  bottom: "max(12px, calc(env(safe-area-inset-bottom, 0px) + 88px))",
+                  width: "auto",
+                  maxHeight: "min(70dvh, calc(100dvh - 120px))",
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  WebkitOverflowScrolling: "touch",
+                  zIndex: 10050,
+                }
+              : {
+                  position: "absolute",
+                  bottom: "calc(100% + 14px)",
+                  left: "50%",
+                  width: "min(380px, calc(100vw - 32px))",
+                  maxHeight: "min(70vh, 520px)",
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  zIndex: 50,
+                }),
             borderRadius: 16,
             border: "1px solid rgba(255,255,255,0.12)",
             background: "linear-gradient(165deg, rgba(28,28,34,0.98) 0%, rgba(18,18,22,0.99) 100%)",
@@ -132,6 +153,7 @@ export default function ScreenShareQualityPanel({
             padding: "16px 16px 14px",
             color: "#f4f4f8",
             fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif",
+            boxSizing: "border-box",
           }}
         >
           <div
@@ -157,15 +179,17 @@ export default function ScreenShareQualityPanel({
               <Monitor size={18} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Ekran paylaşımı kalitesi</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{t("Screen share quality")}</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>
-                {isScreenSharing ? "Canlı — değişiklik yeniden başlatır" : "Paylaşım başlamadan ayarla"}
+                {isScreenSharing
+                  ? t("Live — changes will restart sharing")
+                  : t("Set quality before sharing")}
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              aria-label="Kapat"
+              aria-label={t("Close")}
               style={{
                 width: 32,
                 height: 32,
@@ -200,7 +224,10 @@ export default function ScreenShareQualityPanel({
             >
               <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
               <span>
-                Grup aramasında ({participantCount} kişi) yüksek çözünürlük/FPS takılmaya yol açabilir. 720p / 20 FPS önerilir.
+                {t(
+                  "In a group call ({count} people), high resolution/FPS can cause lag. 720p / 20 FPS is recommended.",
+                  { count: participantCount }
+                )}
               </span>
             </div>
           )}
@@ -220,7 +247,7 @@ export default function ScreenShareQualityPanel({
               }}
             >
               <Maximize2 size={12} />
-              Çözünürlük
+              {t("Resolution")}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {SCREEN_RESOLUTION_PRESETS.map((res) => {
@@ -231,6 +258,7 @@ export default function ScreenShareQualityPanel({
                     type="button"
                     disabled={applying}
                     onClick={() => pickResolution(res.value)}
+                    title={t(res.hintKey)}
                     style={{
                       textAlign: "left",
                       padding: "10px 12px",
@@ -247,7 +275,7 @@ export default function ScreenShareQualityPanel({
                       position: "relative",
                     }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{res.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{t(res.label)}</div>
                     <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
                       {res.desc}
                     </div>
@@ -278,7 +306,7 @@ export default function ScreenShareQualityPanel({
               }}
             >
               <Gauge size={12} />
-              Kare hızı
+              {t("Frame rate")}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {SCREEN_FPS_PRESETS.map((fps) => {
@@ -290,7 +318,7 @@ export default function ScreenShareQualityPanel({
                     key={fps.value}
                     type="button"
                     disabled={disabled}
-                    title={disabled ? "Grup için 24 FPS üstü kapalı" : fps.hint}
+                    title={disabled ? t("Above 24 FPS disabled for groups") : t(fps.hintKey)}
                     onClick={() => pickFps(fps.value)}
                     style={{
                       flex: "1 1 calc(50% - 4px)",
@@ -309,7 +337,7 @@ export default function ScreenShareQualityPanel({
                       cursor: disabled ? "not-allowed" : "pointer",
                     }}
                   >
-                    {fps.label}
+                    {t(fps.label)}
                   </button>
                 );
               })}
@@ -328,12 +356,12 @@ export default function ScreenShareQualityPanel({
               }}
             >
               <Loader2 size={14} className="spin" style={{ animation: "spin 0.8s linear infinite" }} />
-              Uygulanıyor…
+              {t("Applying…")}
             </div>
           )}
 
           {appliedFlash && !applying && (
-            <div style={{ fontSize: 12, color: "#4ade80", marginBottom: 10 }}>Ayarlar uygulandı</div>
+            <div style={{ fontSize: 12, color: "#4ade80", marginBottom: 10 }}>{t("Settings applied")}</div>
           )}
 
           {!isScreenSharing && (
@@ -358,7 +386,7 @@ export default function ScreenShareQualityPanel({
               }}
             >
               {applying ? <Loader2 size={18} style={{ animation: "spin 0.8s linear infinite" }} /> : <Monitor size={18} />}
-              Bu ayarlarla paylaş
+              {t("Share with these settings")}
             </button>
           )}
         </motion.div>

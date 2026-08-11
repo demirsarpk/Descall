@@ -1,566 +1,738 @@
 /**
- * Game Socket Handlers
- * Handles blackjack and other chat games via socket
+ * Casino socket handlers — Blackjack (server-authoritative credits + state).
  */
 
-const { GameManager, BlackjackGame } = require('../games/BlackjackGame');
-const supabase = require('../db/supabase');
+const { GameManager, MIN_BET, MAX_BET, STARTING_CREDITS } = require("../games/BlackjackGame");
+const supabase = require("../db/supabase");
 
-// Bot kullanıcı bilgileri (sabit ID ile)
 const BOT_USER = {
-  id: 'game-bot',
-  username: '🎰 Casino Bot',
+  id: "game-bot",
+  username: "Casino",
   avatar_url: null,
-  isBot: true
+  isBot: true,
 };
 
-// Komut parser regex
 const COMMAND_REGEX = /^\/(\w+)(?:\s+(\S+))?/;
+const VALID_COMMANDS = new Set([
+  "bj", "blackjack", "hit", "stand", "stay", "double",
+  "credits", "bakiye", "balance", "top", "lider",
+  "help", "yardım", "commands", "jb", "daily",
+]);
+
+const DAILY_BONUS = 250;
+
+function msgId() {
+  return `game-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * One casino bubble per player in a group.
+ * Lobby → deal → hit/stand → result → again all upsert the same message.
+ */
+function sessionIdFor(ownerUserId) {
+  return ownerUserId ? `casino-session-${ownerUserId}` : null;
+}
+
+function createGameMessage(content, gameData = null, type = "game_action", ownerUserId = null) {
+  const owner = ownerUserId || gameData?.userId || null;
+  const sid = sessionIdFor(owner);
+  const handId = gameData?.id;
+  const data =
+    gameData == null
+      ? null
+      : {
+          ...gameData,
+          sessionOwnerId: owner || gameData.sessionOwnerId || null,
+        };
+  return {
+    id: sid || (handId ? `casino-hand-${handId}` : msgId()),
+    sessionOwnerId: owner || null,
+    sender: BOT_USER,
+    content,
+    type,
+    gameData: data,
+    created_at: new Date().toISOString(),
+    timestamp: new Date().toISOString(),
+  };
+}
 
 async function getUserCredits(userId) {
   try {
     const { data, error } = await supabase
-      .from('user_credits')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-    
-    if (error && error.code === 'PGRST116') {
-      // Kayıt yok, oluştur
-      const { data: newData, error: insertError } = await supabase
-        .from('user_credits')
-        .insert({ user_id: userId, credits: 1000 })
-        .select()
-        .single();
-      
-      if (insertError) throw insertError;
-      return newData;
-    }
-    
+      .from("user_credits")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle();
+
     if (error) throw error;
+
+    if (!data) {
+      const { data: created, error: insertError } = await supabase
+        .from("user_credits")
+        .insert({ user_id: userId, credits: STARTING_CREDITS })
+        .select("*")
+        .single();
+      if (insertError) {
+        // Race: another request created it
+        const { data: again } = await supabase
+          .from("user_credits")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (again) return again;
+        throw insertError;
+      }
+      return created;
+    }
     return data;
   } catch (err) {
-    console.error('[Game] Error fetching credits:', err);
-    return { user_id: userId, credits: 1000, total_won: 0, total_lost: 0 };
+    console.error("[Game] getUserCredits:", err.message || err);
+    return {
+      user_id: userId,
+      credits: STARTING_CREDITS,
+      total_won: 0,
+      total_lost: 0,
+      games_played: 0,
+    };
   }
 }
 
-async function updateCredits(userId, creditsDelta, result, winAmount) {
+/**
+ * Apply credit delta. Returns updated row or null.
+ * delta > 0 credit in, delta < 0 debit.
+ */
+async function applyCreditDelta(userId, delta, meta = {}) {
   try {
-    const { data: current } = await supabase
-      .from('user_credits')
-      .select('*')
-      .eq('user_id', userId)
+    const current = await getUserCredits(userId);
+    const next = Math.max(0, (current.credits || 0) + delta);
+    const patch = {
+      user_id: userId,
+      credits: next,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (meta.gamesPlayedInc) {
+      patch.games_played = (current.games_played || 0) + 1;
+    }
+    if (meta.wonInc) {
+      patch.total_won = (current.total_won || 0) + meta.wonInc;
+    }
+    if (meta.lostInc) {
+      patch.total_lost = (current.total_lost || 0) + meta.lostInc;
+    }
+
+    const { data, error } = await supabase
+      .from("user_credits")
+      .upsert(patch, { onConflict: "user_id" })
+      .select("*")
       .single();
 
-    const newCredits = (current?.credits || 1000) + creditsDelta;
-    const totalWon = (current?.total_won || 0) + (result === 'win' || result === 'blackjack' ? winAmount - (winAmount > 0 ? winAmount / 2 : 0) : 0);
-    const totalLost = (current?.total_lost || 0) + (result === 'loss' ? Math.abs(creditsDelta) : 0);
-    const gamesPlayed = (current?.games_played || 0) + 1;
-
-    const { error } = await supabase
-      .from('user_credits')
-      .upsert({
-        user_id: userId,
-        credits: newCredits,
-        total_won: totalWon,
-        total_lost: totalLost,
-        games_played: gamesPlayed,
-        updated_at: new Date().toISOString()
-      });
-
     if (error) throw error;
-    return { credits: newCredits, total_won: totalWon, total_lost: totalLost };
+    return data;
   } catch (err) {
-    console.error('[Game] Error updating credits:', err);
+    console.error("[Game] applyCreditDelta:", err.message || err);
     return null;
   }
 }
 
-async function saveGameHistory(userId, groupId, game, result) {
+async function saveGameHistory(userId, groupId, instance) {
   try {
-    const { error } = await supabase
-      .from('game_history')
-      .insert({
-        user_id: userId,
-        game_type: 'blackjack',
-        group_id: groupId,
-        bet_amount: game.bet,
-        result: result,
-        win_amount: game.winAmount || 0,
-        player_hand: game.playerHand.toJSON(),
-        dealer_hand: game.dealerHand.toJSON()
-      });
-    
-    if (error) console.error('[Game] Error saving history:', error);
+    const payload = instance.toHistoryPayload();
+    const { error } = await supabase.from("game_history").insert({
+      user_id: userId,
+      game_type: "blackjack",
+      group_id: groupId,
+      bet_amount: payload.bet,
+      result: payload.result,
+      win_amount: payload.winAmount,
+      player_hand: payload.player_hand,
+      dealer_hand: payload.dealer_hand,
+    });
+    if (error) console.error("[Game] saveGameHistory:", error.message || error);
   } catch (err) {
-    console.error('[Game] Error in saveGameHistory:', err);
+    console.error("[Game] saveGameHistory exception:", err.message || err);
   }
 }
 
-function createGameMessage(content, gameData = null, type = 'game_action') {
-  return {
-    id: `game-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    sender: BOT_USER,
-    content: content,
-    type: type,
-    gameData: gameData,
-    created_at: new Date().toISOString(),
-    timestamp: new Date().toISOString()
-  };
+function emitToGroup(io, socket, groupId, message) {
+  const payload = { groupId, message };
+  socket.emit("game:message", payload);
+  socket.to(`group:${groupId}`).emit("game:message", payload);
 }
 
-function formatHand(hand, hideHoleCard = false) {
-  if (hideHoleCard && hand.cards.length > 1) {
-    const visible = hand.cards[0];
-    return `${visible.suit}${visible.rank} 🂠`;
-  }
-  return hand.cards.map(c => `${c.suit}${c.rank}`).join(' ');
+function emitGameUpdate(io, socket, groupId, message) {
+  const payload = { groupId, message };
+  // Emit both: game:update (in-place) + game:message (first paint / older clients)
+  socket.emit("game:update", payload);
+  socket.to(`group:${groupId}`).emit("game:update", payload);
+  socket.emit("game:message", payload);
+  socket.to(`group:${groupId}`).emit("game:message", payload);
 }
 
-function registerGameHandlers(io, socket, state) {
+function registerGameHandlers(io, socket) {
   const myId = socket.user?.id;
   const myUsername = socket.user?.username;
-  
   if (!myId) return;
 
-  // Oyun komutlarını dinle (group:message üzerinden)
-  socket.on('game:command', async ({ groupId, command, args }) => {
+  socket.on("game:command", async ({ groupId, command, args } = {}) => {
     if (!groupId || !command) return;
-
-    const fullCommand = `/${command} ${args || ''}`.trim();
-    await handleGameCommand(io, socket, myId, myUsername, groupId, fullCommand);
+    const full = `/${command}${args != null && args !== "" ? ` ${args}` : ""}`.trim();
+    await handleGameCommand(io, socket, myId, myUsername, groupId, full);
   });
 
-  // Direkt oyun aksiyonları (butonlar için)
-  socket.on('game:action', async ({ groupId, action, gameId }) => {
+  socket.on("game:action", async ({ groupId, action } = {}) => {
     if (!groupId || !action) return;
-
-    await handleGameAction(io, socket, myId, groupId, action);
+    const a = String(action).toLowerCase();
+    if (a === "help") {
+      await handleHelp(io, socket, myId, groupId);
+      return;
+    }
+    if (a === "credits" || a === "balance") {
+      await handleCreditsCheck(io, socket, myId, groupId);
+      return;
+    }
+    await handleBlackjackAction(io, socket, myId, myUsername, groupId, a);
   });
 
-  // Bakiye sorgulama
-  socket.on('game:credits', async (callback) => {
-    const credits = await getUserCredits(myId);
-    if (callback) callback({ credits: credits.credits });
+  socket.on("game:credits", async (callback) => {
+    const row = await getUserCredits(myId);
+    if (typeof callback === "function") {
+      callback({
+        credits: row.credits,
+        total_won: row.total_won || 0,
+        total_lost: row.total_lost || 0,
+        games_played: row.games_played || 0,
+      });
+    }
   });
 
-  // Aktif oyun durumu sorgulama
-  socket.on('game:status', ({ groupId }, callback) => {
-    const game = GameManager.getGame(myId, groupId);
-    if (callback) callback({ 
-      active: !!game && game.status !== 'finished',
-      game: game ? game.getState() : null
-    });
+  socket.on("game:status", ({ groupId } = {}, callback) => {
+    const game = groupId ? GameManager.get(myId, groupId) : null;
+    if (typeof callback === "function") {
+      callback({
+        active: Boolean(game && game.status !== "finished"),
+        game: game ? game.getPublicState() : null,
+      });
+    }
   });
 }
 
 async function handleGameCommand(io, socket, userId, username, groupId, fullCommand) {
-  const match = fullCommand.match(COMMAND_REGEX);
+  const match = String(fullCommand || "").trim().match(COMMAND_REGEX);
   if (!match) return;
 
-  const [, cmd, arg] = match;
-  const command = cmd.toLowerCase();
+  const command = match[1].toLowerCase();
+  const arg = match[2];
 
   switch (command) {
-    case 'bj':
-    case 'blackjack':
+    case "bj":
+    case "blackjack":
       await handleBlackjackStart(io, socket, userId, username, groupId, arg);
       break;
-    
-    case 'hit':
-      await handleBlackjackAction(io, socket, userId, groupId, 'hit');
+    case "hit":
+      await handleBlackjackAction(io, socket, userId, username, groupId, "hit");
       break;
-    
-    case 'stand':
-    case 'stay':
-      await handleBlackjackAction(io, socket, userId, groupId, 'stand');
+    case "stand":
+    case "stay":
+      await handleBlackjackAction(io, socket, userId, username, groupId, "stand");
       break;
-    
-    case 'double':
-      await handleBlackjackAction(io, socket, userId, groupId, 'double');
+    case "double":
+      await handleBlackjackAction(io, socket, userId, username, groupId, "double");
       break;
-    
-    case 'credits':
-    case 'bakiye':
-    case 'balance':
+    case "credits":
+    case "bakiye":
+    case "balance":
       await handleCreditsCheck(io, socket, userId, groupId);
       break;
-    
-    case 'top':
-    case 'lider':
-      await handleLeaderboard(io, socket, groupId);
+    case "top":
+    case "lider":
+      await handleLeaderboard(io, socket, userId, groupId);
       break;
-
-    case 'help':
-    case 'yardım':
-    case 'commands':
+    case "daily":
+      await handleDailyClaim(io, socket, userId, username, groupId);
+      break;
+    case "help":
+    case "yardım":
+    case "commands":
       await handleHelp(io, socket, userId, groupId);
       break;
-
-    case 'jb':
-      // Common typo for /bj
-      const typoMsg = createGameMessage(
-        `🎰 **Blackjack**\n\n` +
-        `❓ "/jb" yerine "/bj" mi demiştiniz?\n\n` +
-        `🎯 **Başlamak için:** \`/bj <miktar>\`\n` +
-        `Örnek: \`/bj 100\`\n\n` +
-        `Tüm komutlar için: \`/help\``
+    case "jb":
+      emitToGroup(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          "Did you mean **/bj**?\n\nStart a hand: `/bj 100`\nAll commands: `/help`",
+          { userId },
+          "game_help",
+          userId
+        )
       );
-      socket.emit('game:message', { groupId, message: typoMsg });
       break;
-
     default:
-      // Bilinmeyen komut - yardım mesajı gönder
+      if (VALID_COMMANDS.has(command)) break;
       await handleHelp(io, socket, userId, groupId, command);
-      break;
   }
 }
 
 async function handleBlackjackStart(io, socket, userId, username, groupId, betArg) {
   const bet = parseInt(betArg, 10);
-  
-  if (!bet || bet < 10 || bet > 10000) {
-    const errorMsg = createGameMessage(
-      `🎰 **Blackjack**\n\n` +
-      `❌ Geçersiz bahis!\n` +
-      `Kullanım: \`/bj <miktar>\`\n` +
-      `Örnek: \`/bj 100\`\n\n` +
-      `Min: 10 | Max: 10,000`
+
+  if (!Number.isFinite(bet) || bet < MIN_BET || bet > MAX_BET) {
+    emitToGroup(
+      io,
+      socket,
+      groupId,
+      createGameMessage(
+        `**Blackjack**\n\nInvalid bet.\nUsage: \`/bj <amount>\`\nMin **${MIN_BET}** · Max **${MAX_BET.toLocaleString()}**`,
+        { status: "lobby", actions: [], userId },
+        "game_lobby",
+        userId
+      )
     );
-    socket.emit('game:message', { groupId, message: errorMsg });
-    socket.to(`group:${groupId}`).emit('game:message', { groupId, message: errorMsg });
     return;
   }
 
-  // Bakiye kontrolü
+  const existing = GameManager.get(userId, groupId);
+  if (existing && existing.status !== "finished") {
+    emitGameUpdate(
+      io,
+      socket,
+      groupId,
+      createGameMessage(
+        "You already have an active hand. Use **HIT**, **STAND**, or **DOUBLE**.",
+        existing.getPublicState(),
+        "game_update",
+        userId
+      )
+    );
+    return;
+  }
+
   const credits = await getUserCredits(userId);
-  if (credits.credits < bet) {
-    const errorMsg = createGameMessage(
-      `🎰 **Blackjack**\n\n` +
-      `❌ Yetersiz bakiye!\n` +
-      `Mevcut: **${credits.credits.toLocaleString()}** credits\n` +
-      `Gerekli: **${bet.toLocaleString()}** credits`
+  if ((credits.credits || 0) < bet) {
+    emitToGroup(
+      io,
+      socket,
+      groupId,
+      createGameMessage(
+        `Insufficient balance.\nYou have **${(credits.credits || 0).toLocaleString()}** · need **${bet.toLocaleString()}**`,
+        { status: "lobby", credits: credits.credits, userId },
+        "game_lobby",
+        userId
+      )
     );
-    socket.emit('game:message', { groupId, message: errorMsg });
-    socket.to(`group:${groupId}`).emit('game:message', { groupId, message: errorMsg });
     return;
   }
 
-  // Mevcut oyun kontrolü
-  const existingGame = GameManager.getGame(userId, groupId);
-  if (existingGame && existingGame.status !== 'finished') {
-    const errorMsg = createGameMessage(
-      `🎰 **Blackjack**\n\n` +
-      `❌ Zaten aktif bir oyununuz var!\n` +
-      `Devam etmek için: \`/hit\`, \`/stand\`, veya \`/double\``
+  // Escrow stake
+  const afterDebit = await applyCreditDelta(userId, -bet);
+  if (!afterDebit || afterDebit.credits < 0) {
+    emitToGroup(
+      io,
+      socket,
+      groupId,
+      createGameMessage("Could not place bet. Try again.", { status: "lobby", userId }, "game_lobby", userId)
     );
-    socket.emit('game:message', { groupId, message: errorMsg });
     return;
   }
 
-  // Oyunu başlat
-  const { game, error } = GameManager.createGame(userId, groupId, bet);
-  
-  if (error) {
-    const errorMsg = createGameMessage(`❌ ${error}`);
-    socket.emit('game:message', { groupId, message: errorMsg });
+  const created = GameManager.create(userId, groupId, bet, username);
+  if (created.error) {
+    // Refund escrow
+    await applyCreditDelta(userId, bet);
+    emitToGroup(
+      io,
+      socket,
+      groupId,
+      createGameMessage(
+        `❌ ${created.error}`,
+        { status: "lobby", credits: (await getUserCredits(userId)).credits, userId },
+        "game_lobby",
+        userId
+      )
+    );
     return;
   }
 
-  // Oyun mesajını oluştur
-  const isBlackjack = game.playerHand.isBlackjack;
-  const isPush = game.result === 'push';
-  
-  let content = `🎰 **Blackjack** - @${username}\n\n`;
-  content += `💰 Bahis: **${bet.toLocaleString()}** credits\n\n`;
-  content += `**Senin elin:** ${formatHand(game.playerHand)} = **${game.playerHand.value}**\n`;
-  content += `**Krupiye:** ${formatHand(game.dealerHand, true)}\n\n`;
+  const state = created.game;
+  const instance = created.instance;
 
-  if (isBlackjack && isPush) {
-    content += `🤝 **Push!** İkiniz de Blackjack!\n`;
-    content += `Bahisin iade edildi: **${bet.toLocaleString()}** credits`;
-  } else if (isBlackjack) {
-    const winAmount = Math.floor(bet * 1.5);
-    content += `🎉 **BLACKJACK!** 🎉\n`;
-    content += `Kazanç: **${winAmount.toLocaleString()}** credits (+150%)`;
-    
-    // Bakiye güncelle
-    await updateCredits(userId, winAmount, 'blackjack', winAmount);
-    await saveGameHistory(userId, groupId, { bet, playerHand: game.playerHand, dealerHand: game.dealerHand, winAmount }, 'blackjack');
-    GameManager.removeGame(userId, groupId);
-  } else {
-    content += `🎮 **Oyun Başladı!**\n\n`;
-    content += `• \`/hit\` - Kart çek\n`;
-    content += `• \`/stand\` - Bekle\n`;
-    if (game.canDouble) {
-      content += `• \`/double\` - İkiye katla (2x bet)\n`;
-    }
-    content += `\n⏱️ 5 dakika içinde hamle yapılmazsa oyun iptal olur.`;
+  // Natural blackjack / dealer peek resolved immediately
+  if (state.status === "finished") {
+    await settleFinishedHand(userId, groupId, instance);
+    const msg = createGameMessage(
+      buildResultText(username, state),
+      { ...state, credits: (await getUserCredits(userId)).credits },
+      "game_end",
+      userId
+    );
+    emitGameUpdate(io, socket, groupId, msg);
+    return;
   }
 
-  const gameMsg = createGameMessage(content, game, 'game_start');
-  
-  socket.emit('game:message', { groupId, message: gameMsg });
-  socket.to(`group:${groupId}`).emit('game:message', { groupId, message: gameMsg });
+  const msg = createGameMessage(
+    `**Blackjack** — @${username}\nBet **${bet.toLocaleString()}** · Balance **${afterDebit.credits.toLocaleString()}**`,
+    { ...state, credits: afterDebit.credits },
+    "game_start",
+    userId
+  );
+  emitGameUpdate(io, socket, groupId, msg);
 }
 
-async function handleBlackjackAction(io, socket, userId, groupId, action) {
-  const result = GameManager.action(userId, groupId, action);
-  
-  if (result.error) {
-    const errorMsg = createGameMessage(`❌ ${result.error}`);
-    socket.emit('game:message', { groupId, message: errorMsg });
+async function handleBlackjackAction(io, socket, userId, username, groupId, action) {
+  const instance = GameManager.get(userId, groupId);
+  if (!instance) {
+    // Soft notice only — do not wipe a finished board with a fresh lobby
+    socket.emit("game:notice", {
+      groupId,
+      text: "No active hand. Start with `/bj 100` or tap Again.",
+    });
     return;
   }
 
-  const game = result.game;
-  const isFinished = game.status === 'finished';
-  
-  let content = '';
-  
-  if (action === 'hit') {
-    content = `🎰 **Blackjack** - Hit\n\n`;
-    content += `**Senin elin:** ${game.playerHand.cards.map(c => `${c.suit}${c.rank}`).join(' ')} = **${game.playerHand.value}**\n`;
-    
-    if (game.playerHand.isBust) {
-      content += `\n💥 **Bust!** ${game.playerHand.value} puan\n`;
-      content += `Kaybettin: **${game.bet.toLocaleString()}** credits`;
-    } else {
-      content += `\n🎮 Devam...\n`;
-      content += `• \`/hit\` - Kart çek\n`;
-      content += `• \`/stand\` - Bekle`;
+  let result;
+  if (action === "double") {
+    if (!instance.canDouble) {
+      emitGameUpdate(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `❌ DOUBLE is only available on your first two cards.`,
+          instance.getPublicState(),
+          "game_update",
+          userId
+        )
+      );
+      return;
     }
-  } else if (action === 'stand') {
-    content = `🎰 **Blackjack** - Sonuç\n\n`;
-    content += `**Senin elin:** ${game.playerHand.cards.map(c => `${c.suit}${c.rank}`).join(' ')} = **${game.playerHand.value}**\n`;
-    content += `**Krupiye:** ${game.dealerHand.cards.map(c => `${c.suit}${c.rank}`).join(' ')} = **${game.dealerHand.value}**\n\n`;
-    
-    switch (game.result) {
-      case 'win':
-        content += `✅ **Kazandın!**\n`;
-        content += `Kazanç: **${game.winAmount.toLocaleString()}** credits`;
-        break;
-      case 'loss':
-        content += `❌ **Kaybettin!**\n`;
-        content += `Kayıp: **${game.bet.toLocaleString()}** credits`;
-        break;
-      case 'push':
-        content += `🤝 **Push!**\n`;
-        content += `Bahis iade: **${game.bet.toLocaleString()}** credits`;
-        break;
-      case 'blackjack':
-        content += `🎉 **BLACKJACK!**\n`;
-        content += `Kazanç: **${game.winAmount.toLocaleString()}** credits`;
-        break;
+    const extra = instance.originalBet;
+    const credits = await getUserCredits(userId);
+    if ((credits.credits || 0) < extra) {
+      emitGameUpdate(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `Not enough credits to double (need **${extra.toLocaleString()}** more).`,
+          instance.getPublicState(),
+          "game_update",
+          userId
+        )
+      );
+      return;
     }
-  } else if (action === 'double') {
-    content = `🎰 **Blackjack** - Double Down\n\n`;
-    content += `Bahis ikiye katlandı: **${game.bet.toLocaleString()}** credits\n\n`;
-    content += `**Senin elin:** ${game.playerHand.cards.map(c => `${c.suit}${c.rank}`).join(' ')} = **${game.playerHand.value}**\n`;
-    content += `**Krupiye:** ${game.dealerHand.cards.map(c => `${c.suit}${c.rank}`).join(' ')} = **${game.dealerHand.value}**\n\n`;
-    
-    switch (game.result) {
-      case 'win':
-        content += `✅ **Kazandın!**\n`;
-        content += `Kazanç: **${game.winAmount.toLocaleString()}** credits`;
-        break;
-      case 'loss':
-        content += `❌ **Kaybettin!**\n`;
-        content += `Kayıp: **${game.bet.toLocaleString()}** credits`;
-        break;
-      case 'push':
-        content += `🤝 **Push!**\n`;
-        content += `Bahis iade: **${game.bet.toLocaleString()}** credits`;
-        break;
+    const debited = await applyCreditDelta(userId, -extra);
+    if (!debited) {
+      socket.emit("game:notice", { groupId, text: "Could not double bet." });
+      return;
+    }
+
+    result = GameManager.action(userId, groupId, action);
+    if (result.error) {
+      // Refund the double stake — action failed after debit
+      await applyCreditDelta(userId, extra);
+      emitGameUpdate(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `❌ ${result.error}`,
+          result.game || instance.getPublicState(),
+          "game_update",
+          userId
+        )
+      );
+      return;
+    }
+  } else {
+    result = GameManager.action(userId, groupId, action);
+    if (result.error) {
+      emitGameUpdate(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `❌ ${result.error}`,
+          result.game || instance.getPublicState(),
+          "game_update",
+          userId
+        )
+      );
+      return;
     }
   }
 
-  const gameMsg = createGameMessage(content, game, isFinished ? 'game_end' : 'game_action');
-  
-  socket.emit('game:message', { groupId, message: gameMsg });
-  socket.to(`group:${groupId}`).emit('game:message', { groupId, message: gameMsg });
+  const state = result.game;
+  const live = result.instance || instance;
 
-  // Oyun bittiyse bakiye güncelle
-  if (isFinished) {
-    const creditsDelta = game.result === 'loss' ? -game.bet : 
-                         game.result === 'push' ? 0 : 
-                         game.result === 'blackjack' ? Math.floor(game.bet * 1.5) : game.bet;
-    
-    await updateCredits(userId, creditsDelta, game.result, game.winAmount);
-    await saveGameHistory(userId, groupId, game, game.result);
-    GameManager.removeGame(userId, groupId);
+  if (state.status === "finished") {
+    await settleFinishedHand(userId, groupId, live);
+    const credits = await getUserCredits(userId);
+    const msg = createGameMessage(
+      buildResultText(username, state),
+      { ...state, credits: credits.credits },
+      "game_end",
+      userId
+    );
+    emitGameUpdate(io, socket, groupId, msg);
+    return;
+  }
+
+  const credits = await getUserCredits(userId);
+  const msg = createGameMessage(
+    `**${action.toUpperCase()}** — @${username}`,
+    { ...state, credits: credits.credits },
+    "game_update",
+    userId
+  );
+  emitGameUpdate(io, socket, groupId, msg);
+}
+
+async function settleFinishedHand(userId, groupId, instance) {
+  const payout = instance.winAmount || 0;
+  const meta = { gamesPlayedInc: true };
+  if (instance.result === "win" || instance.result === "blackjack") {
+    meta.wonInc = Math.max(0, instance.profit || 0);
+  }
+  if (instance.result === "loss") {
+    meta.lostInc = instance.bet;
+  }
+
+  if (payout > 0) {
+    await applyCreditDelta(userId, payout, meta);
+  } else {
+    await applyCreditDelta(userId, 0, meta);
+  }
+
+  await saveGameHistory(userId, groupId, instance);
+  GameManager.remove(userId, groupId);
+}
+
+function buildResultText(username, state) {
+  const lines = [`**Blackjack** — @${username}`];
+  lines.push(`Player **${state.playerHand?.value}** · Dealer **${state.dealerHand?.value}**`);
+  switch (state.result) {
+    case "blackjack":
+      lines.push(`BLACKJACK · +${(state.profit || 0).toLocaleString()} credits`);
+      break;
+    case "win":
+      lines.push(`You win · +${(state.profit || 0).toLocaleString()} credits`);
+      break;
+    case "push":
+      lines.push("Push — stake returned");
+      break;
+    case "loss":
+      lines.push(`Dealer wins · −${(state.bet || 0).toLocaleString()} credits`);
+      break;
+    default:
+      break;
+  }
+  return lines.join("\n");
+}
+
+async function handleDailyClaim(io, socket, userId, username, groupId) {
+  try {
+    const credits = await getUserCredits(userId);
+    const last = credits.last_daily_claim ? new Date(credits.last_daily_claim) : null;
+    const now = new Date();
+    const sameUtcDay =
+      last &&
+      last.getUTCFullYear() === now.getUTCFullYear() &&
+      last.getUTCMonth() === now.getUTCMonth() &&
+      last.getUTCDate() === now.getUTCDate();
+
+    if (sameUtcDay) {
+      const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+      const hours = Math.max(1, Math.ceil((next - now) / (60 * 60 * 1000)));
+      emitToGroup(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `**Daily bonus** already claimed today.\n\nCome back in about **${hours}h**.\nBalance: **${(credits.credits || 0).toLocaleString()}**`,
+          { credits: credits.credits, userId, dailyClaimed: true },
+          "game_credits",
+          userId
+        )
+      );
+      return;
+    }
+
+    // Atomic-ish claim: only succeed if last claim is older than today (or null)
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
+    const nextCredits = Math.max(0, (credits.credits || 0) + DAILY_BONUS);
+    let query = supabase
+      .from("user_credits")
+      .update({
+        credits: nextCredits,
+        last_daily_claim: now.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .eq("user_id", userId);
+
+    if (credits.last_daily_claim) {
+      query = query.lt("last_daily_claim", todayStart);
+    } else {
+      query = query.is("last_daily_claim", null);
+    }
+
+    const { data, error } = await query.select("*").maybeSingle();
+
+    if (error) {
+      // Column may not exist yet — fall back to applyCreditDelta + best-effort stamp
+      console.warn("[Game] daily claim update:", error.message || error);
+      const updated = await applyCreditDelta(userId, DAILY_BONUS);
+      await supabase
+        .from("user_credits")
+        .update({ last_daily_claim: now.toISOString() })
+        .eq("user_id", userId);
+      emitToGroup(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `**Daily bonus** claimed!\n\n+**${DAILY_BONUS.toLocaleString()}** credits\nBalance: **${(updated?.credits ?? nextCredits).toLocaleString()}**\n\nCome back tomorrow for more.`,
+          { credits: updated?.credits ?? nextCredits, userId, dailyClaimed: true },
+          "game_credits",
+          userId
+        )
+      );
+      return;
+    }
+
+    if (!data) {
+      // Lost race or already claimed
+      const fresh = await getUserCredits(userId);
+      emitToGroup(
+        io,
+        socket,
+        groupId,
+        createGameMessage(
+          `**Daily bonus** already claimed today.\n\nBalance: **${(fresh.credits || 0).toLocaleString()}**`,
+          { credits: fresh.credits, userId, dailyClaimed: true },
+          "game_credits",
+          userId
+        )
+      );
+      return;
+    }
+
+    emitToGroup(
+      io,
+      socket,
+      groupId,
+      createGameMessage(
+        `🎁 **@${username}** claimed the daily bonus!\n\n+**${DAILY_BONUS.toLocaleString()}** credits\nBalance: **${(data.credits || 0).toLocaleString()}**`,
+        { credits: data.credits, userId, dailyClaimed: true },
+        "game_credits",
+        userId
+      )
+    );
+  } catch (err) {
+    console.error("[Game] daily:", err.message || err);
+    socket.emit("game:notice", { groupId, text: "Could not claim daily bonus." });
   }
 }
 
 async function handleCreditsCheck(io, socket, userId, groupId) {
   const credits = await getUserCredits(userId);
-  
-  const content = `💰 **Bakiye Bilgisi**\n\n` +
-    `Mevcut Bakiye: **${credits.credits.toLocaleString()}** credits\n` +
-    `Toplam Kazanç: **${(credits.total_won || 0).toLocaleString()}**\n` +
-    `Toplam Kayıp: **${(credits.total_lost || 0).toLocaleString()}**\n` +
-    `Oynanan Oyun: **${(credits.games_played || 0).toLocaleString()}**\n\n` +
-    `🎰 Oynamak için: \`/bj <miktar>\``;
+  const content =
+    `**Balance**\n\n` +
+    `Credits: **${(credits.credits || 0).toLocaleString()}**\n` +
+    `Won: **${(credits.total_won || 0).toLocaleString()}**\n` +
+    `Lost: **${(credits.total_lost || 0).toLocaleString()}**\n` +
+    `Hands: **${(credits.games_played || 0).toLocaleString()}**\n\n` +
+    `Play: \`/bj 100\``;
 
-  const msg = createGameMessage(content, null, 'credits_info');
-  
-  // Persist credits message to database
-  try {
-    const { error: dbError } = await supabase
-      .from('group_messages')
-      .insert({
-        group_id: groupId,
-        sender_id: userId,
-        content: content,
-        message_type: 'game_credits',
-        media_url: null,
-        media_type: null
-      });
-    if (dbError) console.error('[Game] Error saving credits message to DB:', dbError);
-  } catch (err) {
-    console.error('[Game] Exception saving credits message:', err);
-  }
-  
-  socket.emit('game:message', { groupId, message: msg });
+  emitToGroup(
+    io,
+    socket,
+    groupId,
+    createGameMessage(content, { credits: credits.credits, stats: credits, userId }, "game_credits", userId)
+  );
 }
 
-async function handleLeaderboard(io, socket, groupId) {
+async function handleLeaderboard(io, socket, userId, groupId) {
   try {
     const { data: topUsers, error } = await supabase
-      .from('user_credits')
-      .select('user_id, credits, total_won, games_played')
-      .order('credits', { ascending: false })
+      .from("user_credits")
+      .select("user_id, credits, total_won, games_played")
+      .order("credits", { ascending: false })
       .limit(10);
 
     if (error) throw error;
 
-    let content = `🏆 **Lider Tablosu** - Top 10\n\n`;
-    
-    if (!topUsers || topUsers.length === 0) {
-      content += `Henüz hiç oyun oynanmamış!\n`;
-      content += `İlk sen oyna: \`/bj 100\``;
+    let content = "**Leaderboard** — Top 10\n\n";
+    if (!topUsers?.length) {
+      content += "No hands played yet. Be first: `/bj 100`";
     } else {
-      const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-      
-      topUsers.forEach((user, index) => {
-        const medal = medals[index] || `${index + 1}.`;
-        content += `${medal} <@${user.user_id}>: **${user.credits.toLocaleString()}** credits\n`;
+      const ids = topUsers.map((u) => u.user_id);
+      const { data: users } = await supabase
+        .from("users")
+        .select("id, username")
+        .in("id", ids);
+      const nameById = new Map((users || []).map((u) => [u.id, u.username]));
+      const medals = ["🥇", "🥈", "🥉"];
+      topUsers.forEach((row, i) => {
+        const name = nameById.get(row.user_id) || "Player";
+        const medal = medals[i] || `${i + 1}.`;
+        content += `${medal} **${name}** — ${(row.credits || 0).toLocaleString()}\n`;
       });
     }
 
-    const msg = createGameMessage(content, null, 'leaderboard');
-    
-    // Persist leaderboard message to database
-    try {
-      const { error: dbError } = await supabase
-        .from('group_messages')
-        .insert({
-          group_id: groupId,
-          sender_id: socket.user?.id || userId,
-          content: content,
-          message_type: 'game_leaderboard',
-          media_url: null,
-          media_type: null
-        });
-      if (dbError) console.error('[Game] Error saving leaderboard message to DB:', dbError);
-    } catch (err) {
-      console.error('[Game] Exception saving leaderboard message:', err);
-    }
-    
-    socket.emit('game:message', { groupId, message: msg });
-    socket.to(`group:${groupId}`).emit('game:message', { groupId, message: msg });
+    emitToGroup(
+      io,
+      socket,
+      groupId,
+      createGameMessage(content, { leaders: topUsers || [], userId }, "game_leaderboard", userId)
+    );
   } catch (err) {
-    console.error('[Game] Leaderboard error:', err);
-    const errorMsg = createGameMessage('❌ Lider tablosu yüklenirken hata oluştu.');
-    socket.emit('game:message', { groupId, message: errorMsg });
+    console.error("[Game] leaderboard:", err.message || err);
+    socket.emit("game:notice", { groupId, text: "Could not load leaderboard." });
   }
 }
 
 async function handleHelp(io, socket, userId, groupId, unknownCommand = null) {
   const credits = await getUserCredits(userId);
-  
-  let content = '🎰 **CASINO BOT - YARDIM**\n\n';
+  let content = "**Casino Help**\n\n";
+  if (unknownCommand) content += `Unknown command: \`/${unknownCommand}\`\n\n`;
+  content +=
+    `Balance: **${(credits.credits || 0).toLocaleString()}**\n\n` +
+    `**Play**\n` +
+    `\`/bj <amount>\` — deal a hand\n` +
+    `\`/hit\` · \`/stand\` · \`/double\`\n\n` +
+    `**Info**\n` +
+    `\`/credits\` · \`/top\` · \`/daily\` · \`/help\`\n\n` +
+    `**Rules**\n` +
+    `• Beat the dealer without busting (21)\n` +
+    `• Dealer hits soft 17\n` +
+    `• Blackjack pays 3:2\n` +
+    `• Win pays 1:1 · Push returns stake\n` +
+    `• Daily bonus: **${DAILY_BONUS.toLocaleString()}** credits once per day\n` +
+    `• Starting bankroll: ${STARTING_CREDITS.toLocaleString()} credits`;
 
-  if (unknownCommand) {
-    content += `❓ Bilinmeyen komut: \`/${unknownCommand}\`\n\n`;
-  }
-
-  content += `💰 **Bakiyeniz:** ${credits.credits.toLocaleString()} credits\n\n`;
-
-  content += '📋 **Oyun Komutları:**\n';
-  content += '`/bj <miktar>` - Blackjack oyunu başlat (örn: `/bj 100`)\n';
-  content += '`/hit` - Kart çek (oyundayken)\n';
-  content += '`/stand` - Bekle, turu bitir (oyundayken)\n';
-  content += '`/double` - Bahisi 2x yap, 1 kart çek (9-10-11 ise)\n\n';
-  
-  content += '📊 **Bilgi Komutları:**\n';
-  content += '`/credits` - Bakiye ve istatistiklerini gör\n';
-  content += '`/top` - En zengin 10 oyuncuyu gör\n';
-  content += '`/help` - Bu yardım mesajını göster\n\n';
-  
-  content += '🎯 **Blackjack Kuralları:**\n';
-  content += '• 21\'e ulaşmaya çalış, geçme (Bust)!\n';
-  content += '• Krupiye 17\'ye kadar çeker\n';
-  content += '• Blackjack (A+10) 3:2 öder (+150%)\n';
-  content += '• Normal kazanç 1:1 öder (+100%)\n\n';
-  content += '🎰 **Başlangıç bakiyesi:** 1000 credits';
-
-  const msg = createGameMessage(content, null, 'help');
-  
-  // Persist help message to database
-  try {
-    // Use the actual user who triggered the command as sender_id for DB consistency
-    const { error: dbError } = await supabase
-      .from('group_messages')
-      .insert({
-        group_id: groupId,
-        sender_id: userId,
-        content: content,
-        message_type: 'game_help',
-        media_url: null,
-        media_type: null
-      });
-    if (dbError) console.error('[Game] Error saving help message to DB:', dbError);
-  } catch (err) {
-    console.error('[Game] Exception saving help message:', err);
-  }
-  
-  socket.emit('game:message', { groupId, message: msg });
-  socket.to(`group:${groupId}`).emit('game:message', { groupId, message: msg });
-}
-
-// Mesaj dinleyicisi - normal group:message event'lerinden komutları yakalar
-function setupMessageListener(io) {
-  // Bu fonksiyon server.js'de group:message handler'ına entegre edilecek
-  return async (socket, groupId, content) => {
-    if (!content || typeof content !== 'string') return null;
-    
-    const trimmed = content.trim();
-    if (!trimmed.startsWith('/')) return null;
-
-    const match = trimmed.match(COMMAND_REGEX);
-    if (!match) return null;
-
-    const [, cmd] = match;
-    const validGameCommands = ['bj', 'blackjack', 'hit', 'stand', 'stay', 'double', 'credits', 'bakiye', 'balance', 'top', 'lider', 'help', 'yardım', 'commands', 'jb'];
-
-    if (!validGameCommands.includes(cmd.toLowerCase())) return null;
-
-    // Bu bir oyun komutu, handle et
-    await handleGameCommand(io, socket, socket.user?.id, socket.user?.username, groupId, trimmed);
-    
-    // Komut mesajı normal mesaj olarak gitmesin (opsiyonel)
-    return { handled: true };
-  };
+  emitToGroup(
+    io,
+    socket,
+    groupId,
+    createGameMessage(
+      content,
+      { credits: credits.credits, userId },
+      "game_help",
+      userId
+    )
+  );
 }
 
 module.exports = {
   registerGameHandlers,
-  setupMessageListener,
   getUserCredits,
-  updateCredits,
   BOT_USER,
   handleGameCommand,
-  createGameMessage
+  createGameMessage,
+  VALID_COMMANDS,
+  MIN_BET,
+  MAX_BET,
 };

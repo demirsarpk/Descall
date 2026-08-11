@@ -4,6 +4,7 @@ import {
   MessageSquare, X, Send, Image, AlertTriangle, 
   Star, CheckCircle, Flag, Loader2, ChevronRight, ChevronLeft
 } from "lucide-react";
+import { useT } from "../../context/LocaleContext";
 
 const CATEGORIES = [
   { id: "bug", label: "Bug Report", icon: AlertTriangle, color: "#f23f43" },
@@ -21,6 +22,7 @@ const PRIORITIES = [
 ];
 
 export default function FeedbackModal({ isOpen, onClose }) {
+  const t = useT();
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState("");
   const [priority, setPriority] = useState("medium");
@@ -49,7 +51,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files);
     if (attachments.length + files.length > 5) {
-      setError("Maximum 5 attachments allowed");
+      setError(t("Maximum 5 attachments allowed"));
       return;
     }
     setAttachments(prev => [...prev, ...files].slice(0, 5));
@@ -62,7 +64,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
 
   const handleSubmit = async () => {
     if (!message.trim()) {
-      setError("Please enter a message");
+      setError(t("Please enter a message"));
       return;
     }
 
@@ -72,7 +74,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
     try {
       const token = localStorage.getItem("descall_token");
       if (!token) {
-        throw new Error("Please login to submit feedback");
+        throw new Error(t("Please login to submit feedback"));
       }
 
       // Upload attachments first
@@ -113,7 +115,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to submit feedback");
+        throw new Error(data.error || t("Failed to submit feedback"));
       }
 
       setIsSubmitted(true);
@@ -121,7 +123,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
         handleClose();
       }, 2000);
     } catch (err) {
-      setError(err.message || "Failed to submit feedback");
+      setError(err.message || t("Failed to submit feedback"));
     } finally {
       setIsSubmitting(false);
     }
@@ -149,7 +151,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
           <div className="flex items-center justify-between p-4 border-b border-[#2a2e38]">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
               <MessageSquare size={20} className="text-[#6678ff]" />
-              Send Feedback
+              {t("Send Feedback")}
             </h2>
             <button
               onClick={handleClose}
@@ -170,8 +172,8 @@ export default function FeedbackModal({ isOpen, onClose }) {
                 <div className="w-16 h-16 bg-[#23a55a]/20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle size={32} className="text-[#23a55a]" />
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-2">Thank You!</h3>
-                <p className="text-[#9da5b5]">Your feedback has been submitted successfully.</p>
+                <h3 className="text-xl font-semibold text-white mb-2">{t("Thank You!")}</h3>
+                <p className="text-[#9da5b5]">{t("Your feedback has been submitted successfully.")}</p>
               </motion.div>
             ) : (
               <>
@@ -182,7 +184,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: -20, opacity: 0 }}
                   >
-                    <p className="text-[#9da5b5] mb-4 text-sm">Select a category:</p>
+                    <p className="text-[#9da5b5] mb-4 text-sm">{t("Select a category:")}</p>
                     <div className="grid grid-cols-1 gap-2">
                       {CATEGORIES.map((cat) => (
                         <button
@@ -195,7 +197,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                           }`}
                         >
                           <cat.icon size={20} style={{ color: cat.color }} />
-                          <span className="text-white text-sm font-medium">{cat.label}</span>
+                          <span className="text-white text-sm font-medium">{t(cat.label)}</span>
                           <ChevronRight size={16} className="ml-auto text-[#9da5b5]" />
                         </button>
                       ))}
@@ -210,7 +212,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: -20, opacity: 0 }}
                   >
-                    <p className="text-[#9da5b5] mb-4 text-sm">Select priority:</p>
+                    <p className="text-[#9da5b5] mb-4 text-sm">{t("Select priority:")}</p>
                     <div className="grid grid-cols-2 gap-2 mb-4">
                       {PRIORITIES.map((prio) => (
                         <button
@@ -222,7 +224,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                               : "border-[#2a2e38] hover:border-[#6678ff]/50 hover:bg-[#2a2e38]/50"
                           }`}
                         >
-                          <span className="text-white text-sm font-medium">{prio.label}</span>
+                          <span className="text-white text-sm font-medium">{t(prio.label)}</span>
                           <div
                             className="w-2 h-2 rounded-full mt-2 mx-auto"
                             style={{ backgroundColor: prio.color }}
@@ -234,7 +236,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                       onClick={() => setStep(3)}
                       className="w-full p-3 bg-[#6678ff] hover:bg-[#7a89ff] text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
                     >
-                      Continue
+                      {t("Continue")}
                       <ChevronRight size={18} />
                     </button>
                     <button
@@ -242,7 +244,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                       className="w-full mt-2 p-3 text-[#9da5b5] hover:text-white transition-colors flex items-center justify-center gap-2"
                     >
                       <ChevronLeft size={18} />
-                      Back
+                      {t("Back")}
                     </button>
                   </motion.div>
                 )}
@@ -255,20 +257,22 @@ export default function FeedbackModal({ isOpen, onClose }) {
                     exit={{ x: -20, opacity: 0 }}
                   >
                     <div className="mb-3">
-                      <span className="text-xs text-[#9da5b5] uppercase tracking-wider">Category</span>
+                      <span className="text-xs text-[#9da5b5] uppercase tracking-wider">{t("Category")}</span>
                       <p className="text-white text-sm font-medium">
-                        {CATEGORIES.find(c => c.id === category)?.label || "Other"}
+                        {t(CATEGORIES.find(c => c.id === category)?.label || "Other")}
                       </p>
                     </div>
                     <div className="mb-4">
-                      <span className="text-xs text-[#9da5b5] uppercase tracking-wider">Priority</span>
-                      <p className="text-white text-sm font-medium capitalize">{priority}</p>
+                      <span className="text-xs text-[#9da5b5] uppercase tracking-wider">{t("Priority")}</span>
+                      <p className="text-white text-sm font-medium">
+                        {t(PRIORITIES.find((p) => p.id === priority)?.label || "Medium")}
+                      </p>
                     </div>
 
                     <textarea
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      placeholder="Describe your feedback in detail..."
+                      placeholder={t("Describe your feedback in detail...")}
                       className="w-full h-32 p-3 bg-[#0f1115] border border-[#2a2e38] rounded-xl text-white text-sm placeholder-[#9da5b5] focus:outline-none focus:border-[#6678ff] resize-none mb-3"
                     />
 
@@ -287,7 +291,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                         className="flex items-center gap-2 text-[#9da5b5] hover:text-white text-sm transition-colors"
                       >
                         <Image size={16} />
-                        Attach screenshots ({attachments.length}/5)
+                        {t("Attach screenshots ({count}/5)", { count: attachments.length })}
                       </button>
                       {attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
@@ -325,12 +329,12 @@ export default function FeedbackModal({ isOpen, onClose }) {
                       {isSubmitting ? (
                         <>
                           <Loader2 size={18} className="animate-spin" />
-                          Sending...
+                          {t("Sending...")}
                         </>
                       ) : (
                         <>
                           <Send size={18} />
-                          Submit Feedback
+                          {t("Submit Feedback")}
                         </>
                       )}
                     </button>
@@ -340,7 +344,7 @@ export default function FeedbackModal({ isOpen, onClose }) {
                       className="w-full mt-2 p-3 text-[#9da5b5] hover:text-white transition-colors flex items-center justify-center gap-2"
                     >
                       <ChevronLeft size={18} />
-                      Back
+                      {t("Back")}
                     </button>
                   </motion.div>
                 )}

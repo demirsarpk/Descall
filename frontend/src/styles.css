@@ -13,6 +13,13 @@
 @import './styles/servers.css';
 @import './styles/mobile.css';
 @import './styles/admin-glass.css';
+@import './styles/auth-splash.css';
+@import './styles/incoming-call.css';
+@import './styles/calls.css';
+@import './styles/ui-polish.css';
+@import './styles/lfg.css';
+@import './styles/titlebar.css';
+@import './styles/voice-message.css';
 
 /* ============================================
    OLD CSS REMOVED — Using new modular system

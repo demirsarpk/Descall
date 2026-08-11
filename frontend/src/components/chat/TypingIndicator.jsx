@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
+import { useT } from "../../context/LocaleContext";
 
 const DOT_VARIANTS = {
   animate: (i) => ({
@@ -41,14 +42,18 @@ function TypingDots() {
 }
 
 export default function TypingIndicator({ names = [] }) {
+  const t = useT();
   if (!names.length) return null;
 
   const label =
     names.length === 1
-      ? `${names[0]} is typing`
+      ? t("{name} is typing", { name: names[0] })
       : names.length === 2
-      ? `${names[0]} and ${names[1]} are typing`
-      : `${names.slice(0, 2).join(", ")} and ${names.length - 2} more are typing`;
+      ? t("{name1} and {name2} are typing", { name1: names[0], name2: names[1] })
+      : t("{names} and {count} more are typing", {
+          names: names.slice(0, 2).join(", "),
+          count: names.length - 2,
+        });
 
   return (
     <AnimatePresence>

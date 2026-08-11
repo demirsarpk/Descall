@@ -1,20 +1,11 @@
 import { motion } from "framer-motion";
 import Modal from "../ui/Modal";
 import { Avatar } from "../ui/Avatar";
-
-const STATUS_LABEL = {
-  online: "Online",
-  idle: "Idle",
-  dnd: "Do Not Disturb",
-  invisible: "Invisible",
-  offline: "Offline",
-};
+import { getPresenceStatus, STATUS_META } from "../../lib/presence";
 
 export default function UserProfilePopover({ open, onClose, user, onlineUsers }) {
-  const presence = onlineUsers?.find(
-    (u) => u.id === user?.userId || u.username === user?.username,
-  );
-  const status = presence?.status || "offline";
+  const userId = user?.userId || user?.id;
+  const status = getPresenceStatus(onlineUsers, userId);
   return (
     <Modal open={open} onClose={onClose} title="Profile" wide>
       {user && (
@@ -30,9 +21,9 @@ export default function UserProfilePopover({ open, onClose, user, onlineUsers })
               <div className="profile-name">{user.username}</div>
               <div className="profile-status-line">
                 <span className={`status-dot ${status}`} />
-                {STATUS_LABEL[status] || STATUS_LABEL.offline}
+                {STATUS_META[status]?.label || STATUS_META.offline.label}
               </div>
-              {user.userId && <div className="profile-id">ID · {user.userId.slice(0, 8)}…</div>}
+              {userId && <div className="profile-id">ID · {String(userId).slice(0, 8)}…</div>}
             </div>
           </div>
         </motion.div>

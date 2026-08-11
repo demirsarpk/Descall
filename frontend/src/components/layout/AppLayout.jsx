@@ -1,13 +1,17 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, X } from "lucide-react";
+import { Bell, X, MessageSquare, Users, Phone, Activity, Settings, Crosshair } from "lucide-react";
 import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
 import ActivitySidebar from "../activity/ActivitySidebar";
+import FeedbackNudgeBanner from "../feedback/FeedbackNudgeBanner";
+import LfgWorkspace from "../lfg/LfgWorkspace";
 import { useActivity } from "../../hooks/useActivity";
 import { useMobile } from "../../hooks/useMobile";
+import { useMobileKeyboard } from "../../hooks/useMobileKeyboard";
+import { useT } from "../../context/LocaleContext";
 
 /**
  * Single shared layout — desktop grid, mobile drawer adaptation.
@@ -31,6 +35,8 @@ export default function AppLayout({
   onVideoCall,
   onGroupVoiceCall,
   onGroupVideoCall,
+  onStartCall,
+  onStartGroupCallFromCalls,
   onAdminClick,
   isAdmin,
   onRefreshGroups,
@@ -65,11 +71,33 @@ export default function AppLayout({
   onRefreshGuilds,
   dmUnread = {},
   groupUnread = {},
+  myStatus = "online",
+  onStatusChange,
+  replyTo = null,
+  onClearReply,
+  activeView: controlledActiveView,
+  onActiveViewChange,
+  userPanelOpen: controlledUserPanelOpen,
+  onUserPanelOpenChange,
+  settingsTab,
+  onSettingsTabChange,
 }) {
+  const t = useT();
   const { isMobile } = useMobile();
+  useMobileKeyboard(isMobile);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeView, setActiveView] = useState("chat");
-  const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [localActiveView, setLocalActiveView] = useState("chat");
+  const [localUserPanelOpen, setLocalUserPanelOpen] = useState(false);
+  const activeView = controlledActiveView ?? localActiveView;
+  const userPanelOpen = controlledUserPanelOpen ?? localUserPanelOpen;
+  const setActiveView = useCallback((view) => {
+    if (onActiveViewChange) onActiveViewChange(view);
+    else setLocalActiveView(view);
+  }, [onActiveViewChange]);
+  const setUserPanelOpen = useCallback((open) => {
+    if (onUserPanelOpenChange) onUserPanelOpenChange(open);
+    else setLocalUserPanelOpen(open);
+  }, [onUserPanelOpenChange]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTab, setAddTab] = useState("friend");
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
@@ -116,6 +144,15 @@ export default function AppLayout({
     return () => { document.body.style.overflow = prev; };
   }, [isMobile, userPanelOpen]);
 
+  useEffect(() => {
+    if (!userPanelOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") closeUserPanel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [userPanelOpen, closeUserPanel]);
+
   const handleDmSelect = useCallback((dm) => {
     onDmSelect?.(dm);
     if (isMobile) setMobileDrawerOpen(false);
@@ -126,10 +163,40 @@ export default function AppLayout({
     if (isMobile) setMobileDrawerOpen(false);
   }, [onGroupSelect, isMobile]);
 
+  const handleOpenChatFromCalls = useCallback((user) => {
+    if (!user?.id) return;
+    setActiveView("chat");
+    handleDmSelect(user);
+  }, [handleDmSelect]);
+
+  const handleOpenGroupFromCalls = useCallback((group) => {
+    if (!group?.id) return;
+    setActiveView("groups");
+    handleGroupSelect(group);
+  }, [handleGroupSelect]);
+
+  const handleStartCall = useCallback((user, type = "voice") => {
+    if (!user?.id) return;
+    onStartCall?.(user, type);
+  }, [onStartCall]);
+
+  const handleStartGroupCallFromCalls = useCallback((group, type = "voice") => {
+    if (!group?.id) return;
+    onStartGroupCallFromCalls?.(group, type);
+  }, [onStartGroupCallFromCalls]);
+
   const handleViewChange = useCallback((view) => {
     setActiveView(view);
-    if (isMobile) setMobileDrawerOpen(true);
-  }, [isMobile]);
+    if (view === "calls" || view === "activity" || view === "friends" || view === "play") {
+      // Leave conversation so the dedicated view can fill the main panel
+      if (activeDmUser) onDmSelect?.(null);
+      if (activeGroup) onGroupSelect?.(null);
+    }
+    if (isMobile) {
+      // Play has its own split UI in the main panel — don't cover it with the drawer
+      setMobileDrawerOpen(view !== "play");
+    }
+  }, [isMobile, activeDmUser, activeGroup, onDmSelect, onGroupSelect]);
 
   const handleMobileBack = useCallback(() => {
     if (activeDmUser) onDmSelect?.(null);
@@ -138,11 +205,19 @@ export default function AppLayout({
   }, [activeDmUser, activeGroup, onDmSelect, onGroupSelect, openMobileDrawer]);
 
   const isElectron = typeof window !== "undefined" && !!window.electronAPI?.isElectron;
-  const showNotifBanner = !isElectron && !notifBannerDismissed && notifPermission === "default";
   const inConversation = !!(activeDmUser || activeGroup);
+  // On a narrow conversation surface the fixed banner sits directly over the
+  // DM header, stealing profile/voice-call taps. Offer it once the user leaves
+  // the conversation instead.
+  const showNotifBanner =
+    !isElectron &&
+    !notifBannerDismissed &&
+    notifPermission === "default" &&
+    !(isMobile && inConversation);
 
-  const handleAddClick = () => {
-    if (activeView === "groups") setAddTab("group");
+  const handleAddClick = (tab) => {
+    if (tab === "friend" || tab === "group") setAddTab(tab);
+    else if (activeView === "groups") setAddTab("group");
     else if (activeView === "friends") setAddTab("friend");
     else setAddTab("friend");
     setShowAddModal(true);
@@ -155,7 +230,7 @@ export default function AppLayout({
 
   return (
     <div
-      className={`app-root${isMobile ? " is-mobile" : ""}${mobileDrawerOpen ? " mobile-drawer-open" : ""}${userPanelOpen ? " mobile-settings-open" : ""}`}
+      className={`app-root${isMobile ? " is-mobile" : ""}${mobileDrawerOpen ? " mobile-drawer-open" : ""}${userPanelOpen ? " mobile-settings-open" : ""}${isMobile && inConversation ? " in-conversation" : ""}`}
       data-view={activeView}
     >
       <AnimatePresence>
@@ -168,7 +243,7 @@ export default function AppLayout({
             className="app-notif-banner"
           >
             <Bell size={15} style={{ flexShrink: 0 }} />
-            <span>Mesaj, arama ve mention bildirimleri almak için izin verin</span>
+            <span>{t("Allow notifications for messages, calls, and mentions")}</span>
             <button
               type="button"
               className="app-notif-banner-btn"
@@ -177,7 +252,7 @@ export default function AppLayout({
                 setNotifBannerDismissed(true);
               }}
             >
-              İzin Ver
+              {t("Allow")}
             </button>
             <button
               type="button"
@@ -190,6 +265,9 @@ export default function AppLayout({
         )}
       </AnimatePresence>
 
+      {/* Soft feedback reminder — top banner, auto-hides in 10s */}
+      {me && !showNotifBanner && <FeedbackNudgeBanner enabled />}
+
       {/* Mobile drawer backdrop */}
       <AnimatePresence>
         {isMobile && mobileDrawerOpen && (
@@ -199,7 +277,7 @@ export default function AppLayout({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            aria-label="Close menu"
+            aria-label={t("Close menu")}
             onClick={closeMobileDrawer}
           />
         )}
@@ -216,9 +294,11 @@ export default function AppLayout({
           onVoiceClick={handleVoiceClick}
           me={me}
           isAdmin={isAdmin}
+          myStatus={myStatus}
+          onStatusChange={onStatusChange}
         />
 
-        {activeView === "activity" ? (
+        {activeView === "play" ? null : activeView === "activity" ? (
           <ActivitySidebar
             friends={friends}
             friendPresence={activity.friendPresence}
@@ -236,6 +316,7 @@ export default function AppLayout({
             friends={friends}
             onlineUsers={onlineUsers}
             socket={socket}
+            me={me}
             onDmSelect={handleDmSelect}
             onGroupSelect={handleGroupSelect}
             showAddModal={showAddModal}
@@ -255,10 +336,32 @@ export default function AppLayout({
             isMobile={isMobile}
             dmUnread={dmUnread}
             groupUnread={groupUnread}
+            onStartCall={handleStartCall}
+            onStartGroupCall={handleStartGroupCallFromCalls}
+            onOpenChatFromCalls={handleOpenChatFromCalls}
+            onOpenGroupFromCalls={handleOpenGroupFromCalls}
           />
         )}
       </div>
 
+      {activeView === "play" ? (
+        <LfgWorkspace
+          me={me}
+          socket={socket}
+          onClose={() => handleViewChange("chat")}
+          onGroupCreated={onGroupCreated}
+          onOpenGroup={(group) => {
+            handleGroupSelect(group);
+            setActiveView("groups");
+          }}
+          onJoinVoice={(group) => {
+            handleGroupSelect(group);
+            setActiveView("groups");
+            // Defer so activeGroup is set before voice starts
+            window.setTimeout(() => onGroupVoiceCall?.(), 80);
+          }}
+        />
+      ) : (
       <ChatPanel
         activeView={activeView}
         activeDmUser={activeDmUser}
@@ -287,25 +390,93 @@ export default function AppLayout({
         onTypingDmStop={onTypingDmStop}
         onTypingGroupStart={onTypingGroupStart}
         onTypingGroupStop={onTypingGroupStop}
+        replyTo={replyTo}
+        onClearReply={onClearReply}
         isMobile={isMobile}
         onMenuClick={openMobileDrawer}
         onMobileBack={handleMobileBack}
         showMobileBack={isMobile && inConversation}
+        onAddClick={handleAddClick}
+        onViewChange={handleViewChange}
+        onStartCall={handleStartCall}
+        onStartGroupCall={handleStartGroupCallFromCalls}
+        onOpenChatFromCalls={handleOpenChatFromCalls}
+        onOpenGroupFromCalls={handleOpenGroupFromCalls}
+        onStartDm={handleOpenChatFromCalls}
+        groups={groups}
       >
         {children}
       </ChatPanel>
+      )}
 
       <AnimatePresence>
         {userPanelOpen && (
           <UserPanel
+            key="user-settings-panel"
             me={me}
             onClose={closeUserPanel}
             onLogout={onLogout}
             onProfileUpdated={onProfileUpdated}
-            onSettings={() => {}}
+            myStatus={myStatus}
+            onStatusChange={onStatusChange}
+            initialTab={settingsTab}
+            onTabChange={onSettingsTabChange}
           />
         )}
       </AnimatePresence>
+
+      {isMobile && !userPanelOpen && !inConversation && (
+        <nav className="mobile-tab-bar" aria-label={t("Primary")}>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "chat" ? "active" : ""}`}
+            onClick={() => handleViewChange("chat")}
+          >
+            <MessageSquare size={20} />
+            <span>{t("Chat")}</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "friends" ? "active" : ""}`}
+            onClick={() => handleViewChange("friends")}
+          >
+            <Users size={20} />
+            <span>{t("Friends")}</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "play" ? "active" : ""}`}
+            onClick={() => handleViewChange("play")}
+          >
+            <Crosshair size={20} />
+            <span>{t("Play")}</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "calls" ? "active" : ""}`}
+            onClick={() => handleViewChange("calls")}
+          >
+            <Phone size={20} />
+            <span>{t("Calls")}</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "activity" ? "active" : ""}`}
+            onClick={() => handleViewChange("activity")}
+          >
+            <Activity size={20} />
+            <span>{t("Activity")}</span>
+          </button>
+          <button
+            type="button"
+            className="mobile-tab"
+            onClick={openUserPanel}
+          >
+            <Settings size={20} />
+            <span>{t("You")}</span>
+          </button>
+        </nav>
+      )}
     </div>
   );
 }

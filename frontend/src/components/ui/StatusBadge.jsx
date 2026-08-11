@@ -1,35 +1,29 @@
 /**
- * COMPLETELY REBUILT STATUS BADGE
  * Discord-style online status indicator
- * No old layout remnants
  */
+import { useT } from "../../context/LocaleContext";
+
+const STATUS_LABELS = {
+  online: "Online",
+  away: "Away",
+  idle: "Away",
+  busy: "Busy",
+  dnd: "Do Not Disturb",
+  offline: "Offline",
+  invisible: "Invisible",
+};
+
 export default function StatusBadge({ status = "offline" }) {
-  if (!status || status === "offline") return null;
+  const t = useT();
+  if (!status || status === "offline" || status === "invisible") return null;
 
-  const statusColors = {
-    online: "#23a55a",
-    idle: "#f0b232",
-    dnd: "#f23f43",
-  };
-
-  const color = statusColors[status];
-  if (!color) return null;
+  const label = t(STATUS_LABELS[status] || status);
 
   return (
     <span
-      className="status-badge"
-      style={{
-        position: "absolute",
-        bottom: 0,
-        right: 0,
-        width: 14,
-        height: 14,
-        backgroundColor: color,
-        borderRadius: "50%",
-        border: "3px solid var(--surface-0)",
-        flexShrink: 0,
-      }}
-      title={status}
+      className={`status-badge status-${status}`}
+      title={label}
+      aria-label={label}
     />
   );
 }

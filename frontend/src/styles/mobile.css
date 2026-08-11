@@ -7,8 +7,8 @@
 @media (max-width: 768px) {
   .app-root {
     grid-template-columns: 1fr !important;
-    height: 100dvh;
-    max-height: 100dvh;
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
   }
 
   .app-root[data-view="servers"] {
@@ -53,9 +53,22 @@
   .app-sidebar-shell .nav-rail {
     display: flex;
     flex-shrink: 0;
+    flex-direction: column;
+    align-items: center;
     width: 60px;
     height: 100%;
     border-right: 1px solid var(--border-2);
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .app-sidebar-shell .nav-rail-main,
+  .app-sidebar-shell .nav-rail-brand,
+  .app-sidebar-shell .nav-rail-bottom {
+    align-items: center;
+    width: 100%;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .app-sidebar-shell .brand-wordmark {
@@ -63,8 +76,10 @@
   }
 
   .app-sidebar-shell .rail-btn {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   /* List sidebar fills remaining drawer width */
@@ -93,9 +108,10 @@
     overflow: hidden;
   }
 
-  /* Section lists must scroll and render fully on touch browsers */
+  /* Keep overflow hidden so expand/collapse height animation clips cleanly.
+     The parent .sidebar-content remains the scroll container. */
   .app-sidebar-shell .section-content {
-    overflow: visible;
+    overflow: hidden;
     min-height: 0;
   }
 
@@ -111,12 +127,12 @@
     flex-shrink: 0;
   }
 
-  /* Main chat panel full width */
+  /* Main chat panel full width — prefer visual viewport height when set */
   .main-panel {
     min-width: 0;
     width: 100%;
-    height: 100dvh;
-    max-height: 100dvh;
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
   }
 
   .panel-header {
@@ -162,37 +178,57 @@
     padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
   }
 
-  /* Members panel: full-width sheet on mobile */
+  /* Members panel: right sheet + backdrop */
+  .members-panel-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 399;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
   .members-panel {
     position: fixed !important;
     top: 0;
     right: 0;
     bottom: 0;
     width: min(85vw, 300px) !important;
+    max-width: 100%;
     z-index: 400;
     padding-top: env(safe-area-inset-top, 0px);
-    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.45);
+    border-left: 1px solid var(--border-2);
   }
 
-  /* User / settings panels — above drawer */
-  .user-panel {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: 100dvh;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    z-index: 450 !important;
-    left: 0;
-    right: 0;
+  .members-panel-header {
+    padding-top: 12px;
+  }
+
+  .member-row {
+    padding: 8px 10px;
+    min-height: 44px;
+  }
+
+  /* User / settings panels — above drawer + notif banner */
+  .user-panel-backdrop {
+    z-index: 100000 !important;
+  }
+
+  .user-settings-shell,
+  .user-settings {
+    z-index: 100001 !important;
   }
 
   .app-root.mobile-settings-open .app-sidebar-shell {
     pointer-events: none;
   }
 
-  .settings-panel {
-    width: 100%;
-    max-width: 100%;
+  /* Keep notification prompt from covering settings chrome (back/close) */
+  .app-root.mobile-settings-open .app-notif-banner {
+    display: none !important;
   }
 
   /* Admin */
@@ -258,6 +294,17 @@
 
   .nav-rail {
     width: 60px;
+    align-items: center;
+  }
+
+  .nav-rail-main {
+    align-items: center;
+    padding: 0;
+  }
+
+  .rail-btn {
+    width: 40px;
+    height: 40px;
   }
 
   .sidebar-secondary {
@@ -384,4 +431,208 @@
   align-items: center;
   padding: 4px;
   flex-shrink: 0;
+}
+
+/* ── Feedback nudge banner (mirrors notif banner, auto-hides ~10s) ── */
+.app-feedback-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px 12px;
+  background: linear-gradient(90deg, #4752c4 0%, #5865f2 55%, #6a5cff 100%);
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+.app-feedback-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: min(520px, 58vw);
+}
+.app-feedback-banner-text strong {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.app-feedback-banner-text span {
+  font-size: 12px;
+  opacity: 0.92;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-feedback-banner-btn {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: none;
+  background: rgba(255, 255, 255, 0.22);
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.app-feedback-banner-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.app-feedback-banner-dismiss {
+  margin-left: 4px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.app-feedback-banner-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.35);
+  transform-origin: left center;
+  animation: feedback-nudge-progress 10s linear forwards;
+}
+@keyframes feedback-nudge-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@media (max-width: 640px) {
+  .app-feedback-banner {
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px 12px;
+  }
+  .app-feedback-banner-text {
+    max-width: none;
+    flex: 1;
+  }
+  .app-feedback-banner-text span {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+
+/* Mobile bottom tab bar (primary nav) */
+@media (max-width: 768px) {
+  .app-root.is-mobile {
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    transition: padding-bottom 0.12s ease;
+  }
+
+  /* Keyboard dismiss: ease shell height so the composer slides down with the KB */
+  html.kb-closing .app-root.is-mobile {
+    transition:
+      height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      max-height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      padding-bottom 0.2s ease;
+  }
+
+  .app-root.is-mobile .main-panel {
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .mobile-tab-bar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 280;
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+    border-top: 1px solid var(--border-2);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    gap: 2px;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+
+  .mobile-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 6px 2px;
+  }
+
+  .mobile-tab.active {
+    color: var(--primary);
+    background: var(--primary-soft);
+  }
+
+  .app-root.is-mobile .composer-container {
+    padding-bottom: 4px;
+  }
+
+  /* Conversation open: hide tab bar + drop its reserved gap so composer sits at bottom */
+  .app-root.is-mobile.in-conversation {
+    padding-bottom: 0;
+  }
+
+  .app-root.is-mobile.in-conversation .mobile-tab-bar {
+    display: none !important;
+  }
+
+  .app-root.is-mobile.in-conversation .composer-container {
+    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-root.is-mobile.in-conversation .main-panel {
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
+  }
+
+  html.kb-closing .app-root.is-mobile.in-conversation .main-panel {
+    transition:
+      height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      max-height 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Keyboard open: drop tab-bar reserve, size to visual viewport, hide tabs */
+  html.kb-open .app-root.is-mobile {
+    padding-bottom: 0;
+    height: var(--vv-height, 100dvh);
+    max-height: var(--vv-height, 100dvh);
+  }
+
+  html.kb-open .mobile-tab-bar {
+    transform: translateY(110%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  html.kb-open .app-root.is-mobile .composer-container {
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+  }
 }

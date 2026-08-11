@@ -1,6 +1,8 @@
 import { useRef, useCallback } from "react";
+import { useT } from "../../context/LocaleContext";
 
 export default function MessageEditUI({ defaultValue, onSave, onCancel }) {
+  const t = useT();
   const inputRef = useRef(null);
 
   const handleSave = useCallback(() => {
@@ -27,8 +29,8 @@ export default function MessageEditUI({ defaultValue, onSave, onCancel }) {
         autoFocus
       />
       <div className="edit-actions">
-        <button onClick={handleSave}>Save</button>
-        <button onClick={onCancel}>Cancel</button>
+        <button onClick={handleSave}>{t("Save")}</button>
+        <button onClick={onCancel}>{t("Cancel")}</button>
       </div>
     </div>
   );
