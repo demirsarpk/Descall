@@ -158,11 +158,7 @@ export function Avatar({
       style={{
         width: size,
         height: size,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-        position: "relative",
+        fontSize: size,
       }}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
@@ -174,60 +170,49 @@ export function Avatar({
       <div
         className="ui-avatar-inner"
         style={{
-          width: "100%",
-          height: "100%",
           background: showImage ? "var(--surface-2)" : bg,
-          borderRadius: "50%",
-          overflow: "hidden",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
         }}
       >
-      {showImage ? (
-        <>
-          {!loaded && (
-            <span className="ui-avatar-letter" style={{ position: "absolute", opacity: 0.3 }} aria-hidden>
-              {letter}
-            </span>
-          )}
-          <img
-            ref={setImgNode}
-            src={displaySrc}
-            alt=""
-            className="ui-avatar-img"
-            loading={eager ? "eager" : "lazy"}
-            decoding="async"
-            referrerPolicy="no-referrer"
-            draggable={false}
-            onLoad={(e) => {
-              noteGoodSrc(e.currentTarget.currentSrc || e.currentTarget.src || displaySrc);
-              setLoaded(true);
-              setFailed(false);
-            }}
-            onError={() => {
-              if (!useBareUrl && bareUrl && displaySrc !== bareUrl) {
-                setUseBareUrl(true);
+        {showImage ? (
+          <>
+            {!loaded && (
+              <span className="ui-avatar-letter" style={{ position: "absolute", opacity: 0.3 }} aria-hidden>
+                {letter}
+              </span>
+            )}
+            <img
+              ref={setImgNode}
+              src={displaySrc}
+              alt=""
+              className="ui-avatar-img"
+              loading={eager ? "eager" : "lazy"}
+              decoding="async"
+              referrerPolicy="no-referrer"
+              draggable={false}
+              onLoad={(e) => {
+                noteGoodSrc(e.currentTarget.currentSrc || e.currentTarget.src || displaySrc);
+                setLoaded(true);
                 setFailed(false);
-                return;
-              }
-              setFailed(true);
-              setLoaded(false);
-            }}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              // If the browser already decoded the bitmap, never hide it behind the letter.
-              opacity: loaded || (imgRef.current && imgIsReady(imgRef.current)) ? 1 : 0,
-              transition: "opacity 0.12s ease",
-            }}
-          />
-        </>
-      ) : (
-        <span className="ui-avatar-letter">{letter}</span>
-      )}
+              }}
+              onError={() => {
+                if (!useBareUrl && bareUrl && displaySrc !== bareUrl) {
+                  setUseBareUrl(true);
+                  setFailed(false);
+                  return;
+                }
+                setFailed(true);
+                setLoaded(false);
+              }}
+              style={{
+                // If the browser already decoded the bitmap, never hide it behind the letter.
+                opacity: loaded || (imgRef.current && imgIsReady(imgRef.current)) ? 1 : 0,
+                transition: "opacity 0.12s ease",
+              }}
+            />
+          </>
+        ) : (
+          <span className="ui-avatar-letter">{letter}</span>
+        )}
       </div>
       {frameUrl && (
         <img
@@ -236,16 +221,6 @@ export function Avatar({
           alt=""
           draggable={false}
           aria-hidden
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            width: "132%",
-            height: "132%",
-            transform: "translate(-50%, -50%)",
-            pointerEvents: "none",
-            objectFit: "contain",
-          }}
         />
       )}
     </motion.div>

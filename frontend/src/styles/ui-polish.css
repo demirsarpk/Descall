@@ -474,9 +474,11 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 3px solid var(--surface-0);
+  border: 3px solid var(--surface-1, var(--surface-0));
   flex-shrink: 0;
   box-sizing: border-box;
+  z-index: 3;
+  transform: none;
 }
 
 .status-badge.status-online { background: var(--success); }

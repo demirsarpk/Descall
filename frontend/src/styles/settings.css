@@ -546,6 +546,13 @@
   background: var(--surface-0);
   border-radius: 50%;
   flex-shrink: 0;
+  overflow: visible;
+  line-height: 0;
+}
+
+.us-hero-avatar .status-badge {
+  right: 2px;
+  bottom: 2px;
 }
 
 .us-hero-status {

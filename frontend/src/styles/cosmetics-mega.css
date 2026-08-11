@@ -126,20 +126,23 @@
 }
 .cosmetic-avatar-effect.effect-petal::before,
 .cosmetic-avatar-effect.effect-petal::after {
-  content: ""; position: absolute; top: 50%; left: 50%; width: 7px; height: 7px; margin: -3.5px;
+  content: ""; position: absolute; top: 50%; left: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px;
   border-radius: 50% 50% 50% 0; background: #f9a8d4; box-shadow: 0 0 6px #f472b6;
-  animation: cosmetic-orbit-spin 4s linear infinite;
+  transform-origin: 50% 50%;
+  animation: cosmetic-orbit-dot 4s linear infinite;
 }
 .cosmetic-avatar-effect.effect-petal::after { animation-delay: -2s; background: #c4b5fd; }
 .cosmetic-avatar-effect.effect-hex {
+  /* Keep circular — hexagonal clip looked tilted/crooked on round avatars */
   border: 2px solid rgba(167, 243, 208, 0.7);
-  clip-path: polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%);
-  border-radius: 0; animation: cosmetic-frost-shimmer 2s ease-in-out infinite;
+  border-radius: 50%;
+  animation: cosmetic-frost-shimmer 2s ease-in-out infinite;
 }
 .cosmetic-avatar-effect.effect-solar {
   background: conic-gradient(from 0deg, #facc15, #f97316, #facc15);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  transform-origin: 50% 50%;
   animation: cosmetic-orbit-spin 5s linear infinite;
 }
 .cosmetic-avatar-effect.effect-toxic {
@@ -150,6 +153,7 @@
   background: conic-gradient(from 0deg, #ff0080, #ff8c00, #40e0d0, #7b68ee, #ff0080);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  transform-origin: 50% 50%;
   animation: cosmetic-orbit-spin 4s linear infinite;
 }
 .cosmetic-avatar-effect.effect-ember {
@@ -183,6 +187,7 @@
   background: conic-gradient(from 90deg, #ff00cc, #4fd8ff, #a3e635, #ff00cc);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  transform-origin: 50% 50%;
   animation: cosmetic-orbit-spin 3.4s linear infinite;
 }
 .cosmetic-avatar-effect.effect-pulse2 {

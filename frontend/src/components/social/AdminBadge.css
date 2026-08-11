@@ -45,13 +45,13 @@
   font-size: 9.5px;
 }
 
-/* Profile modal / hover card */
+/* Profile modal / hover card — match title-tag pill geometry */
 .dsc-admin-badge--chip {
   height: 22px;
   padding: 0 8px 0 6px;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 11px;
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .dsc-admin-badge--chip .dsc-admin-badge-label {
