@@ -5,6 +5,7 @@
   "scripts": {
     "analyze": "node scripts/analyze-video.mjs",
     "captions": "node scripts/generate-captions.mjs",
+    "voiceover": "node scripts/generate-voiceover.mjs",
     "render": "node scripts/render.mjs",
     "studio": "remotion studio src/index.ts",
     "build": "remotion bundle"

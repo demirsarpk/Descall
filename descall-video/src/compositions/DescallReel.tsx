@@ -6,7 +6,34 @@ import { Hook } from "../scenes/Hook";
 import { ProductReveal } from "../scenes/ProductReveal";
 import { FeatureScene } from "../scenes/FeatureScene";
 import { CTA } from "../scenes/CTA";
-import { EDIT_PLAN } from "../editPlan";
+import { Voiceover, VOICE_CUES } from "../audio/Voiceover";
+import { EDIT_PLAN, FPS } from "../editPlan";
+
+/** Music ducks under voiceover so captions stay intelligible */
+const DuckedMusic: React.FC = () => {
+  return (
+    <Audio
+      src={staticFile("audio/music.mp3")}
+      volume={(f) => {
+        const t = f / FPS;
+        let vol = 0.34;
+        for (const cue of VOICE_CUES) {
+          const start = cue.startSec - 0.12;
+          const end = cue.startSec + 2.85;
+          if (t >= start && t <= end) {
+            const fade = 0.15;
+            const inEdge = Math.min(1, Math.max(0, (t - start) / fade));
+            const outEdge = Math.min(1, Math.max(0, (end - t) / fade));
+            const gate = Math.min(inEdge, outEdge);
+            // During speech: ~0.10; edges ramp
+            vol = Math.min(vol, 0.1 + (0.34 - 0.1) * (1 - gate));
+          }
+        }
+        return vol;
+      }}
+    />
+  );
+};
 
 const TOTAL = EDIT_PLAN.length;
 
@@ -111,7 +138,8 @@ export const DescallReel: React.FC = () => {
     <Fonts>
       <AbsoluteFill style={{ backgroundColor: "#05040a" }}>
         <BrandBackdrop />
-        <Audio src={staticFile("audio/music.mp3")} volume={0.42} />
+        <DuckedMusic />
+        <Voiceover />
         <Series>
           {EDIT_PLAN.map((scene, index) => (
             <Series.Sequence key={scene.id} durationInFrames={scene.duration}>

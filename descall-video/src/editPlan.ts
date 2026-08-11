@@ -64,7 +64,7 @@ export const EDIT_PLAN = [
     label: "CTA",
     from: 570,
     duration: 150,
-    copy: "descall.com",
+    copy: "Start free at descall.com",
     frame: "m-download",
   },
 ] as const;
