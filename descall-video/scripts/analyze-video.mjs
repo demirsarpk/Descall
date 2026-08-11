@@ -44,18 +44,18 @@ const plan = {
     { id: "seo-hook", frame: "m-discord-alt.png", reason: "Category positioning" },
   ],
   timeline: [
-    { start: 0.0, end: 1.8, scene: "HOOK", copy: "Discord, but different." },
-    { start: 1.8, end: 4.2, scene: "PRODUCT", copy: "Meet Descall." },
-    { start: 4.2, end: 7.8, scene: "FEATURE CHAT", copy: "Cosmetics that show." },
-    { start: 7.8, end: 11.2, scene: "FEATURE LFG", copy: "Valorant LFG built in." },
-    { start: 11.2, end: 15.0, scene: "FEATURE LOOK", copy: "Make it yours." },
-    { start: 15.0, end: 18.6, scene: "PAYOFF", copy: "Free. Fast. Yours." },
-    { start: 18.6, end: 22.0, scene: "CTA", copy: "Start free at descall.com" },
+    { start: 0.0, end: 2.2, scene: "HOOK", copy: "Discord, but different." },
+    { start: 2.2, end: 4.8, scene: "PRODUCT", copy: "Meet Descall." },
+    { start: 4.8, end: 8.4, scene: "CHAT", copy: "Cosmetics that show." },
+    { start: 8.4, end: 11.6, scene: "SOCIAL", copy: "Friends. Calls. Done." },
+    { start: 11.6, end: 15.0, scene: "LOOK", copy: "Make it yours." },
+    { start: 15.0, end: 19.0, scene: "PAYOFF", copy: "Free. Fast. Yours." },
+    { start: 19.0, end: 24.0, scene: "CTA", copy: "Start free at descall.com" },
   ],
   notes: [
     "No speech in source — captions are editorial burn-ins, not transcription.",
-    "PWA banner cropped via camera zoom on DM scene.",
-    "Dead time / empty navigations removed; stills used for intentional cuts.",
+    "Camera: micro Ken Burns only (≤6% scale) — no aggressive zoom.",
+    "v3: ambient orbs, feature chips, accent rings, soft crossfades.",
   ],
 };
 
