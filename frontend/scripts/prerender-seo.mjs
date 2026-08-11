@@ -114,14 +114,27 @@ function injectMeta(html, route) {
   out = out.replace(/<html\s+lang="[^"]*"/i, `<html lang="${lang}"`);
   out = out.replace(/<title>[^<]*<\/title>/i, `<title>${title}</title>`);
 
+  const isTurkey = route.path === "/discord-alternative-turkey" || lang === "tr";
+  const hreflang = isTurkey
+    ? [
+        `<link rel="alternate" hreflang="tr" href="${url}" />`,
+        `<link rel="alternate" hreflang="en" href="${SITE}/discord-alternative" />`,
+        `<link rel="alternate" hreflang="x-default" href="${SITE}/discord-alternative" />`,
+      ]
+    : [
+        `<link rel="alternate" hreflang="en" href="${url}" />`,
+        `<link rel="alternate" hreflang="x-default" href="${url}" />`,
+        route.path === "/discord-alternative"
+          ? `<link rel="alternate" hreflang="tr" href="${SITE}/discord-alternative-turkey" />`
+          : "",
+      ];
+
   const metaBlock = [
     `<meta name="description" content="${desc}" />`,
     keywords ? `<meta name="keywords" content="${keywords}" />` : "",
     `<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />`,
     `<link rel="canonical" href="${url}" />`,
-    `<link rel="alternate" hreflang="en" href="${url}" />`,
-    `<link rel="alternate" hreflang="tr" href="${url}" />`,
-    `<link rel="alternate" hreflang="x-default" href="${url}" />`,
+    ...hreflang,
     `<meta property="og:title" content="${title}" />`,
     `<meta property="og:description" content="${desc}" />`,
     `<meta property="og:url" content="${url}" />`,
@@ -130,7 +143,7 @@ function injectMeta(html, route) {
     `<meta property="og:image" content="${OG}" />`,
     `<meta property="og:image:width" content="1200" />`,
     `<meta property="og:image:height" content="630" />`,
-    `<meta property="og:locale" content="${lang === "tr" ? "tr_TR" : "en_US"}" />`,
+    `<meta property="og:locale" content="${isTurkey ? "tr_TR" : "en_US"}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${title}" />`,
     `<meta name="twitter:description" content="${desc}" />`,

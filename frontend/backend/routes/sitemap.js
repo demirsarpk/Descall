@@ -23,7 +23,8 @@ const express = require("express");
 
 const router = express.Router();
 
-// Canonical public host. PUBLIC_APP_URL / SITE_URL still override this in deployments.
+// Canonical public host for ALL sitemap/robots output.
+// Never emit request Host / onrender / http — Search Console must see one HTTPS origin.
 const DEFAULT_ORIGIN = "https://descall.com";
 const CACHE_SECONDS = 300; // 5 minutes
 
@@ -38,16 +39,19 @@ function getSupabase() {
   }
 }
 
-function siteOrigin(req) {
-  const raw =
-    process.env.PUBLIC_APP_URL ||
-    process.env.SITE_URL ||
-    (req.get("x-forwarded-proto") && req.get("x-forwarded-host")
-      ? `${req.get("x-forwarded-proto")}://${req.get("x-forwarded-host")}`
-      : null) ||
-    `${req.protocol}://${req.get("host")}` ||
-    DEFAULT_ORIGIN;
-  return String(raw).replace(/\/$/, "");
+/**
+ * Always return the canonical production origin for SEO documents.
+ * Env overrides are accepted only when they are https://descall.com
+ * (prevents accidental http:// or onrender.com sitemap pollution).
+ */
+function siteOrigin(_req) {
+  const candidates = [process.env.PUBLIC_APP_URL, process.env.SITE_URL, DEFAULT_ORIGIN];
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const normalized = String(raw).trim().replace(/\/$/, "");
+    if (/^https:\/\/descall\.com$/i.test(normalized)) return "https://descall.com";
+  }
+  return DEFAULT_ORIGIN;
 }
 
 function xmlEscape(value) {

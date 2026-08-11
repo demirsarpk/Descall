@@ -61,9 +61,15 @@ const io = new Server(httpServer, {
 });
 
 app.set("io", io);
+// Needed so req.protocol / x-forwarded-* are correct behind Render/Vercel proxies.
+app.set("trust proxy", 1);
+
+const { canonicalHostMiddleware } = require("./middleware/canonicalHost");
 
 // Middleware
 app.use(cors({ origin: true, credentials: false }));
+// HTTP→HTTPS, www→apex, Render HTML→descall.com (API paths excluded)
+app.use(canonicalHostMiddleware);
 
 app.use(express.json());
 app.use("/api/web-push", webPushRoutes);

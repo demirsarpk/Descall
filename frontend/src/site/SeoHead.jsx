@@ -5,7 +5,6 @@ import {
   routeMeta,
   SITE_NAME,
   DEFAULT_OG_IMAGE,
-  SUPPORTED_LOCALES,
   DEFAULT_ORIGIN,
 } from "./seoConfig";
 
@@ -65,18 +64,28 @@ export default function SeoHead({ forceNoindex = false, title, description, path
     );
     upsertLink("canonical", canonical);
 
-    // hreflang — same URL serves locale via client preference today; signal both + x-default
+    // hreflang — only when we have real locale-targeted URLs (no fake en/tr on the same path).
+    // Client locale toggle does not create separate crawlable language URLs.
     const origin = DEFAULT_ORIGIN.replace(/\/$/, "");
     const pathPart = canonicalPath === "/" ? "/" : canonicalPath;
-    for (const locale of SUPPORTED_LOCALES) {
-      upsertLink("alternate", `${origin}${pathPart}`, { hreflang: locale });
+    const isTurkey = pathPart === "/discord-alternative-turkey";
+    // Clear previous alternates by rewriting the ones we own
+    if (isTurkey) {
+      upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "tr" });
+      upsertLink("alternate", `${origin}/discord-alternative`, { hreflang: "en" });
+      upsertLink("alternate", `${origin}/discord-alternative`, { hreflang: "x-default" });
+    } else {
+      upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "en" });
+      upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "x-default" });
+      if (pathPart === "/discord-alternative") {
+        upsertLink("alternate", `${origin}/discord-alternative-turkey`, { hreflang: "tr" });
+      }
     }
-    upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "x-default" });
 
     upsertMeta("property", "og:type", meta.ogType || "website");
     upsertMeta("property", "og:site_name", SITE_NAME);
-    upsertMeta("property", "og:locale", "en_US");
-    upsertMeta("property", "og:locale:alternate", "tr_TR");
+    upsertMeta("property", "og:locale", isTurkey ? "tr_TR" : "en_US");
+    if (!isTurkey) upsertMeta("property", "og:locale:alternate", "tr_TR");
     upsertMeta("property", "og:title", pageTitle);
     upsertMeta("property", "og:description", pageDesc);
     upsertMeta("property", "og:url", canonical);
