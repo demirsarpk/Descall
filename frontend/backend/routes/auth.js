@@ -4,10 +4,11 @@ const { OAuth2Client } = require("google-auth-library");
 const supabase = require("../db/supabase");
 const { signToken, signPending2faToken, verifyToken } = require("../config/jwt");
 const { requireAuth } = require("../middleware/auth");
-const { userLastLoginAt, revokedSessionIds, authCodeAttempts } = require("../runtime/sharedState");
+const { revokedSessionIds, authCodeAttempts } = require("../runtime/sharedState");
 const { sendEmail, generateCode, codeEmailHtml } = require("../lib/mailer");
 const { hashCode, verifyStoredCode } = require("../lib/authCodes");
 const { createSession, listSessions, removeSession, removeOtherSessions, clientIp } = require("../lib/sessions");
+const { touchLastSeen } = require("../lib/presenceTouch");
 const shop = require("../lib/shop");
 
 const { toPublicUser } = require("../lib/userProfile");
@@ -319,7 +320,7 @@ router.post("/login", async (req, res) => {
     });
     const token = signToken({ id: user.id, username: user.username, sid: session.id });
 
-    userLastLoginAt.set(user.id, new Date().toISOString());
+    await touchLastSeen(user.id, { force: true });
 
     return res.status(200).json({
       message: "Login successful.",
@@ -389,7 +390,7 @@ router.post("/2fa/verify-login", async (req, res) => {
       ip: clientIp(req),
     });
     const token = signToken({ id: user.id, username: user.username, sid: session.id });
-    userLastLoginAt.set(user.id, new Date().toISOString());
+    await touchLastSeen(user.id, { force: true });
 
     return res.status(200).json({
       message: "Login successful.",
@@ -535,7 +536,7 @@ router.post("/google", async (req, res) => {
       ip: clientIp(req),
     });
     const token = signToken({ id: user.id, username: user.username, sid: session.id });
-    userLastLoginAt.set(user.id, new Date().toISOString());
+    await touchLastSeen(user.id, { force: true });
 
     return res.status(200).json({
       message: "Google login successful.",
