@@ -76,6 +76,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Router>
             <App />
             <IosPwaInstallBanner />
+            <Analytics />
           </Router>
         </LocaleProvider>
       </ToastProvider>
