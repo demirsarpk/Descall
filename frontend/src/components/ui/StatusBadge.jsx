@@ -13,15 +13,16 @@ const STATUS_LABELS = {
   invisible: "Invisible",
 };
 
-export default function StatusBadge({ status = "offline" }) {
+export default function StatusBadge({ status = "offline", user = null, flareKey = null }) {
   const t = useT();
   if (!status || status === "offline" || status === "invisible") return null;
 
   const label = t(STATUS_LABELS[status] || status);
+  const flare = flareKey || user?.equippedPresenceFlare?.effect_key || null;
 
   return (
     <span
-      className={`status-badge status-${status}`}
+      className={`status-badge status-${status}${flare ? ` cosmetic-presence-flare flare-${flare}` : ""}`}
       title={label}
       aria-label={label}
     />

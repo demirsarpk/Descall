@@ -41,3 +41,20 @@ export function chatBubbleClass(user) {
   const effectKey = user?.equippedChatBubble?.effect_key;
   return effectKey ? `cosmetic-chat-bubble bubble-${effectKey}` : "";
 }
+
+/** CSS class for a presence status flare, or "" if unequipped. */
+export function presenceFlareClass(user) {
+  const effectKey = user?.equippedPresenceFlare?.effect_key;
+  return effectKey ? `cosmetic-presence-flare flare-${effectKey}` : "";
+}
+
+/** CSS class for a profile-card aura, or "" if unequipped. */
+export function profileAuraClass(user) {
+  const effectKey = user?.equippedProfileAura?.effect_key;
+  return effectKey ? `cosmetic-profile-aura aura-${effectKey}` : "";
+}
+
+/** Equipped sound-pack key (for notification/call tones), or null. */
+export function soundPackKey(user) {
+  return user?.equippedSoundPack?.effect_key || null;
+}

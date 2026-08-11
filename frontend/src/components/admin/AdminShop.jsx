@@ -17,17 +17,68 @@ const CATEGORIES = [
   { id: "name_effect", label: "Name Effect" },
   { id: "avatar_effect", label: "Avatar Effect" },
   { id: "chat_bubble", label: "Chat Bubble Skin" },
+  { id: "presence_flare", label: "Presence Flare" },
+  { id: "profile_aura", label: "Profile Aura" },
+  { id: "sound_pack", label: "Sound Pack" },
 ];
 
 // Categories that render from a small piece of metadata instead of an
 // image/SVG asset — the admin form skips the asset URL field for these.
-const METADATA_ONLY_CATEGORIES = new Set(["profile_badge", "profile_title", "name_effect", "avatar_effect", "chat_bubble"]);
-const EFFECT_KEY_CATEGORIES = new Set(["name_effect", "avatar_effect", "chat_bubble"]);
+const METADATA_ONLY_CATEGORIES = new Set([
+  "profile_badge",
+  "profile_title",
+  "name_effect",
+  "avatar_effect",
+  "chat_bubble",
+  "presence_flare",
+  "profile_aura",
+  "sound_pack",
+]);
+const EFFECT_KEY_CATEGORIES = new Set([
+  "name_effect",
+  "avatar_effect",
+  "chat_bubble",
+  "presence_flare",
+  "profile_aura",
+  "sound_pack",
+]);
 
 const EFFECT_KEY_OPTIONS = {
-  name_effect: ["fire", "rainbow", "neon", "gold-shimmer", "ice", "void"],
-  avatar_effect: ["pulse", "orbit", "spark", "aurora", "flame", "frost"],
-  chat_bubble: ["glass", "neon-outline", "sunset", "carbon", "holo", "royal-purple"],
+  name_effect: [
+    "fire", "rainbow", "neon", "gold-shimmer", "ice", "void",
+    "plasma", "ember", "glitch", "mintglow", "sunset", "ocean", "chrome", "toxic", "royal", "candy",
+    "magma", "arctic", "holo", "embercore", "noir", "laser", "matrix", "sand",
+  ],
+  avatar_effect: [
+    "pulse", "orbit", "spark", "aurora", "flame", "frost",
+    "halo", "ripple", "comet", "static", "petal", "hex", "solar", "toxic", "prism", "ember",
+    "frostbite", "neon", "void", "bubble", "scan", "royal", "holoring", "pulse2",
+  ],
+  chat_bubble: [
+    "glass", "neon-outline", "sunset", "carbon", "holo", "royal-purple",
+    "midnight", "ember", "mint", "violet", "gold", "ice", "toxic", "rose", "cyber", "sand",
+    "ocean", "lava", "pearl", "matrix", "arcade", "noir", "prism", "teal",
+  ],
+  presence_flare: [
+    "pulse-cyan", "pulse-gold", "pulse-rose", "ring-neon", "ring-emerald", "ring-violet",
+    "spark-white", "spark-fire", "orbit-blue", "orbit-pink", "halo-soft", "halo-royal",
+    "glitch-green", "glitch-void", "wave-teal", "wave-amber", "core-crimson", "core-ice",
+    "beam-magenta", "beam-lime", "nova-white", "nova-gold", "pixel-cyan", "pixel-hot",
+    "aurora-soft", "aurora-vivid", "steel-pulse", "toxic-ring", "moon-glow", "sun-flare",
+  ],
+  profile_aura: [
+    "void-soft", "void-hard", "solar-bloom", "frost-veil", "ember-haze", "neon-frame",
+    "mint-mist", "royal-curtain", "cyber-grid", "rose-bloom", "gold-dust", "ocean-depth",
+    "plasma-field", "shadow-rim", "prism-glass", "toxic-fog", "starlight", "copper-glow",
+    "ice-crystal", "lava-rim", "pearl-soft", "matrix-veil", "arcade-pop", "noir-edge",
+    "aurora-wall", "sandstorm", "holo-sheet", "crimson-veil", "jade-glow", "ion-haze",
+  ],
+  sound_pack: [
+    "soft-chime", "crystal-ping", "cyber-blip", "deep-thud", "glass-lift", "neon-zap",
+    "lofi-tap", "arcade-coin", "void-whisper", "ocean-drop", "ember-crackle", "frost-ting",
+    "royal-bell", "matrix-tick", "pixel-beep", "pulse-kick", "silk-swipe", "thunder-tap",
+    "star-chime", "copper-clang", "holo-ping", "mint-pop", "laser-chirp", "quiet-knock",
+  ],
 };
 
 const RARITIES = ["common", "rare", "epic", "legendary", "mythic"];
@@ -639,6 +690,12 @@ export default function AdminShop() {
                       </div>
                     ) : item.category === "chat_bubble" ? (
                       <div className={`cosmetic-chat-bubble bubble-${item.effect_key}`} style={{ width: 40, height: 22, borderRadius: 8 }} />
+                    ) : item.category === "presence_flare" ? (
+                      <span className={`status-badge status-online cosmetic-presence-flare flare-${item.effect_key}`} style={{ width: 14, height: 14, display: "inline-block", borderRadius: "50%" }} />
+                    ) : item.category === "profile_aura" ? (
+                      <div className={`cosmetic-profile-aura aura-${item.effect_key}`} style={{ width: 40, height: 22, borderRadius: 8, background: "rgba(255,255,255,0.06)" }} />
+                    ) : item.category === "sound_pack" ? (
+                      <span className="mono" style={{ fontSize: 11 }}>{item.effect_key}</span>
                     ) : (
                       <img src={item.preview_url || item.asset_url} alt="" style={{ width: 40, height: 28, objectFit: "cover", borderRadius: 6 }} />
                     )}

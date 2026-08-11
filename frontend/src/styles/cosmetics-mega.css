@@ -1,0 +1,303 @@
+/* ============================================================================
+   Mega catalog cosmetics — expanded name/avatar/bubble effects plus the
+   new presence_flare, profile_aura categories introduced with the 4× catalog.
+   ============================================================================ */
+
+/* ── Expanded name effects ─────────────────────────────────────────────── */
+
+.cosmetic-name-effect.effect-plasma {
+  background: linear-gradient(90deg, #22d3ee, #db2777, #22d3ee);
+  background-size: 220% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 2.2s linear infinite;
+}
+.cosmetic-name-effect.effect-ember {
+  background: linear-gradient(90deg, #9a3412, #f97316, #fde047, #f97316);
+  background-size: 240% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 2.8s linear infinite;
+}
+.cosmetic-name-effect.effect-glitch {
+  color: #e2e8f0;
+  text-shadow: 2px 0 #ff0080, -2px 0 #00ffff;
+  animation: cosmetic-void-flicker 1.6s steps(8) infinite;
+}
+.cosmetic-name-effect.effect-mintglow {
+  color: #5eead4;
+  text-shadow: 0 0 8px rgba(45, 212, 191, 0.7), 0 0 16px rgba(20, 184, 166, 0.45);
+}
+.cosmetic-name-effect.effect-sunset {
+  background: linear-gradient(90deg, #fb7185, #f97316, #fde047);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 3s linear infinite;
+}
+.cosmetic-name-effect.effect-ocean {
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8, #e0f2fe);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 3.2s ease-in-out infinite;
+}
+.cosmetic-name-effect.effect-chrome {
+  background: linear-gradient(100deg, #71717a 10%, #f4f4f5 40%, #a1a1aa 60%, #fafafa 80%);
+  background-size: 240% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 2.4s linear infinite;
+}
+.cosmetic-name-effect.effect-toxic {
+  color: #a3e635;
+  text-shadow: 0 0 8px rgba(163, 230, 53, 0.65);
+  animation: cosmetic-neon-pulse 1.6s ease-in-out infinite;
+}
+.cosmetic-name-effect.effect-royal {
+  background: linear-gradient(90deg, #6d28d9, #c084fc, #f0abfc);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 2.8s linear infinite;
+}
+.cosmetic-name-effect.effect-candy {
+  background: linear-gradient(90deg, #fb7185, #f472b6, #a78bfa, #fb7185);
+  background-size: 260% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 3.4s linear infinite;
+}
+.cosmetic-name-effect.effect-magma {
+  background: linear-gradient(90deg, #7c2d12, #ea580c, #facc15, #ea580c);
+  background-size: 220% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 2s linear infinite;
+}
+.cosmetic-name-effect.effect-arctic {
+  background: linear-gradient(90deg, #bae6fd, #ffffff, #7dd3fc);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 0 10px rgba(125, 211, 252, 0.45);
+  animation: cosmetic-gradient-shift 3s ease-in-out infinite;
+}
+.cosmetic-name-effect.effect-holo {
+  background: linear-gradient(115deg, #ff00cc, #4fd8ff, #38ef7d, #ff00cc);
+  background-size: 280% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 3.6s linear infinite;
+}
+.cosmetic-name-effect.effect-embercore {
+  color: #fdba74;
+  text-shadow: 0 0 6px #ea580c, 0 0 14px rgba(234, 88, 12, 0.55);
+}
+.cosmetic-name-effect.effect-noir {
+  color: #f8fafc;
+  text-shadow: 0 0 1px #000, 0 0 10px rgba(255, 255, 255, 0.35);
+}
+.cosmetic-name-effect.effect-laser {
+  color: #f472b6;
+  text-shadow: 0 0 6px #db2777, 0 0 16px rgba(219, 39, 119, 0.55);
+  animation: cosmetic-neon-pulse 1.4s ease-in-out infinite;
+}
+.cosmetic-name-effect.effect-matrix {
+  color: #4ade80;
+  text-shadow: 0 0 6px #16a34a;
+  animation: cosmetic-void-flicker 2.4s steps(10) infinite;
+}
+.cosmetic-name-effect.effect-sand {
+  background: linear-gradient(90deg, #a16207, #fde68a, #fbbf24);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: cosmetic-gradient-shift 3s linear infinite;
+}
+
+/* ── Expanded avatar effects ───────────────────────────────────────────── */
+
+.cosmetic-avatar-effect.effect-halo {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35), 0 0 18px rgba(255, 255, 255, 0.25);
+}
+.cosmetic-avatar-effect.effect-ripple {
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.7);
+  animation: cosmetic-pulse-ring 2.2s ease-out infinite;
+}
+.cosmetic-avatar-effect.effect-comet::before {
+  content: "";
+  position: absolute; inset: -2px; border-radius: 50%;
+  border: 2px solid transparent; border-top-color: #fbbf24; border-right-color: #f97316;
+  animation: cosmetic-orbit-spin 1.8s linear infinite;
+}
+.cosmetic-avatar-effect.effect-static {
+  border: 2px dotted rgba(226, 232, 240, 0.55);
+  animation: cosmetic-void-flicker 1.2s steps(6) infinite;
+}
+.cosmetic-avatar-effect.effect-petal::before,
+.cosmetic-avatar-effect.effect-petal::after {
+  content: ""; position: absolute; top: 50%; left: 50%; width: 7px; height: 7px; margin: -3.5px;
+  border-radius: 50% 50% 50% 0; background: #f9a8d4; box-shadow: 0 0 6px #f472b6;
+  animation: cosmetic-orbit-spin 4s linear infinite;
+}
+.cosmetic-avatar-effect.effect-petal::after { animation-delay: -2s; background: #c4b5fd; }
+.cosmetic-avatar-effect.effect-hex {
+  border: 2px solid rgba(167, 243, 208, 0.7);
+  clip-path: polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%);
+  border-radius: 0; animation: cosmetic-frost-shimmer 2s ease-in-out infinite;
+}
+.cosmetic-avatar-effect.effect-solar {
+  background: conic-gradient(from 0deg, #facc15, #f97316, #facc15);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: cosmetic-orbit-spin 5s linear infinite;
+}
+.cosmetic-avatar-effect.effect-toxic {
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.55), 0 0 14px rgba(132, 204, 22, 0.45);
+  animation: cosmetic-frost-shimmer 1.6s ease-in-out infinite;
+}
+.cosmetic-avatar-effect.effect-prism {
+  background: conic-gradient(from 0deg, #ff0080, #ff8c00, #40e0d0, #7b68ee, #ff0080);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: cosmetic-orbit-spin 4s linear infinite;
+}
+.cosmetic-avatar-effect.effect-ember {
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.55), 0 0 16px rgba(234, 88, 12, 0.45);
+  animation: cosmetic-flame-flicker 1.2s ease-in-out infinite;
+}
+.cosmetic-avatar-effect.effect-frostbite {
+  box-shadow: 0 0 0 3px rgba(186, 230, 253, 0.75), 0 0 14px rgba(56, 189, 248, 0.5);
+}
+.cosmetic-avatar-effect.effect-neon {
+  border: 2px dashed #4fd8ff;
+  filter: drop-shadow(0 0 5px #4fd8ff);
+  animation: cosmetic-spark-spin 2.8s linear infinite;
+}
+.cosmetic-avatar-effect.effect-void {
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.55), 0 0 18px rgba(79, 70, 229, 0.45);
+  animation: cosmetic-void-flicker 2.8s steps(10) infinite;
+}
+.cosmetic-avatar-effect.effect-bubble {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25), inset 0 0 10px rgba(255,255,255,0.08);
+}
+.cosmetic-avatar-effect.effect-scan {
+  border: 2px solid rgba(74, 222, 128, 0.55);
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(74,222,128,0.12) 3px, rgba(74,222,128,0.12) 6px);
+  animation: cosmetic-frost-shimmer 1.4s linear infinite;
+}
+.cosmetic-avatar-effect.effect-royal {
+  box-shadow: 0 0 0 3px rgba(192, 132, 252, 0.65), 0 0 16px rgba(109, 40, 217, 0.45);
+}
+.cosmetic-avatar-effect.effect-holoring {
+  background: conic-gradient(from 90deg, #ff00cc, #4fd8ff, #a3e635, #ff00cc);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: cosmetic-orbit-spin 3.4s linear infinite;
+}
+.cosmetic-avatar-effect.effect-pulse2 {
+  box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.7);
+  animation: cosmetic-pulse-ring 1.4s ease-out infinite;
+}
+
+/* ── Expanded chat bubbles ─────────────────────────────────────────────── */
+
+.cosmetic-chat-bubble.bubble-midnight { background: linear-gradient(135deg, #0f172a, #1e293b); border: 1px solid rgba(148,163,184,0.25); }
+.cosmetic-chat-bubble.bubble-ember { background: linear-gradient(135deg, rgba(154,52,18,0.45), rgba(249,115,22,0.28)); border: 1px solid rgba(251,146,60,0.45); }
+.cosmetic-chat-bubble.bubble-mint { background: linear-gradient(135deg, rgba(15,118,110,0.4), rgba(94,234,212,0.22)); border: 1px solid rgba(94,234,212,0.4); }
+.cosmetic-chat-bubble.bubble-violet { background: linear-gradient(135deg, rgba(76,29,149,0.45), rgba(192,132,252,0.25)); border: 1px solid rgba(196,181,253,0.4); }
+.cosmetic-chat-bubble.bubble-gold { background: linear-gradient(135deg, rgba(133,77,14,0.5), rgba(250,204,21,0.28)); border: 1px solid rgba(250,204,21,0.45); }
+.cosmetic-chat-bubble.bubble-ice { background: linear-gradient(135deg, rgba(12,74,110,0.4), rgba(186,230,253,0.25)); border: 1px solid rgba(186,230,253,0.4); }
+.cosmetic-chat-bubble.bubble-toxic { background: linear-gradient(135deg, rgba(54,83,20,0.5), rgba(163,230,53,0.25)); border: 1px solid rgba(163,230,53,0.45); }
+.cosmetic-chat-bubble.bubble-rose { background: rgba(251,113,133,0.16); border: 1px solid rgba(251,113,133,0.4); backdrop-filter: blur(5px); }
+.cosmetic-chat-bubble.bubble-cyber { background: repeating-linear-gradient(90deg, rgba(34,211,238,0.08) 0 4px, rgba(244,114,182,0.08) 4px 8px); border: 1px solid rgba(34,211,238,0.45); }
+.cosmetic-chat-bubble.bubble-sand { background: linear-gradient(135deg, rgba(120,53,15,0.4), rgba(253,230,138,0.22)); border: 1px solid rgba(253,230,138,0.35); }
+.cosmetic-chat-bubble.bubble-ocean { background: linear-gradient(135deg, rgba(12,74,110,0.45), rgba(14,165,233,0.25)); border: 1px solid rgba(56,189,248,0.4); }
+.cosmetic-chat-bubble.bubble-lava { background: linear-gradient(135deg, rgba(69,10,10,0.55), rgba(234,88,12,0.35)); border: 1px solid rgba(249,115,22,0.45); }
+.cosmetic-chat-bubble.bubble-pearl { background: rgba(248,250,252,0.1); border: 1px solid rgba(248,250,252,0.28); backdrop-filter: blur(6px); }
+.cosmetic-chat-bubble.bubble-matrix { background: rgba(22,101,52,0.28); border: 1px solid rgba(74,222,128,0.4); }
+.cosmetic-chat-bubble.bubble-arcade { background: linear-gradient(135deg, rgba(124,58,237,0.4), rgba(249,115,22,0.3)); border: 1px solid rgba(250,204,21,0.4); }
+.cosmetic-chat-bubble.bubble-noir { background: #18181b; border: 1px solid rgba(255,255,255,0.1); }
+.cosmetic-chat-bubble.bubble-prism {
+  background: linear-gradient(115deg, rgba(255,0,204,0.2), rgba(79,216,255,0.2), rgba(163,230,53,0.2));
+  background-size: 200% auto; border: 1px solid rgba(255,255,255,0.28);
+  animation: cosmetic-gradient-shift 5s linear infinite;
+}
+.cosmetic-chat-bubble.bubble-teal { background: linear-gradient(135deg, rgba(19,78,74,0.45), rgba(45,212,191,0.22)); border: 1px solid rgba(45,212,191,0.4); }
+
+/* ── Presence flares (status badge cosmetics) ──────────────────────────── */
+
+.cosmetic-presence-flare {
+  position: relative;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.2);
+}
+.cosmetic-presence-flare.flare-pulse-cyan { box-shadow: 0 0 0 2px #22d3ee, 0 0 10px #22d3ee; animation: cosmetic-pulse-ring 1.6s ease-out infinite; }
+.cosmetic-presence-flare.flare-pulse-gold { box-shadow: 0 0 0 2px #fbbf24, 0 0 10px #f59e0b; animation: cosmetic-pulse-ring 1.6s ease-out infinite; }
+.cosmetic-presence-flare.flare-pulse-rose { box-shadow: 0 0 0 2px #fb7185, 0 0 10px #f43f5e; animation: cosmetic-pulse-ring 1.6s ease-out infinite; }
+.cosmetic-presence-flare.flare-ring-neon { outline: 2px solid #4fd8ff; outline-offset: 2px; filter: drop-shadow(0 0 4px #4fd8ff); }
+.cosmetic-presence-flare.flare-ring-emerald { outline: 2px solid #34d399; outline-offset: 2px; filter: drop-shadow(0 0 4px #34d399); }
+.cosmetic-presence-flare.flare-ring-violet { outline: 2px solid #a78bfa; outline-offset: 2px; filter: drop-shadow(0 0 4px #a78bfa); }
+.cosmetic-presence-flare.flare-spark-white { box-shadow: 0 0 0 2px #fff, 0 0 12px #fff; }
+.cosmetic-presence-flare.flare-spark-fire { box-shadow: 0 0 0 2px #f97316, 0 0 14px #ea580c; animation: cosmetic-flame-flicker 1s ease-in-out infinite; }
+.cosmetic-presence-flare.flare-orbit-blue { box-shadow: 0 0 0 2px #38bdf8, 0 0 10px #0ea5e9; }
+.cosmetic-presence-flare.flare-orbit-pink { box-shadow: 0 0 0 2px #f472b6, 0 0 10px #db2777; }
+.cosmetic-presence-flare.flare-halo-soft { box-shadow: 0 0 0 3px rgba(255,255,255,0.35), 0 0 12px rgba(255,255,255,0.25); }
+.cosmetic-presence-flare.flare-halo-royal { box-shadow: 0 0 0 3px #c084fc, 0 0 14px #7c3aed; }
+.cosmetic-presence-flare.flare-glitch-green { box-shadow: 2px 0 #22c55e, -2px 0 #a3e635; animation: cosmetic-void-flicker 1.4s steps(6) infinite; }
+.cosmetic-presence-flare.flare-glitch-void { box-shadow: 2px 0 #818cf8, -2px 0 #c084fc; animation: cosmetic-void-flicker 1.2s steps(6) infinite; }
+.cosmetic-presence-flare.flare-wave-teal { box-shadow: 0 0 0 2px #2dd4bf, 0 0 12px #14b8a6; animation: cosmetic-frost-shimmer 1.8s ease-in-out infinite; }
+.cosmetic-presence-flare.flare-wave-amber { box-shadow: 0 0 0 2px #fbbf24, 0 0 12px #d97706; animation: cosmetic-frost-shimmer 1.8s ease-in-out infinite; }
+.cosmetic-presence-flare.flare-core-crimson { box-shadow: 0 0 0 2px #ef4444, 0 0 12px #b91c1c; }
+.cosmetic-presence-flare.flare-core-ice { box-shadow: 0 0 0 2px #e0f2fe, 0 0 12px #38bdf8; }
+.cosmetic-presence-flare.flare-beam-magenta { box-shadow: 0 0 0 2px #e879f9, 0 0 14px #c026d3; animation: cosmetic-neon-pulse 1.5s ease-in-out infinite; }
+.cosmetic-presence-flare.flare-beam-lime { box-shadow: 0 0 0 2px #a3e635, 0 0 14px #65a30d; animation: cosmetic-neon-pulse 1.5s ease-in-out infinite; }
+.cosmetic-presence-flare.flare-nova-white { box-shadow: 0 0 0 3px #fff, 0 0 18px #fff; animation: cosmetic-pulse-ring 1.2s ease-out infinite; }
+.cosmetic-presence-flare.flare-nova-gold { box-shadow: 0 0 0 3px #fde047, 0 0 18px #facc15; animation: cosmetic-pulse-ring 1.2s ease-out infinite; }
+.cosmetic-presence-flare.flare-pixel-cyan { outline: 2px dashed #22d3ee; outline-offset: 1px; }
+.cosmetic-presence-flare.flare-pixel-hot { outline: 2px dashed #f97316; outline-offset: 1px; }
+.cosmetic-presence-flare.flare-aurora-soft { box-shadow: 0 0 0 2px #38ef7d, 0 0 10px #4fd8ff, 0 0 16px #ff8fab; }
+.cosmetic-presence-flare.flare-aurora-vivid { box-shadow: 0 0 0 2px #38ef7d, 0 0 12px #4fd8ff, 0 0 20px #ff8fab; animation: cosmetic-frost-shimmer 1.4s ease-in-out infinite; }
+.cosmetic-presence-flare.flare-steel-pulse { box-shadow: 0 0 0 2px #94a3b8, 0 0 10px #64748b; animation: cosmetic-pulse-ring 2s ease-out infinite; }
+.cosmetic-presence-flare.flare-toxic-ring { outline: 2px solid #a3e635; outline-offset: 2px; filter: drop-shadow(0 0 5px #84cc16); }
+.cosmetic-presence-flare.flare-moon-glow { box-shadow: 0 0 0 2px #e2e8f0, 0 0 12px #94a3b8; }
+.cosmetic-presence-flare.flare-sun-flare { box-shadow: 0 0 0 2px #fde047, 0 0 14px #f59e0b; animation: cosmetic-flame-flicker 1.3s ease-in-out infinite; }
+
+/* ── Profile auras (card atmosphere) ───────────────────────────────────── */
+
+.cosmetic-profile-aura {
+  position: relative;
+}
+.cosmetic-profile-aura::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+.cosmetic-profile-aura.aura-void-soft { box-shadow: 0 0 0 1px rgba(129,140,248,0.35), 0 0 28px rgba(79,70,229,0.28); }
+.cosmetic-profile-aura.aura-void-hard { box-shadow: 0 0 0 1px rgba(129,140,248,0.55), 0 0 40px rgba(67,56,202,0.45); }
+.cosmetic-profile-aura.aura-solar-bloom { box-shadow: 0 0 0 1px rgba(251,191,36,0.4), 0 0 32px rgba(249,115,22,0.35); }
+.cosmetic-profile-aura.aura-frost-veil { box-shadow: 0 0 0 1px rgba(186,230,253,0.45), 0 0 28px rgba(56,189,248,0.3); }
+.cosmetic-profile-aura.aura-ember-haze { box-shadow: 0 0 0 1px rgba(249,115,22,0.4), 0 0 30px rgba(234,88,12,0.35); }
+.cosmetic-profile-aura.aura-neon-frame { box-shadow: 0 0 0 1px #4fd8ff, 0 0 24px rgba(79,216,255,0.45); }
+.cosmetic-profile-aura.aura-mint-mist { box-shadow: 0 0 0 1px rgba(45,212,191,0.4), 0 0 26px rgba(20,184,166,0.3); }
+.cosmetic-profile-aura.aura-royal-curtain { box-shadow: 0 0 0 1px rgba(192,132,252,0.5), 0 0 34px rgba(109,40,217,0.4); }
+.cosmetic-profile-aura.aura-cyber-grid { box-shadow: 0 0 0 1px rgba(34,211,238,0.45), 0 0 0 1px inset rgba(244,114,182,0.25), 0 0 28px rgba(34,211,238,0.25); }
+.cosmetic-profile-aura.aura-rose-bloom { box-shadow: 0 0 0 1px rgba(251,113,133,0.45), 0 0 28px rgba(244,63,94,0.3); }
+.cosmetic-profile-aura.aura-gold-dust { box-shadow: 0 0 0 1px rgba(250,204,21,0.5), 0 0 34px rgba(234,179,8,0.4); }
+.cosmetic-profile-aura.aura-ocean-depth { box-shadow: 0 0 0 1px rgba(14,165,233,0.45), 0 0 28px rgba(3,105,161,0.35); }
+.cosmetic-profile-aura.aura-plasma-field { box-shadow: 0 0 0 1px rgba(236,72,153,0.45), 0 0 20px #22d3ee, 0 0 34px rgba(219,39,119,0.35); }
+.cosmetic-profile-aura.aura-shadow-rim { box-shadow: 0 0 0 1px rgba(255,255,255,0.12), 0 0 24px rgba(0,0,0,0.55); }
+.cosmetic-profile-aura.aura-prism-glass {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.3), 0 0 28px rgba(167,139,250,0.3);
+  background-image: linear-gradient(115deg, rgba(255,0,204,0.08), rgba(79,216,255,0.08), rgba(56,239,125,0.08));
+}
+.cosmetic-profile-aura.aura-toxic-fog { box-shadow: 0 0 0 1px rgba(163,230,53,0.45), 0 0 30px rgba(132,204,22,0.3); }
+.cosmetic-profile-aura.aura-starlight { box-shadow: 0 0 0 1px rgba(226,232,240,0.4), 0 0 32px rgba(255,255,255,0.22); }
+.cosmetic-profile-aura.aura-copper-glow { box-shadow: 0 0 0 1px rgba(251,146,60,0.45), 0 0 28px rgba(180,83,9,0.35); }
+.cosmetic-profile-aura.aura-ice-crystal { box-shadow: 0 0 0 1px rgba(186,230,253,0.55), 0 0 30px rgba(125,211,252,0.35); }
+.cosmetic-profile-aura.aura-lava-rim { box-shadow: 0 0 0 1px rgba(239,68,68,0.5), 0 0 32px rgba(234,88,12,0.4); }
+.cosmetic-profile-aura.aura-pearl-soft { box-shadow: 0 0 0 1px rgba(248,250,252,0.28), 0 0 24px rgba(226,232,240,0.18); }
+.cosmetic-profile-aura.aura-matrix-veil { box-shadow: 0 0 0 1px rgba(74,222,128,0.4), 0 0 28px rgba(22,163,74,0.3); }
+.cosmetic-profile-aura.aura-arcade-pop { box-shadow: 0 0 0 1px rgba(250,204,21,0.45), 0 0 20px rgba(249,115,22,0.3), 0 0 34px rgba(124,58,237,0.3); }
+.cosmetic-profile-aura.aura-noir-edge { box-shadow: 0 0 0 1px rgba(255,255,255,0.18), 0 0 26px rgba(24,24,27,0.7); }
+.cosmetic-profile-aura.aura-aurora-wall { box-shadow: 0 0 0 1px rgba(56,239,125,0.35), 0 0 18px #4fd8ff, 0 0 32px rgba(255,143,171,0.35); }
+.cosmetic-profile-aura.aura-sandstorm { box-shadow: 0 0 0 1px rgba(253,230,138,0.4), 0 0 28px rgba(217,119,6,0.3); }
+.cosmetic-profile-aura.aura-holo-sheet {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.35), 0 0 30px rgba(244,114,182,0.3);
+  background-image: linear-gradient(120deg, rgba(255,0,204,0.1), rgba(79,216,255,0.1), rgba(163,230,53,0.1));
+}
+.cosmetic-profile-aura.aura-crimson-veil { box-shadow: 0 0 0 1px rgba(248,113,113,0.45), 0 0 30px rgba(185,28,28,0.35); }
+.cosmetic-profile-aura.aura-jade-glow { box-shadow: 0 0 0 1px rgba(52,211,153,0.45), 0 0 28px rgba(5,150,105,0.3); }
+.cosmetic-profile-aura.aura-ion-haze { box-shadow: 0 0 0 1px rgba(34,211,238,0.45), 0 0 28px rgba(8,145,178,0.35); }

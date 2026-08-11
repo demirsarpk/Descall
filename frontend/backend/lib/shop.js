@@ -19,6 +19,9 @@ const EQUIP_COLUMN_BY_CATEGORY = {
   name_effect: "equipped_name_effect_id",
   avatar_effect: "equipped_avatar_effect_id",
   chat_bubble: "equipped_chat_bubble_id",
+  presence_flare: "equipped_presence_flare_id",
+  profile_aura: "equipped_profile_aura_id",
+  sound_pack: "equipped_sound_pack_id",
 };
 
 const ITEM_COLUMNS =
@@ -199,7 +202,8 @@ async function equipItem(userId, category, itemId) {
 
 const EQUIPPED_USER_COLUMNS =
   "equipped_avatar_frame_id, equipped_banner_id, equipped_background_id, equipped_theme_id, " +
-  "equipped_badge_id, equipped_title_id, equipped_name_effect_id, equipped_avatar_effect_id, equipped_chat_bubble_id";
+  "equipped_badge_id, equipped_title_id, equipped_name_effect_id, equipped_avatar_effect_id, equipped_chat_bubble_id, " +
+  "equipped_presence_flare_id, equipped_profile_aura_id, equipped_sound_pack_id";
 
 const EMPTY_EQUIPPED = {
   avatarFrame: null,
@@ -211,9 +215,12 @@ const EMPTY_EQUIPPED = {
   nameEffect: null,
   avatarEffect: null,
   chatBubble: null,
+  presenceFlare: null,
+  profileAura: null,
+  soundPack: null,
 };
 
-/** Resolves one user's equip slots (all 9 cosmetic categories) into full item records. */
+/** Resolves one user's equip slots (all cosmetic categories) into full item records. */
 async function getEquippedCosmeticsForUser(userId) {
   const { data: user, error } = await supabase
     .from("users")
@@ -232,6 +239,9 @@ async function getEquippedCosmeticsForUser(userId) {
     user.equipped_name_effect_id,
     user.equipped_avatar_effect_id,
     user.equipped_chat_bubble_id,
+    user.equipped_presence_flare_id,
+    user.equipped_profile_aura_id,
+    user.equipped_sound_pack_id,
   ].filter(Boolean);
   if (!ids.length) return { ...EMPTY_EQUIPPED };
 
@@ -247,6 +257,9 @@ async function getEquippedCosmeticsForUser(userId) {
     nameEffect: byId.get(user.equipped_name_effect_id) || null,
     avatarEffect: byId.get(user.equipped_avatar_effect_id) || null,
     chatBubble: byId.get(user.equipped_chat_bubble_id) || null,
+    presenceFlare: byId.get(user.equipped_presence_flare_id) || null,
+    profileAura: byId.get(user.equipped_profile_aura_id) || null,
+    soundPack: byId.get(user.equipped_sound_pack_id) || null,
   };
 }
 
@@ -269,6 +282,9 @@ async function getEquippedForUsers(userIds) {
       nameEffectId: u.equipped_name_effect_id,
       avatarEffectId: u.equipped_avatar_effect_id,
       chatBubbleId: u.equipped_chat_bubble_id,
+      presenceFlareId: u.equipped_presence_flare_id,
+      profileAuraId: u.equipped_profile_aura_id,
+      soundPackId: u.equipped_sound_pack_id,
     });
   });
   return map;

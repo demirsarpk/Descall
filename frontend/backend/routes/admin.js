@@ -1469,12 +1469,32 @@ const SHOP_CATEGORIES = [
   "name_effect",
   "avatar_effect",
   "chat_bubble",
+  "presence_flare",
+  "profile_aura",
+  "sound_pack",
 ];
 
 // Categories that render from a small piece of metadata rather than an
 // image/SVG asset — createItem/updateItem still write a placeholder
 // asset_url for these (never rendered) to satisfy the NOT NULL column.
-const METADATA_ONLY_CATEGORIES = new Set(["profile_badge", "profile_title", "name_effect", "avatar_effect", "chat_bubble"]);
+const METADATA_ONLY_CATEGORIES = new Set([
+  "profile_badge",
+  "profile_title",
+  "name_effect",
+  "avatar_effect",
+  "chat_bubble",
+  "presence_flare",
+  "profile_aura",
+  "sound_pack",
+]);
+const EFFECT_KEY_CATEGORIES = new Set([
+  "name_effect",
+  "avatar_effect",
+  "chat_bubble",
+  "presence_flare",
+  "profile_aura",
+  "sound_pack",
+]);
 
 router.post("/shop/items", async (req, res) => {
   try {
@@ -1511,7 +1531,7 @@ router.post("/shop/items", async (req, res) => {
     if (category === "profile_title" && !titleText) {
       return res.status(400).json({ error: "titleText is required for profile_title items." });
     }
-    if (["name_effect", "avatar_effect", "chat_bubble"].includes(category) && !effectKey) {
+    if (EFFECT_KEY_CATEGORIES.has(category) && !effectKey) {
       return res.status(400).json({ error: "effectKey is required for this category." });
     }
     const item = await shop.createItem({
@@ -1525,7 +1545,7 @@ router.post("/shop/items", async (req, res) => {
       theme_key: category === "theme" ? themeKey : null,
       badge_icon: category === "profile_badge" ? badgeIcon : null,
       title_text: category === "profile_title" ? titleText : null,
-      effect_key: ["name_effect", "avatar_effect", "chat_bubble"].includes(category) ? effectKey : null,
+      effect_key: EFFECT_KEY_CATEGORIES.has(category) ? effectKey : null,
       rarity: rarity || "common",
       sort_order: Number(sortOrder) || 0,
     });
