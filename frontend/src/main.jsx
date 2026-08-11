@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, HashRouter } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import App from "./App";
 import IosPwaInstallBanner from "./components/IosPwaInstallBanner";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -75,6 +76,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Router>
             <App />
             <IosPwaInstallBanner />
+            <Analytics />
           </Router>
         </LocaleProvider>
       </ToastProvider>

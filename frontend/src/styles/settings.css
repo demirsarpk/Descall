@@ -542,10 +542,18 @@
 
 .us-hero-avatar {
   position: relative;
-  padding: 3px;
-  background: var(--surface-0);
+  padding: 0;
+  background: transparent;
   border-radius: 50%;
   flex-shrink: 0;
+  overflow: visible;
+  line-height: 0;
+  box-shadow: 0 0 0 3px var(--surface-0);
+}
+
+.us-hero-avatar .status-badge {
+  right: 0;
+  bottom: 0;
 }
 
 .us-hero-status {

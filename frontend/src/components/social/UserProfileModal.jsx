@@ -213,11 +213,14 @@ export default function UserProfileModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 16 }}
             transition={{ type: "spring", damping: 26, stiffness: 360 }}
-            className={
+            className={[
+              "user-profile-card",
               profile?.equippedProfileAura?.effect_key
                 ? `cosmetic-profile-aura aura-${profile.equippedProfileAura.effect_key}`
-                : undefined
-            }
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             style={{
               width: 300,
               // A purchased profile background shows through everywhere the card
@@ -225,37 +228,13 @@ export default function UserProfileModal({
               background: equippedBackgroundUrl
                 ? `linear-gradient(180deg, rgba(18,18,24,0.35) 0%, rgba(18,18,24,0.82) 65%, rgba(18,18,24,0.94) 100%), ${cssUrl(equippedBackgroundUrl)} center/cover no-repeat`
                 : "var(--surface-1)",
-              borderRadius: 16,
-              overflow: "hidden",
               boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
               border: "1px solid var(--border-3)",
               position: "relative",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button */}
-            <button
-              onClick={onClose}
-              style={{
-                position: "absolute",
-                top: 10,
-                right: 10,
-                zIndex: 10,
-                width: 28,
-                height: 28,
-                borderRadius: 8,
-                border: "none",
-                background: "rgba(0,0,0,0.35)",
-                color: "white",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.6)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.35)")}
-            >
+            <button type="button" className="user-profile-close" onClick={onClose} aria-label={t("Close")}>
               <X size={14} />
             </button>
 
@@ -271,76 +250,56 @@ export default function UserProfileModal({
             />
 
             {/* Avatar overlapping banner */}
-            <div style={{ position: "relative", padding: "0 16px" }}>
+            <div className="user-profile-card-top" style={{ position: "relative", padding: "0 16px" }}>
               <div
+                className="profile-avatar-shell"
                 style={{
                   position: "absolute",
                   top: -36,
                   left: 16,
-                  padding: 3,
-                  background: "var(--surface-1)",
-                  borderRadius: "50%",
-                  display: "inline-flex",
                 }}
               >
-                <div style={{ position: "relative", display: "inline-flex" }}>
-                  <Avatar name={displayName} size={72} user={profile || { avatarUrl: displayAvatar, username: displayUsername, displayName }} />
-                  <div style={{ position: "absolute", bottom: 3, right: 3 }}>
-                    <StatusBadge status={status} size={14} user={profile} />
-                  </div>
-                </div>
+                <Avatar
+                  name={displayName}
+                  size={72}
+                  user={profile || { avatarUrl: displayAvatar, username: displayUsername, displayName }}
+                />
+                {/* No presence-flare on the corner dot — its glow skews the avatar ring. */}
+                <StatusBadge status={status} />
               </div>
 
-              {/* Spacer for avatar overlap — generous enough to also clear
-                  equipped avatar frames (132% overlay) and avatar effect
-                  rings (glow/pulse overflow), not just the bare avatar. */}
-              <div style={{ height: 60 }} />
+              {/* Spacer clears avatar + frame/effect overflow (~16% each side). */}
+              <div style={{ height: 56 }} />
 
-              {/* Display name + @username + status */}
-              <div style={{ marginBottom: 12 }}>
-                <div
-                  style={{
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: "var(--text-0)",
-                    lineHeight: 1.2,
-                  }}
-                >
+              <div className="user-profile-identity">
+                <div className="user-profile-name-row">
                   <NameEffectText user={profile}>{displayName}</NameEffectText>
                   <BadgeIcon user={profile} />
                 </div>
                 {displayName !== displayUsername && (
-                  <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
+                  <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
                     @{displayUsername}
                   </div>
                 )}
-                <TitleTag user={profile} />
-                {isUserAdmin(profile || { username: displayUsername }) && (
-                  <AdminBadge
-                    user={profile || { username: displayUsername, is_admin: true }}
-                    variant="chip"
-                  />
+                {(profile?.equippedTitle?.title_text ||
+                  isUserAdmin(profile || { username: displayUsername })) && (
+                  <div className="user-profile-badges">
+                    <TitleTag user={profile} />
+                    {isUserAdmin(profile || { username: displayUsername }) && (
+                      <AdminBadge
+                        user={profile || { username: displayUsername, is_admin: true }}
+                        variant="chip"
+                      />
+                    )}
+                  </div>
                 )}
                 <div
-                  style={{
-                    fontSize: 12,
-                    color: STATUS_COLOR[status] || STATUS_COLOR.offline,
-                    fontWeight: 500,
-                    marginTop: 6,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
-                  }}
+                  className="user-profile-status-line"
+                  style={{ color: STATUS_COLOR[status] || STATUS_COLOR.offline }}
                 >
                   <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: STATUS_COLOR[status] || STATUS_COLOR.offline,
-                      display: "inline-block",
-                      flexShrink: 0,
-                    }}
+                    className="user-profile-status-dot"
+                    style={{ background: STATUS_COLOR[status] || STATUS_COLOR.offline }}
                   />
                   {statusLabel}
                 </div>
