@@ -1,6 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Descall">
   <rect width="100" height="100" rx="22" fill="#292D3D"/>
-  <!-- Top bubble stroke -->
   <path
     d="M22 48 V34 c0-8 6.5-14 14.5-14 H63.5 C71.5 20 78 26 78 34 V48"
     fill="none"
@@ -9,7 +8,6 @@
     stroke-linecap="round"
     stroke-linejoin="round"
   />
-  <!-- Bottom bubble stroke + left-down tail -->
   <path
     d="M78 52 V64 c0 8-6.5 14-14.5 14 H42 L28 90 30 78 H36.5 C28.5 78 22 72 22 64 V52"
     fill="none"

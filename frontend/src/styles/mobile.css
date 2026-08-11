@@ -318,9 +318,11 @@
     height: 28px;
   }
 
+  .nav-rail-logo .descall-brand-mark,
   .nav-rail-logo .descall-brand svg {
     width: 28px;
     height: 28px;
+    transform: none;
   }
 
   .rail-btn {

@@ -78,7 +78,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
         transition={{ duration: 0.5 }}
       >
         <div className="auth-logo-container">
-          <DescallBrand />
+          <DescallBrand compact className="auth-brand-mark" />
           <h1 className="auth-title">{t("Descall")}</h1>
           <p className="auth-subtitle">
             {twoFa
