@@ -10,6 +10,7 @@ import StatusBadge from "../ui/StatusBadge";
 import MessageList from "../chat/MessageList";
 import MessageComposer from "../chat/MessageComposer";
 import ActiveCallBanner from "../ActiveCallBanner";
+import VoiceRoomBar from "../voice/VoiceRoomBar";
 import ActivityView from "../activity/ActivityView";
 import TypingIndicator from "../chat/TypingIndicator";
 import GuildChatView from "../servers/GuildChatView";
@@ -43,6 +44,8 @@ export default function ChatPanel({
   onSettings,
   activeCallBanner,
   onJoinActiveCall,
+  onLeaveVoiceRoom,
+  isInGroupVoiceRoom = false,
   onDismissActiveBanner,
   activity,
   friends,
@@ -369,6 +372,16 @@ export default function ChatPanel({
           </button>
         </div>
       </header>
+
+      {activeGroup && (
+        <VoiceRoomBar
+          groupId={activeGroup.id}
+          banner={activeCallBanner}
+          isInThisRoom={isInGroupVoiceRoom}
+          onJoin={() => onGroupVoiceCall?.()}
+          onLeave={() => onLeaveVoiceRoom?.()}
+        />
+      )}
 
       {/* Friend Notice Banner */}
       <AnimatePresence>

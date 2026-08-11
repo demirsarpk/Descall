@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Coins, Phone, Play, ShoppingBag, Sparkles, Volume2, Zap } from "lucide-react";
+import { CheckCircle2, Coins, Flame, Phone, Play, ShoppingBag, Sparkles, Volume2, Zap } from "lucide-react";
 import RippleButton from "../ui/RippleButton";
-import { getShopCatalog, getShopInventory, purchaseShopItem, equipShopItem } from "../../api/shop";
+import {
+  getShopCatalog,
+  getShopInventory,
+  purchaseShopItem,
+  equipShopItem,
+  getDesCoinDaily,
+  claimDesCoinDaily,
+} from "../../api/shop";
 import { previewSoundPack } from "../../lib/audioManager";
 import { useT } from "../../context/LocaleContext";
+import InviteCard from "../friends/InviteCard";
 
 /** Short tab labels — same pattern as admin top nav. */
 const CATEGORY_TABS = [
@@ -137,7 +145,7 @@ function ShopItemPreview({ category, item, t }) {
   return <img src={item.preview_url || item.asset_url} alt={item.name} loading="lazy" />;
 }
 
-export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
+export default function ShopPanel({ equipped, onEquippedChange, balance = 0, me = null, onBalanceChange }) {
   const t = useT();
   const [items, setItems] = useState([]);
   const [inventory, setInventory] = useState([]);
@@ -145,21 +153,48 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
   const [busyItemId, setBusyItemId] = useState(null);
   const [notice, setNotice] = useState("");
   const [activeCategory, setActiveCategory] = useState(null);
+  const [daily, setDaily] = useState(null);
+  const [claiming, setClaiming] = useState(false);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     // Full loading flash unmounts the grid and resets .us-main-scroll to top.
     // Only show it on the first open — refresh after buy/equip stays silent.
     if (!silent) setLoading(true);
     try {
-      const [{ items: catalog }, { inventory: inv }] = await Promise.all([getShopCatalog(), getShopInventory()]);
+      const [{ items: catalog }, { inventory: inv }, dailyStatus] = await Promise.all([
+        getShopCatalog(),
+        getShopInventory(),
+        getDesCoinDaily().catch(() => null),
+      ]);
       setItems(catalog || []);
       setInventory(inv || []);
+      if (dailyStatus) setDaily(dailyStatus);
     } catch (_) {
       // best-effort
     } finally {
       if (!silent) setLoading(false);
     }
   }, []);
+
+  const handleDailyClaim = async () => {
+    if (claiming || daily?.claimedToday) return;
+    setClaiming(true);
+    setNotice("");
+    try {
+      const result = await claimDesCoinDaily();
+      setDaily(result);
+      if (result?.balance != null) onBalanceChange?.(result.balance);
+      if (result?.claimed) {
+        setNotice(t("Daily DesCoin claimed! +{amount}", { amount: result.credited || 0 }));
+      } else if (result?.alreadyClaimed) {
+        setNotice(t("Already claimed today — come back tomorrow"));
+      }
+    } catch (err) {
+      setNotice(err.message || t("Could not claim daily DesCoin"));
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -282,6 +317,49 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
       <p className="shop-panel-intro">
         {t("Earn DesCoin by talking in calls, messaging, and sharing your screen — then spend it on banners, frames, auras, flares, sound packs, and more.")}
       </p>
+
+      <div className="descoin-retention-row">
+        <div className="descoin-daily-card">
+          <div className="descoin-daily-head">
+            <Flame size={18} />
+            <div>
+              <strong>{t("Daily reward")}</strong>
+              <span>
+                {t("Streak")}: {daily?.streak ?? 0}
+                {daily?.claimedToday ? ` · ${t("Claimed")}` : ""}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="descoin-daily-claim"
+            disabled={claiming || Boolean(daily?.claimedToday)}
+            onClick={handleDailyClaim}
+          >
+            <Coins size={15} />
+            {daily?.claimedToday
+              ? t("Come back tomorrow")
+              : t("Claim {amount} DesCoin", { amount: daily?.claimAmount || 40 })}
+          </button>
+          {daily?.goals && (
+            <div className="descoin-goals">
+              <div className="descoin-goal">
+                <span>{t("Talk")}</span>
+                <b>{daily.goals.voice.earned}/{daily.goals.voice.cap}</b>
+              </div>
+              <div className="descoin-goal">
+                <span>{t("Messages")}</span>
+                <b>{daily.goals.message.earned}/{daily.goals.message.cap}</b>
+              </div>
+              <div className="descoin-goal">
+                <span>{t("Screenshare")}</span>
+                <b>{daily.goals.screenshare.earned}/{daily.goals.screenshare.cap}</b>
+              </div>
+            </div>
+          )}
+        </div>
+        {me?.username && <InviteCard username={me.username} compact />}
+      </div>
 
       {notice && <p className="us-inline-notice" style={{ margin: "-6px 0 4px" }}>{notice}</p>}
 

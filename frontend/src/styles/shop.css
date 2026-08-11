@@ -799,3 +799,115 @@
   border-radius: 8px;
   object-fit: cover;
 }
+
+/* DesCoin retention + invite economy */
+.descoin-retention-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.descoin-daily-card,
+.invite-card {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(160deg, rgba(240, 178, 50, 0.1), rgba(255,255,255,0.02));
+}
+.descoin-daily-head,
+.invite-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.descoin-daily-head strong,
+.invite-card-header strong {
+  display: block;
+  font-size: 14px;
+}
+.descoin-daily-head span,
+.invite-card-header span {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted, #98a2b3);
+}
+.descoin-daily-claim,
+.invite-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.descoin-daily-claim {
+  background: linear-gradient(135deg, #f0b232, #e89a1a);
+  color: #1a1205;
+}
+.descoin-daily-claim:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.descoin-goals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+.descoin-goal {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.18);
+  font-size: 11px;
+  color: var(--text-muted, #98a2b3);
+}
+.descoin-goal b {
+  color: var(--text-1, #fff);
+  font-size: 12px;
+}
+.invite-card {
+  background: linear-gradient(160deg, rgba(88, 101, 242, 0.14), rgba(255,255,255,0.02));
+}
+.invite-card-link {
+  font-size: 12px;
+  color: var(--text-muted, #98a2b3);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.2);
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.invite-card-actions {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 8px;
+}
+.invite-card-btn.primary {
+  background: #5865f2;
+  color: #fff;
+}
+.invite-card-btn:not(.primary) {
+  background: rgba(255,255,255,0.06);
+  color: var(--text-1, #fff);
+}
+.invite-card-footnote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--text-muted, #98a2b3);
+}
+.invite-card.compact .invite-card-footnote {
+  display: none;
+}

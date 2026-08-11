@@ -1249,6 +1249,12 @@ const UserPanel = forwardRef(function UserPanel({
               equipped={equipped}
               onEquippedChange={handleEquippedChange}
               balance={me?.descoinBalance || 0}
+              me={me}
+              onBalanceChange={(next) => {
+                if (typeof next === "number" && me) {
+                  onProfileUpdated?.({ ...me, descoinBalance: next });
+                }
+              }}
             />
           </div>
         );

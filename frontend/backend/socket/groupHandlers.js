@@ -272,12 +272,14 @@ function registerGroupHandlers(io, socket, state) {
     socket.emit("group:call:banner-update", { groupId, banner });
   });
 
-  // Start group call
-  socket.on("group:call:start", async ({ groupId, callType, memberIds = [] } = {}) => {
+  // Start group call. hangout=true → persistent voice room (no ring / no push).
+  socket.on("group:call:start", async ({ groupId, callType, memberIds = [], hangout = false } = {}) => {
     if (!groupId || !callType) {
       appendErrorLog("group:call:start", "Missing required parameters", { groupId, callType }, myId, socket.user?.username);
       return;
     }
+
+    const isHangout = Boolean(hangout);
 
     // Check if there's already an active call in this group
     const existingCall = activeGroupCalls.get(groupId);
@@ -289,11 +291,12 @@ function registerGroupHandlers(io, socket, state) {
         initiatorId: existingCall.initiatorId,
         callType: existingCall.callType,
         participants: Array.from(existingCall.participants),
+        hangout: Boolean(existingCall.hangout),
       });
       return;
     }
 
-    console.log(`[GroupCall] ${myId} started ${callType} call in group ${groupId}`);
+    console.log(`[GroupCall] ${myId} started ${callType}${isHangout ? " hangout" : " call"} in group ${groupId}`);
 
     // Ensure initiator receives left/ended/participant events via group room
     socket.join(`group:${groupId}`);
@@ -342,6 +345,7 @@ function registerGroupHandlers(io, socket, state) {
       initiatorUsername: socket.user.username,
       initiatorAvatarUrl: resolveSocketAvatar(socket),
       callType,
+      hangout: isHangout,
       participants: new Set([myId]),
       allParticipants: new Set([myId]),
       startTime: Date.now(),
@@ -357,23 +361,33 @@ function registerGroupHandlers(io, socket, state) {
         avatar_url: resolveSocketAvatar(socket),
       },
       callType,
+      hangout: isHangout,
     };
 
-    // Dual delivery: per-user rooms + group room (open chats).
-    targets.forEach((targetUserId) => {
-      io.to(`user:${targetUserId}`).emit("group:call:incoming", payload);
-    });
-    // Backgrounded iOS PWAs cannot rely on Socket.IO; push contains no SDP/ICE.
-    void sendGroupCallPush(targets, {
-      type: "group-call",
-      groupId,
-      callType,
-      title: `${socket.user.username} is calling`,
-      body: `Join the ${callType} call in your group.`,
-      tag: `group-call-${groupId}`,
-      deepLink: `/?group=${encodeURIComponent(groupId)}`,
-    });
-    socket.to(`group:${groupId}`).emit("group:call:incoming", payload);
+    if (!isHangout) {
+      // Dual delivery: per-user rooms + group room (open chats).
+      targets.forEach((targetUserId) => {
+        io.to(`user:${targetUserId}`).emit("group:call:incoming", payload);
+      });
+      // Backgrounded clients cannot rely on Socket.IO; push contains no SDP/ICE.
+      void sendGroupCallPush(targets, {
+        type: "group-call",
+        groupId,
+        callType,
+        title: `${socket.user.username} is calling`,
+        body: `Join the ${callType} call in your group.`,
+        tag: `group-call-${groupId}`,
+        deepLink: `/?group=${encodeURIComponent(groupId)}`,
+        action: "join",
+      });
+      socket.to(`group:${groupId}`).emit("group:call:incoming", payload);
+    } else {
+      // Soft notify open chats only — no ring, no push spam.
+      io.to(`group:${groupId}`).emit("group:call:hangout-open", payload);
+      targets.forEach((targetUserId) => {
+        io.to(`user:${targetUserId}`).emit("group:call:hangout-open", payload);
+      });
+    }
 
     io.to(`group:${groupId}`).emit("group:call:started", {
       groupId,
@@ -384,6 +398,7 @@ function registerGroupHandlers(io, socket, state) {
         avatar_url: resolveSocketAvatar(socket),
       },
       callType,
+      hangout: isHangout,
     });
     void emitBannerUpdate(io, groupId);
   });

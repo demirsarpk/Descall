@@ -24,6 +24,7 @@ import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/a
 import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
 import { acquireCallWakeLock, releaseCallWakeLock } from "../lib/callWakeLock";
+import { startDesCoinHeartbeat } from "../lib/descoinHeartbeat";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -232,6 +233,22 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       releaseCallWakeLock();
     }
   }, [isInCall]);
+
+  const isScreenSharingRef = useRef(false);
+  useEffect(() => {
+    isScreenSharingRef.current = isScreenSharing;
+  }, [isScreenSharing]);
+
+  useEffect(() => {
+    if (!isInCall || !activeGroupId) return undefined;
+    return startDesCoinHeartbeat({
+      getSocket: () => socketRef.current,
+      getLocalStream: () => localStreamRef.current,
+      isActive: () => isInCallRef.current,
+      isScreenSharing: () => Boolean(isScreenSharingRef.current),
+      getContext: () => ({ context: "group", groupId: activeGroupId }),
+    });
+  }, [isInCall, activeGroupId]);
 
   // Poll real per-peer WebRTC stats (RTT, packet loss, jitter) so each
   // participant tile can show an actionable network indicator instead of
@@ -815,8 +832,9 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     }
   };
 
-  const startGroupCall = useCallback(async (groupId, type, memberIds = []) => {
+  const startGroupCall = useCallback(async (groupId, type, memberIds = [], options = {}) => {
     if (!groupId || !type || !socketRef.current) return;
+    const hangout = Boolean(options?.hangout);
     
     try {
       // OPTIMIZED: Low latency audio constraints to reduce 1-2 second delay
@@ -884,11 +902,12 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       }
       socketRef.current.emit("group:join", groupId);
 
-      // Emit start event
+      // Emit start event (hangout = silent persistent voice room)
       socketRef.current.emit("group:call:start", {
         groupId,
         callType: type,
         memberIds,
+        hangout,
       });
 
       // Immediately set the banner for the initiator — the server only pushes
@@ -898,6 +917,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         initiatorId: myIdRef.current,
         initiatorUsername: getUser()?.username || socketRef.current?.user?.username || "You",
         callType: type,
+        hangout,
         participantCount: 1,
         participants: [myIdRef.current],
         startTime: Date.now(),
@@ -1814,8 +1834,17 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       }));
     };
 
-    const onActiveBanner = ({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants, startTime }) => {
-      setActiveCallBanner({ groupId, initiatorId, initiatorUsername, callType, participantCount, participants, startTime: startTime ?? Date.now() });
+    const onActiveBanner = ({ groupId, initiatorId, initiatorUsername, callType, hangout, participantCount, participants, startTime }) => {
+      setActiveCallBanner({
+        groupId,
+        initiatorId,
+        initiatorUsername,
+        callType,
+        hangout: Boolean(hangout),
+        participantCount,
+        participants,
+        startTime: startTime ?? Date.now(),
+      });
     };
 
     const onBannerUpdate = ({ groupId, banner }) => {
@@ -2309,6 +2338,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         initiatorId: initiatorId || peerIds[0],
         initiatorUsername: initiatorUsername || "Unknown",
         callType: type,
+        hangout: Boolean(banner.hangout),
         participantCount: participantCount || peerIds.length + 1,
         participants: [...new Set([...(existingParticipants || []), myId].filter(Boolean))],
         startTime: startTime || Date.now(),
@@ -2325,6 +2355,17 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       toast(tRuntime("Could not join the call"), "error");
     }
   }, [cleanup, setupPeerConnection, toast]);
+
+  /** Join active voice room, or open a silent hangout if none exists. */
+  const joinOrStartVoiceRoom = useCallback(async (groupId, memberIds = [], bannerOverride = null) => {
+    if (!groupId || isInCallRef.current) return;
+    const banner = bannerOverride || activeCallBanner;
+    if (banner?.groupId === groupId) {
+      await joinActiveCall(banner);
+      return;
+    }
+    await startGroupCall(groupId, "voice", memberIds, { hangout: true });
+  }, [activeCallBanner, joinActiveCall, startGroupCall]);
 
   return {
     isInCall,
@@ -2353,6 +2394,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     setScreenQuality,
     setScreenVideo,
     startGroupCall,
+    joinOrStartVoiceRoom,
     acceptGroupCall,
     joinActiveCall,
     declineCall,

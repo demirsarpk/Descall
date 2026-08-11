@@ -44,6 +44,26 @@ router.get("/wallet", requireAuth, async (req, res) => {
   }
 });
 
+router.get("/daily", requireAuth, async (req, res) => {
+  try {
+    const status = await descoin.getDailyStatus(req.user.id);
+    res.json(status);
+  } catch (err) {
+    console.error("[shop] daily status error:", err.message);
+    res.status(500).json({ error: "Failed to load daily DesCoin status." });
+  }
+});
+
+router.post("/daily/claim", requireAuth, async (req, res) => {
+  try {
+    const result = await descoin.claimDaily(req.user.id);
+    res.json(result);
+  } catch (err) {
+    console.error("[shop] daily claim error:", err.message);
+    res.status(500).json({ error: "Failed to claim daily DesCoin." });
+  }
+});
+
 router.get("/ledger", requireAuth, async (req, res) => {
   try {
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));

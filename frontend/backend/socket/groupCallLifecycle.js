@@ -30,6 +30,7 @@ function buildBannerFromCall(groupId, activeCall) {
     initiatorUsername: activeCall.initiatorUsername,
     initiatorAvatarUrl: activeCall.initiatorAvatarUrl || null,
     callType: activeCall.callType,
+    hangout: Boolean(activeCall.hangout),
     participantCount: activeCall.participants.size,
     participants: Array.from(activeCall.participants),
     startTime: activeCall.startTime,

@@ -1266,6 +1266,26 @@ function registerSocketHandlers(io) {
         callType: callType || "voice",
       });
 
+      // Wake backgrounded Android / PWA clients even when Socket.IO is asleep.
+      // Push carries no SDP — opening the app lets the live offer (or a retry) connect.
+      try {
+        const { sendIncomingCallPush } = require("../lib/webPush");
+        void sendIncomingCallPush([targetId], {
+          type: "call",
+          callType: callType || "voice",
+          fromId: myId,
+          from: me.username,
+          conversationId: myId,
+          title: `${me.username} is calling`,
+          body: `Incoming ${callType || "voice"} call`,
+          tag: `call-${myId}`,
+          deepLink: `/?dm=${encodeURIComponent(myId)}&call=1`,
+          action: "answer",
+        });
+      } catch (err) {
+        console.warn("[Call] incoming push failed:", err?.message || err);
+      }
+
       // Inform caller only when we truly have no socket for the callee.
       // Do not block the offer attempt — emitToUser is best-effort.
       if (!delivered) {

@@ -2,6 +2,7 @@
 
 const webpush = require("web-push");
 const supabase = require("../db/supabase");
+const { sendFcmToUsers } = require("./fcm");
 
 let configured = false;
 
@@ -74,7 +75,26 @@ async function sendWebPushToUsers(userIds, payload) {
  * can be added here later without touching callers.
  */
 async function sendGroupCallPush(userIds, payload = {}) {
-  return sendWebPushToUsers(userIds, payload);
+  await Promise.allSettled([
+    sendWebPushToUsers(userIds, payload),
+    sendFcmToUsers(userIds, payload),
+  ]);
 }
 
-module.exports = { sendWebPushToUsers, sendGroupCallPush };
+/** DM / 1:1 incoming call — wake backgrounded native + web clients. */
+async function sendIncomingCallPush(userIds, payload = {}) {
+  const body = {
+    type: "call",
+    title: payload.title || "Incoming call",
+    body: payload.body || "Someone is calling you on Descall",
+    tag: payload.tag || "incoming-call",
+    deepLink: payload.deepLink || "/",
+    ...payload,
+  };
+  await Promise.allSettled([
+    sendWebPushToUsers(userIds, body),
+    sendFcmToUsers(userIds, body),
+  ]);
+}
+
+module.exports = { sendWebPushToUsers, sendGroupCallPush, sendIncomingCallPush };
