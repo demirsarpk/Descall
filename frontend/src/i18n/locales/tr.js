@@ -2240,6 +2240,11 @@ export const phrases = {
   "Leave Nitro guide": "Nitro’dan çıkış rehberi",
   "LFG guide": "LFG rehberi",
   "← Back to blog": "← Bloga dön",
+  "No system/tab audio selected — enable “Share audio” in the picker for sound.":
+    "Sistem/sekme sesi seçilmedi — ses için seçicide “Sesi paylaş”ı aç.",
+  "Screen share ended while Descall was in the background.":
+    "Descall arka plandayken ekran paylaşımı sonlandı.",
+  "Screen share volume": "Ekran paylaşımı sesi",
 };
 
 const locale = { nested, phrases };

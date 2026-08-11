@@ -1,53 +1,75 @@
 /**
  * Screen-share capture + RTP sender tuning for WebRTC mesh calls.
- * Group calls encode once per peer — keep resolution/bitrate/FPS conservative
- * so remote viewers stay smooth instead of stuttering at 1080p+.
- *
- * Avoid aggressive post-capture constraints so browser-provided display tracks
- * remain stable across tabs, windows, and desktop capture.
+ * DM (1:1) uses a higher-quality profile; group mesh stays conservative.
  */
 
 export const GROUP_SCREEN_DEFAULT_QUALITY = {
   resolution: "720p",
   fps: 20,
+  contentHint: "motion",
+};
+
+export const DM_SCREEN_DEFAULT_QUALITY = {
+  resolution: "1080p",
+  fps: 30,
+  contentHint: "motion",
 };
 
 const RESOLUTION_MAP = {
   "480p": { width: 854, height: 480 },
   "720p": { width: 1280, height: 720 },
   "1080p": { width: 1920, height: 1080 },
-  // Cap ultra modes — mesh P2P cannot sustain these smoothly
-  "1440p": { width: 1280, height: 720 },
-  "2160p": { width: 1280, height: 720 },
+  "1440p": { width: 1920, height: 1080 },
+  "2160p": { width: 1920, height: 1080 },
   custom: { width: 1280, height: 720 },
 };
 
-export function resolveScreenCaptureSize(quality = {}) {
+function isMobileCapture() {
+  if (typeof navigator === "undefined") return false;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+}
+
+/**
+ * @param {object} quality
+ * @param {{ maxFps?: number, peerCount?: number }} [opts]
+ */
+export function resolveScreenCaptureSize(quality = {}, opts = {}) {
   const key = quality.resolution || "720p";
   const size = RESOLUTION_MAP[key] || RESOLUTION_MAP["720p"];
-  // Hard-cap FPS for group mesh; 60/120/240 destroys encode budget
-  const fps = Math.min(Math.max(Number(quality.fps) || 20, 10), 24);
+  const peerCount = Math.max(1, opts.peerCount || 1);
+  // DM can sustain 30 FPS; group mesh caps lower to protect encode budget
+  const hardCap = opts.maxFps ?? (peerCount <= 2 ? 30 : 24);
+  const fps = Math.min(Math.max(Number(quality.fps) || (peerCount <= 2 ? 30 : 20), 10), hardCap);
   return { ...size, fps };
 }
 
 export function screenBitrateForPeerCount(peerCount, resolution = "720p") {
   const n = Math.max(1, peerCount || 1);
   const base =
-    resolution === "480p" ? 700_000 : resolution === "1080p" ? 1_800_000 : 1_200_000;
-  if (n >= 5) return Math.min(base, 700_000);
-  if (n >= 3) return Math.min(base, 1_000_000);
+    resolution === "480p"
+      ? 900_000
+      : resolution === "1080p"
+        ? n <= 2
+          ? 3_500_000
+          : 2_200_000
+        : n <= 2
+          ? 2_200_000
+          : 1_400_000;
+  if (n >= 5) return Math.min(base, 900_000);
+  if (n >= 3) return Math.min(base, 1_400_000);
   return base;
 }
 
 /**
- * Soft post-capture tuning. Never use hard `max` constraints after
- * getDisplayMedia because browsers may end the track.
+ * Soft post-capture tuning. Never force hard W×H after getDisplayMedia —
+ * that freezes orientation when a phone rotates into landscape video.
  */
-export async function optimizeScreenShareTrack(track, { fps } = {}) {
+export async function optimizeScreenShareTrack(track, { fps, contentHint = "motion" } = {}) {
   if (!track || track.kind !== "video") return;
   try {
-    // detail = prioritize text/UI sharpness; pair with capped FPS/bitrate
-    if ("contentHint" in track) track.contentHint = "detail";
+    if ("contentHint" in track) {
+      track.contentHint = contentHint === "detail" ? "detail" : "motion";
+    }
   } catch {
     /* ignore */
   }
@@ -55,18 +77,19 @@ export async function optimizeScreenShareTrack(track, { fps } = {}) {
   if (track.readyState !== "live") return;
 
   try {
-    // Do not force a landscape width/height after capture. Display tracks
-    // expose their real dimensions and update them when a phone/window rotates;
-    // constraining them here can leave viewers stuck with the old orientation.
-    await track.applyConstraints({ frameRate: { ideal: fps } });
+    await track.applyConstraints({ frameRate: { ideal: fps, max: fps } });
   } catch {
-    /* browser may reject some constraints after getDisplayMedia — leave track as-is */
+    try {
+      await track.applyConstraints({ frameRate: { ideal: fps } });
+    } catch {
+      /* leave track as-is */
+    }
   }
 }
 
 export async function optimizeScreenShareSender(
   sender,
-  { maxBitrate = 1_200_000, maxFramerate = 20 } = {}
+  { maxBitrate = 2_200_000, maxFramerate = 30 } = {}
 ) {
   if (!sender) return;
   try {
@@ -77,32 +100,79 @@ export async function optimizeScreenShareSender(
     const enc = params.encodings[0];
     enc.maxBitrate = maxBitrate;
     enc.maxFramerate = maxFramerate;
-    // Keep FPS when congested — stuttery low FPS feels worse than softer pixels
-    params.degradationPreference = "maintain-framerate";
+    // Prefer resolution under congestion for screen text; motion content still OK
+    params.degradationPreference = "maintain-resolution";
     await sender.setParameters(params);
   } catch (err) {
     console.warn("[ScreenShare] setParameters failed:", err?.message || err);
   }
+
+  // Prefer modern codecs when the transceiver API allows it
+  try {
+    const transceiver = sender.track
+      ? sender // may not expose transceiver directly
+      : null;
+    void transceiver;
+    if (typeof RTCRtpSender !== "undefined" && sender.track) {
+      // Find transceiver via peer connection is caller responsibility — see preferScreenCodecs
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Prefer VP9/AV1 for screen share on a transceiver (best-effort). */
+export function preferScreenCodecs(pc, sender) {
+  if (!pc || !sender || typeof RTCRtpSender === "undefined") return;
+  try {
+    const transceiver = pc.getTransceivers?.().find((t) => t.sender === sender);
+    if (!transceiver?.setCodecPreferences || !RTCRtpSender.getCapabilities) return;
+    const caps = RTCRtpSender.getCapabilities("video");
+    if (!caps?.codecs?.length) return;
+    const preferred = [];
+    const rest = [];
+    for (const c of caps.codecs) {
+      const mime = (c.mimeType || "").toLowerCase();
+      if (mime.includes("vp9") || mime.includes("av1")) preferred.push(c);
+      else if (!mime.includes("rtx") && !mime.includes("red") && !mime.includes("ulpfec")) rest.push(c);
+    }
+    if (preferred.length) transceiver.setCodecPreferences([...preferred, ...rest]);
+  } catch (err) {
+    console.warn("[ScreenShare] setCodecPreferences failed:", err?.message || err);
+  }
 }
 
 /**
- * Prefer a browser tab surface for convenient window switching.
+ * Build getDisplayMedia constraints.
+ * On mobile, omit width/height ideals so portrait→landscape rotation updates freely.
+ * Do not preferCurrentTab — that dies when the app backgrounds / leaves the tab.
  */
-export function buildDisplayMediaConstraints({ width, height, fps }) {
+export function buildDisplayMediaConstraints({ width, height, fps, preferTab = false } = {}) {
+  const mobile = isMobileCapture();
+  const video = {
+    cursor: "motion",
+    frameRate: { ideal: fps, max: Math.max(fps, 30) },
+  };
+  if (!mobile && width && height) {
+    video.width = { ideal: width };
+    video.height = { ideal: height };
+  }
+  // Prefer monitor/window on mobile so YouTube fullscreen rotation is captured
+  if (!preferTab) {
+    video.displaySurface = mobile ? "monitor" : "monitor";
+  } else {
+    video.displaySurface = "browser";
+  }
+
   return {
-    video: {
-      cursor: "motion",
-      displaySurface: "browser",
-      width: { ideal: width },
-      height: { ideal: height },
-      frameRate: { ideal: fps },
+    video,
+    audio: {
+      // Chromium: tab/system audio only if user checks "Share audio"
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
     },
-    // Chromium only captures tab/system sound after the person explicitly
-    // selects "Share audio" in the picker. Requesting it never bypasses that
-    // consent, but makes an approved audio track available to WebRTC.
-    audio: true,
-    // Chromium extensions to the getDisplayMedia options dictionary
-    preferCurrentTab: true,
+    preferCurrentTab: Boolean(preferTab),
     selfBrowserSurface: "include",
     surfaceSwitching: "include",
     systemAudio: "include",
@@ -111,8 +181,6 @@ export function buildDisplayMediaConstraints({ width, height, fps }) {
 
 export function buildElectronDesktopConstraints(sourceId, { width, height, fps }) {
   return {
-    // Electron can provide loopback audio for desktop sources when supported
-    // by the operating system. Unsupported platforms simply return video.
     audio: {
       mandatory: {
         chromeMediaSource: "desktop",
@@ -132,12 +200,66 @@ export function buildElectronDesktopConstraints(sourceId, { width, height, fps }
 }
 
 /**
+ * Watch a display track for orientation / size changes (portrait → landscape).
+ * Calls `onResize({ width, height })` when settings change.
+ * Returns a cleanup function.
+ */
+export function watchScreenTrackResize(track, onResize) {
+  if (!track || track.kind !== "video" || typeof onResize !== "function") {
+    return () => {};
+  }
+
+  let lastW = 0;
+  let lastH = 0;
+  const emit = () => {
+    try {
+      const settings = track.getSettings?.() || {};
+      const w = Number(settings.width) || 0;
+      const h = Number(settings.height) || 0;
+      if (!w || !h) return;
+      if (w === lastW && h === lastH) return;
+      lastW = w;
+      lastH = h;
+      onResize({ width: w, height: h, settings });
+    } catch {
+      /* ignore */
+    }
+  };
+
+  emit();
+
+  const onEnded = () => cleanup();
+  try {
+    track.addEventListener?.("ended", onEnded);
+  } catch {
+    /* ignore */
+  }
+
+  // Some browsers fire `resize` on MediaStreamTrack
+  const onTrackResize = () => emit();
+  try {
+    track.addEventListener?.("resize", onTrackResize);
+  } catch {
+    /* ignore */
+  }
+
+  const poll = setInterval(emit, 500);
+
+  function cleanup() {
+    clearInterval(poll);
+    try {
+      track.removeEventListener?.("ended", onEnded);
+      track.removeEventListener?.("resize", onTrackResize);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return cleanup;
+}
+
+/**
  * Decide whether an incoming remote video track is screen share vs camera.
- *
- * IMPORTANT: Do not treat a synthetic MediaStream([videoTrack]) fallback
- * (when e.streams[0] is missing during renegotiation) as screen — that
- * mis-wires camera frames into screenStream and leaves the real second
- * share black / stuck.
  */
 export function isRemoteScreenVideoTrack(
   track,
@@ -165,12 +287,10 @@ export function isRemoteScreenVideoTrack(
     return true;
   }
 
-  // Distinct MediaStream from the mic/camera bundle → screen share stream
   if (rawStream && mainRemoteStream && rawStream.id !== mainRemoteStream.id) {
     return true;
   }
 
-  // Already showing camera; another video-only stream is screen
   if (
     participantHasCameraVideo &&
     rawStream &&

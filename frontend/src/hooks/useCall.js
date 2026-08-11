@@ -8,7 +8,10 @@ import {
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
   resolveScreenCaptureSize,
-  GROUP_SCREEN_DEFAULT_QUALITY,
+  screenBitrateForPeerCount,
+  preferScreenCodecs,
+  watchScreenTrackResize,
+  DM_SCREEN_DEFAULT_QUALITY,
   isRemoteScreenVideoTrack,
 } from "../lib/webrtcScreenShare";
 import { useToast } from "../context/ToastContext";
@@ -196,8 +199,11 @@ export function useCall(socket, callOccupancyRef = null) {
   const [audioOutputDevices, setAudioOutputDevices] = useState([]);
   const [selectedAudioInput, setSelectedAudioInput] = useState("");
   const [selectedAudioOutput, setSelectedAudioOutput] = useState("");
-  const [screenQuality, setScreenQuality] = useState(GROUP_SCREEN_DEFAULT_QUALITY);
+  const [screenQuality, setScreenQuality] = useState(DM_SCREEN_DEFAULT_QUALITY);
   const screenQualityRef = useRef(screenQuality);
+  const [screenShareAspect, setScreenShareAspect] = useState(null); // { width, height } live orientation
+  const intentionalScreenStopRef = useRef(false);
+  const screenResizeCleanupRef = useRef(null);
 
   useEffect(() => {
     screenQualityRef.current = screenQuality;
@@ -845,6 +851,12 @@ export function useCall(socket, callOccupancyRef = null) {
       if (modeRef.current !== "incoming") return;
     }
     try {
+      // CRITICAL: stop ringtone BEFORE opening the mic. Otherwise the looping
+      // incoming-call tone is captured by getUserMedia and the CALLER hears
+      // "incoming call" audio after accept (group path already did this).
+      audioManager.stop("incomingCall");
+      audioManager.stop("outgoingCall");
+
       const constraints = type === "video"
         ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
         : { audio: true, video: false };
@@ -1016,8 +1028,9 @@ export function useCall(socket, callOccupancyRef = null) {
       return;
     }
     try {
-      const effectiveQuality = qualityOverride || screenQualityRef.current || GROUP_SCREEN_DEFAULT_QUALITY;
-      const { width, height, fps } = resolveScreenCaptureSize(effectiveQuality);
+      const effectiveQuality = qualityOverride || screenQualityRef.current || DM_SCREEN_DEFAULT_QUALITY;
+      const { width, height, fps } = resolveScreenCaptureSize(effectiveQuality, { peerCount: 1, maxFps: 30 });
+      const contentHint = effectiveQuality.contentHint || "motion";
       let screenStream;
 
       if (window.electronAPI?.isElectron) {
@@ -1041,16 +1054,28 @@ export function useCall(socket, callOccupancyRef = null) {
           return;
         }
         console.log('[ScreenShare] web path — getDisplayMedia');
+        // preferCurrentTab:false — tab capture dies when the app backgrounds
         screenStream = await navigator.mediaDevices.getDisplayMedia(
-          buildDisplayMediaConstraints({ width, height, fps })
+          buildDisplayMediaConstraints({ width, height, fps, preferTab: false })
         );
       }
 
       const screenTrack = screenStream.getVideoTracks()[0];
-      await optimizeScreenShareTrack(screenTrack, { width, height, fps });
+      await optimizeScreenShareTrack(screenTrack, { width, height, fps, contentHint });
       if (screenTrack.readyState !== "live") {
         screenStream.getTracks().forEach((t) => t.stop());
         return;
+      }
+
+      const screenAudioTrack = screenStream.getAudioTracks()[0];
+      if (!screenAudioTrack) {
+        toast(tRuntime("No system/tab audio selected — enable “Share audio” in the picker for sound."), "info");
+      } else {
+        try {
+          screenAudioTrack.contentHint = "music";
+        } catch {
+          /* ignore */
+        }
       }
 
       // Tell the peer to reserve the next video track for the screen layout
@@ -1061,30 +1086,70 @@ export function useCall(socket, callOccupancyRef = null) {
 
       // Add screen track - this triggers onnegotiationneeded
       const screenSender = pc.addTrack(screenTrack, screenStream);
-      const screenAudioTrack = screenStream.getAudioTracks()[0];
       if (screenAudioTrack) {
         screenAudioSenderRef.current = pc.addTrack(screenAudioTrack, screenStream);
       }
+      const maxBitrate = screenBitrateForPeerCount(1, effectiveQuality.resolution || "1080p");
       await optimizeScreenShareSender(screenSender, {
-        maxBitrate: 1_500_000,
+        maxBitrate,
         maxFramerate: fps,
       });
+      preferScreenCodecs(pc, screenSender);
       screenSenderRef.current = screenSender;
       screenStreamRef.current = screenStream;
       setScreenStream(screenStream);
       screenSharingRef.current = true;
+      intentionalScreenStopRef.current = false;
 
-      // `addTrack` schedules the sole renegotiation through
-      // `onnegotiationneeded`. A second delayed offer causes glare and was the
-      // main source of tracks arriving before their screen-share signal.
+      try {
+        screenResizeCleanupRef.current?.();
+      } catch {
+        /* ignore */
+      }
+      screenResizeCleanupRef.current = watchScreenTrackResize(screenTrack, ({ width: w, height: h }) => {
+        setScreenShareAspect({ width: w, height: h });
+        // Nudge encoder after orientation flip (portrait → landscape YouTube)
+        try {
+          screenSender.getParameters?.();
+          if (typeof screenSender.setParameters === "function") {
+            const params = screenSender.getParameters();
+            screenSender.setParameters(params).catch(() => {});
+          }
+        } catch {
+          /* ignore */
+        }
+      });
 
       if (screenVideoRef.current) {
         screenVideoRef.current.srcObject = screenStream;
-        screenVideoRef.current.play().catch((e) => {});
+        screenVideoRef.current.play().catch(() => {});
       }
 
       screenTrack.onended = () => {
-        if (stopScreenShareRef.current) stopScreenShareRef.current();
+        // Browser ends display tracks when the app backgrounds. Don't treat
+        // that as a deliberate stop while hidden — wait for foreground and
+        // offer a clean teardown instead of surprising the remote mid-call.
+        if (intentionalScreenStopRef.current) {
+          stopScreenShareRef.current?.();
+          return;
+        }
+        if (typeof document !== "undefined" && document.hidden) {
+          const onVisible = () => {
+            document.removeEventListener("visibilitychange", onVisible);
+            if (!screenSharingRef.current) return;
+            if (screenTrack.readyState === "ended") {
+              toast(tRuntime("Screen share ended while Descall was in the background."), "info");
+              stopScreenShareRef.current?.();
+            }
+          };
+          document.addEventListener("visibilitychange", onVisible);
+          // Still tear down senders so we don't send a dead track, but delay
+          // the remote "stop" signal until we're sure — call stop now so state
+          // is consistent (remote already sees frozen frames otherwise).
+          stopScreenShareRef.current?.();
+          return;
+        }
+        stopScreenShareRef.current?.();
       };
 
       setScreenSharing(true);
@@ -1095,6 +1160,15 @@ export function useCall(socket, callOccupancyRef = null) {
   const stopScreenShare = useCallback(() => {
     const pc = pcRef.current;
     if (!pc || !screenSharingRef.current) return;
+    intentionalScreenStopRef.current = true;
+
+    try {
+      screenResizeCleanupRef.current?.();
+    } catch {
+      /* ignore */
+    }
+    screenResizeCleanupRef.current = null;
+    setScreenShareAspect(null);
 
     if (screenSenderRef.current) {
       try { pc.removeTrack(screenSenderRef.current); } catch {}
@@ -1137,14 +1211,20 @@ export function useCall(socket, callOccupancyRef = null) {
     remoteScreenSharingRef.current = true;
     setRemoteScreenSharing(true);
 
-    // Screen signaling can arrive after a fast ontrack callback. Display
-    // streams carry no audio; select the most recently received such track
-    // instead of blindly moving the latest receiver (which can be a camera).
+    // Screen signaling can arrive after a fast ontrack callback. Prefer the
+    // newest live video track that isn't already on the mic/camera stream —
+    // including ones that carry tab audio (hasAudio=true).
+    const mainId = remoteStreamRef.current?.id;
     const candidate = [...receivedVideoTracksRef.current.values()]
-      .filter(({ track, hasAudio }) => track.readyState !== "ended" && !hasAudio)
+      .filter(({ track, stream }) => {
+        if (track.readyState === "ended") return false;
+        if (remoteScreenStreamRef.current?.getVideoTracks().includes(track)) return false;
+        if (mainId && stream?.id === mainId) return false;
+        return true;
+      })
       .sort((a, b) => b.receivedAt - a.receivedAt)[0];
     const screenTrack = candidate?.track;
-    if (!screenTrack || remoteScreenStreamRef.current?.getVideoTracks().includes(screenTrack)) return;
+    if (!screenTrack) return;
 
     setRemoteStream((prev) => {
       if (!prev?.getVideoTracks().includes(screenTrack)) return prev;
@@ -1153,7 +1233,13 @@ export function useCall(socket, callOccupancyRef = null) {
       remoteStreamRef.current = next;
       return next;
     });
+    // Attach the full stream so tab/system audio rides along with the video.
     attachRemoteScreenTrack(screenTrack, candidate.stream);
+    candidate.stream?.getAudioTracks?.().forEach((audioTrack) => {
+      if (audioTrack.readyState !== "ended") {
+        attachRemoteScreenTrack(audioTrack, candidate.stream);
+      }
+    });
   }, [attachRemoteScreenTrack]);
 
   const handleRemoteScreenShareStop = useCallback((fromUserId) => {
@@ -1258,6 +1344,7 @@ export function useCall(socket, callOccupancyRef = null) {
     stopScreenShare,
     screenQuality,
     setScreenQuality,
+    screenShareAspect,
     restartScreenShareWithQuality,
     handleRemoteScreenShareStart,
     handleRemoteScreenShareStop,

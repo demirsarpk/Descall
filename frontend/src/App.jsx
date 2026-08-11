@@ -533,6 +533,24 @@ export default function App() {
       existingSelf?.avatar_url ||
       null;
 
+    const cosmeticPatch = {
+      equippedAvatarFrame: normalized.equippedAvatarFrame,
+      equippedBanner: normalized.equippedBanner,
+      equippedBackground: normalized.equippedBackground,
+      equippedTheme: normalized.equippedTheme,
+      equippedBadge: normalized.equippedBadge,
+      equippedTitle: normalized.equippedTitle,
+      equippedNameEffect: normalized.equippedNameEffect,
+      equippedAvatarEffect: normalized.equippedAvatarEffect,
+      equippedChatBubble: normalized.equippedChatBubble,
+      equippedPresenceFlare: normalized.equippedPresenceFlare,
+      equippedProfileAura: normalized.equippedProfileAura,
+      equippedSoundPack: normalized.equippedSoundPack,
+      equippedTypingFlare: normalized.equippedTypingFlare,
+      equippedReactionBurst: normalized.equippedReactionBurst,
+      equippedCallOverlay: normalized.equippedCallOverlay,
+    };
+
     const patch = {
       avatarUrl,
       avatar_url: avatarUrl,
@@ -543,6 +561,7 @@ export default function App() {
       bannerUrl: normalized.bannerUrl,
       avatarVersion: normalized.avatarVersion,
       updated_at: normalized.updated_at,
+      ...cosmeticPatch,
     };
 
     if (me?.id === id || stored?.id === id) {

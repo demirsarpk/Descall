@@ -10,6 +10,7 @@ const {
   toPublicUser,
   getCachedPublicUser,
   publicPresenceStatus,
+  ensureCosmeticsCached,
 } = require("../lib/userProfile");
 const {
   presence,
@@ -163,6 +164,9 @@ async function loadDmMessages(myId, peerId, { before, limit = 100 } = {}) {
   if (profileError) console.warn("[DM] Sender profile lookup failed:", profileError.message);
 
   const usersById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  for (const profile of usersById.values()) cacheUserProfile(profile);
+  // Attach equipped cosmetics so chat avatars/name effects/bubbles match profiles
+  await ensureCosmeticsCached([...userIds, myId, peerId]);
   const messages = page.reverse().map((row) => mapDmRow(row, usersById));
   cacheDmMessages(convKey(myId, peerId), messages);
   return { messages, hasMore };
@@ -330,6 +334,14 @@ function messageSender(userId, fallbackUsername, fallbackAvatar) {
       updated_at: cached.updated_at,
       is_admin: isAdmin,
       isAdmin,
+      equippedAvatarFrame: cached.equippedAvatarFrame || null,
+      equippedBadge: cached.equippedBadge || null,
+      equippedTitle: cached.equippedTitle || null,
+      equippedNameEffect: cached.equippedNameEffect || null,
+      equippedAvatarEffect: cached.equippedAvatarEffect || null,
+      equippedChatBubble: cached.equippedChatBubble || null,
+      equippedPresenceFlare: cached.equippedPresenceFlare || null,
+      equippedReactionBurst: cached.equippedReactionBurst || null,
     };
   }
   const isAdmin = fallbackUsername === "admin";
@@ -701,8 +713,13 @@ function registerSocketHandlers(io) {
         message: "Socket connected successfully.",
       });
       socket.emit("status:current", { status: presence.get(myId)?.status || "online" });
-      socket.emit("friend:list", getFriendList(myId));
-      socket.emit("friend:requests", getPendingList(myId));
+      const friendIds = [...(friends.get(myId) || [])];
+      ensureCosmeticsCached(friendIds)
+        .catch(() => {})
+        .finally(() => {
+          socket.emit("friend:list", getFriendList(myId));
+          socket.emit("friend:requests", getPendingList(myId));
+        });
       emitSyncState(io, myId, socket);
       broadcastUsers(io);
 
@@ -753,6 +770,7 @@ function registerSocketHandlers(io) {
       // Reload from DB only if memory is empty (handles edge cases)
       if (!friends.has(myId)) await loadFriendsFromDB(myId);
       if (!pendingRequests.has(myId)) await loadPendingRequestsFromDB(myId);
+      await ensureCosmeticsCached([...(friends.get(myId) || [])]).catch(() => {});
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
     });

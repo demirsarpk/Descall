@@ -136,6 +136,27 @@ export function mergeUserProfiles(...parts) {
     out.is_admin = true;
     out.isAdmin = true;
   }
+  // Prefer the richest equipped cosmetic shard (profile/API > friends > message)
+  for (const key of [
+    "equippedAvatarFrame",
+    "equippedBanner",
+    "equippedBackground",
+    "equippedTheme",
+    "equippedBadge",
+    "equippedTitle",
+    "equippedNameEffect",
+    "equippedAvatarEffect",
+    "equippedChatBubble",
+    "equippedPresenceFlare",
+    "equippedProfileAura",
+    "equippedSoundPack",
+    "equippedTypingFlare",
+    "equippedReactionBurst",
+    "equippedCallOverlay",
+  ]) {
+    const hit = [...list].reverse().find((p) => p[key]);
+    if (hit?.[key]) out[key] = hit[key];
+  }
   return normalizeUser(out);
 }
 
@@ -175,6 +196,28 @@ export function patchUserProfile(user, patch = {}) {
     const admin = Boolean(patch.is_admin ?? patch.isAdmin);
     next.is_admin = admin;
     next.isAdmin = admin;
+  }
+
+  for (const key of [
+    "equippedAvatarFrame",
+    "equippedBanner",
+    "equippedBackground",
+    "equippedTheme",
+    "equippedBadge",
+    "equippedTitle",
+    "equippedNameEffect",
+    "equippedAvatarEffect",
+    "equippedChatBubble",
+    "equippedPresenceFlare",
+    "equippedProfileAura",
+    "equippedSoundPack",
+    "equippedTypingFlare",
+    "equippedReactionBurst",
+    "equippedCallOverlay",
+  ]) {
+    if (key in patch && patch[key] !== undefined) {
+      next[key] = patch[key];
+    }
   }
 
   const version =

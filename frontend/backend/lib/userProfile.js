@@ -1,11 +1,22 @@
 /**
  * Server-side user profile cache and broadcast helpers.
+ * Includes chat-visible equipped cosmetics so message lists match profile cards.
  */
 const supabase = require("../db/supabase");
 const { friends, presence, usernameById, lastSeenByUserId } = require("../runtime/sharedState");
 
-/** userId -> { id, username, avatar_url, display_name, updated_at } */
+/** userId -> profile row (+ optional equipped* cosmetics) */
 const userProfileById = new Map();
+
+const CHAT_COSMETIC_KEYS = [
+  "equippedAvatarFrame",
+  "equippedBadge",
+  "equippedTitle",
+  "equippedNameEffect",
+  "equippedAvatarEffect",
+  "equippedChatBubble",
+  "equippedPresenceFlare",
+];
 
 function normalizeProfileRow(row) {
   if (!row) return null;
@@ -29,6 +40,43 @@ function isAdminProfile(profile) {
   return Boolean(profile.is_admin) || profile.username === "admin";
 }
 
+function cosmeticsFromEquipped(equipped) {
+  if (!equipped) return {};
+  return {
+    equippedAvatarFrame: equipped.avatarFrame || null,
+    equippedBanner: equipped.banner || null,
+    equippedBackground: equipped.background || null,
+    equippedTheme: equipped.theme || null,
+    equippedBadge: equipped.badge || null,
+    equippedTitle: equipped.title || null,
+    equippedNameEffect: equipped.nameEffect || null,
+    equippedAvatarEffect: equipped.avatarEffect || null,
+    equippedChatBubble: equipped.chatBubble || null,
+    equippedPresenceFlare: equipped.presenceFlare || null,
+    equippedProfileAura: equipped.profileAura || null,
+    equippedSoundPack: equipped.soundPack || null,
+    equippedTypingFlare: equipped.typingFlare || null,
+    equippedReactionBurst: equipped.reactionBurst || null,
+    equippedCallOverlay: equipped.callOverlay || null,
+  };
+}
+
+function pickChatCosmetics(profile) {
+  if (!profile) return {};
+  const out = {};
+  for (const key of CHAT_COSMETIC_KEYS) {
+    if (profile[key]) out[key] = profile[key];
+  }
+  return out;
+}
+
+function applyCosmeticsToProfile(profile, equipped) {
+  if (!profile) return null;
+  const cos = cosmeticsFromEquipped(equipped);
+  Object.assign(profile, cos);
+  return profile;
+}
+
 function toPublicUser(profile) {
   if (!profile) return null;
   return {
@@ -45,10 +93,66 @@ function toPublicUser(profile) {
     avatarVersion: profile.updated_at,
     updated_at: profile.updated_at,
     created_at: profile.created_at,
+    ...pickChatCosmetics(profile),
+    // Keep full equip set for profile modals / self updates when present
+    equippedAvatarFrame: profile.equippedAvatarFrame || null,
+    equippedBanner: profile.equippedBanner || null,
+    equippedBackground: profile.equippedBackground || null,
+    equippedTheme: profile.equippedTheme || null,
+    equippedBadge: profile.equippedBadge || null,
+    equippedTitle: profile.equippedTitle || null,
+    equippedNameEffect: profile.equippedNameEffect || null,
+    equippedAvatarEffect: profile.equippedAvatarEffect || null,
+    equippedChatBubble: profile.equippedChatBubble || null,
+    equippedPresenceFlare: profile.equippedPresenceFlare || null,
+    equippedProfileAura: profile.equippedProfileAura || null,
+    equippedSoundPack: profile.equippedSoundPack || null,
+    equippedTypingFlare: profile.equippedTypingFlare || null,
+    equippedReactionBurst: profile.equippedReactionBurst || null,
+    equippedCallOverlay: profile.equippedCallOverlay || null,
   };
 }
 
-async function loadUserProfile(userId) {
+async function loadEquippedCosmetics(userId) {
+  if (!userId) return null;
+  try {
+    const shop = require("./shop");
+    return await shop.getEquippedCosmeticsForUser(userId);
+  } catch (err) {
+    console.warn("[profile] load cosmetics failed:", err?.message || err);
+    return null;
+  }
+}
+
+async function cacheEquippedCosmetics(userId) {
+  const equipped = await loadEquippedCosmetics(userId);
+  const cached = userProfileById.get(userId);
+  if (cached && equipped) {
+    applyCosmeticsToProfile(cached, equipped);
+    userProfileById.set(userId, cached);
+  }
+  return equipped;
+}
+
+/** Batch-load cosmetics for many users (DM/group history). */
+async function ensureCosmeticsCached(userIds = []) {
+  const ids = [...new Set((userIds || []).filter(Boolean))];
+  await Promise.all(
+    ids.map(async (id) => {
+      const cached = userProfileById.get(id);
+      if (cached?.equippedAvatarFrame || cached?.equippedBadge || cached?.equippedNameEffect || cached?.equippedChatBubble || cached?._cosmeticsLoaded) {
+        return;
+      }
+      const equipped = await loadEquippedCosmetics(id);
+      const profile = userProfileById.get(id) || { id };
+      applyCosmeticsToProfile(profile, equipped || {});
+      profile._cosmeticsLoaded = true;
+      userProfileById.set(id, profile);
+    })
+  );
+}
+
+async function loadUserProfile(userId, { withCosmetics = true } = {}) {
   if (!userId) return null;
   // Prefer presence_status; fall back if column not migrated yet
   let data = null;
@@ -69,9 +173,43 @@ async function loadUserProfile(userId) {
 
   if (error || !data) return userProfileById.get(userId) || null;
 
+  const prev = userProfileById.get(userId);
   const profile = normalizeProfileRow(data);
+  // Preserve previously loaded cosmetics until refreshed
+  if (prev) {
+    for (const key of [
+      "equippedAvatarFrame",
+      "equippedBanner",
+      "equippedBackground",
+      "equippedTheme",
+      "equippedBadge",
+      "equippedTitle",
+      "equippedNameEffect",
+      "equippedAvatarEffect",
+      "equippedChatBubble",
+      "equippedPresenceFlare",
+      "equippedProfileAura",
+      "equippedSoundPack",
+      "equippedTypingFlare",
+      "equippedReactionBurst",
+      "equippedCallOverlay",
+      "_cosmeticsLoaded",
+    ]) {
+      if (prev[key] !== undefined) profile[key] = prev[key];
+    }
+  }
   userProfileById.set(userId, profile);
   if (profile.username) usernameById.set(userId, profile.username);
+
+  if (withCosmetics) {
+    const equipped = await loadEquippedCosmetics(userId);
+    if (equipped) {
+      applyCosmeticsToProfile(profile, equipped);
+      profile._cosmeticsLoaded = true;
+      userProfileById.set(userId, profile);
+    }
+  }
+
   return profile;
 }
 
@@ -96,6 +234,29 @@ async function savePresenceStatus(userId, status) {
 function cacheUserProfile(row) {
   const profile = normalizeProfileRow(row);
   if (!profile?.id) return null;
+  const prev = userProfileById.get(profile.id);
+  if (prev) {
+    for (const key of [
+      "equippedAvatarFrame",
+      "equippedBanner",
+      "equippedBackground",
+      "equippedTheme",
+      "equippedBadge",
+      "equippedTitle",
+      "equippedNameEffect",
+      "equippedAvatarEffect",
+      "equippedChatBubble",
+      "equippedPresenceFlare",
+      "equippedProfileAura",
+      "equippedSoundPack",
+      "equippedTypingFlare",
+      "equippedReactionBurst",
+      "equippedCallOverlay",
+      "_cosmeticsLoaded",
+    ]) {
+      if (prev[key] !== undefined) profile[key] = prev[key];
+    }
+  }
   userProfileById.set(profile.id, profile);
   if (profile.username) usernameById.set(profile.id, profile.username);
   return profile;
@@ -110,7 +271,7 @@ function getAvatarUrl(userId) {
 }
 
 async function broadcastUserProfileUpdate(io, userId) {
-  const profile = await loadUserProfile(userId);
+  const profile = await loadUserProfile(userId, { withCosmetics: true });
   if (!profile) return;
 
   const p = presence.get(userId);
@@ -172,6 +333,7 @@ async function broadcastUserProfileUpdate(io, userId) {
       updated_at: cached?.updated_at || null,
       is_admin: isAdminProfile(cached) || (pres.username === "admin"),
       isAdmin: isAdminProfile(cached) || (pres.username === "admin"),
+      ...pickChatCosmetics(cached),
     });
   }
   io.emit("users:update", list);
@@ -204,6 +366,7 @@ function enrichFriendEntry(userId) {
     updated_at: cached?.updated_at || null,
     is_admin: admin,
     isAdmin: admin,
+    ...pickChatCosmetics(cached),
   };
 }
 
@@ -219,4 +382,9 @@ module.exports = {
   broadcastUserProfileUpdate,
   enrichFriendEntry,
   publicPresenceStatus,
+  cacheEquippedCosmetics,
+  ensureCosmeticsCached,
+  pickChatCosmetics,
+  cosmeticsFromEquipped,
+  applyCosmeticsToProfile,
 };

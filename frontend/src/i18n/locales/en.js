@@ -1942,6 +1942,11 @@ export const phrases = {
   "Leave Nitro guide": "Leave Nitro guide",
   "LFG guide": "LFG guide",
   "← Back to blog": "← Back to blog",
+  "No system/tab audio selected — enable “Share audio” in the picker for sound.":
+    "No system/tab audio selected — enable “Share audio” in the picker for sound.",
+  "Screen share ended while Descall was in the background.":
+    "Screen share ended while Descall was in the background.",
+  "Screen share volume": "Screen share volume",
 };
 
 const locale = { nested, phrases };

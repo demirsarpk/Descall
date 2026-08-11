@@ -10,8 +10,10 @@ import {
   isRemoteScreenVideoTrack,
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
+  preferScreenCodecs,
   resolveScreenCaptureSize,
   screenBitrateForPeerCount,
+  watchScreenTrackResize,
 } from "../lib/webrtcScreenShare";
 import {
   applyRemoteOffer,
@@ -189,6 +191,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
   
   // Screen sharing quality settings
   const [screenQuality, setScreenQuality] = useState(GROUP_SCREEN_DEFAULT_QUALITY);
+  const [screenShareAspect, setScreenShareAspect] = useState(null);
+  const screenResizeCleanupRef = useRef(null);
 
   const socketRef = useRef(socket);
   const localStreamRef = useRef(null);
@@ -1158,9 +1162,13 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         return;
       }
 
-      const { width, height, fps: frameRate } = resolveScreenCaptureSize(effectiveQuality);
       const peerCount = Math.max(1, pcMapRef.current.size);
+      const { width, height, fps: frameRate } = resolveScreenCaptureSize(effectiveQuality, {
+        peerCount,
+        maxFps: peerCount <= 2 ? 30 : 24,
+      });
       const maxBitrate = screenBitrateForPeerCount(peerCount, effectiveQuality.resolution || "720p");
+      const contentHint = effectiveQuality.contentHint || "motion";
       
       let stream;
 
@@ -1185,16 +1193,25 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
           return;
         }
         stream = await navigator.mediaDevices.getDisplayMedia(
-          buildDisplayMediaConstraints({ width, height, fps: frameRate })
+          buildDisplayMediaConstraints({ width, height, fps: frameRate, preferTab: false })
         );
       }
       
       const screenTrack = stream.getVideoTracks()[0];
       const screenAudioTrack = stream.getAudioTracks()[0];
-      await optimizeScreenShareTrack(screenTrack, { width, height, fps: frameRate });
+      await optimizeScreenShareTrack(screenTrack, { width, height, fps: frameRate, contentHint });
       if (screenTrack.readyState !== "live") {
         stream.getTracks().forEach((t) => t.stop());
         return;
+      }
+      if (!screenAudioTrack) {
+        toast(tRuntime("No system/tab audio selected — enable “Share audio” in the picker for sound."), "info");
+      } else {
+        try {
+          screenAudioTrack.contentHint = "music";
+        } catch {
+          /* ignore */
+        }
       }
 
       screenStreamRef.current = stream;
@@ -1221,12 +1238,22 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
             maxBitrate,
             maxFramerate: frameRate,
           });
+          preferScreenCodecs(peerData.pc, sender);
 
           await renegotiateWithPeer(userId, peerData);
         } catch (err) {
           console.error(`[GroupCall] Screen share addTrack failed for ${userId}:`, err);
         }
       }
+
+      try {
+        screenResizeCleanupRef.current?.();
+      } catch {
+        /* ignore */
+      }
+      screenResizeCleanupRef.current = watchScreenTrackResize(screenTrack, ({ width: w, height: h }) => {
+        setScreenShareAspect({ width: w, height: h });
+      });
 
       // Set local preview after all operations complete
       if (screenVideoRef.current) {
@@ -1248,6 +1275,14 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
 
   const stopScreenShare = useCallback(async () => {
     if (!isScreenSharing) return;
+
+    try {
+      screenResizeCleanupRef.current?.();
+    } catch {
+      /* ignore */
+    }
+    screenResizeCleanupRef.current = null;
+    setScreenShareAspect(null);
     
     // Remove the dedicated screen sender from every peer and renegotiate
     for (const [userId, peerData] of pcMapRef.current.entries()) {
@@ -2334,6 +2369,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     setLocalVideo,
     screenQuality,
     setScreenQuality,
+    screenShareAspect,
     setScreenVideo,
     startGroupCall,
     acceptGroupCall,
