@@ -8,6 +8,7 @@ import MarketingApp from "./site/MarketingApp";
 import SeoHead from "./site/SeoHead";
 import { getMe, login, loginWithGoogle, register, verify2faLogin } from "./api/auth";
 import { getMyGroups, getGroupMessages } from "./api/groups";
+import { getFriendsList, getFriendRequestsList } from "./api/friends";
 import {
   getMyGuilds,
   createGuild,
@@ -304,6 +305,7 @@ export default function App() {
   const myGroupsRef = useRef([]);
   const myGuildsRef = useRef([]);
   const friendsRef = useRef([]);
+  const friendsFromSocketRef = useRef(false);
   const myStatusRef = useRef(myStatus);
   const transportFallbackStepRef = useRef(0);
   const prevOnlineUsersRef = useRef([]);
@@ -998,6 +1000,7 @@ export default function App() {
 
     socket.on("friend:list", (list) => {
       const normalized = (list ?? []).map((u) => normalizeUser(u));
+      friendsFromSocketRef.current = true;
       setFriends(normalized);
       setFriendsLoaded(true);
       // Server now attaches lastMessage/lastActivity from dmHistory — seed list previews.
@@ -1845,10 +1848,34 @@ export default function App() {
       .catch(() => {});
     clearToken(); clearUser(); setMe(null);
     setIsConnected(false); setOnlineUsers([]); setFriends([]); setFriendRequests([]);
+    friendsFromSocketRef.current = false;
+    setFriendsLoaded(false);
+    setGroupsLoaded(false);
     setDmByUserId({}); setDmUnread({}); setGroupUnread({}); setDmLastActivity({}); setGroupLastActivity({}); setDmPreviews({}); setGroupPreviews({}); setNotifications([]);
     setActiveDmUser(null); setAuthError(""); setTypingDmUser(null); setDmHasMore(true);
     setMyGroups([]);
   };
+
+  const fetchFriends = useCallback(async () => {
+    try {
+      const [listRes, reqRes] = await Promise.all([
+        getFriendsList(),
+        getFriendRequestsList().catch(() => ({ requests: [] })),
+      ]);
+      const list = Array.isArray(listRes?.friends) ? listRes.friends : [];
+      const requests = Array.isArray(reqRes?.requests) ? reqRes.requests : [];
+      // Socket payload includes presence + DM previews — don't clobber it.
+      if (!friendsFromSocketRef.current) {
+        setFriends(list.map((u) => normalizeUser(u)));
+        setFriendsLoaded(true);
+      }
+      setFriendRequests(requests.map((u) => normalizeUser(u)));
+    } catch (err) {
+      console.error("[friends] REST bootstrap failed", err);
+      // Still mark loaded so deep-links / empty states can render.
+      if (!friendsFromSocketRef.current) setFriendsLoaded(true);
+    }
+  }, []);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -1896,23 +1923,25 @@ export default function App() {
 
   const handleRefresh = useCallback(() => {
     const s = socketRef.current;
+
+    // Always refresh durable lists over REST — works even if socket is down.
+    fetchGroups();
+    fetchFriends();
+
     if (!s?.connected) return;
 
-    // 1. Groups
-    fetchGroups();
-
-    // 2. Friends & global state
+    // Friends & global state (socket — presence + DM previews)
     s.emit("friend:list");
     s.emit("sync:state");
 
-    // 3. Active DM
+    // Active DM
     const dmPeer = activeDmRef.current;
     if (dmPeer) {
       s.emit("dm:history", { withUserId: dmPeer.id });
       s.emit("dm:unread:sync");
     }
 
-    // 4. Active group messages
+    // Active group messages
     const grp = activeGroupRef.current;
     if (grp?.id) {
       s.emit("group:join", grp.id);
@@ -1947,7 +1976,7 @@ export default function App() {
         })
         .catch(console.error);
     }
-  }, [fetchGroups]);
+  }, [fetchGroups, fetchFriends]);
 
   // Periodic background refresh every 30s when tab is visible
   useEffect(() => {
@@ -1997,10 +2026,11 @@ export default function App() {
   }, [activeGroup?.id, groupCall.setViewingGroupId]);
 
   useEffect(() => {
-    if (me?.id) {
-      fetchGroups();
-    }
-  }, [me?.id, fetchGroups]);
+    if (!me?.id) return;
+    friendsFromSocketRef.current = false;
+    fetchGroups();
+    fetchFriends();
+  }, [me?.id, fetchGroups, fetchFriends]);
 
   // URL is authoritative for an existing browser entry. Only friends and
   // current group members can resolve a conversation route; invalid targets

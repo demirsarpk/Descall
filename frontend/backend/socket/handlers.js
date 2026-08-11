@@ -363,7 +363,9 @@ function getFriendList(userId) {
       lastActivity: last?.timestamp || last?.created_at || null,
     });
   }
-  return out.sort((a, b) => a.username.localeCompare(b.username));
+  return out.sort((a, b) =>
+    String(a?.username || "").localeCompare(String(b?.username || ""))
+  );
 }
 
 function getPendingList(userId) {
@@ -461,10 +463,17 @@ async function loadFriendsFromDB(userId) {
     if (usersError) console.error("[FRIENDS] loadFriendsFromDB users fetch error:", usersError);
 
     const friendSet = new Set();
+    // Keep every accepted friendship id even if a profile row is missing —
+    // otherwise a partial users query silently drops chats from the sidebar.
+    for (const id of friendIds) friendSet.add(id);
     for (const u of (users || [])) {
-      friendSet.add(u.id);
-      usernameById.set(u.id, u.username);
+      if (u?.username) usernameById.set(u.id, u.username);
       cacheUserProfile(u);
+    }
+    if ((users || []).length < friendIds.length) {
+      console.warn(
+        `[FRIENDS] Profile rows ${ (users || []).length }/${friendIds.length} for user ${userId}`
+      );
     }
 
     friends.set(userId, friendSet);
@@ -661,11 +670,19 @@ function registerSocketHandlers(io) {
     setupAdminSocket(io, socket);
 
     // Load friends + full profile, then emit connected with displayName etc.
-    Promise.all([
+    // Never let a single failed sub-task block friend:list / connected —
+    // that left the SPA with empty chats/friends/groups until reconnect.
+    Promise.allSettled([
       loadFriendsFromDB(myId),
       loadPendingRequestsFromDB(myId),
       loadUserProfile(myId),
-    ]).then(([, , profile]) => {
+    ]).then((results) => {
+      const profile = results[2]?.status === "fulfilled" ? results[2].value : null;
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].status === "rejected") {
+          console.error(`[FRIENDS] Boot task ${i} failed for ${myId}:`, results[i].reason);
+        }
+      }
       if (profile) {
         me.avatar_url = profile.avatar_url;
         me.display_name = profile.display_name;
@@ -696,13 +713,20 @@ function registerSocketHandlers(io) {
         }
       }
 
-      socket.emit("connected", {
-        user: profile ? toPublicUser(profile) : me,
-        message: "Socket connected successfully.",
-      });
-      socket.emit("status:current", { status: presence.get(myId)?.status || "online" });
-      socket.emit("friend:list", getFriendList(myId));
-      socket.emit("friend:requests", getPendingList(myId));
+      try {
+        socket.emit("connected", {
+          user: profile ? toPublicUser(profile) : me,
+          message: "Socket connected successfully.",
+        });
+        socket.emit("status:current", { status: presence.get(myId)?.status || "online" });
+        socket.emit("friend:list", getFriendList(myId));
+        socket.emit("friend:requests", getPendingList(myId));
+      } catch (emitErr) {
+        console.error("[FRIENDS] Boot emit failed:", emitErr);
+        socket.emit("connected", { user: me, message: "Socket connected successfully." });
+        socket.emit("friend:list", []);
+        socket.emit("friend:requests", []);
+      }
       emitSyncState(io, myId, socket);
       broadcastUsers(io);
 
@@ -750,9 +774,10 @@ function registerSocketHandlers(io) {
     });
 
     socket.on("friend:list", async () => {
-      // Reload from DB only if memory is empty (handles edge cases)
-      if (!friends.has(myId)) await loadFriendsFromDB(myId);
-      if (!pendingRequests.has(myId)) await loadPendingRequestsFromDB(myId);
+      // Always rehydrate from DB — an empty in-memory Set must not stick
+      // forever after a transient boot failure or missed accept event.
+      await loadFriendsFromDB(myId);
+      await loadPendingRequestsFromDB(myId);
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
     });
