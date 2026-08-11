@@ -6,7 +6,7 @@ cd /d "%~dp0"
 
 ::  Configuration
 set "APP_NAME=Descall"
-set "REPO_OWNER=demirrsarppkurtlarr"
+set "REPO_OWNER=demirsarpk"
 set "REPO_NAME=Descall"
 set "BUILD_TARGETS=win-x64,win-ia32,win-portable"
 
@@ -470,7 +470,7 @@ echo   This will reset all settings to default values.
 echo.
 set /p "RESET_CONFIRM=  Are you sure? [Y/N] > "
 if /i "%RESET_CONFIRM%"=="y" (
-    set "REPO_OWNER=demirrsarppkurtlarr"
+    set "REPO_OWNER=demirsarpk"
     set "REPO_NAME=Descall"
     set "BUILD_TARGETS=win-x64,win-ia32,win-portable"
     echo   Configuration reset to defaults

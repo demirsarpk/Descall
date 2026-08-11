@@ -8,7 +8,7 @@
   "homepage": "https://des-call.onrender.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/demirrsarppkurtlarr/Descall.git"
+    "url": "https://github.com/demirsarpk/Descall.git"
   },
   "scripts": {
     "start": "electron .",
@@ -127,7 +127,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "demirrsarppkurtlarr",
+        "owner": "demirsarpk",
         "repo": "Descall",
         "releaseType": "release"
       }

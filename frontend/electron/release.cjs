@@ -23,7 +23,7 @@ const { execSync } = require("child_process");
 const https = require("https");
 
 // ── Config ─────────────────────────────────────────────────────────────────
-const OWNER      = "demirrsarppkurtlarr";
+const OWNER      = "demirsarpk";
 const REPO       = "Descall";
 const PKG_PATH   = path.join(__dirname, "package.json");
 const DIST_DIR   = path.join(__dirname, "dist");

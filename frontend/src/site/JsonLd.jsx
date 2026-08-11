@@ -10,7 +10,7 @@ export function buildOrganizationLd() {
     name: SITE_NAME,
     url: absoluteUrl("/"),
     logo: absoluteUrl("/og-default.svg"),
-    sameAs: ["https://github.com/demirrsarppkurtlarr/Descall"],
+    sameAs: ["https://github.com/demirsarpk/Descall"],
     description: "Free Discord alternative for chat, voice, screen share, and Valorant LFG.",
   };
 }

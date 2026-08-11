@@ -29,7 +29,7 @@ import { DESKTOP_RELEASE_FALLBACK } from '../../lib/desktopRelease';
 import { useT } from '../../context/LocaleContext';
 import './DownloadPage.css';
 
-const GITHUB_REPO = 'demirrsarppkurtlarr/Descall';
+const GITHUB_REPO = 'demirsarpk/Descall';
 const FALLBACK_WINDOWS_URL = DESKTOP_RELEASE_FALLBACK.windowsDownloadUrl;
 // The Android asset filename is version-suffixed per release
 // (Descall-APK-vX.Y.Z.apk), so there is no stable "latest" direct-download

@@ -1,6 +1,6 @@
 # Electron desktop releases & version numbers
 
-The **website never hardcodes** a desktop version. The landing page calls `GET /api/app/latest-release`, which reads GitHub `releases/latest` for `demirrsarppkurtlarr/Descall` and shows e.g. **`v2.4.0 available`**.
+The **website never hardcodes** a desktop version. The landing page calls `GET /api/app/latest-release`, which reads GitHub `releases/latest` for `demirsarpk/Descall` and shows e.g. **`v2.4.0 available`**.
 
 ## Semver bump rules (by change size)
 
@@ -38,7 +38,7 @@ Pushing a tag `v*` on `main` runs `.github/workflows/release.yml`, which syncs `
 
 - Do **not** edit the landing page to show a fixed version like `2.3.1`.
 - Always bump semver via `release.cjs` (or a new `v*` tag) when shipping Electron.
-- Keep `GITHUB_RELEASE_REPO` (optional env) aligned with `demirrsarppkurtlarr/Descall` if you fork.
+- Keep `GITHUB_RELEASE_REPO` (optional env) aligned with `demirsarpk/Descall` if you fork.
 - Electron **always** uses production API `https://des-call.onrender.com` (build + runtime). Do not point desktop builds at staging.
 - After each release, update the fallback installer URLs in:
   - `frontend/src/lib/desktopRelease.js`
@@ -47,7 +47,7 @@ Pushing a tag `v*` on `main` runs `.github/workflows/release.yml`, which syncs `
 - Electron title bar (`TitleBar`) must stay mounted for the whole desktop session
   (login + logged-in app). Content offsets via `body.electron-app` / `--electron-titlebar-h`.
 - Auto-update (NSIS Setup only): generic feed
-  `https://github.com/demirrsarppkurtlarr/Descall/releases/latest/download/`,
+  `https://github.com/demirsarpk/Descall/releases/latest/download/`,
   Discord-style **prelaunch splash** checks before the main window opens;
   if GitHub `latest` is newer, download + `quitAndInstall(true, true)` from the
   splash (main UI stays closed). While running, re-check every 10 minutes.

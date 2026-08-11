@@ -89,7 +89,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "demirrsarppkurtlarr",
+      "owner": "demirsarpk",
       "repo": "Descall",
       "releaseType": "release",
       "private": false,

@@ -31,7 +31,7 @@ if (process.platform === 'win32') {
 }
 
 const UPDATE_FEED_URL =
-  'https://github.com/demirrsarppkurtlarr/Descall/releases/latest/download/';
+  'https://github.com/demirsarpk/Descall/releases/latest/download/';
 
 try {
   autoUpdater.setFeedURL({
@@ -45,7 +45,7 @@ try {
   try {
     autoUpdater.setFeedURL({
       provider: 'github',
-      owner: 'demirrsarppkurtlarr',
+      owner: 'demirsarpk',
       repo: 'Descall',
     });
   } catch (err2) {

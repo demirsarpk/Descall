@@ -4,7 +4,7 @@ const express = require("express");
 
 const router = express.Router();
 
-const GITHUB_REPO = process.env.GITHUB_RELEASE_REPO || "demirrsarppkurtlarr/Descall";
+const GITHUB_REPO = process.env.GITHUB_RELEASE_REPO || "demirsarpk/Descall";
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 
 /** Keep in sync with frontend/src/lib/desktopRelease.js when cutting releases. */

@@ -8,7 +8,7 @@ Staging → production akışı için: [`docs/STAGING.md`](docs/STAGING.md)
 ## 1. İlk kurulum (Blueprint)
 
 1. [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint**
-2. GitHub repo: `demirrsarppkurtlarr/Descall` → branch `main`
+2. GitHub repo: `demirsarpk/Descall` → branch `main`
 3. Render **otomatik sorar** (ilk kurulumda):
    - `SUPABASE_URL` — Supabase Project URL
    - `SUPABASE_SERVICE_ROLE_KEY` — service_role anahtarı
@@ -96,5 +96,5 @@ Supabase SQL Editor'da `supabase/migrations/` klasöründeki dosyaları sırayla
 ## Linkler
 
 - Render: https://dashboard.render.com/
-- GitHub: https://github.com/demirrsarppkurtlarr/Descall
+- GitHub: https://github.com/demirsarpk/Descall
 - Supabase API ayarları: https://supabase.com/dashboard/project/_/settings/api
