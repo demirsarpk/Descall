@@ -91,6 +91,17 @@ function crawlBody(route) {
 </main>`;
 }
 
+function stripStaleHeadSeo(html) {
+  return html
+    .replace(/<meta\s+name="description"[^>]*>\s*/gi, "")
+    .replace(/<meta\s+name="keywords"[^>]*>\s*/gi, "")
+    .replace(/<meta\s+name="robots"[^>]*>\s*/gi, "")
+    .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "")
+    .replace(/<link\s+rel="alternate"[^>]*hreflang="[^"]*"[^>]*>\s*/gi, "")
+    .replace(/<meta\s+property="og:[^"]*"[^>]*>\s*/gi, "")
+    .replace(/<meta\s+name="twitter:[^"]*"[^>]*>\s*/gi, "");
+}
+
 function injectMeta(html, route) {
   const url = `${SITE}${route.path === "/" ? "/" : route.path}`;
   const title = escapeHtml(route.title);
@@ -99,7 +110,7 @@ function injectMeta(html, route) {
   const lang = route.lang || "en";
   const ogType = route.ogType || "website";
 
-  let out = html;
+  let out = stripStaleHeadSeo(html);
   out = out.replace(/<html\s+lang="[^"]*"/i, `<html lang="${lang}"`);
   out = out.replace(/<title>[^<]*<\/title>/i, `<title>${title}</title>`);
 
@@ -130,6 +141,12 @@ function injectMeta(html, route) {
 
   out = out.replace(/<\/title>/i, `</title>\n    ${metaBlock}`);
 
+  // Boot splash uses an <h1> for the brand mark — demote so the page keeps a single H1.
+  out = out.replace(
+    /<h1 class="boot-title">Descall<\/h1>/i,
+    '<div class="boot-title">Descall</div>'
+  );
+
   const body = crawlBody(route);
   // Prefer injecting into #root so crawlers see content before SPA mount.
   if (/<div id="root"><\/div>/i.test(out)) {
@@ -138,7 +155,7 @@ function injectMeta(html, route) {
     out = out.replace(/<div id="root">[\s\S]*?<\/div>/i, `<div id="root">${body}</div>`);
   }
 
-  // Expand noscript nav for crawlability without JS
+  // Noscript nav only — full crawl body already lives in #root (avoid duplicate H1).
   const noscript = `<noscript>
       <nav aria-label="Descall">
         <a href="/">Descall</a>
@@ -152,7 +169,6 @@ function injectMeta(html, route) {
         <a href="/faq">FAQ</a>
         <a href="/contact">Contact</a>
       </nav>
-      ${body}
     </noscript>`;
   if (/<noscript>[\s\S]*?<\/noscript>/i.test(out)) {
     out = out.replace(/<noscript>[\s\S]*?<\/noscript>/i, noscript);
