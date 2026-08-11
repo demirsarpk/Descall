@@ -152,7 +152,8 @@
   margin-top: 6px;
   overflow: hidden;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  line-height: 0;
 }
 
 .message-bubble.has-media-only .message-media {
@@ -160,7 +161,7 @@
 }
 
 .message-bubble.has-media-only .message-media.is-visual {
-  border-radius: 9px;
+  border-radius: 8px;
 }
 
 .message-media-trigger {
