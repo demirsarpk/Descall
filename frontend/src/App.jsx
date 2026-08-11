@@ -1696,6 +1696,13 @@ export default function App() {
       transportFallbackStepRef.current = 0;
       setToken(data.token);
       commitSessionUser(data.user);
+      try {
+        const { Funnel, identifyUser } = await import("./site/analytics");
+        identifyUser(data.user);
+        Funnel.loginComplete({ method: "password" });
+      } catch {
+        /* analytics optional */
+      }
       return null;
     } catch (error) {
       setAuthError(error.message);
@@ -1713,6 +1720,13 @@ export default function App() {
       transportFallbackStepRef.current = 0;
       setToken(data.token);
       commitSessionUser(data.user);
+      try {
+        const { Funnel, identifyUser } = await import("./site/analytics");
+        identifyUser(data.user);
+        Funnel.loginComplete({ method: "2fa" });
+      } catch {
+        /* analytics optional */
+      }
     } catch (error) {
       setAuthError(error.message);
       throw error;
@@ -1721,15 +1735,47 @@ export default function App() {
     }
   };
 
-  const handleGoogleLogin = async (credential) => {
+  const handleGoogleLogin = async (credential, extra = {}) => {
     try {
       setAuthLoading(true);
       setAuthError("");
       await verifyBackendEndpoint();
-      const data = await loginWithGoogle(credential);
+      const { peekInviteRef, consumeInviteRef } = await import("./lib/referral");
+      const invitedBy = extra?.invitedBy || peekInviteRef() || "";
+      const data = await loginWithGoogle(credential, {
+        invitedBy: invitedBy || undefined,
+        termsAccepted: extra?.termsAccepted,
+      });
+      if (invitedBy) consumeInviteRef();
       transportFallbackStepRef.current = 0;
       setToken(data.token);
       commitSessionUser(data.user);
+      try {
+        const { Funnel, identifyUser } = await import("./site/analytics");
+        identifyUser(data.user);
+        if (data.isNewUser) {
+          try {
+            sessionStorage.setItem("descall:justRegistered", "1");
+          } catch {
+            /* ignore */
+          }
+          Funnel.registerComplete({
+            method: "google",
+            has_invite: Boolean(data.inviteLinked || invitedBy),
+            invited_by: data.invitedBy || invitedBy || undefined,
+          });
+          if (data.inviteLinked || invitedBy) {
+            Funnel.inviteRegisterComplete({
+              invited_by: data.invitedBy || invitedBy,
+              method: "google",
+            });
+          }
+        } else {
+          Funnel.loginComplete({ method: "google" });
+        }
+      } catch {
+        /* analytics optional */
+      }
     } catch (error) {
       setAuthError(error.message);
       throw error;
@@ -1742,7 +1788,34 @@ export default function App() {
     try {
       setAuthLoading(true);
       setAuthError("");
-      await register(payload);
+      const { peekInviteRef, consumeInviteRef } = await import("./lib/referral");
+      const invitedBy = payload?.invitedBy || peekInviteRef() || "";
+      const reg = await register({
+        ...payload,
+        ...(invitedBy ? { invitedBy } : {}),
+      });
+      if (invitedBy) consumeInviteRef();
+      try {
+        sessionStorage.setItem("descall:justRegistered", "1");
+      } catch {
+        /* ignore */
+      }
+      try {
+        const { Funnel } = await import("./site/analytics");
+        Funnel.registerComplete({
+          method: "password",
+          has_invite: Boolean(reg?.inviteLinked || invitedBy),
+          invited_by: reg?.invitedBy || invitedBy || undefined,
+        });
+        if (reg?.inviteLinked || invitedBy) {
+          Funnel.inviteRegisterComplete({
+            invited_by: reg?.invitedBy || invitedBy,
+            method: "password",
+          });
+        }
+      } catch {
+        /* analytics optional */
+      }
       await handleLogin(payload);
     } catch (error) {
       setAuthError(error.message);
@@ -1923,6 +1996,21 @@ export default function App() {
   useEffect(() => {
     if (!me?.id || !sessionChecked) return;
 
+    // Fresh signups land on Friends with invite CTA — better than an empty DM list.
+    // Skip when a group invite deep-link is pending.
+    try {
+      const justRegistered = sessionStorage.getItem("descall:justRegistered") === "1";
+      const pendingGroupInvite = Boolean(inviteCode) || Boolean(sessionStorage.getItem("descall:pendingInvite"));
+      if (justRegistered && !pendingGroupInvite) {
+        sessionStorage.removeItem("descall:justRegistered");
+        navigate("/friends", { replace: true });
+        setActiveView("friends");
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+
     if (requestedRoute.unknown) {
       navigate("/direct", { replace: true });
       return;
@@ -1976,6 +2064,7 @@ export default function App() {
     friends,
     friendsLoaded,
     groupsLoaded,
+    inviteCode,
     location.pathname,
     me?.id,
     myGroups,

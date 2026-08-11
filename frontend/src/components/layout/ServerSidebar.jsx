@@ -312,6 +312,28 @@ export default function ServerSidebar({
             >
               <MessageSquarePlus size={18} />
             </button>
+            {activeView === "friends" && me?.username && (
+              <button
+                className="icon-btn"
+                title={t("Copy invite link")}
+                onClick={async () => {
+                  try {
+                    const { buildFriendInviteUrl } = await import("../../lib/referral");
+                    const { Funnel } = await import("../../site/analytics");
+                    const url = buildFriendInviteUrl(me.username);
+                    await navigator.clipboard.writeText(url);
+                    Funnel.inviteGenerated({ method: "copy_link", username: me.username });
+                    setAddSuccess(t("Invite link copied"));
+                    setTimeout(() => setAddSuccess(""), 3000);
+                  } catch {
+                    setAddError(t("Could not copy invite link"));
+                    setTimeout(() => setAddError(""), 3000);
+                  }
+                }}
+              >
+                <Link2 size={18} />
+              </button>
+            )}
             <button
               className="icon-btn"
               title={t("Add")}
@@ -487,6 +509,21 @@ export default function ServerSidebar({
               onAcceptFriend={onAcceptFriend}
               onDeclineFriend={onDeclineFriend}
               isMobile={isMobile}
+              me={me}
+              onShareInvite={async () => {
+                try {
+                  const { buildFriendInviteUrl } = await import("../../lib/referral");
+                  const { Funnel } = await import("../../site/analytics");
+                  const url = buildFriendInviteUrl(me?.username);
+                  await navigator.clipboard.writeText(url);
+                  Funnel.inviteGenerated({ method: "empty_state", username: me?.username });
+                  setAddSuccess(t("Invite link copied"));
+                  setTimeout(() => setAddSuccess(""), 3000);
+                } catch {
+                  setAddError(t("Could not copy invite link"));
+                  setTimeout(() => setAddError(""), 3000);
+                }
+              }}
               onQuickAdd={() => { setAddTab("quickadd"); setShowAddModal(true); }}
             />
           )}
@@ -1782,7 +1819,7 @@ function GroupRowFront({
   );
 }
 
-function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend, isMobile, onQuickAdd }) {
+function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect, friendRequests, onAcceptFriend, onDeclineFriend, isMobile, onQuickAdd, me, onShareInvite }) {
   const t = useT();
   const safeFriends = Array.isArray(friends) ? friends : [];
   const safeOnlineUsers = Array.isArray(onlineUsers) ? onlineUsers : [];
@@ -1968,7 +2005,17 @@ function FriendsList({ friends, onlineUsers, expanded, onToggle, onFriendSelect,
                   <div className="empty-illu-blob secondary" />
                 </div>
                 <strong>{t("No friends yet")}</strong>
-                <span>{t("Add someone to start chatting and calling.")}</span>
+                <span>{t("Share your invite link — friends join free and connect with you instantly.")}</span>
+                <div className="sidebar-empty-friends-actions">
+                  {me?.username && (
+                    <button type="button" className="mkt-btn mkt-btn-primary" onClick={onShareInvite}>
+                      {t("Copy invite link")}
+                    </button>
+                  )}
+                  <button type="button" className="mkt-btn mkt-btn-soft" onClick={onQuickAdd}>
+                    {t("Add friend")}
+                  </button>
+                </div>
               </div>
             )}
       </SidebarSectionContent>

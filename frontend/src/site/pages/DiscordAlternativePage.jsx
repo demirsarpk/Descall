@@ -16,9 +16,10 @@ const crumbs = [
   { label: "Discord alternative", to: "/discord-alternative" },
 ];
 
-export default function DiscordAlternativePage({ onSignIn }) {
+export default function DiscordAlternativePage({ onSignIn, onSignUp }) {
   const t = useT();
   const faq = COMPARE_FAQ;
+  const startFree = () => (onSignUp || onSignIn)?.({ mode: "register", source: "discord_alternative" });
 
   return (
     <SeoLandingShell
@@ -35,7 +36,7 @@ export default function DiscordAlternativePage({ onSignIn }) {
         buildDiscordAlternativeAppLd(),
       ]}
       primaryCta={
-        <button type="button" className="mkt-btn mkt-btn-primary" onClick={onSignIn}>
+        <button type="button" className="mkt-btn mkt-btn-primary" onClick={startFree}>
           {t("Start free")}
         </button>
       }

@@ -93,6 +93,10 @@ export const TURKEY_FAQ = [
     q: "Descall ücretli mi?",
     a: "Hayır. Temel sohbet ve aramalar ücretsizdir. Kozmetikler DesCoin ile alınabilir; Nitro benzeri zorunlu abonelik yoktur.",
   },
+  {
+    q: "Arkadaşlarımı nasıl davet ederim?",
+    a: "Arkadaşlar sekmesinden davet linkini kopyala. Linkle gelen kişi ücretsiz kayıt olunca seninle otomatik arkadaş olur — grup davetinden ayrı, kişisel bir döngüdür.",
+  },
 ];
 
 export const BLOG_POSTS = [

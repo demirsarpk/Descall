@@ -1,8 +1,10 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 import JsonLd from "../JsonLd";
 import { useT } from "../../context/LocaleContext";
+import { Funnel } from "../analytics";
 
 /**
  * Premium long-form SEO landing shell: breadcrumbs, H1, lead, sections, FAQ, CTA.
@@ -20,6 +22,11 @@ export default function SeoLandingShell({
   heroExtra = null,
 }) {
   const t = useT();
+  const location = useLocation();
+
+  useEffect(() => {
+    Funnel.landingView({ page: "seo", path: location.pathname });
+  }, [location.pathname]);
 
   return (
     <article className="seo-landing">
@@ -76,7 +83,12 @@ export default function SeoLandingShell({
         <h2>{t("Ready to try a lighter Discord alternative?")}</h2>
         <p>{t("Create a free Descall account — chat, voice, screen share, and Valorant LFG in one place.")}</p>
         <div className="mkt-cta-row">
-          <Link to="/download" className="mkt-btn mkt-btn-primary">
+          {primaryCta || (
+            <Link to="/register" className="mkt-btn mkt-btn-primary">
+              {t("Start free")}
+            </Link>
+          )}
+          <Link to="/download" className="mkt-btn mkt-btn-soft">
             {t("Download")} Descall
           </Link>
           <Link to="/features" className="mkt-btn mkt-btn-ghost">

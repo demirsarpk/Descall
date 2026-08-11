@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { MessageCircle, UserPlus, Lock, Mail, User, ShieldCheck, ArrowLeft } from "lucide-react";
 import GoogleSignInButton from "./auth/GoogleSignInButton";
 import { useT } from "../context/LocaleContext";
 import DescallBrand from "./brand/DescallBrand";
 import LegalContentModal from "./legal/LegalContentModal";
+import { peekInviteRef, persistInviteRef, readInviteRefFromLocation } from "../lib/referral";
+import { Funnel } from "../site/analytics";
 
 export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2fa, loading, error }) {
   const t = useT();
@@ -14,6 +16,18 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
   const [email, setEmail] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [legalModal, setLegalModal] = useState(null); // "terms" | "privacy" | null
+  const [inviteRef, setInviteRef] = useState(() => peekInviteRef());
+
+  useEffect(() => {
+    const fromUrl = readInviteRefFromLocation();
+    if (fromUrl) {
+      persistInviteRef(fromUrl);
+      setInviteRef(fromUrl);
+      setMode("register");
+      Funnel.inviteLanding({ invited_by: fromUrl, path: "native_auth" });
+    }
+    Funnel.registerStart({ mode: "login", source: "native_auth", has_invite: Boolean(fromUrl || peekInviteRef()) });
+  }, []);
 
   // Accounts with 2FA enabled don't get logged in directly — the server
   // emails a one-time code and expects a follow-up verify call. This used to
@@ -40,11 +54,13 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
     }
     if (!termsAccepted) return;
     const trimmedEmail = email.trim();
+    const invitedBy = inviteRef || peekInviteRef();
     await onRegister({
       username: username.trim(),
       password,
       termsAccepted: true,
       ...(trimmedEmail ? { email: trimmedEmail } : {}),
+      ...(invitedBy ? { invitedBy } : {}),
     });
   };
 
@@ -146,11 +162,21 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
         </div>
 
         <GoogleSignInButton
-          disabled={loading}
+          disabled={loading || (mode === "register" && !termsAccepted)}
           onCredential={async (credential) => {
-            await onGoogleLogin?.(credential);
+            if (mode === "register" && !termsAccepted) return;
+            const invitedBy = inviteRef || peekInviteRef();
+            await onGoogleLogin?.(credential, {
+              termsAccepted: mode === "register",
+              ...(invitedBy ? { invitedBy } : {}),
+            });
           }}
         />
+        {inviteRef && mode === "register" && (
+          <p className="auth-field-hint" role="status">
+            {t("Invited by @{username}", { username: inviteRef })}
+          </p>
+        )}
 
         <div className="auth-divider" aria-hidden="true">
           <span>{t("or")}</span>

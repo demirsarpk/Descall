@@ -1637,6 +1637,30 @@
   color: var(--text-1);
   font-size: 13px;
 }
+.sidebar-empty-friends-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.sidebar-empty-friends-actions .mkt-btn {
+  min-height: 34px;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-2);
+  cursor: pointer;
+}
+.sidebar-empty-friends-actions .mkt-btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: transparent;
+}
+.sidebar-empty-friends-actions .mkt-btn-soft {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
 
 /* ── Hover card ── */
 .user-hover-card {

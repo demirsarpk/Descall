@@ -1,14 +1,62 @@
 /**
- * Lightweight analytics bootstrap (GA4 / Clarity).
- * Set VITE_GA_MEASUREMENT_ID and/or VITE_CLARITY_ID at build time.
- * No-ops when IDs are missing — safe for local/dev.
+ * Unified analytics: PostHog (primary funnel) + optional GA4 / Clarity.
+ *
+ * Env (Vite build-time):
+ *   VITE_PUBLIC_POSTHOG_KEY  — project API key (phc_…)
+ *   VITE_PUBLIC_POSTHOG_HOST — e.g. https://eu.i.posthog.com
+ *   VITE_GA_MEASUREMENT_ID
+ *   VITE_CLARITY_ID
+ *
+ * Safe no-op when keys are missing (local/dev).
  */
 
+import posthog from "posthog-js";
+
 let booted = false;
+let posthogReady = false;
+
+function posthogKey() {
+  return String(import.meta.env.VITE_PUBLIC_POSTHOG_KEY || "").trim();
+}
+
+function posthogHost() {
+  return String(import.meta.env.VITE_PUBLIC_POSTHOG_HOST || "https://eu.i.posthog.com").trim();
+}
 
 export function initAnalytics() {
   if (booted || typeof window === "undefined") return;
   booted = true;
+
+  const phKey = posthogKey();
+  if (phKey) {
+    try {
+      posthog.init(phKey, {
+        api_host: posthogHost(),
+        person_profiles: "identified_only",
+        capture_pageview: false, // we send $pageview ourselves with SPA routes
+        capture_pageleave: true,
+        persistence: "localStorage+cookie",
+        loaded: (ph) => {
+          posthogReady = true;
+          // Attach UTM / ref once for session correlation
+          try {
+            const params = new URLSearchParams(window.location.search);
+            const utm = {};
+            for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref"]) {
+              const v = params.get(key);
+              if (v) utm[key] = v;
+            }
+            if (Object.keys(utm).length) ph.register(utm);
+          } catch {
+            /* ignore */
+          }
+        },
+      });
+      posthogReady = true;
+    } catch (err) {
+      console.warn("[analytics] PostHog init failed", err);
+    }
+  }
 
   const gaId = import.meta.env.VITE_GA_MEASUREMENT_ID || "";
   const clarityId = import.meta.env.VITE_CLARITY_ID || "";
@@ -43,11 +91,76 @@ export function initAnalytics() {
 }
 
 export function trackPageView(path) {
+  const page = path || (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/");
+  try {
+    if (posthogReady || posthogKey()) {
+      posthog.capture("$pageview", { $current_url: typeof window !== "undefined" ? window.location.href : page, path: page });
+    }
+  } catch {
+    /* ignore */
+  }
   try {
     if (typeof window.gtag === "function") {
-      window.gtag("event", "page_view", { page_path: path });
+      window.gtag("event", "page_view", { page_path: page });
     }
   } catch {
     /* ignore */
   }
 }
+
+/**
+ * Funnel / product event. Always safe to call.
+ * @param {string} event
+ * @param {Record<string, unknown>} [properties]
+ */
+export function trackEvent(event, properties = {}) {
+  if (!event) return;
+  try {
+    if (posthogReady || posthogKey()) {
+      posthog.capture(event, properties);
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (typeof window.gtag === "function") {
+      window.gtag("event", event, properties);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function identifyUser(user) {
+  if (!user?.id) return;
+  try {
+    if (posthogReady || posthogKey()) {
+      posthog.identify(String(user.id), {
+        username: user.username || undefined,
+        email: user.email || undefined,
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function resetAnalyticsUser() {
+  try {
+    if (posthogReady || posthogKey()) posthog.reset();
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Named funnel helpers — keep event names stable for PostHog insights. */
+export const Funnel = {
+  landingView: (props) => trackEvent("landing_view", props),
+  ctaClick: (props) => trackEvent("cta_click", props),
+  registerStart: (props) => trackEvent("register_start", props),
+  registerComplete: (props) => trackEvent("register_complete", props),
+  loginComplete: (props) => trackEvent("login_complete", props),
+  inviteGenerated: (props) => trackEvent("invite_generated", props),
+  inviteLanding: (props) => trackEvent("invite_landing", props),
+  inviteRegisterComplete: (props) => trackEvent("invite_register_complete", props),
+};

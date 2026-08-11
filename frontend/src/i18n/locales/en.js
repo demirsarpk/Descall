@@ -1942,6 +1942,21 @@ export const phrases = {
   "Leave Nitro guide": "Leave Nitro guide",
   "LFG guide": "LFG guide",
   "← Back to blog": "← Back to blog",
+  "Create free account": "Create free account",
+  "Discord alternative for friends": "Discord alternative for friends",
+  "Copy invite link": "Copy invite link",
+  "Invite link copied": "Invite link copied",
+  "Could not copy invite link": "Could not copy invite link",
+  "Share your invite link — friends join free and connect with you instantly.":
+    "Share your invite link — friends join free and connect with you instantly.",
+  "Add friend": "Add friend",
+  "Invited by @{username}": "Invited by @{username}",
+  "Join {name} on Descall — free chat, voice, and calls.":
+    "Join {name} on Descall — free chat, voice, and calls.",
+  "Fastest path: continue with Google, then you’re in.":
+    "Fastest path: continue with Google, then you’re in.",
+  "or": "or",
+  "Turkey": "Turkey",
 };
 
 const locale = { nested, phrases };

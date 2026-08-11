@@ -294,6 +294,15 @@ export function routeMeta(pathname) {
   const clean = (pathname || "/").replace(/\/+$/, "") || "/";
   const hit = PUBLIC_ROUTES.find((r) => r.path === clean);
   if (hit) return { ...hit, noindex: false };
+  // Auth deep-links — crawlable entry should be marketing pages, not thin auth URLs
+  if (clean === "/register" || clean === "/login") {
+    return {
+      path: clean,
+      title: clean === "/register" ? "Create account — Descall" : "Sign in — Descall",
+      description: "Create a free Descall account for chat, voice, video, and screen share.",
+      noindex: true,
+    };
+  }
   if (clean.startsWith("/app")) {
     return {
       path: clean,
