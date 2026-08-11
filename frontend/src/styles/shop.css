@@ -207,6 +207,72 @@
   50% { filter: brightness(1.18) saturate(1.15); }
 }
 
+/* Category top nav — same interaction model as admin-tabs */
+.shop-category-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  margin: 0 -4px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  scrollbar-width: none;
+}
+
+.shop-category-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.shop-category-tab {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(244, 246, 251, 0.55);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  white-space: nowrap;
+}
+
+.shop-category-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f6fb;
+}
+
+.shop-category-tab.active {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.28), rgba(88, 101, 242, 0.2));
+  border-color: rgba(10, 132, 255, 0.4);
+  color: #8ec7ff;
+  box-shadow: 0 4px 16px rgba(10, 132, 255, 0.15);
+}
+
+.shop-category-tab-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  opacity: 0.85;
+}
+
+.shop-category-tab.active .shop-category-tab-count {
+  background: rgba(142, 199, 255, 0.2);
+}
+
 .shop-category-block h4 {
   margin: 0 0 10px;
   font-size: 13px;
@@ -224,7 +290,18 @@
 
 /* ── Mobile catalog: single-column list instead of a cramped multi-up grid ── */
 .user-settings.is-mobile .shop-panel {
-  gap: 26px;
+  gap: 16px;
+}
+
+.user-settings.is-mobile .shop-category-tabs {
+  margin: 0;
+  padding: 6px;
+  border-radius: 12px;
+}
+
+.user-settings.is-mobile .shop-category-tab {
+  padding: 7px 10px;
+  font-size: 0.74rem;
 }
 
 .user-settings.is-mobile .shop-panel-header-row {
@@ -243,16 +320,6 @@
 .user-settings.is-mobile .shop-panel-intro {
   font-size: 12.5px;
   margin: -4px 0 0;
-}
-
-.user-settings.is-mobile .shop-category-block {
-  scroll-margin-top: 12px;
-}
-
-.user-settings.is-mobile .shop-category-block + .shop-category-block {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border-2, rgba(255, 255, 255, 0.08));
 }
 
 .user-settings.is-mobile .shop-category-block h4 {

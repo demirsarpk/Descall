@@ -5,7 +5,26 @@ import RippleButton from "../ui/RippleButton";
 import { getShopCatalog, getShopInventory, purchaseShopItem, equipShopItem } from "../../api/shop";
 import { useT } from "../../context/LocaleContext";
 
-const CATEGORY_LABEL = {
+/** Short tab labels — same pattern as admin top nav. */
+const CATEGORY_TABS = [
+  { id: "banner", label: "Banners" },
+  { id: "avatar_frame", label: "Frames" },
+  { id: "profile_background", label: "Backgrounds" },
+  { id: "theme", label: "Themes" },
+  { id: "profile_badge", label: "Badges" },
+  { id: "profile_title", label: "Titles" },
+  { id: "name_effect", label: "Name Effects" },
+  { id: "avatar_effect", label: "Avatar Effects" },
+  { id: "chat_bubble", label: "Bubbles" },
+  { id: "presence_flare", label: "Presence" },
+  { id: "profile_aura", label: "Auras" },
+  { id: "sound_pack", label: "Sounds" },
+  { id: "typing_flare", label: "Typing" },
+  { id: "reaction_burst", label: "Reactions" },
+  { id: "call_overlay", label: "Call Overlays" },
+];
+
+const CATEGORY_HEADING = {
   banner: "Profile Banners",
   avatar_frame: "Avatar Frames",
   profile_background: "Profile Backgrounds",
@@ -23,23 +42,86 @@ const CATEGORY_LABEL = {
   call_overlay: "Call Overlays",
 };
 
-const CATEGORY_ORDER = [
-  "banner",
-  "avatar_frame",
-  "profile_background",
-  "theme",
-  "profile_badge",
-  "profile_title",
-  "name_effect",
-  "avatar_effect",
-  "chat_bubble",
-  "presence_flare",
-  "profile_aura",
-  "sound_pack",
-  "typing_flare",
-  "reaction_burst",
-  "call_overlay",
-];
+function ShopItemPreview({ category, item, t }) {
+  if (category === "theme") {
+    return <div className={`shop-theme-swatch theme-${item.theme_key || "default"}`} />;
+  }
+  if (category === "profile_badge") {
+    return <span className="shop-badge-preview">{item.badge_icon}</span>;
+  }
+  if (category === "profile_title") {
+    return <span className="cosmetic-title-tag shop-title-preview">{item.title_text}</span>;
+  }
+  if (category === "name_effect") {
+    return (
+      <span className={`cosmetic-name-effect effect-${item.effect_key} shop-name-effect-preview`}>
+        {item.name}
+      </span>
+    );
+  }
+  if (category === "avatar_effect") {
+    return (
+      <div className="shop-avatar-effect-preview">
+        <div className={`cosmetic-avatar-effect effect-${item.effect_key}`} />
+        <div className="shop-avatar-effect-dot" />
+      </div>
+    );
+  }
+  if (category === "chat_bubble") {
+    return (
+      <div className={`cosmetic-chat-bubble bubble-${item.effect_key} shop-bubble-preview`}>
+        {t("Hey there!")}
+      </div>
+    );
+  }
+  if (category === "presence_flare") {
+    return (
+      <div className="shop-presence-flare-preview">
+        <span className={`status-badge status-online cosmetic-presence-flare flare-${item.effect_key}`} />
+      </div>
+    );
+  }
+  if (category === "profile_aura") {
+    return (
+      <div className={`shop-profile-aura-preview cosmetic-profile-aura aura-${item.effect_key}`}>
+        <Sparkles size={18} />
+      </div>
+    );
+  }
+  if (category === "sound_pack") {
+    return (
+      <div className="shop-sound-pack-preview">
+        <Volume2 size={22} />
+        <span>{item.effect_key}</span>
+      </div>
+    );
+  }
+  if (category === "typing_flare") {
+    return (
+      <div className={`shop-typing-flare-preview cosmetic-typing-flare typing-${item.effect_key}`}>
+        <span className="typing-dot" />
+        <span className="typing-dot" />
+        <span className="typing-dot" />
+      </div>
+    );
+  }
+  if (category === "reaction_burst") {
+    return (
+      <div className={`shop-reaction-burst-preview cosmetic-reaction-burst burst-${item.effect_key}`}>
+        <span>🔥</span>
+        <Zap size={14} />
+      </div>
+    );
+  }
+  if (category === "call_overlay") {
+    return (
+      <div className={`shop-call-overlay-preview cosmetic-call-overlay overlay-${item.effect_key}`}>
+        <Phone size={18} />
+      </div>
+    );
+  }
+  return <img src={item.preview_url || item.asset_url} alt={item.name} loading="lazy" />;
+}
 
 export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
   const t = useT();
@@ -48,6 +130,7 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
   const [loading, setLoading] = useState(true);
   const [busyItemId, setBusyItemId] = useState(null);
   const [notice, setNotice] = useState("");
+  const [activeCategory, setActiveCategory] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,14 +151,33 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
 
   const ownedItemIds = useMemo(() => new Set(inventory.map((i) => i.itemId)), [inventory]);
 
-  const grouped = useMemo(() => {
+  const countsByCategory = useMemo(() => {
     const map = new Map();
     for (const item of items) {
-      if (!map.has(item.category)) map.set(item.category, []);
-      map.get(item.category).push(item);
+      map.set(item.category, (map.get(item.category) || 0) + 1);
     }
     return map;
   }, [items]);
+
+  const availableTabs = useMemo(
+    () => CATEGORY_TABS.filter((tab) => countsByCategory.has(tab.id)),
+    [countsByCategory]
+  );
+
+  useEffect(() => {
+    if (!availableTabs.length) {
+      setActiveCategory(null);
+      return;
+    }
+    if (!activeCategory || !availableTabs.some((tab) => tab.id === activeCategory)) {
+      setActiveCategory(availableTabs[0].id);
+    }
+  }, [availableTabs, activeCategory]);
+
+  const visibleItems = useMemo(
+    () => (activeCategory ? items.filter((item) => item.category === activeCategory) : []),
+    [items, activeCategory]
+  );
 
   const handleBuy = async (item) => {
     setBusyItemId(item.id);
@@ -83,7 +185,7 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
     try {
       await purchaseShopItem(item.id);
       await load();
-      await onEquippedChange?.(null, null); // no-op signal to let parents re-sync equip state if needed
+      await onEquippedChange?.(null, null);
     } catch (err) {
       setNotice(err.message || t("Purchase failed. Please try again."));
     } finally {
@@ -146,68 +248,37 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
       ) : items.length === 0 ? (
         <p className="shop-empty-state">{t("No items available yet — check back soon!")}</p>
       ) : (
-        CATEGORY_ORDER.filter((cat) => grouped.has(cat)).map((category) => (
-          <div className="shop-category-block" key={category}>
-            <h4>{t(CATEGORY_LABEL[category])}</h4>
+        <>
+          <nav className="shop-category-tabs" aria-label={t("Shop categories")}>
+            {availableTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`shop-category-tab ${activeCategory === tab.id ? "active" : ""}`}
+                onClick={() => setActiveCategory(tab.id)}
+              >
+                {t(tab.label)}
+                <span className="shop-category-tab-count">{countsByCategory.get(tab.id) || 0}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="shop-category-block">
+            <h4>{t(CATEGORY_HEADING[activeCategory] || activeCategory)}</h4>
             <div className="shop-grid">
-              {grouped.get(category).map((item) => {
+              {visibleItems.map((item) => {
+                const category = item.category;
                 const owned = ownedItemIds.has(item.id);
                 const isEquipped = equippedIdFor(category) === item.id;
                 const busy = busyItemId === item.id;
                 const affordable = balance >= (item.price_descoin || 0);
                 return (
-                  <div className="shop-item-card" data-category={item.category} key={item.id}>
-                    <div className="shop-item-preview" data-theme-preview={category === "theme" ? item.theme_key : undefined}>
-                      {category === "theme" ? (
-                        <div className={`shop-theme-swatch theme-${item.theme_key || "default"}`} />
-                      ) : category === "profile_badge" ? (
-                        <span className="shop-badge-preview">{item.badge_icon}</span>
-                      ) : category === "profile_title" ? (
-                        <span className="cosmetic-title-tag shop-title-preview">{item.title_text}</span>
-                      ) : category === "name_effect" ? (
-                        <span className={`cosmetic-name-effect effect-${item.effect_key} shop-name-effect-preview`}>
-                          {item.name}
-                        </span>
-                      ) : category === "avatar_effect" ? (
-                        <div className="shop-avatar-effect-preview">
-                          <div className={`cosmetic-avatar-effect effect-${item.effect_key}`} />
-                          <div className="shop-avatar-effect-dot" />
-                        </div>
-                      ) : category === "chat_bubble" ? (
-                        <div className={`cosmetic-chat-bubble bubble-${item.effect_key} shop-bubble-preview`}>
-                          {t("Hey there!")}
-                        </div>
-                      ) : category === "presence_flare" ? (
-                        <div className="shop-presence-flare-preview">
-                          <span className={`status-badge status-online cosmetic-presence-flare flare-${item.effect_key}`} />
-                        </div>
-                      ) : category === "profile_aura" ? (
-                        <div className={`shop-profile-aura-preview cosmetic-profile-aura aura-${item.effect_key}`}>
-                          <Sparkles size={18} />
-                        </div>
-                      ) : category === "sound_pack" ? (
-                        <div className="shop-sound-pack-preview">
-                          <Volume2 size={22} />
-                          <span>{item.effect_key}</span>
-                        </div>
-                      ) : category === "typing_flare" ? (
-                        <div className={`shop-typing-flare-preview cosmetic-typing-flare typing-${item.effect_key}`}>
-                          <span className="typing-dot" />
-                          <span className="typing-dot" />
-                          <span className="typing-dot" />
-                        </div>
-                      ) : category === "reaction_burst" ? (
-                        <div className={`shop-reaction-burst-preview cosmetic-reaction-burst burst-${item.effect_key}`}>
-                          <span>🔥</span>
-                          <Zap size={14} />
-                        </div>
-                      ) : category === "call_overlay" ? (
-                        <div className={`shop-call-overlay-preview cosmetic-call-overlay overlay-${item.effect_key}`}>
-                          <Phone size={18} />
-                        </div>
-                      ) : (
-                        <img src={item.preview_url || item.asset_url} alt={item.name} loading="lazy" />
-                      )}
+                  <div className="shop-item-card" data-category={category} key={item.id}>
+                    <div
+                      className="shop-item-preview"
+                      data-theme-preview={category === "theme" ? item.theme_key : undefined}
+                    >
+                      <ShopItemPreview category={category} item={item} t={t} />
                     </div>
                     <div className="shop-item-body">
                       <div className="shop-item-name-row">
@@ -252,7 +323,7 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0 }) {
               })}
             </div>
           </div>
-        ))
+        </>
       )}
     </motion.div>
   );
