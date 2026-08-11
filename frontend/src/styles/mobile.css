@@ -115,8 +115,11 @@
 
   /*
    * Activity (mobile): full-width page = nav rail + Activity sidebar.
-   * Pin the shell to the content box above the fixed tab bar so % heights
-   * resolve (flex + height:auto left a black void under the rail on iOS).
+   *
+   * iOS Safari does not reliably resolve height:100% / flex-stretch when the
+   * chat panel is display:none — the glass rail shrinks to its content and
+   * leaves a purple void under the avatar. Pin shell + rail with fixed/absolute
+   * edges (same idea as the mobile drawer on Friends/Chat).
    */
   .app-root.is-mobile[data-view="activity"] {
     position: relative;
@@ -126,34 +129,37 @@
   }
 
   .app-root.is-mobile[data-view="activity"] .app-sidebar-shell {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    /* Match .app-root.is-mobile padding-bottom (tab bar reserve). */
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
-    width: 100%;
-    max-width: 100%;
-    height: auto;
-    max-height: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: var(--vv-height, 100dvh) !important;
+    max-height: var(--vv-height, 100dvh) !important;
     min-height: 0;
     transform: none !important;
     box-shadow: none;
     z-index: 40;
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: 0;
-    display: flex;
-    flex-direction: row;
-    align-items: stretch;
+    display: block;
     background: var(--surface-1);
+    overflow: hidden;
   }
 
   .app-root.is-mobile[data-view="activity"] .app-sidebar-shell .nav-rail {
-    /* Fill the absolutely sized shell — same edge-to-edge look as other pages. */
-    height: 100% !important;
+    /* Edge-pin — do not rely on % height (broken on iOS when chat is hidden). */
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 60px !important;
+    height: auto !important;
     max-height: none !important;
-    min-height: 0;
-    align-self: stretch;
+    min-height: 0 !important;
+    z-index: 2;
     background:
       linear-gradient(180deg, var(--nav-glass-highlight), transparent 28%),
       var(--nav-glass-bg);
@@ -161,13 +167,20 @@
 
   .app-root.is-mobile[data-view="activity"] .app-sidebar-shell .sidebar-secondary,
   .app-root.is-mobile[data-view="activity"].mobile-drawer-open .app-sidebar-shell .sidebar-secondary {
+    position: absolute !important;
+    top: 0 !important;
+    left: 60px !important;
+    right: 0 !important;
+    bottom: 0 !important;
     display: flex;
-    flex: 1;
+    width: auto !important;
     min-width: 0;
     min-height: 0;
-    height: 100% !important;
+    height: auto !important;
     max-height: none !important;
-    align-self: stretch;
+    /* List clears the fixed tab bar; rail intentionally paints behind it. */
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
     background: var(--surface-1);
   }
 
@@ -177,7 +190,6 @@
     height: 100% !important;
     max-height: none !important;
     min-height: 0;
-    align-self: stretch;
     display: flex;
     flex-direction: column;
   }
@@ -735,7 +747,13 @@
   }
 
   html.kb-open .app-root.is-mobile[data-view="activity"] .app-sidebar-shell {
-    bottom: 0;
+    bottom: 0 !important;
+    height: var(--vv-height, 100dvh) !important;
+    max-height: var(--vv-height, 100dvh) !important;
+  }
+
+  html.kb-open .app-root.is-mobile[data-view="activity"] .app-sidebar-shell .sidebar-secondary {
+    padding-bottom: 0;
   }
 
   html.kb-open .mobile-tab-bar {
