@@ -9,6 +9,15 @@ const CATEGORY_LABEL = {
   banner: "Profile Banner",
   avatar_frame: "Avatar Frame",
   profile_background: "Profile Background",
+  theme: "Premium Theme",
+  profile_badge: "Profile Badge",
+  profile_title: "Profile Title",
+  name_effect: "Name Effect",
+  avatar_effect: "Avatar Effect",
+  chat_bubble: "Chat Bubble Skin",
+  presence_flare: "Presence Flare",
+  profile_aura: "Profile Aura",
+  sound_pack: "Sound Pack",
 };
 
 /**

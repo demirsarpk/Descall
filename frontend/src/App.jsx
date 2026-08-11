@@ -508,6 +508,17 @@ export default function App() {
     }
   }, [me, me?.equippedTheme?.theme_key]);
 
+  // Keep equipped sound-pack theme available to the notification/call audio layer.
+  useEffect(() => {
+    const key = me?.equippedSoundPack?.effect_key || "";
+    try {
+      if (key) document.documentElement.dataset.soundPack = key;
+      else delete document.documentElement.dataset.soundPack;
+    } catch {
+      /* ignore */
+    }
+  }, [me?.equippedSoundPack?.effect_key]);
+
   const applyProfileUpdate = useCallback((user) => {
     const normalized = normalizeUser(user);
     if (!normalized?.id) return;

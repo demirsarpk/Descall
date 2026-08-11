@@ -213,6 +213,11 @@ export default function UserProfileModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 16 }}
             transition={{ type: "spring", damping: 26, stiffness: 360 }}
+            className={
+              profile?.equippedProfileAura?.effect_key
+                ? `cosmetic-profile-aura aura-${profile.equippedProfileAura.effect_key}`
+                : undefined
+            }
             style={{
               width: 300,
               // A purchased profile background shows through everywhere the card
@@ -281,7 +286,7 @@ export default function UserProfileModal({
                 <div style={{ position: "relative", display: "inline-flex" }}>
                   <Avatar name={displayName} size={72} user={profile || { avatarUrl: displayAvatar, username: displayUsername, displayName }} />
                   <div style={{ position: "absolute", bottom: 3, right: 3 }}>
-                    <StatusBadge status={status} size={14} />
+                    <StatusBadge status={status} size={14} user={profile} />
                   </div>
                 </div>
               </div>
