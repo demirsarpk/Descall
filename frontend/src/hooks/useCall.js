@@ -197,7 +197,7 @@ export function useCall(socket, callOccupancyRef = null) {
   const [audioOutputDevices, setAudioOutputDevices] = useState([]);
   const [selectedAudioInput, setSelectedAudioInput] = useState("");
   const [selectedAudioOutput, setSelectedAudioOutput] = useState("");
-  const [screenQuality, setScreenQuality] = useState(GROUP_SCREEN_DEFAULT_QUALITY);
+  const [screenQuality, setScreenQuality] = useState(DM_SCREEN_DEFAULT_QUALITY);
   const screenQualityRef = useRef(screenQuality);
 
   useEffect(() => {
@@ -1035,7 +1035,7 @@ export function useCall(socket, callOccupancyRef = null) {
       return;
     }
     try {
-      const effectiveQuality = qualityOverride || screenQualityRef.current || GROUP_SCREEN_DEFAULT_QUALITY;
+      const effectiveQuality = qualityOverride || screenQualityRef.current || DM_SCREEN_DEFAULT_QUALITY;
       const { width, height, fps } = resolveScreenCaptureSize(effectiveQuality);
       let screenStream;
 
