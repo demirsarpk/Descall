@@ -90,18 +90,29 @@ function sendHtml(res, body) {
 function staticPages(origin) {
   const now = new Date().toISOString();
   const pages = [
-    { path: "/", title: "Descall — Free Discord alternative for chat, voice & LFG", changefreq: "daily", priority: "1.0" },
+    { path: "/", title: "Descall — Free Discord Alternative for Chat, Voice & LFG", changefreq: "daily", priority: "1.0" },
     { path: "/download", title: "Download Descall — Discord alternative for Windows & Android", changefreq: "weekly", priority: "0.9" },
     { path: "/features", title: "Descall Features — Chat, calls, screen share & LFG", changefreq: "weekly", priority: "0.85" },
-    { path: "/discord-alternative", title: "Best Free Discord Alternative (2026) — Descall", changefreq: "weekly", priority: "0.95" },
-    { path: "/alternatives", title: "Discord Alternatives in 2026 — Why teams pick Descall", changefreq: "weekly", priority: "0.9" },
-    { path: "/compare/discord", title: "Descall vs Discord — Honest comparison (2026)", changefreq: "weekly", priority: "0.95" },
-    { path: "/best-discord-alternative-for-gamers", title: "Best Discord Alternative for Gamers — Descall LFG", changefreq: "weekly", priority: "0.9" },
+    { path: "/discord-alternative", title: "Best Free Discord Alternative for Friends & Gamers | Descall", changefreq: "weekly", priority: "0.95" },
+    { path: "/alternatives", title: "Best Discord Alternatives in 2026 — Compare Apps Like Discord", changefreq: "weekly", priority: "0.9" },
+    { path: "/compare/discord", title: "Descall vs Discord (2026) — Feature Comparison & Verdict", changefreq: "weekly", priority: "0.95" },
+    { path: "/best-discord-alternative-for-gamers", title: "Best Discord Alternative for Gamers & Valorant LFG | Descall", changefreq: "weekly", priority: "0.9" },
+    { path: "/discord-alternative-for-communities", title: "Discord Alternative for Communities | Descall Groups", changefreq: "weekly", priority: "0.88" },
+    { path: "/discord-alternative-for-lfg", title: "Discord Alternative for LFG — Valorant Lobbies | Descall", changefreq: "weekly", priority: "0.9" },
+    { path: "/discord-alternative-for-voice-chat", title: "Voice Chat Alternative to Discord — Free Calls | Descall", changefreq: "weekly", priority: "0.88" },
+    { path: "/discord-alternative-for-friends", title: "Discord Alternative for Friends — DMs, Groups & Voice", changefreq: "weekly", priority: "0.88" },
+    { path: "/apps-like-discord", title: "Apps Like Discord (2026) — Websites & Platforms Compared", changefreq: "weekly", priority: "0.9" },
+    { path: "/discord-replacement", title: "Discord Replacement for Friend Groups | Switch to Descall", changefreq: "weekly", priority: "0.88" },
     { path: "/discord-alternative-turkey", title: "Türkiye için Discord Alternatifi — Descall", changefreq: "weekly", priority: "0.9" },
-    { path: "/blog", title: "Descall Blog — Discord alternatives, LFG & voice chat", changefreq: "weekly", priority: "0.8" },
+    { path: "/blog", title: "Descall Blog — Discord Alternatives, LFG & Voice Chat Guides", changefreq: "weekly", priority: "0.8" },
     { path: "/blog/discord-vs-descall", title: "Discord vs Descall (2026)", changefreq: "monthly", priority: "0.85" },
+    { path: "/blog/best-discord-alternatives-2026", title: "Best Discord Alternatives in 2026", changefreq: "monthly", priority: "0.85" },
+    { path: "/blog/apps-like-discord", title: "Apps Like Discord — What to Use Instead", changefreq: "monthly", priority: "0.85" },
+    { path: "/blog/discord-competitors", title: "Discord Competitors in 2026", changefreq: "monthly", priority: "0.85" },
     { path: "/blog/best-discord-alternative-for-lfg", title: "Best Discord Alternative for Valorant LFG", changefreq: "monthly", priority: "0.85" },
     { path: "/blog/leave-nitro-keep-voice-chat", title: "Leave Nitro. Keep voice chat.", changefreq: "monthly", priority: "0.8" },
+    { path: "/blog/discord-alternative-for-communities-guide", title: "Discord Alternative for Communities Guide", changefreq: "monthly", priority: "0.8" },
+    { path: "/blog/voice-chat-alternative-to-discord", title: "Voice Chat Alternative to Discord", changefreq: "monthly", priority: "0.8" },
     { path: "/faq", title: "Descall FAQ — Discord alternative questions answered", changefreq: "weekly", priority: "0.75" },
     { path: "/security", title: "Descall Security", changefreq: "monthly", priority: "0.6" },
     { path: "/about", title: "About Descall — Building a lighter Discord alternative", changefreq: "monthly", priority: "0.65" },
@@ -319,7 +330,13 @@ Allow: /contact
 Allow: /compare/
 Allow: /discord-alternative
 Allow: /discord-alternative-turkey
+Allow: /discord-alternative-for-communities
+Allow: /discord-alternative-for-lfg
+Allow: /discord-alternative-for-voice-chat
+Allow: /discord-alternative-for-friends
 Allow: /best-discord-alternative-for-gamers
+Allow: /apps-like-discord
+Allow: /discord-replacement
 Allow: /alternatives
 Allow: /blog
 Allow: /blog/

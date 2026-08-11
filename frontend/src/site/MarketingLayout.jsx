@@ -91,10 +91,17 @@ export default function MarketingLayout({ children, onSignIn }) {
         <div className="mkt-footer-links">
           <Link to="/discord-alternative">{t("Discord alternative")}</Link>
           <Link to="/alternatives">{t("Alternatives")}</Link>
+          <Link to="/apps-like-discord">{t("Apps like Discord")}</Link>
           <Link to="/compare/discord">{t("vs Discord")}</Link>
+          <Link to="/discord-replacement">{t("Discord replacement")}</Link>
           <Link to="/best-discord-alternative-for-gamers">{t("For gamers")}</Link>
+          <Link to="/discord-alternative-for-lfg">{t("LFG")}</Link>
+          <Link to="/discord-alternative-for-communities">{t("Communities")}</Link>
+          <Link to="/discord-alternative-for-voice-chat">{t("Voice chat")}</Link>
+          <Link to="/discord-alternative-for-friends">{t("For friends")}</Link>
           <Link to="/discord-alternative-turkey">{t("Türkiye")}</Link>
           <Link to="/blog">{t("Blog")}</Link>
+          <Link to="/features">{t("Features")}</Link>
           <Link to="/privacy">{t("Privacy Policy")}</Link>
           <Link to="/terms">{t("Terms")}</Link>
           <Link to="/contact">{t("Contact")}</Link>

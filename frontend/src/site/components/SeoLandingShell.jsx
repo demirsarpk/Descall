@@ -17,6 +17,7 @@ export default function SeoLandingShell({
   jsonLd = [],
   primaryCta,
   secondaryCta,
+  heroExtra = null,
 }) {
   const t = useT();
 
@@ -52,6 +53,7 @@ export default function SeoLandingShell({
             {secondaryCta}
           </div>
         )}
+        {heroExtra}
       </motion.header>
 
       <div className="seo-body">{children}</div>

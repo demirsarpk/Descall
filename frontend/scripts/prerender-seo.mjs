@@ -1,11 +1,11 @@
 /**
  * Post-build SEO HTML shells for crawlers.
- * Copies dist/index.html into route folders with route-specific meta/title.
- * Routes stay in sync with src/site/seoConfig.js PUBLIC_ROUTES.
+ * - Route meta from src/site/seoConfig.js (single source of truth)
+ * - Injects crawlable <main> into #root so HTML responses aren't empty SPA shells
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -15,135 +15,91 @@ const indexPath = path.join(distDir, "index.html");
 const SITE = "https://descall.com";
 const OG = `${SITE}/og-default.svg`;
 
-/** Keep aligned with frontend/src/site/seoConfig.js PUBLIC_ROUTES */
-const ROUTES = [
-  {
-    path: "/",
-    title: "Descall — Free Discord alternative for chat, voice & LFG",
-    description:
-      "Descall is a free Discord alternative with real-time chat, group voice/video, screen share, Valorant LFG, and a Windows desktop app — lighter for friends and gamers.",
-    keywords: "discord alternative, discord alternatives, free discord alternative, voice chat, valorant lfg",
-  },
-  {
-    path: "/download",
-    title: "Download Descall — Discord alternative for Windows & Android",
-    description:
-      "Download the Descall desktop app for Windows or use Android/web. A free Discord alternative for chat, voice, video, and screen share.",
-    keywords: "download descall, discord alternative download, descall windows",
-  },
-  {
-    path: "/features",
-    title: "Descall Features — Chat, calls, screen share & LFG",
-    description:
-      "Explore Descall features: Discord-alternative messaging, group voice/video, screen share quality controls, Valorant LFG, cosmetics, and more.",
-    keywords: "descall features, discord alternative features, voice chat features",
-  },
-  {
-    path: "/discord-alternative",
-    title: "Best Free Discord Alternative (2026) — Descall",
-    description:
-      "Looking for a Discord alternative? Descall offers free chat, voice, video, screen share, and Valorant LFG without Nitro — built for friends and gaming groups.",
-    keywords: "discord alternative, best discord alternative, free discord alternative 2026",
-  },
-  {
-    path: "/alternatives",
-    title: "Discord Alternatives in 2026 — Why teams pick Descall",
-    description:
-      "Compare Discord alternatives for chat and voice. See why Descall is a lighter, free Discord alternative for friend groups, LFG, and screen share.",
-    keywords: "discord alternatives, apps like discord, best discord alternatives 2026",
-  },
-  {
-    path: "/compare/discord",
-    title: "Descall vs Discord — Honest comparison (2026)",
-    description:
-      "Descall vs Discord: chat, voice, video, screen share, LFG, desktop apps, and pricing. See when Descall is the better Discord alternative.",
-    keywords: "descall vs discord, discord vs descall, discord comparison",
-  },
-  {
-    path: "/best-discord-alternative-for-gamers",
-    title: "Best Discord Alternative for Gamers — Descall LFG",
-    description:
-      "Best Discord alternative for gamers: Descall combines voice chat, screen share, and built-in Valorant LFG so squads can queue without Nitro.",
-    keywords: "discord alternative for gamers, gaming discord alternative, valorant lfg",
-  },
-  {
-    path: "/discord-alternative-turkey",
-    title: "Türkiye için Discord Alternatifi — Descall",
-    description:
-      "Discord alternatifi mi arıyorsun? Descall: ücretsiz sohbet, sesli arama, ekran paylaşımı ve Valorant LFG. Türkçe arayüz, Windows ve Android.",
-    keywords: "discord alternatifi, discord alternatifleri, ücretsiz sesli sohbet",
-    lang: "tr",
-  },
-  {
-    path: "/blog",
-    title: "Descall Blog — Discord alternatives, LFG & voice chat",
-    description:
-      "Guides on Discord alternatives, Valorant LFG, voice chat, and migrating friend groups to Descall.",
-    keywords: "discord alternative blog, voice chat guides, valorant lfg",
-  },
-  {
-    path: "/blog/discord-vs-descall",
-    title: "Discord vs Descall (2026) — Which should your group use?",
-    description:
-      "Honest Discord vs Descall comparison for chat, voice, screen share, LFG, and pricing — when a lighter Discord alternative wins.",
-    keywords: "discord vs descall, descall vs discord",
-  },
-  {
-    path: "/blog/best-discord-alternative-for-lfg",
-    title: "Best Discord Alternative for Valorant LFG",
-    description:
-      "Why gamers choose Descall as a Discord alternative for LFG: Play tab lobbies, party codes, and Riot Name#TAG linking.",
-    keywords: "discord alternative for lfg, valorant lfg app",
-  },
-  {
-    path: "/blog/leave-nitro-keep-voice-chat",
-    title: "Leave Nitro. Keep voice chat. — Descall migration guide",
-    description:
-      "Move your friend group off Discord Nitro habits to a free Discord alternative with voice, video, and screen share.",
-    keywords: "leave discord nitro, switch from discord, free voice chat",
-  },
-  {
-    path: "/faq",
-    title: "Descall FAQ — Discord alternative questions answered",
-    description:
-      "FAQ about Descall as a Discord alternative — accounts, desktop download, calls, screen share, LFG, and privacy.",
-    keywords: "descall faq, discord alternative faq",
-  },
-  {
-    path: "/security",
-    title: "Descall Security",
-    description:
-      "How Descall protects your chats and calls — encryption in transit, account security, and responsible practices.",
-  },
-  {
-    path: "/privacy",
-    title: "Descall Privacy Policy",
-    description: "Privacy Policy for Descall — what we collect, how we use data, and your choices.",
-  },
-  {
-    path: "/terms",
-    title: "Descall Terms of Service",
-    description: "Terms of Service for using Descall web and desktop apps.",
-  },
-  {
-    path: "/about",
-    title: "About Descall — Building a lighter Discord alternative",
-    description:
-      "Descall is building a fast, modern Discord alternative for chat, calls, screen share, and gamer LFG.",
-  },
-  {
-    path: "/contact",
-    title: "Contact Descall",
-    description: "Get in touch with the Descall team — support, feedback, and press.",
-  },
-];
+const { PUBLIC_ROUTES } = await import(pathToFileURL(path.join(root, "src/site/seoConfig.js")).href);
+const { NICHE_LANDINGS } = await import(pathToFileURL(path.join(root, "src/site/seo/nicheLandings.js")).href);
+const { BLOG_POSTS } = await import(
+  pathToFileURL(path.join(root, "src/site/content/discordSeoContent.js")).href
+);
+const { BLOG_BODIES } = await import(pathToFileURL(path.join(root, "src/site/seo/blogBodies.js")).href);
 
 function escapeHtml(s) {
-  return String(s)
+  return String(s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function crawlBody(route) {
+  const niche = NICHE_LANDINGS[route.path];
+  if (niche) {
+    const sections = niche.sections
+      .map((s) => `<h2>${escapeHtml(s.h)}</h2><p>${escapeHtml(s.p)}</p>`)
+      .join("\n");
+    const links = niche.related
+      .map((l) => `<li><a href="${escapeHtml(l.to)}">${escapeHtml(l.label)}</a></li>`)
+      .join("");
+    return `
+<main>
+  <h1>${escapeHtml(niche.h1)}</h1>
+  <p>${escapeHtml(niche.lead)}</p>
+  <p><a href="/download">Download Descall</a> · <a href="/discord-alternative">Discord alternative</a></p>
+  <h2>${escapeHtml(niche.answerTitle)}</h2>
+  <p>${escapeHtml(niche.answer)}</p>
+  <ul>${niche.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>
+  ${sections}
+  <nav aria-label="Related"><ul>${links}</ul></nav>
+</main>`;
+  }
+
+  if (route.path.startsWith("/blog/") && route.path !== "/blog") {
+    const slug = route.path.replace("/blog/", "");
+    const post = BLOG_POSTS.find((p) => p.slug === slug);
+    const body = BLOG_BODIES[slug];
+    if (post && body) {
+      const sections = body.sections
+        .map((s) => `<h2>${escapeHtml(s.h)}</h2><p>${escapeHtml(s.p)}</p>`)
+        .join("\n");
+      return `
+<main>
+  <article>
+    <h1>${escapeHtml(post.title)}</h1>
+    <p>${escapeHtml(post.description)}</p>
+    ${sections}
+    <p><a href="/blog">Blog</a> · <a href="/discord-alternative">Discord alternative</a> · <a href="/download">Download</a></p>
+  </article>
+</main>`;
+    }
+  }
+
+  const h1 = route.h1 || route.title.replace(/\s*\|\s*Descall\s*$/i, "").replace(/\s*—\s*Descall\s*$/i, "");
+  return `
+<main>
+  <h1>${escapeHtml(h1)}</h1>
+  <p>${escapeHtml(route.description)}</p>
+  <nav aria-label="Descall">
+    <a href="/">Home</a>
+    <a href="/discord-alternative">Discord alternative</a>
+    <a href="/alternatives">Alternatives</a>
+    <a href="/compare/discord">Descall vs Discord</a>
+    <a href="/apps-like-discord">Apps like Discord</a>
+    <a href="/features">Features</a>
+    <a href="/download">Download</a>
+    <a href="/blog">Blog</a>
+    <a href="/faq">FAQ</a>
+  </nav>
+</main>`;
+}
+
+function stripStaleHeadSeo(html) {
+  return html
+    .replace(/<meta\s+name="description"[^>]*>\s*/gi, "")
+    .replace(/<meta\s+name="keywords"[^>]*>\s*/gi, "")
+    .replace(/<meta\s+name="robots"[^>]*>\s*/gi, "")
+    .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "")
+    .replace(/<link\s+rel="alternate"[^>]*hreflang="[^"]*"[^>]*>\s*/gi, "")
+    .replace(/<meta\s+property="og:[^"]*"[^>]*>\s*/gi, "")
+    .replace(/<meta\s+name="twitter:[^"]*"[^>]*>\s*/gi, "");
 }
 
 function injectMeta(html, route) {
@@ -152,8 +108,9 @@ function injectMeta(html, route) {
   const desc = escapeHtml(route.description);
   const keywords = route.keywords ? escapeHtml(route.keywords) : "";
   const lang = route.lang || "en";
+  const ogType = route.ogType || "website";
 
-  let out = html;
+  let out = stripStaleHeadSeo(html);
   out = out.replace(/<html\s+lang="[^"]*"/i, `<html lang="${lang}"`);
   out = out.replace(/<title>[^<]*<\/title>/i, `<title>${title}</title>`);
 
@@ -168,9 +125,11 @@ function injectMeta(html, route) {
     `<meta property="og:title" content="${title}" />`,
     `<meta property="og:description" content="${desc}" />`,
     `<meta property="og:url" content="${url}" />`,
-    `<meta property="og:type" content="website" />`,
+    `<meta property="og:type" content="${ogType}" />`,
     `<meta property="og:site_name" content="Descall" />`,
     `<meta property="og:image" content="${OG}" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
     `<meta property="og:locale" content="${lang === "tr" ? "tr_TR" : "en_US"}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${title}" />`,
@@ -181,6 +140,40 @@ function injectMeta(html, route) {
     .join("\n    ");
 
   out = out.replace(/<\/title>/i, `</title>\n    ${metaBlock}`);
+
+  // Boot splash uses an <h1> for the brand mark — demote so the page keeps a single H1.
+  out = out.replace(
+    /<h1 class="boot-title">Descall<\/h1>/i,
+    '<div class="boot-title">Descall</div>'
+  );
+
+  const body = crawlBody(route);
+  // Prefer injecting into #root so crawlers see content before SPA mount.
+  if (/<div id="root"><\/div>/i.test(out)) {
+    out = out.replace(/<div id="root"><\/div>/i, `<div id="root">${body}</div>`);
+  } else if (/<div id="root">[\s\S]*?<\/div>/i.test(out)) {
+    out = out.replace(/<div id="root">[\s\S]*?<\/div>/i, `<div id="root">${body}</div>`);
+  }
+
+  // Noscript nav only — full crawl body already lives in #root (avoid duplicate H1).
+  const noscript = `<noscript>
+      <nav aria-label="Descall">
+        <a href="/">Descall</a>
+        <a href="/discord-alternative">Discord alternative</a>
+        <a href="/alternatives">Alternatives</a>
+        <a href="/compare/discord">vs Discord</a>
+        <a href="/apps-like-discord">Apps like Discord</a>
+        <a href="/features">Features</a>
+        <a href="/download">Download</a>
+        <a href="/blog">Blog</a>
+        <a href="/faq">FAQ</a>
+        <a href="/contact">Contact</a>
+      </nav>
+    </noscript>`;
+  if (/<noscript>[\s\S]*?<\/noscript>/i.test(out)) {
+    out = out.replace(/<noscript>[\s\S]*?<\/noscript>/i, noscript);
+  }
+
   return out;
 }
 
@@ -199,10 +192,11 @@ function main() {
     process.exit(1);
   }
   const base = fs.readFileSync(indexPath, "utf8");
-  for (const route of ROUTES) {
+  const routes = PUBLIC_ROUTES.filter((r) => !r.noindex);
+  for (const route of routes) {
     writeRoute(route, base);
   }
-  console.log(`[prerender-seo] wrote ${ROUTES.length} SEO shells`);
+  console.log(`[prerender-seo] wrote ${routes.length} SEO shells with crawlable HTML`);
 }
 
 main();
