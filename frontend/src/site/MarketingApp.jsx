@@ -233,27 +233,6 @@ function AuthModal({
                   </div>
                 )}
                 {authError && <div className="auth-error">{authError}</div>}
-                {isRegistering && (
-                  <div className="legal-consent">
-                    <input
-                      id="mkt-auth-terms-checkbox"
-                      type="checkbox"
-                      checked={termsAccepted}
-                      onChange={(e) => setTermsAccepted(e.target.checked)}
-                    />
-                    <label htmlFor="mkt-auth-terms-checkbox">
-                      {t("I have read and agree to the")}{" "}
-                      <button type="button" className="legal-consent-link" onClick={() => setLegalModal("terms")}>
-                        {t("Terms of Service")}
-                      </button>{" "}
-                      {t("and")}{" "}
-                      <button type="button" className="legal-consent-link" onClick={() => setLegalModal("privacy")}>
-                        {t("Privacy Policy")}
-                      </button>
-                      .
-                    </label>
-                  </div>
-                )}
                 <GoogleSignInButton
                   disabled={isSubmitting || authLoading || (isRegistering && !termsAccepted)}
                   onCredential={async (credential) => {
@@ -306,6 +285,27 @@ function AuthModal({
                         "Adding an email unlocks account recovery, sign-in codes, and two-factor authentication. You can also add it later in Settings."
                       )}
                     </p>
+                  )}
+                  {isRegistering && (
+                    <div className="legal-consent">
+                      <input
+                        id="mkt-auth-terms-checkbox"
+                        type="checkbox"
+                        checked={termsAccepted}
+                        onChange={(e) => setTermsAccepted(e.target.checked)}
+                      />
+                      <label htmlFor="mkt-auth-terms-checkbox">
+                        {t("I have read and agree to the")}{" "}
+                        <button type="button" className="legal-consent-link" onClick={() => setLegalModal("terms")}>
+                          {t("Terms of Service")}
+                        </button>{" "}
+                        {t("and")}{" "}
+                        <button type="button" className="legal-consent-link" onClick={() => setLegalModal("privacy")}>
+                          {t("Privacy Policy")}
+                        </button>
+                        .
+                      </label>
+                    </div>
                   )}
                   <button
                     type="submit"
