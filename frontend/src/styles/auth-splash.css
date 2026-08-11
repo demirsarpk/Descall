@@ -97,6 +97,17 @@
   margin-bottom: 18px;
 }
 
+.auth-logo-container .auth-brand-mark,
+.auth-logo-container .descall-brand {
+  justify-content: center;
+}
+
+.auth-logo-container .descall-brand-mark {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+}
+
 .auth-title {
   margin: 10px 0 6px;
   font-size: 28px;

@@ -376,13 +376,13 @@
   padding: 0;
 }
 
+.nav-rail-logo .descall-brand-mark,
 .nav-rail-logo .descall-brand svg {
   display: block;
   width: 30px;
   height: 30px;
   border-radius: 10px;
-  /* Optical center — chat-bubble mark reads high-left in the 64 artboard */
-  transform: translate(1px, 1.5px);
+  transform: none;
 }
 
 .brand-icon {
