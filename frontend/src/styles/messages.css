@@ -88,13 +88,14 @@
   flex-direction: column;
   gap: 4px;
   width: fit-content;
-  max-width: 70%;
+  max-width: min(70%, 420px);
   padding: 10px 14px;
   border-radius: 12px;
   background: var(--surface-2);
   position: relative;
   overflow: visible;
   touch-action: pan-y;
+  box-sizing: border-box;
 }
 
 .message-bubble.own {
@@ -116,34 +117,201 @@
   margin-right: 0;
 }
 
+/* Media stays inside the bubble — definite pixel width so intrinsic GIF
+   sizes cannot stretch the bubble across the chat column. */
+.message-bubble.has-media {
+  width: 280px;
+  max-width: calc(100% - 8px);
+  min-width: 0;
+}
+
+.message-bubble.has-media-only {
+  width: 280px;
+  max-width: calc(100% - 8px);
+  min-width: 0;
+  padding: 4px;
+  gap: 0;
+  /* Strengthen the frame so the image clearly sits inside a bubble. */
+  background: var(--surface-2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.message-bubble.own.has-media-only {
+  background: color-mix(in srgb, var(--primary) 22%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--primary) 35%, rgba(255, 255, 255, 0.08));
+}
+
 .message-text {
   font-size: 14px;
   line-height: 1.5;
   color: var(--text-1);
   word-wrap: break-word;
   white-space: pre-wrap;
+  min-width: 0;
 }
 
 .message-media {
   margin-top: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.message-media.is-visual {
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  line-height: 0;
+}
+
+.message-bubble.has-media-only .message-media {
+  margin-top: 0;
+}
+
+.message-bubble.has-media-only .message-media.is-visual {
+  border-radius: 8px;
+}
+
+.message-media-trigger {
+  display: block;
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  overflow: hidden;
+  border-radius: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.message-media-trigger:focus-visible {
+  outline: 2px solid rgba(120, 140, 255, 0.55);
+  outline-offset: 2px;
 }
 
 .message-image {
-  max-width: 320px;
-  max-height: 240px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: min(280px, 48vh);
+  object-fit: contain;
+  object-position: center;
+  vertical-align: middle;
+  background: rgba(0, 0, 0, 0.12);
+  /* Prevent replaced-element min-content from blowing past the bubble */
+  min-width: 0;
+  min-height: 0;
 }
 
-.message-image:hover {
-  transform: scale(1.02);
+.message-media-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
 }
 
 .message-video {
-  max-width: 320px;
-  max-height: 240px;
-  border-radius: 8px;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: min(280px, 48vh);
+  border-radius: 10px;
+  background: #000;
+}
+
+/* ─── Chat media lightbox ─── */
+.message-media-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 120000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding:
+    max(16px, env(safe-area-inset-top, 0px))
+    max(16px, env(safe-area-inset-right, 0px))
+    max(16px, env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
+  background: rgba(6, 8, 14, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: zoom-out;
+}
+
+.message-media-lightbox-close {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top, 0px));
+  right: max(14px, env(safe-area-inset-right, 0px));
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(20, 22, 30, 0.72);
+  cursor: pointer;
+  z-index: 1;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.message-media-lightbox-close:hover {
+  background: rgba(40, 44, 58, 0.9);
+  transform: scale(1.04);
+}
+
+.message-media-lightbox-close:focus-visible {
+  outline: 2px solid rgba(140, 160, 255, 0.7);
+  outline-offset: 2px;
+}
+
+.message-media-lightbox-img {
+  display: block;
+  max-width: min(92vw, 1100px);
+  max-height: min(88vh, 900px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+  cursor: default;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+@media (max-width: 768px) {
+  .message-bubble {
+    max-width: min(82%, 340px);
+  }
+
+  .message-bubble.has-media-only {
+    max-width: min(86%, 320px);
+  }
+
+  .message-image,
+  .message-video {
+    max-height: min(240px, 42vh);
+  }
+
+  .message-media-lightbox-img {
+    max-width: 94vw;
+    max-height: 82vh;
+  }
 }
 
 .message-file {
