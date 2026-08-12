@@ -790,6 +790,33 @@
   height: 100%;
 }
 
+/* Voice / camera-off: no rectangular card chrome — just the round avatar */
+.participant-tile--avatar-only {
+  background: transparent;
+  border-color: transparent;
+  overflow: visible;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.participant-tile--avatar-only.is-speaking {
+  animation: none;
+  box-shadow: none;
+  border-color: transparent !important;
+}
+
+.participant-tile-avatar-status {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  opacity: 0.85;
+}
+
 .participant-tile.small { border-radius: 10px; }
 
 .participant-tile-label {
@@ -893,9 +920,9 @@
 }
 
 .participant-tile-identity-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;

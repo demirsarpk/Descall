@@ -71,13 +71,9 @@ function ConnectingPlaceholder({ username, user, status }) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, y: 8 }}
       transition={{ duration: 0.28, ease: PARTICIPANT_EASE }}
-      className="dm-remote-connecting"
+      className="dm-remote-connecting participant-tile--avatar-only"
       style={{
         position: "relative",
-        borderRadius: 14,
-        overflow: "hidden",
-        background: "#1a1b1f",
-        border: "2px solid rgba(255,255,255,0.06)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -92,13 +88,13 @@ function ConnectingPlaceholder({ username, user, status }) {
     >
       <motion.div
         className="participant-tile-avatar-shell"
-        style={{ width: 64, height: 64 }}
+        style={{ width: 96, height: 96 }}
         animate={{ scale: [1, 1.04, 1] }}
         transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
       >
         <Avatar
           name={username || "?"}
-          size={64}
+          size={96}
           user={user}
           imageUrl={resolveAvatarUrl(user)}
           animate="speaking"
@@ -173,7 +169,9 @@ export default function DmRemoteParticipantSlot({
           initial="hidden"
           animate="visible"
           exit="exit"
-          className={`participant-tile${isSpeaking ? " is-speaking" : ""}`}
+          className={`participant-tile${isSpeaking ? " is-speaking" : ""}${
+            hasVideo && videoRef ? "" : " participant-tile--avatar-only"
+          }`}
           style={{ willChange: "transform, opacity" }}
         >
           {hasVideo && videoRef ? (
@@ -185,7 +183,7 @@ export default function DmRemoteParticipantSlot({
             />
           ) : (
             <div className="participant-tile-avatar-stack">
-              <div className="participant-tile-avatar-shell" style={{ width: 64, height: 64, position: "relative" }}>
+              <div className="participant-tile-avatar-shell" style={{ width: 96, height: 96, position: "relative" }}>
                 {isSpeaking && (
                   <>
                     <span
@@ -217,18 +215,19 @@ export default function DmRemoteParticipantSlot({
                 )}
                 <Avatar
                   name={username}
-                  size={64}
+                  size={96}
                   user={user}
                   imageUrl={resolveAvatarUrl(user)}
                   animate="speaking"
                   isSpeaking={isSpeaking}
                 />
               </div>
-              <span style={{ fontSize: 13, color: "#b5bac1", fontWeight: 500 }}>{username}</span>
+              <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{username}</span>
               <ConnectionBadge status="connected" />
             </div>
           )}
 
+          {hasVideo && videoRef && (
           <div
             style={{
               position: "absolute",
@@ -330,12 +329,9 @@ export default function DmRemoteParticipantSlot({
           initial={{ opacity: 1, scale: 1, y: 0 }}
           animate={{ opacity: 0, scale: 0.96, y: 8 }}
           transition={{ duration: DM_PARTICIPANT_EXIT_MS / 1000, ease: PARTICIPANT_EASE }}
+          className="participant-tile--avatar-only"
           style={{
             position: "relative",
-            borderRadius: 14,
-            overflow: "hidden",
-            background: "#1a1b1f",
-            border: "2px solid rgba(255,255,255,0.06)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -350,7 +346,7 @@ export default function DmRemoteParticipantSlot({
         >
           <Avatar
             name={username}
-            size={64}
+            size={96}
             user={user}
             imageUrl={resolveAvatarUrl(user)}
             animate="never"

@@ -6,7 +6,6 @@ import {
   Volume2, ChevronUp, Mic2, SlidersHorizontal,
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
-import { profileAuraClass } from "./ui/Cosmetics";
 import StatusBadge from "./ui/StatusBadge";
 import AdminBadge from "./social/AdminBadge";
 import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
@@ -1044,9 +1043,9 @@ function ParticipantTile({
   const isSpeaking = Boolean(speakingProp || detected);
   // Cap ring motion so level jitter doesn't look like flicker
   const ringScale = 1 + (isSpeaking ? Math.max(0.06, Math.min(0.22, level * 0.28)) : 0);
-  const auraClass = profileAuraClass(user);
-  const avatarSize = small ? 36 : 72;
+  const avatarSize = small ? 36 : 96;
   const presenceStatus = status || (isLocal ? "online" : null);
+  const showVideo = Boolean(hasVideo && cameraOn !== false && (videoRef || stream));
 
   const setVideoEl = useCallback((el) => {
     elRef.current = el;
@@ -1066,13 +1065,17 @@ function ParticipantTile({
   }, [stream, hasVideo]);
 
   return (
-    <div className={`participant-tile${small ? " small" : ""}${isSpeaking ? " is-speaking" : ""}`}>
+    <div
+      className={`participant-tile${small ? " small" : ""}${isSpeaking ? " is-speaking" : ""}${
+        showVideo ? "" : " participant-tile--avatar-only"
+      }`}
+    >
       {handRaised && (
         <span className="participant-tile-hand-badge" title={t("Hand raised")} aria-label={t("Hand raised")}>
           <Hand size={14} />
         </span>
       )}
-      {hasVideo && cameraOn !== false && (videoRef || stream) ? (
+      {showVideo ? (
         <video
           ref={setVideoEl}
           autoPlay
@@ -1089,7 +1092,7 @@ function ParticipantTile({
           }}
         />
       ) : (
-        <div className={`participant-tile-avatar-stack ${auraClass}`.trim()}>
+        <div className="participant-tile-avatar-stack">
           {/* Shell is a fixed square so speaking rings + status sit on the
               avatar — not the whole column (avatar + name), which used to
               stretch the green ring into a bottom-center "status" oval. */}
@@ -1125,19 +1128,27 @@ function ParticipantTile({
         </div>
       )}
 
-      <div className="participant-tile-label">
-        {isSpeaking && <span className="speaking-dot" />}
-        <span className="participant-tile-name">{username}</span>
-        {muted && <MicOff size={14} aria-label={t("Muted")} title={t("Muted")} />}
-        {cameraOn === false && <VideoOff size={14} aria-label={t("Camera off")} title={t("Camera off")} />}
-        {!isLocal && (connectionQuality === "poor" || connectionQuality === "fair") && (
-          <span
-            className={`participant-tile-net-badge ${connectionQuality}`}
-            aria-label={t("Weak connection")}
-            title={t("Weak connection")}
-          />
-        )}
-      </div>
+      {showVideo && (
+        <div className="participant-tile-label">
+          {isSpeaking && <span className="speaking-dot" />}
+          <span className="participant-tile-name">{username}</span>
+          {muted && <MicOff size={14} aria-label={t("Muted")} title={t("Muted")} />}
+          {cameraOn === false && <VideoOff size={14} aria-label={t("Camera off")} title={t("Camera off")} />}
+          {!isLocal && (connectionQuality === "poor" || connectionQuality === "fair") && (
+            <span
+              className={`participant-tile-net-badge ${connectionQuality}`}
+              aria-label={t("Weak connection")}
+              title={t("Weak connection")}
+            />
+          )}
+        </div>
+      )}
+      {!showVideo && (muted || cameraOn === false) && (
+        <div className="participant-tile-avatar-status">
+          {muted && <MicOff size={14} aria-label={t("Muted")} title={t("Muted")} />}
+          {cameraOn === false && <VideoOff size={14} aria-label={t("Camera off")} title={t("Camera off")} />}
+        </div>
+      )}
     </div>
   );
 }
