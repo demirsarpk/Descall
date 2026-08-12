@@ -476,6 +476,24 @@ export default function ChatPanel({
           onOpenChat={onOpenChatFromCalls}
           onOpenGroup={onOpenGroupFromCalls}
         />
+      ) : activeView === "servers" && activeChannel?.type === "text" ? (
+      <div className="messages-container" ref={messagesRef}>
+        {showSearch && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="chat-search-bar">
+            <Search size={16} />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t("Search messages...")}
+              autoFocus
+            />
+            <button className="icon-btn" onClick={() => { setShowSearch(false); setSearchQuery(""); }}><X size={16} /></button>
+          </motion.div>
+        )}
+        {isValidElement(children)
+          ? cloneElement(children, { searchQuery: showSearch ? searchQuery : "" })
+          : children}
+      </div>
       ) : activeView === "servers" ? (
         <div className="server-main-placeholder">
           {activeChannel?.type === "voice" ? (
@@ -497,9 +515,7 @@ export default function ChatPanel({
               ? t("Pick a server from the sidebar — or create one to get started.")
               : activeChannel?.type === "voice"
                 ? t("Voice connect for server channels arrives in a later step.")
-                : activeChannel
-                  ? t("Text chat for this channel arrives in the next step.")
-                  : t("Select a channel from the sidebar to get started.")}
+                : t("Select a channel from the sidebar to get started.")}
           </p>
           {activeChannel?.topic ? (
             <p className="server-channel-topic">{activeChannel.topic}</p>
@@ -537,7 +553,8 @@ export default function ChatPanel({
       )}
 
       {/* Typing + composer only on real chat surfaces — never under Activity */}
-      {activeView !== "activity" && (activeDmUser || activeGroup) && (
+      {activeView !== "activity" &&
+        (activeDmUser || activeGroup || (activeView === "servers" && activeChannel?.type === "text")) && (
         <>
           <AnimatePresence>
             {typingNames.length > 0 && (
@@ -560,7 +577,7 @@ export default function ChatPanel({
           <div className="composer-container">
             <MessageComposer
               onSend={onSendMessage}
-              disabled={!activeDmUser && !activeGroup}
+              disabled={!activeDmUser && !activeGroup && !(activeView === "servers" && activeChannel?.type === "text")}
               activeDmUser={activeDmUser}
               activeGroup={activeGroup}
               onTypingDmStart={onTypingDmStart}

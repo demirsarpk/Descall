@@ -18,6 +18,7 @@ import {
   createChannel,
   updateChannel,
   deleteChannel,
+  getChannelMessages,
 } from "./api/servers";
 import { createSocket } from "./socket";
 import { API_BASE_URL } from "./config/api";
@@ -301,6 +302,7 @@ export default function App() {
   const [serversLoaded, setServersLoaded] = useState(false);
   const [activeServer, setActiveServer] = useState(null);
   const [activeChannel, setActiveChannel] = useState(null);
+  const [channelMessagesById, setChannelMessagesById] = useState({});
   const [ownedServerCount, setOwnedServerCount] = useState(0);
   const [maxOwnedServers, setMaxOwnedServers] = useState(10);
   // Electron silent auto-update state: null | 'downloading' | 'installing'
@@ -310,6 +312,7 @@ export default function App() {
   const socketRef = useRef(null);
   const activeDmRef = useRef(null);
   const activeGroupRef = useRef(null);
+  const activeChannelRef = useRef(null);
   const myIdRef = useRef(null);
   const myGroupsRef = useRef([]);
   const friendsRef = useRef([]);
@@ -472,6 +475,10 @@ export default function App() {
   }, [activeGroup]);
 
   useEffect(() => {
+    activeChannelRef.current = activeChannel;
+  }, [activeChannel]);
+
+  useEffect(() => {
     myGroupsRef.current = myGroups;
   }, [myGroups]);
 
@@ -632,6 +639,9 @@ export default function App() {
   }, [activeDmUser?.id]);
 
   const dmMessages = useMemo(() => {
+    if (activeView === "servers" && activeChannel?.type === "text") {
+      return channelMessagesById[activeChannel.id] ?? [];
+    }
     if (activeGroup) {
       const msgs = groupMessagesById[activeGroup.id] ?? [];
       // call_summary items are already persisted to DB and loaded into msgs —
@@ -652,7 +662,16 @@ export default function App() {
     }
     if (activeDmUser) return dmByUserId[activeDmUser.id] ?? [];
     return [];
-  }, [activeDmUser, activeGroup, dmByUserId, groupMessagesById, groupCall?.activeCallBanner]);
+  }, [
+    activeView,
+    activeChannel,
+    activeDmUser,
+    activeGroup,
+    channelMessagesById,
+    dmByUserId,
+    groupMessagesById,
+    groupCall?.activeCallBanner,
+  ]);
 
   useEffect(() => {
     const token = getToken();
@@ -1378,6 +1397,70 @@ export default function App() {
       if (message) toast(message, "error");
     });
 
+    socket.on("server:channel:message", ({ channelId, message, tempId } = {}) => {
+      if (!channelId || !message) return;
+      const sender = normalizeUser(message.sender || {
+        id: message.sender_id,
+        username: message.sender?.username || "Unknown",
+        display_name: message.sender?.display_name || message.sender?.displayName,
+        avatar_url: message.sender?.avatar_url,
+        updated_at: message.sender?.updated_at,
+      });
+      const voice = parseVoiceMeta(message.content, message.media_type);
+      const normalized = {
+        id: message.id,
+        from: sender,
+        username: sender?.username || "Unknown",
+        displayName: sender?.displayName || null,
+        avatarUrl: sender?.avatarUrl,
+        text: voice.isVoice ? "" : (message.content || ""),
+        timestamp: parseAppDate(message.created_at)?.toISOString() || new Date().toISOString(),
+        mediaUrl: message.media_url,
+        mediaType: voice.isVoice ? "voice" : message.media_type,
+        duration: voice.duration ?? message.duration ?? null,
+        replyTo: message.replyTo || message.reply_to || null,
+      };
+      setChannelMessagesById((prev) => {
+        const cur = prev[channelId] ?? [];
+        if (tempId) {
+          const withoutTemp = cur.filter((m) => m.id !== tempId && m.id !== normalized.id);
+          return {
+            ...prev,
+            [channelId]: sortMessagesChronologically([...withoutTemp, normalized]),
+          };
+        }
+        if (cur.some((m) => m.id === normalized.id)) return prev;
+        return { ...prev, [channelId]: sortMessagesChronologically([...cur, normalized]) };
+      });
+      const isFromMe = normalized.from?.id === myIdRef.current;
+      const isActive = activeChannelRef.current?.id === channelId;
+      if (!isFromMe && !isActive) {
+        playUiSound("message");
+        notificationService.newMessage({
+          from: normalized.from?.username || "Someone",
+          text: normalized.text || (normalized.mediaType === "voice" ? "🎤 Voice message" : ""),
+          preview: (normalized.text || "").substring(0, 100),
+          conversationId: channelId,
+        });
+      }
+    });
+
+    socket.on("server:channel:message:error", ({ channelId, tempId, message } = {}) => {
+      if (channelId && tempId) {
+        setChannelMessagesById((prev) => {
+          const cur = prev[channelId] ?? [];
+          if (!cur.some((m) => m.id === tempId)) return prev;
+          return {
+            ...prev,
+            [channelId]: cur.map((m) =>
+              m.id === tempId ? { ...m, sending: false, failed: true } : m
+            ),
+          };
+        });
+      }
+      if (message) toast(message, "error");
+    });
+
     socket.on("mention:received", ({ groupId, dmConversationId, from, text, groupName }) => {
       notificationService.mention({ groupId, dmConversationId, from, text, groupName });
     });
@@ -2035,6 +2118,36 @@ export default function App() {
       .catch((err) => console.error("[App] fetch group messages error:", err))
       .finally(() => setMessagesLoading(false));
   }, [activeGroup?.id, t]);
+
+  // Fetch + join server text channel messages
+  useEffect(() => {
+    if (activeView !== "servers" || !activeServer?.id || !activeChannel?.id) return;
+    if (activeChannel.type !== "text") {
+      setMessagesLoading(false);
+      return;
+    }
+    socketRef.current?.emit("server:channel:join", activeChannel.id);
+    if (channelMessagesById[activeChannel.id]) {
+      setMessagesLoading(false);
+      return;
+    }
+    setMessagesLoading(true);
+    getChannelMessages(activeServer.id, activeChannel.id)
+      .then((res) => {
+        const msgs = Array.isArray(res?.messages) ? res.messages : [];
+        const normalized = msgs.map(normalizeGroupMessage).filter(Boolean);
+        setChannelMessagesById((prev) => ({
+          ...prev,
+          [activeChannel.id]: sortMessagesChronologically(normalized),
+        }));
+      })
+      .catch((err) => console.error("[App] fetch channel messages error:", err))
+      .finally(() => setMessagesLoading(false));
+
+    return () => {
+      socketRef.current?.emit("server:channel:leave", activeChannel.id);
+    };
+  }, [activeView, activeServer?.id, activeChannel?.id, activeChannel?.type]);
 
   // Sync the "ongoing call" banner for whichever group is currently open.
   // The live push (group:call:banner-update) only reaches clients that were
@@ -3106,6 +3219,54 @@ export default function App() {
                 });
               }
               setReplyTo(null);
+            } else if (activeView === "servers" && activeChannel?.type === "text" && activeServer?.id) {
+              const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+              const textStr = isMediaObject ? "" : String(textPayload || "");
+              const optimistic = {
+                id: tempId,
+                from: normalizeUser({
+                  id: me?.id,
+                  username: me?.username,
+                  displayName: me?.displayName || me?.display_name,
+                  avatarUrl: me?.avatarUrl || me?.avatar_url,
+                  updated_at: me?.updated_at || me?.avatarVersion,
+                }),
+                text: isMediaObject ? "" : textStr,
+                mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
+                mediaType: isMediaObject ? msg.mediaType : undefined,
+                originalName: isMediaObject ? msg.originalName : undefined,
+                size: isMediaObject ? msg.size : undefined,
+                duration: isMediaObject ? msg.duration : undefined,
+                replyTo: replyMeta || undefined,
+                timestamp: new Date().toISOString(),
+                sending: true,
+              };
+              setChannelMessagesById((prev) => ({
+                ...prev,
+                [activeChannel.id]: [...(prev[activeChannel.id] ?? []), optimistic],
+              }));
+              if (isMediaObject) {
+                const isVoice = msg.mediaType === "voice" || msg.mediaType === "audio";
+                socketRef.current?.emit("server:channel:message", {
+                  serverId: activeServer.id,
+                  channelId: activeChannel.id,
+                  tempId,
+                  content: isVoice ? encodeVoiceContent(msg.duration || 0) : "",
+                  mediaUrl: msg.mediaUrl,
+                  mediaType: isVoice ? "voice" : msg.mediaType,
+                  duration: msg.duration,
+                  replyTo: replyMeta || undefined,
+                });
+              } else {
+                socketRef.current?.emit("server:channel:message", {
+                  serverId: activeServer.id,
+                  channelId: activeChannel.id,
+                  tempId,
+                  content: textStr,
+                  replyTo: replyMeta || undefined,
+                });
+              }
+              setReplyTo(null);
             }
           }}
           onVoiceCall={() => {
@@ -3202,7 +3363,10 @@ export default function App() {
             loading={Boolean(
               messagesLoading &&
                 ((activeDmUser && dmByUserId[activeDmUser.id] === undefined) ||
-                  (activeGroup && groupMessagesById[activeGroup.id] === undefined))
+                  (activeGroup && groupMessagesById[activeGroup.id] === undefined) ||
+                  (activeView === "servers" &&
+                    activeChannel?.type === "text" &&
+                    channelMessagesById[activeChannel.id] === undefined))
             )}
             unreadCount={
               unreadMarker &&

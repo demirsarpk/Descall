@@ -624,6 +624,81 @@ router.post("/:id/leave", requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /servers/:id/channels/:channelId/messages
+ * Membership-gated history for text channels.
+ */
+router.get("/:id/channels/:channelId/messages", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const channelId = req.params.channelId;
+    const { before, limit = 50 } = req.query;
+
+    const membership = await getMembership(serverId, req.user.id);
+    if (!membership) {
+      return res.status(403).json({ error: "You are not a member of this server." });
+    }
+
+    const { data: channel, error: cErr } = await supabase
+      .from("server_channels")
+      .select("id, server_id, type")
+      .eq("id", channelId)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (cErr) throw cErr;
+    if (!channel) return res.status(404).json({ error: "Channel not found." });
+    if (channel.type !== "text") {
+      return res.status(400).json({ error: "Only text channels have message history.", code: "NOT_TEXT_CHANNEL" });
+    }
+
+    let query = supabase
+      .from("server_messages")
+      .select(
+        `
+        *,
+        sender:sender_id (id, username, display_name, avatar_url)
+      `
+      )
+      .eq("channel_id", channelId)
+      .eq("server_id", serverId)
+      .order("created_at", { ascending: false })
+      .limit(Math.min(100, Math.max(1, parseInt(limit, 10) || 50)));
+
+    if (before) query = query.lt("created_at", before);
+
+    const { data: messages, error } = await query;
+    if (error) throw error;
+
+    const senderIds = [...new Set((messages || []).map((m) => m.sender_id || m.sender?.id).filter(Boolean))];
+    try {
+      const { ensureCosmeticsCached, getCachedPublicUser, cacheUserProfile } = require("../lib/userProfile");
+      for (const m of messages || []) {
+        if (m.sender) cacheUserProfile({ ...m.sender, avatar_url: m.sender.avatar_url || m.sender.avatarUrl });
+      }
+      await ensureCosmeticsCached(senderIds);
+      for (const m of messages || []) {
+        const pub = getCachedPublicUser(m.sender_id || m.sender?.id);
+        if (pub && m.sender) {
+          m.sender = {
+            ...m.sender,
+            ...pub,
+            id: m.sender.id || pub.id,
+            username: m.sender.username || pub.username,
+          };
+          m.from = m.sender;
+        }
+      }
+    } catch (err) {
+      console.warn("[SERVERS] cosmetics enrich failed:", err?.message || err);
+    }
+
+    return res.json({ messages: (messages || []).reverse() });
+  } catch (err) {
+    console.error("[SERVERS] GET channel messages error:", err);
+    return res.status(500).json({ error: "Failed to load messages." });
+  }
+});
+
+/**
  * GET /servers/:id/members — basic member list (skeleton for later UI)
  */
 router.get("/:id/members", requireAuth, async (req, res) => {

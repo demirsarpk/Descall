@@ -39,6 +39,7 @@ const {
 } = require("../runtime/sharedState");
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
+const { registerServerChannelHandlers } = require("./serverChannelHandlers");
 const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
 const { toUtcIso } = require("../lib/datetime");
 const { trackOffer, markAnswered, isActiveDmCall, finalizeCall } = require("../lib/dmCallLog");
@@ -1944,6 +1945,9 @@ function registerSocketHandlers(io) {
       socketToUser,
       friends,
     });
+
+    // Server channel text chat (Step 4)
+    registerServerChannelHandlers(io, socket);
   });
 }
 

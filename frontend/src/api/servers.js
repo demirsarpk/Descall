@@ -81,3 +81,14 @@ export function deleteChannel(serverId, channelId) {
     method: "DELETE",
   });
 }
+
+/** Text channel message history (membership-gated). */
+export function getChannelMessages(serverId, channelId, { before, limit = 50 } = {}) {
+  const q = new URLSearchParams();
+  if (before) q.set("before", before);
+  if (limit) q.set("limit", String(limit));
+  const qs = q.toString();
+  return serversRequest(
+    `/api/servers/${serverId}/channels/${channelId}/messages${qs ? `?${qs}` : ""}`
+  );
+}

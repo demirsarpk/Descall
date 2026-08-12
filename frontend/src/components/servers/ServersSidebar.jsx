@@ -279,7 +279,7 @@ export default function ServersSidebar({
               <p className="server-empty-hint">{t("No channels yet.")}</p>
             )}
             <p className="server-step-hint">
-              {t("Select a channel to open it. Messaging and voice connect arrive in the next steps.")}
+              {t("Open a text channel to chat. Voice connect arrives in a later step.")}
             </p>
           </div>
         </div>
