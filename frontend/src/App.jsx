@@ -2143,27 +2143,21 @@ export default function App() {
       if (activeServer?.id !== server.id) {
         setActiveServer(server);
       }
-      const channels = (activeServer?.id === server.id ? activeServer?.channels : server.channels) || server.channels || [];
+      const channels =
+        (activeServer?.id === server.id ? activeServer?.channels : server.channels) ||
+        server.channels ||
+        [];
       if (requestedRoute.channelId) {
         const channel = channels.find((c) => c.id === requestedRoute.channelId && c.type !== "category");
         if (!channel) {
-          const fallback = channels.find((c) => c.type === "text") || channels.find((c) => c.type === "voice");
-          if (fallback) {
-            navigate(serverPath(server, fallback), { replace: true });
-          } else {
-            setActiveChannel(null);
-            navigate(serverPath(server), { replace: true });
-          }
+          // Stale channel id — fall back to the server shell (channel list on mobile).
+          setActiveChannel(null);
+          navigate(serverPath(server), { replace: true });
           return;
         }
         if (activeChannel?.id !== channel.id) setActiveChannel(channel);
-      } else {
-        const fallback = channels.find((c) => c.type === "text") || channels.find((c) => c.type === "voice");
-        if (fallback) {
-          navigate(serverPath(server, fallback), { replace: true });
-        } else if (activeChannel) {
-          setActiveChannel(null);
-        }
+      } else if (activeChannel) {
+        setActiveChannel(null);
       }
       return;
     }
@@ -2693,13 +2687,10 @@ export default function App() {
       setOwnedServerCount(ownedCount ?? ((ownedServerCount || 0) + 1));
       if (maxOwned) setMaxOwnedServers(maxOwned);
       setActiveServer(server);
-      const firstChannel =
-        (server.channels || []).find((c) => c.type === "text") ||
-        (server.channels || []).find((c) => c.type === "voice") ||
-        null;
-      setActiveChannel(firstChannel);
+      // Stay on server shell (channel list) — don't jump into a channel view.
+      setActiveChannel(null);
       setActiveView("servers");
-      const nextPath = serverPath(server, firstChannel);
+      const nextPath = serverPath(server);
       if (location.pathname !== nextPath) navigate(nextPath);
     }
   };
@@ -2731,13 +2722,10 @@ export default function App() {
     setActiveDmUser(null);
     setActiveGroup(null);
     setActiveServer(server);
-    const firstChannel =
-      (server.channels || []).find((c) => c.type === "text") ||
-      (server.channels || []).find((c) => c.type === "voice") ||
-      null;
-    setActiveChannel(firstChannel);
+    // Enter server shell only — channel opens when the user taps one (mobile UX).
+    setActiveChannel(null);
     setActiveView("servers");
-    const nextPath = serverPath(server, firstChannel);
+    const nextPath = serverPath(server);
     if (location.pathname !== nextPath) navigate(nextPath);
     getServer(server.id)
       .then((data) => {
@@ -2746,17 +2734,6 @@ export default function App() {
           setMyServers((prev) =>
             prev.map((s) => (s.id === data.server.id ? { ...s, ...data.server } : s))
           );
-          const channels = data.server.channels || [];
-          const preferred =
-            (activeChannel?.id && channels.find((c) => c.id === activeChannel.id)) ||
-            channels.find((c) => c.type === "text") ||
-            channels.find((c) => c.type === "voice") ||
-            null;
-          setActiveChannel(preferred);
-          if (preferred) {
-            const path = serverPath(data.server, preferred);
-            if (location.pathname !== path) navigate(path, { replace: true });
-          }
         }
       })
       .catch(() => {});
@@ -2766,6 +2743,13 @@ export default function App() {
     if (!activeServer?.id || !channel?.id || channel.type === "category") return;
     setActiveChannel(channel);
     const nextPath = serverPath(activeServer, channel);
+    if (location.pathname !== nextPath) navigate(nextPath);
+  };
+
+  const handleChannelBack = () => {
+    if (!activeServer?.id) return;
+    setActiveChannel(null);
+    const nextPath = serverPath(activeServer);
     if (location.pathname !== nextPath) navigate(nextPath);
   };
 
@@ -2794,15 +2778,13 @@ export default function App() {
     if (!activeServer?.id) return;
     await deleteChannel(activeServer.id, channelId);
     const remaining = (activeServer.channels || []).filter((c) => c.id !== channelId);
-    // Unparent children of deleted category locally (API already did it)
     const cleaned = remaining.map((c) =>
       c.parentId === channelId ? { ...c, parentId: null } : c
     );
     patchServerChannels(activeServer.id, cleaned);
     if (activeChannel?.id === channelId) {
-      const fallback = cleaned.find((c) => c.type === "text") || cleaned.find((c) => c.type === "voice");
-      setActiveChannel(fallback || null);
-      navigate(serverPath(activeServer, fallback));
+      setActiveChannel(null);
+      navigate(serverPath(activeServer));
     }
   };
 
@@ -2908,6 +2890,7 @@ export default function App() {
           onServerSelect={handleServerSelect}
           onChannelSelect={handleChannelSelect}
           onServerBack={handleServerBack}
+          onChannelBack={handleChannelBack}
           onCreateServer={handleCreateServer}
           onLeaveServer={handleLeaveServer}
           onDeleteServer={handleDeleteServer}

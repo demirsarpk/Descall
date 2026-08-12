@@ -87,6 +87,7 @@ export default function AppLayout({
   onServerSelect,
   onChannelSelect,
   onServerBack,
+  onChannelBack,
   onCreateServer,
   onLeaveServer,
   onDeleteServer,
@@ -135,20 +136,24 @@ export default function AppLayout({
 
   const closeUserPanel = useCallback(() => {
     setUserPanelOpen(false);
-    if (isMobile && !activeDmUser && !activeGroup && !activeServer) {
+    if (isMobile && !activeDmUser && !activeGroup && !(activeView === "servers" && activeChannel)) {
       setMobileDrawerOpen(true);
     }
-  }, [isMobile, activeDmUser, activeGroup, activeServer, setUserPanelOpen]);
+  }, [isMobile, activeDmUser, activeGroup, activeServer, activeChannel, activeView, setUserPanelOpen]);
 
   useEffect(() => {
     if (!isMobile) setMobileDrawerOpen(false);
   }, [isMobile]);
 
+  // Mobile: keep the sidebar open for server list + channel list.
+  // Only treat an opened channel as "in conversation" (main pane).
   useEffect(() => {
-    if (isMobile && !activeDmUser && !activeGroup && !(activeView === "servers" && activeServer)) {
+    if (!isMobile) return;
+    const inServersChannel = activeView === "servers" && !!activeChannel;
+    if (!activeDmUser && !activeGroup && !inServersChannel) {
       setMobileDrawerOpen(true);
     }
-  }, [isMobile, activeDmUser, activeGroup, activeServer, activeView]);
+  }, [isMobile, activeDmUser, activeGroup, activeChannel, activeView]);
 
   useEffect(() => {
     if (!isMobile || !mobileDrawerOpen) return;
@@ -225,7 +230,13 @@ export default function AppLayout({
   }, [isMobile, activeDmUser, activeGroup, activeServer, onDmSelect, onGroupSelect, onServerBack, setActiveView]);
 
   const handleMobileBack = useCallback(() => {
-    if (activeServer) {
+    // Servers: channel → channel list → server list
+    if (activeView === "servers" && activeChannel) {
+      onChannelBack?.();
+      openMobileDrawer();
+      return;
+    }
+    if (activeView === "servers" && activeServer) {
       onServerBack?.();
       openMobileDrawer();
       return;
@@ -233,10 +244,22 @@ export default function AppLayout({
     if (activeDmUser) onDmSelect?.(null);
     if (activeGroup) onGroupSelect?.(null);
     openMobileDrawer();
-  }, [activeDmUser, activeGroup, activeServer, onDmSelect, onGroupSelect, onServerBack, openMobileDrawer]);
+  }, [
+    activeView,
+    activeDmUser,
+    activeGroup,
+    activeServer,
+    activeChannel,
+    onDmSelect,
+    onGroupSelect,
+    onServerBack,
+    onChannelBack,
+    openMobileDrawer,
+  ]);
 
   const isElectron = typeof window !== "undefined" && !!window.electronAPI?.isElectron;
-  const inConversation = !!(activeDmUser || activeGroup || (activeView === "servers" && activeServer));
+  const inServersChannel = activeView === "servers" && !!activeServer && !!activeChannel;
+  const inConversation = !!(activeDmUser || activeGroup || inServersChannel);
   // On a narrow conversation surface the fixed banner sits directly over the
   // DM header, stealing profile/voice-call taps. Offer it once the user leaves
   // the conversation instead.

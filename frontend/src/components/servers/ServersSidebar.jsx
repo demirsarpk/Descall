@@ -419,7 +419,6 @@ export default function ServersSidebar({
                     className="server-list-item"
                     onClick={() => {
                       onSelectServer?.(server);
-                      if (isMobile) onMobileClose?.();
                     }}
                   >
                     <ServerAvatar server={server} />
