@@ -272,6 +272,7 @@ export default function App() {
   const [dmByUserId, setDmByUserId] = useState({});
   const [dmUnread, setDmUnread] = useState({});
   const [groupUnread, setGroupUnread] = useState({});
+  const [channelUnread, setChannelUnread] = useState({});
   const [dmLastActivity, setDmLastActivity] = useState({});
   const [groupLastActivity, setGroupLastActivity] = useState({});
   const [dmPreviews, setDmPreviews] = useState({});
@@ -325,6 +326,7 @@ export default function App() {
   const prevOnlineUsersRef = useRef([]);
   const typingDmTimeoutRef = useRef(null);
   const typingGroupTimeoutsRef = useRef(new Map());
+  const channelUnreadBumpIdsRef = useRef(new Set());
   const callOccupancyRef = useRef({ dmMode: null, groupActive: false });
   const call = useCall(socketApi, callOccupancyRef);
   const groupCall = useGroupCall(socketApi, me?.id, callOccupancyRef);
@@ -493,6 +495,23 @@ export default function App() {
   useEffect(() => {
     myServersRef.current = myServers;
   }, [myServers]);
+
+  const bumpChannelUnread = useCallback((channelId, eventId = null) => {
+    if (!channelId || isChannelMuted(channelId)) return;
+    if (activeChannelRef.current?.id === channelId) return;
+    if (eventId) {
+      const key = String(eventId);
+      if (channelUnreadBumpIdsRef.current.has(key)) return;
+      channelUnreadBumpIdsRef.current.add(key);
+      window.setTimeout(() => channelUnreadBumpIdsRef.current.delete(key), 15000);
+    }
+    setChannelUnread((prev) => ({
+      ...prev,
+      [channelId]: (prev[channelId] || 0) + 1,
+    }));
+  }, []);
+  const bumpChannelUnreadRef = useRef(bumpChannelUnread);
+  bumpChannelUnreadRef.current = bumpChannelUnread;
 
   const commitSessionUser = useCallback((user) => {
     const normalized = normalizeUser(user);
@@ -1447,13 +1466,10 @@ export default function App() {
       const isFromMe = normalized.from?.id === myIdRef.current;
       const isActive = activeChannelRef.current?.id === channelId;
       if (!isFromMe && !isActive && !isChannelMuted(channelId)) {
+        bumpChannelUnreadRef.current?.(channelId, normalized.id);
         playUiSound("message");
-        notificationService.newMessage({
-          from: normalized.from?.username || "Someone",
-          text: normalized.text || (normalized.mediaType === "voice" ? "🎤 Voice message" : ""),
-          preview: (normalized.text || "").substring(0, 100),
-          conversationId: channelId,
-        });
+        // Desktop toasts for server chat are mention-driven (mention:received)
+        // to avoid spam once every text channel is joined for unread.
       }
     });
 
@@ -1484,9 +1500,13 @@ export default function App() {
         channelId,
         serverName,
         channelName,
+        messageId,
       } = payload;
       if (channelId && isChannelMuted(channelId)) return;
       if (channelId && activeChannelRef.current?.id === channelId) return;
+      if (channelId && serverId) {
+        bumpChannelUnreadRef.current?.(channelId, messageId || `mention:${channelId}:${text}`);
+      }
       notificationService.mention({
         groupId,
         dmConversationId,
@@ -2043,7 +2063,7 @@ export default function App() {
     friendsFromSocketRef.current = false;
     setFriendsLoaded(false);
     setGroupsLoaded(false);
-    setDmByUserId({}); setDmUnread({}); setGroupUnread({}); setDmLastActivity({}); setGroupLastActivity({}); setDmPreviews({}); setGroupPreviews({}); setNotifications([]);
+    setDmByUserId({}); setDmUnread({}); setGroupUnread({}); setChannelUnread({}); setDmLastActivity({}); setGroupLastActivity({}); setDmPreviews({}); setGroupPreviews({}); setNotifications([]);
     setActiveDmUser(null); setAuthError(""); setTypingDmUser(null); setDmHasMore(true);
     setMyGroups([]);
   };
@@ -2213,14 +2233,38 @@ export default function App() {
       .finally(() => setMessagesLoading(false));
   }, [activeGroup?.id, t]);
 
-  // Fetch + join server text channel messages
+  // Stay joined to every text channel in the open server so unread can bump
+  // without a DB unread sync. Leave rooms when leaving the server shell.
+  useEffect(() => {
+    if (activeView !== "servers" || !activeServer?.id) return undefined;
+    const textIds = (activeServer.channels || [])
+      .filter((c) => c.type === "text" && c.id)
+      .map((c) => c.id);
+    if (textIds.length) {
+      socketRef.current?.emit("server:channels:rejoin", textIds);
+    }
+    return () => {
+      for (const id of textIds) {
+        socketRef.current?.emit("server:channel:leave", id);
+      }
+    };
+  }, [
+    activeView,
+    activeServer?.id,
+    // Rejoin when channel set changes (create/delete)
+    (activeServer?.channels || [])
+      .filter((c) => c.type === "text")
+      .map((c) => c.id)
+      .join(","),
+  ]);
+
+  // Fetch messages for the active text channel (room join handled above)
   useEffect(() => {
     if (activeView !== "servers" || !activeServer?.id || !activeChannel?.id) return;
     if (activeChannel.type !== "text") {
       setMessagesLoading(false);
       return;
     }
-    socketRef.current?.emit("server:channel:join", activeChannel.id);
     if (channelMessagesById[activeChannel.id]) {
       setMessagesLoading(false);
       return;
@@ -2237,11 +2281,18 @@ export default function App() {
       })
       .catch((err) => console.error("[App] fetch channel messages error:", err))
       .finally(() => setMessagesLoading(false));
-
-    return () => {
-      socketRef.current?.emit("server:channel:leave", activeChannel.id);
-    };
   }, [activeView, activeServer?.id, activeChannel?.id, activeChannel?.type]);
+
+  // Clear unread when opening a channel
+  useEffect(() => {
+    if (!activeChannel?.id || activeChannel.type !== "text") return;
+    setChannelUnread((prev) => {
+      if (!prev[activeChannel.id]) return prev;
+      const next = { ...prev };
+      delete next[activeChannel.id];
+      return next;
+    });
+  }, [activeChannel?.id, activeChannel?.type]);
 
   // Sync the "ongoing call" banner for whichever group is currently open.
   // The live push (group:call:banner-update) only reaches clients that were
@@ -3194,6 +3245,7 @@ export default function App() {
           serversLoaded={serversLoaded}
           activeServer={activeServer}
           activeChannel={activeChannel}
+          channelUnread={channelUnread}
           ownedServerCount={ownedServerCount}
           maxOwnedServers={maxOwnedServers}
           onServerSelect={handleServerSelect}

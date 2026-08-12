@@ -45,6 +45,7 @@ export default function ServersSidebar({
   serversLoaded = false,
   activeServer = null,
   activeChannel = null,
+  channelUnread = {},
   ownedCount = 0,
   maxOwned = 10,
   onSelectServer,
@@ -99,6 +100,18 @@ export default function ServersSidebar({
   const participantStreams = serverVoice?.remoteStreams || null;
   const localVoiceStream = serverVoice?.localStream || null;
   const myVoiceUserId = serverVoice?.myUserId || null;
+  const serverUnreadById = useMemo(() => {
+    const map = {};
+    for (const server of servers) {
+      let sum = 0;
+      for (const ch of server.channels || []) {
+        if (ch.type !== "text") continue;
+        sum += Number(channelUnread[ch.id]) || 0;
+      }
+      if (sum > 0) map[server.id] = sum;
+    }
+    return map;
+  }, [servers, channelUnread]);
   const categories = useMemo(
     () => (activeServer?.channels || []).filter((c) => c.type === "category").sort((a, b) => a.position - b.position),
     [activeServer?.channels]
@@ -342,6 +355,7 @@ export default function ServersSidebar({
                           localStream={localVoiceStream}
                           myUserId={myVoiceUserId}
                           muted={ch.type === "text" ? isChannelMuted(ch.id) : false}
+                          unread={ch.type === "text" ? channelUnread[ch.id] || 0 : 0}
                           muteTick={mutedChannelTick}
                           onToggleMute={() => handleToggleChannelMute(ch.id)}
                           onOpenMenu={() => setChannelMenuId((id) => (id === ch.id ? null : ch.id))}
@@ -376,6 +390,7 @@ export default function ServersSidebar({
                   localStream={localVoiceStream}
                   myUserId={myVoiceUserId}
                   muted={node.type === "text" ? isChannelMuted(node.id) : false}
+                  unread={node.type === "text" ? channelUnread[node.id] || 0 : 0}
                   muteTick={mutedChannelTick}
                   onToggleMute={() => handleToggleChannelMute(node.id)}
                   onOpenMenu={() => setChannelMenuId((id) => (id === node.id ? null : node.id))}
@@ -573,7 +588,7 @@ export default function ServersSidebar({
                 <li key={server.id}>
                   <button
                     type="button"
-                    className="server-list-item"
+                    className={`server-list-item${serverUnreadById[server.id] ? " has-unread" : ""}`}
                     onClick={() => {
                       onSelectServer?.(server);
                     }}
@@ -586,7 +601,9 @@ export default function ServersSidebar({
                         {server.isOwner ? ` · ${t("Owner")}` : ""}
                       </span>
                     </div>
-                    <span className="server-list-badge-slot" aria-hidden />
+                    <span className="server-list-badge-slot">
+                      <ServerUnreadBadge count={serverUnreadById[server.id] || 0} />
+                    </span>
                   </button>
                 </li>
               ))}
@@ -634,6 +651,17 @@ function ServerAvatar({ server }) {
   return <div className="server-list-icon server-list-icon-fallback">{initials}</div>;
 }
 
+function ServerUnreadBadge({ count }) {
+  const n = Number(count) || 0;
+  if (n <= 0) return null;
+  const label = n > 99 ? "99+" : String(n);
+  return (
+    <span className="server-unread-badge" aria-label={`${label} unread`}>
+      {label}
+    </span>
+  );
+}
+
 function ServerVoiceUserRow({ member, stream = null, size = 20 }) {
   const name = resolveDisplayName(member) || member?.username || "User";
   const speaking = useSpeaking(stream, { muted: Boolean(member?.muted) });
@@ -660,6 +688,7 @@ function ChannelRow({
   localStream = null,
   myUserId = null,
   muted = false,
+  unread = 0,
   muteTick = 0,
   onToggleMute,
   onOpenMenu,
@@ -673,9 +702,10 @@ function ChannelRow({
   const voiceMembers = channel.type === "voice" ? voiceState?.members || [] : [];
   const showMenu = canManage || channel.type === "text";
   void muteTick;
+  const unreadCount = Number(unread) || 0;
   return (
     <div
-      className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""} ${muted ? "is-muted-channel" : ""}`}
+      className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""} ${muted ? "is-muted-channel" : ""} ${unreadCount > 0 ? "has-unread" : ""}`}
     >
       <button
         type="button"
@@ -689,6 +719,9 @@ function ChannelRow({
         {channel.type === "voice" && voiceMembers.length > 0 && (
           <span className="server-voice-count">{voiceMembers.length}</span>
         )}
+        {channel.type === "text" && unreadCount > 0 ? (
+          <ServerUnreadBadge count={unreadCount} />
+        ) : null}
       </button>
       {showMenu && (
         <div className="server-channel-row-actions">

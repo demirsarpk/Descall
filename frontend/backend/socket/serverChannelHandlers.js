@@ -317,6 +317,7 @@ function registerServerChannelHandlers(io, socket) {
                   channelId,
                   channelName: channel.name || null,
                   serverName: serverMeta?.name || null,
+                  messageId: message.id,
                   from: fromName,
                   text: trimmedContent,
                 });

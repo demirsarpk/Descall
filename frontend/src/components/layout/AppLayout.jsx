@@ -82,6 +82,7 @@ export default function AppLayout({
   serversLoaded = false,
   activeServer = null,
   activeChannel = null,
+  channelUnread = {},
   ownedServerCount = 0,
   maxOwnedServers = 10,
   onServerSelect,
@@ -383,6 +384,7 @@ export default function AppLayout({
             serversLoaded={serversLoaded}
             activeServer={activeServer}
             activeChannel={activeChannel}
+            channelUnread={channelUnread}
             ownedCount={ownedServerCount}
             maxOwned={maxOwnedServers}
             onSelectServer={onServerSelect}

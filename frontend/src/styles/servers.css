@@ -118,9 +118,41 @@
 }
 
 .server-list-badge-slot {
-  width: 8px;
-  height: 8px;
+  min-width: 8px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.server-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #f23f43;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: auto;
+}
+
+.server-list-item.has-unread .server-list-name {
+  color: var(--text-0);
+  font-weight: 700;
+}
+
+.server-channel-row-wrap.has-unread > .server-channel-row {
+  color: var(--text-0);
+  font-weight: 600;
+}
+
+.server-channel-row-wrap.has-unread > .server-channel-row > span:first-of-type {
+  font-weight: 700;
 }
 
 .server-empty-state {
