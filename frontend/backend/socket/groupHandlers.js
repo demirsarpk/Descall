@@ -10,6 +10,7 @@ const { getCachedPublicUser, getAvatarUrl } = require("../lib/userProfile");
 const { sendGroupCallPush } = require("../lib/webPush");
 const descoin = require("../lib/descoin");
 const { shouldCreditMessage } = require("../lib/descoinMessageGuard");
+const { toUtcIso } = require("../lib/datetime");
 const {
   broadcastToGroupMembers,
   buildBannerFromCall,
@@ -215,7 +216,7 @@ function registerGroupHandlers(io, socket, state) {
       duration: isVoice
         ? Math.max(0, Math.round(Number(duration) || Number(String(trimmedContent || "").replace(/^__voice__:/, "")) || 0))
         : null,
-      created_at: row?.created_at ?? new Date().toISOString(),
+      created_at: toUtcIso(row?.created_at) || new Date().toISOString(),
       reply_to: replyMeta,
       replyTo: replyMeta,
       sender: (() => {

@@ -2,21 +2,18 @@ import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Avatar from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
+import { formatMessageClock, parseAppDate } from "../../lib/datetime";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 
 function formatTime(iso) {
-  if (!iso) return "";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
-  }
+  return formatMessageClock(iso);
 }
 
 function msgTimeIso(m) {
-  return m.timestamp || m.createdAt;
+  const raw = m.timestamp || m.createdAt;
+  const d = parseAppDate(raw);
+  return d ? d.toISOString() : raw || "";
 }
 
 export default function MessageBubble({

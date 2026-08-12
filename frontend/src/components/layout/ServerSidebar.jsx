@@ -21,6 +21,7 @@ import { markFeedbackSubmitted } from "../../lib/feedbackNudge";
 import { useLocale, useT } from "../../context/LocaleContext";
 import AdminBadge from "../social/AdminBadge";
 import InviteCard from "../friends/InviteCard";
+import { parseAppDate, formatMessageClock, formatMessageDate } from "../../lib/datetime";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
   suggestion: "feature",
@@ -813,23 +814,21 @@ function SectionChevron({ expanded }) {
 function formatConversationTime(iso, t, locale) {
   if (!iso) return "";
   try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
+    const d = parseAppDate(iso);
+    if (!d) return "";
     const now = new Date();
     const loc = locale === "tr" ? "tr-TR" : locale === "en" ? "en-US" : undefined;
     const sameDay = d.toDateString() === now.toDateString();
-    if (sameDay) {
-      return d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
-    }
+    if (sameDay) return formatMessageClock(d, loc);
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
     if (d.toDateString() === yesterday.toDateString()) return t("Yesterday");
     const weekAgo = new Date(now);
     weekAgo.setDate(now.getDate() - 6);
     if (d >= weekAgo) {
-      return d.toLocaleDateString(loc, { weekday: "short" });
+      return formatMessageDate(d, loc, { weekday: "short" });
     }
-    return d.toLocaleDateString(loc, { month: "short", day: "numeric" });
+    return formatMessageDate(d, loc, { month: "short", day: "numeric" });
   } catch {
     return "";
   }

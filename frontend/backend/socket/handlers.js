@@ -38,6 +38,7 @@ const {
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
+const { toUtcIso } = require("../lib/datetime");
 const { trackOffer, markAnswered, isActiveDmCall, finalizeCall } = require("../lib/dmCallLog");
 const { isBlockedEitherWay } = require("../lib/blocking");
 const shop = require("../lib/shop");
@@ -128,9 +129,9 @@ function mapDmRow(row, usersById) {
     originalName: row.original_name || null,
     duration: row.duration ?? null,
     replyTo: row.reply_to || null,
-    timestamp: row.created_at,
-    deliveredAt: row.delivered_at || null,
-    readAt: row.read_at || null,
+    timestamp: toUtcIso(row.created_at) || row.created_at,
+    deliveredAt: toUtcIso(row.delivered_at) || row.delivered_at || null,
+    readAt: toUtcIso(row.read_at) || row.read_at || null,
     editedAt: row.edited_at || null,
     editHistory: row.edit_history || [],
     pinnedAt: row.pinned_at || null,
@@ -1094,7 +1095,7 @@ function registerSocketHandlers(io) {
         });
       }
       const messageId = row.id;
-      const timestamp = row.created_at;
+      const timestamp = toUtcIso(row.created_at) || row.created_at;
 
       // DesCoin: a small, capped reward per genuine message. Fully
       // server-driven (no client heartbeat) since it fires only after the
@@ -1863,7 +1864,7 @@ function registerSocketHandlers(io) {
           originalName: row.original_name || null,
           pinnedAt: row.pinned_at,
           pinnedBy: row.pinned_by,
-          timestamp: row.created_at,
+          timestamp: toUtcIso(row.created_at) || row.created_at,
         }));
         socket.emit("group:pinned:list", { groupId, pinned });
       } catch (err) {

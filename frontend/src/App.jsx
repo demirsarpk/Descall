@@ -44,6 +44,7 @@ import { useToast } from "./context/ToastContext";
 import { useLocale } from "./context/LocaleContext";
 import { t as tRuntime } from "./i18n/runtime";
 import { appPathForView, directPath, groupPath, isAuthenticatedAppPath, parseAppRoute } from "./lib/appRoutes";
+import { parseAppDate } from "./lib/datetime";
 import AdminPanel from "./components/admin/AdminPanel";
 import ShopGiftPopup from "./components/shop/ShopGiftPopup";
 import DesCoinGiftPopup from "./components/shop/DesCoinGiftPopup";
@@ -63,8 +64,8 @@ function mergeById(existing, incoming) {
 
 function sortMessagesChronologically(messages) {
   return [...messages].sort((a, b) => {
-    const aTime = new Date(a?.timestamp || a?.created_at || 0).getTime();
-    const bTime = new Date(b?.timestamp || b?.created_at || 0).getTime();
+    const aTime = parseAppDate(a?.timestamp || a?.created_at)?.getTime() || 0;
+    const bTime = parseAppDate(b?.timestamp || b?.created_at)?.getTime() || 0;
     return aTime - bTime;
   });
 }
@@ -143,7 +144,9 @@ function normalizeGroupMessage(m) {
       return {
         ...summary,
         id: summary.id || m.id,
-        timestamp: m.created_at || summary.endedAt || m.timestamp || new Date().toISOString(),
+        timestamp:
+          parseAppDate(m.created_at || summary.endedAt || m.timestamp)?.toISOString() ||
+          new Date().toISOString(),
         type: "call_summary",
       };
     }
@@ -154,7 +157,7 @@ function normalizeGroupMessage(m) {
       id: m.id,
       from: { id: "game-bot", username: "🎰 Casino Bot", avatarUrl: null },
       text: m.content || "",
-      timestamp: m.created_at || new Date().toISOString(),
+      timestamp: parseAppDate(m.created_at)?.toISOString() || new Date().toISOString(),
       type: m.message_type || "game_message",
       isGameMessage: true,
       gameData: null,
@@ -176,7 +179,7 @@ function normalizeGroupMessage(m) {
     displayName: sender?.displayName || null,
     avatarUrl: sender?.avatarUrl,
     text: voice.isVoice ? "" : (m.content || ""),
-    timestamp: m.created_at || new Date().toISOString(),
+    timestamp: parseAppDate(m.created_at)?.toISOString() || new Date().toISOString(),
     mediaUrl: m.media_url,
     mediaType: voice.isVoice ? "voice" : m.media_type,
     originalName: m.original_name,
@@ -1272,7 +1275,7 @@ export default function App() {
         displayName: sender?.displayName || null,
         avatarUrl: sender?.avatarUrl,
         text: voice.isVoice ? "" : (message.content || ""),
-        timestamp: message.created_at || new Date().toISOString(),
+        timestamp: parseAppDate(message.created_at)?.toISOString() || new Date().toISOString(),
         mediaUrl: message.media_url,
         mediaType: voice.isVoice ? "voice" : message.media_type,
         originalName: message.original_name,

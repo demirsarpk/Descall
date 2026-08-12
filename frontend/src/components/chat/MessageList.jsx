@@ -18,6 +18,7 @@ import AdminBadge from "../social/AdminBadge";
 import { BadgeIcon, NameEffectText } from "../ui/Cosmetics";
 import { mergeUserProfiles, pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
+import { formatMessageClock, formatMessageDate, parseAppDate } from "../../lib/datetime";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢"];
 const PICKER_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👏", "🤔", "👎"];
@@ -51,26 +52,22 @@ function hoverAnchorFromRect(rect) {
 }
 
 function dayKeyOf(iso) {
-  if (!iso) return "";
-  try {
-    const d = new Date(iso);
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  } catch {
-    return "";
-  }
+  const d = parseAppDate(iso);
+  if (!d) return "";
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
 function formatDayLabel(iso, t) {
-  if (!iso) return "";
+  const date = parseAppDate(iso);
+  if (!date) return "";
   try {
-    const date = new Date(iso);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const that = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const diffDays = Math.round((today - that) / 86400000);
     if (diffDays === 0) return t("Today");
     if (diffDays === 1) return t("Yesterday");
-    return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+    return formatMessageDate(date, undefined, { weekday: "short", month: "short", day: "numeric" });
   } catch {
     return "";
   }
@@ -197,7 +194,9 @@ export default function MessageList({
       const crossedDay = Boolean(dayKey && prevDay && dayKey !== prevDay);
       const crossedUnread = index === unreadStartIndex;
       const isSameSender = prevMsg?.from?.id === msg.from?.id && prevMsg?.type !== "call_summary";
-      const timeDiff = prevMsg ? new Date(msg.timestamp) - new Date(prevMsg.timestamp) : Infinity;
+      const timeDiff = prevMsg
+        ? (parseAppDate(msg.timestamp)?.getTime() || 0) - (parseAppDate(prevMsg.timestamp)?.getTime() || 0)
+        : Infinity;
       const isCompact =
         isSameSender && timeDiff < 5 * 60 * 1000 && !crossedDay && !crossedUnread;
 
@@ -777,17 +776,13 @@ function MessageBubble({
 }
 
 function formatTimestamp(iso) {
-  if (!iso) return "";
+  const date = parseAppDate(iso);
+  if (!date) return "";
   try {
-    const date = new Date(iso);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
-    
-    if (isToday) {
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    } else {
-      return date.toLocaleDateString([], { month: "short", day: "numeric" });
-    }
+    if (isToday) return formatMessageClock(date);
+    return formatMessageDate(date, undefined, { month: "short", day: "numeric" });
   } catch {
     return "";
   }
