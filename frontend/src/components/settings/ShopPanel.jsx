@@ -11,6 +11,7 @@ import {
   claimDesCoinDaily,
 } from "../../api/shop";
 import { previewSoundPack } from "../../lib/audioManager";
+import { preloadSoundPack } from "../../lib/soundPackSynth";
 import { useT } from "../../context/LocaleContext";
 import InviteCard from "../friends/InviteCard";
 
@@ -103,6 +104,9 @@ function ShopItemPreview({ category, item, t }) {
         type="button"
         className="shop-sound-pack-preview"
         title={t("Preview sound")}
+        onMouseEnter={() => {
+          if (item.effect_key) preloadSoundPack(item.effect_key);
+        }}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
