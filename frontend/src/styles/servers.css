@@ -259,8 +259,24 @@
   width: calc(100% - 16px);
   margin: 1px 8px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   border-radius: 8px;
+}
+
+/* Channel button + ⋯ stay on one row; voice members wrap underneath */
+.server-channel-row-wrap > .server-channel-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.server-channel-row-wrap > .server-channel-row-actions {
+  flex: 0 0 auto;
+}
+
+.server-channel-row-wrap > .server-voice-user-list {
+  flex: 1 0 100%;
+  width: 100%;
 }
 
 .server-channel-row-wrap:hover .server-channel-row-actions,
@@ -1693,14 +1709,15 @@ button.member-row.server-member-row {
   padding: 1px 7px;
 }
 
-/* Nested under voice channels — Discord-like avatar rows, not plain text */
+/* Nested under voice channels — Discord-like avatar rows under the channel */
 .server-voice-user-list {
   list-style: none;
-  margin: 0 0 6px;
-  padding: 2px 8px 4px 28px;
+  margin: 0 0 4px;
+  padding: 0 4px 2px 34px;
   display: flex;
   flex-direction: column;
   gap: 1px;
+  box-sizing: border-box;
 }
 
 .server-voice-user {
