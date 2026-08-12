@@ -13,7 +13,6 @@ import ActiveCallBanner from "../ActiveCallBanner";
 import VoiceRoomBar from "../voice/VoiceRoomBar";
 import ActivityView from "../activity/ActivityView";
 import TypingIndicator from "../chat/TypingIndicator";
-import GuildChatView from "../servers/GuildChatView";
 import EmptyState from "../ui/EmptyState";
 import CallsView from "../calls/CallsView";
 import { getToken } from "../../lib/storage";
@@ -28,8 +27,6 @@ export default function ChatPanel({
   activeView,
   activeDmUser,
   activeGroup,
-  activeGuild,
-  activeGuildChannel,
   socket,
   me,
   sidebarCollapsed,
@@ -174,13 +171,12 @@ export default function ChatPanel({
   const getTitle = () => {
     if (activeDmUser) return resolveDisplayName(activeDmUser);
     if (activeGroup) return activeGroup.name;
-    if (activeGuildChannel) return activeGuildChannel.name;
     if (activeView === "chat") return t("Chats");
     if (activeView === "dms") return t("Direct Messages");
     if (activeView === "groups") return t("Groups");
     if (activeView === "calls")    return t("Calls");
     if (activeView === "activity") return t("Activity");
-    if (activeView === "servers") return activeGuild?.name || t("Servers");
+    if (activeView === "servers") return t("Servers");
     return t("Descall");
   };
 
@@ -192,9 +188,6 @@ export default function ChatPanel({
     }
     if (activeGroup) {
       return t("{count} members", { count: activeGroup.memberCount || 0 });
-    }
-    if (activeGuildChannel) {
-      return activeGuild?.name || "";
     }
     return "";
   };
@@ -309,11 +302,6 @@ export default function ChatPanel({
               ) : (
                 <span>{activeGroup.name?.charAt(0)?.toUpperCase()}</span>
               )}
-            </div>
-          )}
-          {activeGuildChannel && (
-            <div className="header-icon" style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-              <Hash size={20} />
             </div>
           )}
           <div
@@ -464,14 +452,6 @@ export default function ChatPanel({
           onOpenChat={onOpenChatFromCalls}
           onOpenGroup={onOpenGroupFromCalls}
         />
-      ) : activeGuildChannel ? (
-        <GuildChatView
-          socket={socket}
-          me={me}
-          guildId={activeGuild?.id}
-          channelId={activeGuildChannel?.id}
-          channelName={activeGuildChannel?.name}
-        />
       ) : (
       <div className="messages-container" ref={messagesRef}>
         {showSearch && (
@@ -503,8 +483,8 @@ export default function ChatPanel({
       </div>
       )}
 
-      {/* Typing + composer only on real chat surfaces — never under Activity / guild views */}
-      {activeView !== "activity" && !activeGuildChannel && (activeDmUser || activeGroup) && (
+      {/* Typing + composer only on real chat surfaces — never under Activity */}
+      {activeView !== "activity" && (activeDmUser || activeGroup) && (
         <>
           <AnimatePresence>
             {typingNames.length > 0 && (

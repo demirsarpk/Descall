@@ -62,16 +62,6 @@ export default function AppLayout({
   onTypingDmStop,
   onTypingGroupStart,
   onTypingGroupStop,
-  guilds,
-  activeGuild,
-  activeGuildChannel,
-  onGuildSelect,
-  onGuildChannelSelect,
-  onCreateGuild,
-  onJoinGuild,
-  onLeaveGuild,
-  onDeleteGuild,
-  onRefreshGuilds,
   dmUnread = {},
   groupUnread = {},
   myStatus = "online",
@@ -128,20 +118,20 @@ export default function AppLayout({
 
   const closeUserPanel = useCallback(() => {
     setUserPanelOpen(false);
-    if (isMobile && !activeDmUser && !activeGroup && !activeGuildChannel) {
+    if (isMobile && !activeDmUser && !activeGroup) {
       setMobileDrawerOpen(true);
     }
-  }, [isMobile, activeDmUser, activeGroup, activeGuildChannel]);
+  }, [isMobile, activeDmUser, activeGroup]);
 
   useEffect(() => {
     if (!isMobile) setMobileDrawerOpen(false);
   }, [isMobile]);
 
   useEffect(() => {
-    if (isMobile && !activeDmUser && !activeGroup && !activeGuildChannel) {
+    if (isMobile && !activeDmUser && !activeGroup) {
       setMobileDrawerOpen(true);
     }
-  }, [isMobile, activeDmUser, activeGroup, activeGuildChannel]);
+  }, [isMobile, activeDmUser, activeGroup]);
 
   useEffect(() => {
     if (!isMobile || !mobileDrawerOpen) return;
@@ -397,8 +387,6 @@ export default function AppLayout({
         activeView={activeView}
         activeDmUser={activeDmUser}
         activeGroup={activeGroup}
-        activeGuild={activeGuild}
-        activeGuildChannel={activeGuildChannel}
         socket={socket}
         me={me}
         activeTimeout={activeTimeout}

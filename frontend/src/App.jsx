@@ -9,13 +9,6 @@ import SeoHead from "./site/SeoHead";
 import { getMe, login, loginWithGoogle, register, verify2faLogin } from "./api/auth";
 import { getMyGroups, getGroupMessages } from "./api/groups";
 import { getFriendsList, getFriendRequestsList } from "./api/friends";
-import {
-  getMyGuilds,
-  createGuild,
-  joinGuildByInvite,
-  leaveGuild,
-  deleteGuild,
-} from "./api/guilds";
 import { createSocket } from "./socket";
 import { API_BASE_URL } from "./config/api";
 import { preloadIceServers } from "./lib/iceConfig";
@@ -297,23 +290,17 @@ export default function App() {
   // Electron silent auto-update state: null | 'downloading' | 'installing'
   const [updateState, setUpdateState] = useState(null);
   const [updateVersion, setUpdateVersion] = useState(null);
-  // Guild/Server system state
-  const [myGuilds, setMyGuilds] = useState([]);
-  const [activeGuild, setActiveGuild] = useState(null);
-  const [activeGuildChannel, setActiveGuildChannel] = useState(null);
 
   const socketRef = useRef(null);
   const activeDmRef = useRef(null);
   const activeGroupRef = useRef(null);
   const myIdRef = useRef(null);
   const myGroupsRef = useRef([]);
-  const myGuildsRef = useRef([]);
   const friendsRef = useRef([]);
   const friendsFromSocketRef = useRef(false);
   const myStatusRef = useRef(myStatus);
   const transportFallbackStepRef = useRef(0);
   const prevOnlineUsersRef = useRef([]);
-  const activeGuildRef = useRef(null);
   const typingDmTimeoutRef = useRef(null);
   const typingGroupTimeoutsRef = useRef(new Map());
   const callOccupancyRef = useRef({ dmMode: null, groupActive: false });
@@ -471,14 +458,6 @@ export default function App() {
   useEffect(() => {
     myGroupsRef.current = myGroups;
   }, [myGroups]);
-
-  useEffect(() => {
-    myGuildsRef.current = myGuilds;
-  }, [myGuilds]);
-
-  useEffect(() => {
-    activeGuildRef.current = activeGuild;
-  }, [activeGuild]);
 
   const commitSessionUser = useCallback((user) => {
     const normalized = normalizeUser(user);
@@ -950,13 +929,6 @@ export default function App() {
         const ids = groups.map((g) => g.id).filter(Boolean);
         if (ids.length > 0 && socket.connected) {
           socket.emit("groups:rejoin", ids);
-        }
-      }).catch(console.error);
-      getMyGuilds().then((data) => {
-        setMyGuilds(data?.guilds || []);
-        const guildIds = (data?.guilds || []).map((g) => g.id);
-        if (guildIds.length > 0) {
-          socket.emit("guilds:subscribe", guildIds);
         }
       }).catch(console.error);
     });
@@ -1681,86 +1653,6 @@ export default function App() {
         if (cur.some((m) => m.id === item.id)) return prev;
         return { ...prev, [groupId]: [...cur, item] };
       });
-    });
-
-    // Guild socket events
-    socket.on("guild:created", ({ guild } = {}) => {
-      if (!guild?.id) return;
-      setMyGuilds((prev) => prev.some((g) => g.id === guild.id) ? prev : [...prev, guild]);
-      setActiveGuild(guild);
-      setActiveGuildChannel(guild.channels?.[0] || null);
-    });
-
-    socket.on("guild:joined", ({ guild } = {}) => {
-      if (!guild?.id) return;
-      setMyGuilds((prev) => prev.some((g) => g.id === guild.id) ? prev : [...prev, guild]);
-      setActiveGuild(guild);
-      setActiveGuildChannel(guild.channels?.[0] || null);
-    });
-
-    socket.on("guild:deleted", ({ guildId } = {}) => {
-      if (!guildId) return;
-      setMyGuilds((prev) => prev.filter((g) => g.id !== guildId));
-      if (activeGuildRef.current?.id === guildId) {
-        setActiveGuild(null);
-        setActiveGuildChannel(null);
-      }
-    });
-
-    socket.on("guild:left", ({ guildId } = {}) => {
-      if (!guildId) return;
-      setMyGuilds((prev) => prev.filter((g) => g.id !== guildId));
-      setActiveGuild((prev) => (prev?.id === guildId ? null : prev));
-    });
-
-    socket.on("guild:member:joined", ({ guildId, userId } = {}) => {
-      if (!guildId || !userId) return;
-      setMyGuilds((prev) =>
-        prev.map((g) =>
-          g.id === guildId
-            ? { ...g, memberCount: (g.memberCount || 0) + 1 }
-            : g
-        )
-      );
-    });
-
-    socket.on("guild:member:left", ({ guildId, userId } = {}) => {
-      if (!guildId || !userId) return;
-      setMyGuilds((prev) =>
-        prev.map((g) =>
-          g.id === guildId
-            ? { ...g, memberCount: Math.max(0, (g.memberCount || 1) - 1) }
-            : g
-        )
-      );
-    });
-
-    socket.on("guild:channel:created", ({ guildId, channel } = {}) => {
-      if (!guildId || !channel) return;
-      setMyGuilds((prev) =>
-        prev.map((g) =>
-          g.id === guildId
-            ? { ...g, channels: [...(g.channels || []), channel] }
-            : g
-        )
-      );
-    });
-
-    socket.on("guild:channel:deleted", ({ guildId, channelId } = {}) => {
-      if (!guildId || !channelId) return;
-      setMyGuilds((prev) =>
-        prev.map((g) =>
-          g.id === guildId
-            ? { ...g, channels: (g.channels || []).filter((c) => c.id !== channelId) }
-            : g
-        )
-      );
-      setActiveGuildChannel((prev) => (prev?.id === channelId ? null : prev));
-    });
-
-    socket.on("guild:error", ({ message } = {}) => {
-      setFriendNotice(message || "Guild error.");
-      setTimeout(() => setFriendNotice(""), 5000);
     });
 
     socket.connect();
@@ -2493,87 +2385,6 @@ export default function App() {
     socketRef.current?.emit("notification:read_all");
   };
 
-  // ─── Guild Handlers ───
-  const handleCreateGuild = async ({ name, iconUrl }) => {
-    try {
-      const { guild } = await createGuild({ name, iconUrl });
-      if (guild) {
-        setMyGuilds((prev) => [...prev, guild]);
-        setActiveGuild(guild);
-        setActiveGuildChannel(guild.channels?.[0] || null);
-        socketRef.current?.emit("guilds:subscribe", [guild.id]);
-      }
-    } catch (err) {
-      setFriendNotice(err.message || "Failed to create server");
-      setTimeout(() => setFriendNotice(""), 5000);
-      throw err;
-    }
-  };
-
-  const handleJoinGuild = async (code) => {
-    try {
-      const { guild } = await joinGuildByInvite(code);
-      if (guild) {
-        setMyGuilds((prev) => prev.some((g) => g.id === guild.id) ? prev : [...prev, guild]);
-        setActiveGuild(guild);
-        setActiveGuildChannel(guild.channels?.[0] || null);
-        socketRef.current?.emit("guilds:subscribe", [guild.id]);
-      }
-    } catch (err) {
-      setFriendNotice(err.message || "Failed to join server");
-      setTimeout(() => setFriendNotice(""), 5000);
-      throw err;
-    }
-  };
-
-  const handleLeaveGuild = async (guildId) => {
-    try {
-      await leaveGuild(guildId);
-      setMyGuilds((prev) => prev.filter((g) => g.id !== guildId));
-      if (activeGuild?.id === guildId) {
-        setActiveGuild(null);
-        setActiveGuildChannel(null);
-      }
-    } catch (err) {
-      setFriendNotice(err.message || "Failed to leave server");
-      setTimeout(() => setFriendNotice(""), 5000);
-    }
-  };
-
-  const handleDeleteGuild = async (guildId) => {
-    try {
-      await deleteGuild(guildId);
-      setMyGuilds((prev) => prev.filter((g) => g.id !== guildId));
-      if (activeGuild?.id === guildId) {
-        setActiveGuild(null);
-        setActiveGuildChannel(null);
-      }
-    } catch (err) {
-      setFriendNotice(err.message || "Failed to delete server");
-      setTimeout(() => setFriendNotice(""), 5000);
-    }
-  };
-
-  const handleRefreshGuilds = async () => {
-    try {
-      const data = await getMyGuilds();
-      setMyGuilds(data?.guilds || []);
-    } catch (err) {
-      console.error("[App] refresh guilds error:", err);
-    }
-  };
-
-  const handleGuildSelect = (guild) => {
-    setActiveGuild(guild);
-    setActiveGuildChannel(guild?.channels?.[0] || null);
-    setActiveDmUser(null);
-    setActiveGroup(null);
-  };
-
-  const handleGuildChannelSelect = (channel) => {
-    setActiveGuildChannel(channel);
-  };
-
   const connectionLabel = useMemo(() => {
     if (!isConnected) {
       if (reconnectState === "reconnecting") return t("Reconnecting…");
@@ -3115,16 +2926,6 @@ export default function App() {
           onTypingDmStop={emitTypingDmStop}
           onTypingGroupStart={emitTypingGroupStart}
           onTypingGroupStop={emitTypingGroupStop}
-          guilds={myGuilds}
-          activeGuild={activeGuild}
-          activeGuildChannel={activeGuildChannel}
-          onGuildSelect={handleGuildSelect}
-          onGuildChannelSelect={handleGuildChannelSelect}
-          onCreateGuild={handleCreateGuild}
-          onJoinGuild={handleJoinGuild}
-          onLeaveGuild={handleLeaveGuild}
-          onDeleteGuild={handleDeleteGuild}
-          onRefreshGuilds={handleRefreshGuilds}
         >
           <MessageList
             messages={dmMessages}

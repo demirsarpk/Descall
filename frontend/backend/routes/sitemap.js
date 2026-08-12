@@ -312,7 +312,7 @@ Disallow: /admin/
 Disallow: /media/
 Disallow: /groups/
 Disallow: /friends/
-Disallow: /guilds/
+Disallow: /servers/
 Disallow: /reactions/
 Disallow: /lfg/
 Disallow: /calls/

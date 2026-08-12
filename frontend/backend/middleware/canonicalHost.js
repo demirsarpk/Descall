@@ -20,7 +20,7 @@ const API_PREFIXES = [
   "/media",
   "/groups",
   "/friends",
-  "/guilds",
+  "/servers",
   "/reactions",
   "/health",
   "/debug",

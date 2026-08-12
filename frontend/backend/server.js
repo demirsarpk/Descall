@@ -22,7 +22,7 @@ const groupRoutes = require("./routes/groups");
 const reactionRoutes = require("./routes/reactions");
 const friendsRoutes = require("./routes/friends");
 const activityRoutes = require("./routes/activity");
-const guildRoutes = require("./routes/guilds");
+const serverRoutes = require("./routes/servers");
 const webrtcRoutes = require("./routes/webrtc");
 const appReleaseRoutes = require("./routes/appRelease");
 const errorRoutes = require("./routes/errors");
@@ -44,7 +44,6 @@ const { socketAuthMiddleware } = require("./middleware/socketAuth");
 const { registerSocketHandlers } = require("./socket/handlers");
 const { cacheUserProfile, broadcastUserProfileUpdate, toPublicUser } = require("./lib/userProfile");
 const { registerActivityHandlers } = require("./socket/activityHandlers");
-const { registerGuildHandlers } = require("./socket/guildHandlers");
 const { registerGameHandlers } = require("./socket/gameHandlers");
 
 const PORT = process.env.PORT || 3000;
@@ -196,7 +195,7 @@ app.use("/media", mediaRoutes);
 app.use("/groups", groupRoutes);
 app.use("/reactions", reactionRoutes);
 app.use("/friends", friendsRoutes);
-app.use("/guilds", guildRoutes);
+app.use("/servers", serverRoutes);
 app.use("/calls", callsRoutes);
 app.use("/lfg", lfgRoutes);
 app.use("/riot", riotRoutes);
@@ -209,7 +208,7 @@ app.use("/api/groups", groupRoutes);
 app.use("/api/reactions", reactionRoutes);
 app.use("/api/friends", friendsRoutes);
 app.use("/api/activity", activityRoutes);
-app.use("/api/guilds", guildRoutes);
+app.use("/api/servers", serverRoutes);
 app.use("/api/webrtc", webrtcRoutes);
 app.use("/api/errors", errorRoutes);
 app.use("/api/app", appReleaseRoutes);
@@ -873,7 +872,7 @@ app.get(["/invite/:code", "/i/:code"], (req, res) => {
 // those routers are mounted.
 const API_PREFIXES = [
   "/api", "/auth", "/admin", "/media", "/groups",
-  "/friends", "/guilds", "/reactions", "/health", "/debug", "/lfg", "/calls", "/riot",
+  "/friends", "/servers", "/reactions", "/health", "/debug", "/lfg", "/calls", "/riot",
   "/sitemap.xml", "/sitemap-pages.xml", "/sitemap-invites.xml",
   "/sitemap-announcements.xml", "/sitemap.html", "/sitemap.xsl", "/robots.txt",
 ];
@@ -921,7 +920,6 @@ registerSocketHandlers(io);
 io.on('connection', (socket) => {
   if (socket.user) {
     registerActivityHandlers(io, socket);
-    registerGuildHandlers(io, socket);
     registerGameHandlers(io, socket);
   }
 });
