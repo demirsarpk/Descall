@@ -1874,9 +1874,14 @@
 
 @media (max-width: 768px) {
   .timeout-banner {
-    padding: 8px 12px;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 8px;
     font-size: 12px;
     gap: 8px;
+  }
+
+  /* Avoid double safe-area when banner sits above the chat header */
+  .main-panel:has(.timeout-banner) .panel-header {
+    padding-top: 8px;
   }
 
   .timeout-banner-cat {
