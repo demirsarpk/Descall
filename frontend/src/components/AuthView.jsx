@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { MessageCircle, UserPlus, Lock, Mail, User, ShieldCheck, ArrowLeft } from "lucide-react";
 import GoogleSignInButton from "./auth/GoogleSignInButton";
+import ForgotPasswordFlow from "./auth/ForgotPasswordFlow";
 import { useT } from "../context/LocaleContext";
 import DescallBrand from "./brand/DescallBrand";
 import LegalContentModal from "./legal/LegalContentModal";
@@ -10,7 +11,7 @@ import { Funnel } from "../site/analytics";
 
 export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2fa, loading, error }) {
   const t = useT();
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState("login"); // login | register | forgot
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
@@ -29,11 +30,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
     Funnel.registerStart({ mode: "login", source: "native_auth", has_invite: Boolean(fromUrl || peekInviteRef()) });
   }, []);
 
-  // Accounts with 2FA enabled don't get logged in directly — the server
-  // emails a one-time code and expects a follow-up verify call. This used to
-  // go nowhere: onLogin would resolve, no token would ever be set, and the
-  // login screen just sat there looking like nothing had happened.
-  const [twoFa, setTwoFa] = useState(null); // { pendingToken, emailHint } | null
+  const [twoFa, setTwoFa] = useState(null);
   const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [twoFaError, setTwoFaError] = useState("");
@@ -78,6 +75,12 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
     }
   };
 
+  const subtitle = twoFa
+    ? t("Enter the code we sent to {email}", { email: twoFa.emailHint || t("your email") })
+    : mode === "forgot"
+      ? t("Reset your password with a secure email code")
+      : t("Connect with friends through voice, video, and messaging");
+
   return (
     <main className="auth-shell">
       <div className="auth-bg" aria-hidden="true">
@@ -96,11 +99,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
         <div className="auth-logo-container">
           <DescallBrand compact className="auth-brand-mark" />
           <h1 className="auth-title">{t("Descall")}</h1>
-          <p className="auth-subtitle">
-            {twoFa
-              ? t("Enter the code we sent to {email}", { email: twoFa.emailHint || t("your email") })
-              : t("Connect with friends through voice, video, and messaging")}
-          </p>
+          <p className="auth-subtitle">{subtitle}</p>
         </div>
 
         {twoFa ? (
@@ -128,8 +127,7 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
 
             <button
               type="button"
-              className="auth-tab"
-              style={{ width: "100%", justifyContent: "center", marginTop: 4 }}
+              className="auth-tab auth-back-btn"
               onClick={() => {
                 setTwoFa(null);
                 setCode("");
@@ -140,6 +138,8 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
               <span>{t("Back to login")}</span>
             </button>
           </form>
+        ) : mode === "forgot" ? (
+          <ForgotPasswordFlow onBack={() => setMode("login")} />
         ) : (
         <>
         <div className="auth-tabs">
@@ -208,6 +208,14 @@ export default function AuthView({ onLogin, onRegister, onGoogleLogin, onVerify2
               required
             />
           </div>
+
+          {mode === "login" && (
+            <div className="auth-forgot-row">
+              <button type="button" className="auth-forgot-link" onClick={() => setMode("forgot")}>
+                {t("Forgot your password?")}
+              </button>
+            </div>
+          )}
 
           {mode === "register" && (
             <div className="input-wrapper">

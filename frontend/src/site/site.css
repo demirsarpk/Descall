@@ -503,6 +503,95 @@
   cursor: wait;
 }
 
+.mkt-forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 2px;
+}
+
+.mkt-forgot-link {
+  border: none;
+  background: transparent;
+  color: #9db0ff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.mkt-forgot-link:hover {
+  text-decoration: underline;
+  color: #c5d0ff;
+}
+
+.login-modal .forgot-password-flow {
+  margin-top: 4px;
+}
+
+.login-modal .forgot-password-flow .auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-modal .forgot-password-flow .input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.login-modal .forgot-password-flow .input-wrapper input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: #fff;
+  padding: 12px 0;
+  outline: none;
+  font-size: 14px;
+  width: 100%;
+}
+
+.login-modal .forgot-password-flow .auth-submit {
+  margin-top: 4px;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(180deg, #6d78f5, #5865f2);
+}
+
+.login-modal .forgot-password-flow .auth-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.login-modal .forgot-password-flow .auth-back-btn,
+.login-modal .forgot-password-flow .auth-resend-link {
+  border: none;
+  background: transparent;
+  color: #9db0ff;
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 0;
+}
+
+.login-modal .forgot-password-flow .error-message {
+  margin: 0;
+  color: #ff8e92;
+  font-size: 13px;
+}
+
 .mkt-404 {
   text-align: center;
   padding: 80px 0;

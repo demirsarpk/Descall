@@ -5,7 +5,7 @@ import {
   ChevronRight, ChevronLeft, Palette, Volume2, Camera,
   Type, Upload, Check, MonitorSpeaker, AlertTriangle,
   Copy, Image as ImageIcon, RefreshCw, Globe, Shield,
-  ShoppingBag, Mail, Monitor, CheckCircle2, UserX, Sparkles,
+  ShoppingBag, Mail, Monitor, CheckCircle2, UserX, Sparkles, KeyRound,
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -23,6 +23,8 @@ import {
   getSessions,
   revokeSession,
   revokeOtherSessions,
+  requestPasswordResetCode,
+  confirmPasswordResetCode,
 } from "../../api/security";
 import { unblockUser, getBlockedUsers } from "../../api/friends";
 import { setSoundEnabled, getAudioSettings } from "../../lib/audioManager";
@@ -256,6 +258,15 @@ const UserPanel = forwardRef(function UserPanel({
   const [sessionNotice, setSessionNotice] = useState("");
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
+  const [pwStage, setPwStage] = useState("idle"); // idle | code | done
+  const [pwCode, setPwCode] = useState("");
+  const [pwNew, setPwNew] = useState("");
+  const [pwConfirm, setPwConfirm] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwNotice, setPwNotice] = useState("");
+  const [pwHint, setPwHint] = useState("");
+  const [pwSupportEmail, setPwSupportEmail] = useState("support@descall.com");
+  const [pwNoEmail, setPwNoEmail] = useState(false);
 
   useEffect(() => {
     setEmailDraft(me?.email || "");
@@ -348,6 +359,63 @@ const UserPanel = forwardRef(function UserPanel({
       setEmailNotice(err.message || t("Incorrect code."));
     } finally {
       setEmailBusy(false);
+    }
+  };
+
+  const handleRequestPasswordReset = async () => {
+    setPwBusy(true);
+    setPwNotice("");
+    setPwNoEmail(false);
+    try {
+      const data = await requestPasswordResetCode();
+      if (data?.status === "no_email") {
+        setPwSupportEmail(data.supportEmail || "support@descall.com");
+        setPwNoEmail(true);
+        setPwNotice(
+          data.message ||
+            t("This account has no email on file. Contact support@descall.com to recover access.")
+        );
+        return;
+      }
+      setPwHint(data?.emailHint || "");
+      setPwStage("code");
+      setPwNotice(data?.message || t("We sent a 6-digit code to your email."));
+    } catch (err) {
+      const body = err?.body || {};
+      if (body.status === "no_email") {
+        setPwSupportEmail(body.supportEmail || "support@descall.com");
+        setPwNoEmail(true);
+        setPwNotice(body.message || err.message);
+        return;
+      }
+      setPwNotice(err.message || t("Could not send reset code."));
+    } finally {
+      setPwBusy(false);
+    }
+  };
+
+  const handleConfirmPasswordReset = async () => {
+    if (pwNew !== pwConfirm) {
+      setPwNotice(t("Passwords do not match."));
+      return;
+    }
+    if (pwNew.length < 6) {
+      setPwNotice(t("Password must be at least 6 characters."));
+      return;
+    }
+    setPwBusy(true);
+    setPwNotice("");
+    try {
+      await confirmPasswordResetCode(pwCode.trim(), pwNew);
+      setPwStage("done");
+      setPwCode("");
+      setPwNew("");
+      setPwConfirm("");
+      setPwNotice(t("Password updated successfully."));
+    } catch (err) {
+      setPwNotice(err.message || t("Could not reset password."));
+    } finally {
+      setPwBusy(false);
     }
   };
 
@@ -1062,7 +1130,7 @@ const UserPanel = forwardRef(function UserPanel({
       case "security":
         return (
           <div className="us-tab">
-            <p className="us-lead">{t("Protect your account with email verification and two-factor sign-in.")}</p>
+            <p className="us-lead">{t("Protect your account with email verification, password reset, and two-factor sign-in.")}</p>
 
             <section className="us-section">
               <h4 className="us-section-label">{t("Email address")}</h4>
@@ -1129,6 +1197,103 @@ const UserPanel = forwardRef(function UserPanel({
                   </div>
                 )}
                 {emailNotice && <p className="us-inline-notice">{emailNotice}</p>}
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">{t("Password")}</h4>
+              <div className="us-card us-form">
+                <SettingRow
+                  icon={KeyRound}
+                  title={t("Reset password")}
+                  description={t("We’ll email a 6-digit code so you can choose a new password securely.")}
+                />
+
+                {pwNoEmail ? (
+                  <div className="us-email-verify-flow" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+                    <p className="us-inline-notice">
+                      {t(
+                        "This account doesn’t have an email address, so we can’t send a reset code. Contact support and we’ll help you recover access."
+                      )}
+                    </p>
+                    <a className="us-link-btn" href={`mailto:${pwSupportEmail}`} style={{ width: "fit-content" }}>
+                      {pwSupportEmail}
+                    </a>
+                  </div>
+                ) : pwStage === "idle" || pwStage === "done" ? (
+                  <div className="us-email-verify-flow">
+                    <button
+                      type="button"
+                      className="us-btn primary"
+                      onClick={handleRequestPasswordReset}
+                      disabled={pwBusy}
+                    >
+                      {pwBusy ? t("Sending…") : t("Send reset code")}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="us-email-verify-flow" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+                    {pwHint && (
+                      <p className="us-muted" style={{ margin: 0 }}>
+                        {t("Enter the code we sent to {email}", { email: pwHint })}
+                      </p>
+                    )}
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      className="us-inline-input us-code-input"
+                      placeholder={t("6-digit code")}
+                      value={pwCode}
+                      onChange={(e) => setPwCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    />
+                    <input
+                      type="password"
+                      className="us-inline-input"
+                      placeholder={t("New password")}
+                      value={pwNew}
+                      onChange={(e) => setPwNew(e.target.value)}
+                      autoComplete="new-password"
+                      maxLength={72}
+                    />
+                    <input
+                      type="password"
+                      className="us-inline-input"
+                      placeholder={t("Confirm new password")}
+                      value={pwConfirm}
+                      onChange={(e) => setPwConfirm(e.target.value)}
+                      autoComplete="new-password"
+                      maxLength={72}
+                    />
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="us-btn primary"
+                        onClick={handleConfirmPasswordReset}
+                        disabled={pwBusy || pwCode.length !== 6 || !pwNew || !pwConfirm}
+                      >
+                        {pwBusy ? t("Please wait...") : t("Reset password")}
+                      </button>
+                      <button type="button" className="us-link-btn" onClick={handleRequestPasswordReset} disabled={pwBusy}>
+                        {t("Resend code")}
+                      </button>
+                      <button
+                        type="button"
+                        className="us-link-btn"
+                        onClick={() => {
+                          setPwStage("idle");
+                          setPwCode("");
+                          setPwNew("");
+                          setPwConfirm("");
+                          setPwNotice("");
+                        }}
+                      >
+                        {t("Cancel")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {pwNotice && <p className="us-inline-notice">{pwNotice}</p>}
               </div>
             </section>
 

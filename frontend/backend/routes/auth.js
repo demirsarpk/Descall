@@ -5,8 +5,8 @@ const supabase = require("../db/supabase");
 const { signToken, signPending2faToken, verifyToken } = require("../config/jwt");
 const { requireAuth } = require("../middleware/auth");
 const { revokedSessionIds, authCodeAttempts } = require("../runtime/sharedState");
-const { sendEmail, generateCode, codeEmailHtml } = require("../lib/mailer");
-const { hashCode, verifyStoredCode } = require("../lib/authCodes");
+const { sendEmail, generateCode, codeEmailHtml, SUPPORT_EMAIL } = require("../lib/mailer");
+const { hashCode, verifyStoredCode, isCodeFresh } = require("../lib/authCodes");
 const { createSession, listSessions, removeSession, removeOtherSessions, clientIp } = require("../lib/sessions");
 const { touchLastSeen } = require("../lib/presenceTouch");
 const shop = require("../lib/shop");
@@ -54,21 +54,49 @@ function attemptKey(userId, purpose) {
   return `${userId}:${purpose}`;
 }
 
-async function issueAndSendCode({ userId, email, username, purpose, column, sentAtColumn, title, footer }) {
+async function issueAndSendCode({
+  userId,
+  email,
+  username,
+  purpose,
+  column,
+  sentAtColumn,
+  title,
+  footer,
+  headline,
+  purposeLabel,
+  subject,
+}) {
   const code = generateCode();
   const update = { [column]: hashCode(code), [sentAtColumn]: new Date().toISOString() };
   await supabase.from("users").update(update).eq("id", userId);
   authCodeAttempts.set(attemptKey(userId, purpose), 0);
+  const mailSubject = subject || title;
   const result = await sendEmail({
     to: email,
-    subject: title,
-    text: `Your Descall verification code is ${code}. It expires in 10 minutes.`,
-    html: codeEmailHtml({ title, code, minutes: 10, footer }),
+    subject: mailSubject,
+    text: `Your Descall code is ${code}. It expires in 10 minutes.\n\nIf you did not request this, ignore this email or contact ${SUPPORT_EMAIL}.`,
+    html: codeEmailHtml({
+      title: mailSubject,
+      headline: headline || title,
+      code,
+      minutes: 10,
+      footer,
+      username,
+      purposeLabel: purposeLabel || "Security code",
+    }),
   });
   if (!result.sent && !result.skipped) {
     console.warn(`[AUTH] ${purpose} email failed for`, username, result.error);
   }
   return result;
+}
+
+function maskEmail(email) {
+  const [name, domain] = String(email || "").split("@");
+  if (!domain) return email || "";
+  const visible = name.slice(0, Math.min(2, name.length));
+  return `${visible}${"•".repeat(Math.max(1, name.length - visible.length))}@${domain}`;
 }
 
 const router = express.Router();
@@ -598,13 +626,6 @@ router.post("/2fa/verify-login", async (req, res) => {
   }
 });
 
-function maskEmail(email) {
-  const [name, domain] = String(email).split("@");
-  if (!domain) return email;
-  const visible = name.slice(0, Math.min(2, name.length));
-  return `${visible}${"*".repeat(Math.max(1, name.length - visible.length))}@${domain}`;
-}
-
 router.post("/google", async (req, res) => {
   try {
     if (!googleClient || !GOOGLE_CLIENT_ID) {
@@ -1091,5 +1112,269 @@ function disconnectSocketsForSession(req, userId, sessionId) {
     console.warn("[AUTH] disconnectSocketsForSession failed:", err?.message);
   }
 }
+
+const PASSWORD_RESET_COOLDOWN_MS = 60 * 1000;
+const SUPPORT_CONTACT = SUPPORT_EMAIL;
+
+async function findUserForPasswordReset(usernameOrEmail) {
+  const raw = String(usernameOrEmail || "").trim();
+  if (!raw) return null;
+  const looksEmail = raw.includes("@");
+  if (looksEmail) {
+    const email = raw.toLowerCase();
+    if (!EMAIL_RE.test(email)) return null;
+    const { data } = await supabase
+      .from("users")
+      .select("id, username, email, email_confirmed_at, password_hash, password_reset_token, password_reset_sent_at, auth_provider")
+      .ilike("email", email)
+      .maybeSingle();
+    return data || null;
+  }
+  const cleanUsername = raw.toLowerCase();
+  const { data } = await supabase
+    .from("users")
+    .select("id, username, email, email_confirmed_at, password_hash, password_reset_token, password_reset_sent_at, auth_provider")
+    .eq("username", cleanUsername)
+    .maybeSingle();
+  return data || null;
+}
+
+async function sendPasswordResetCode(user) {
+  if (!user?.email) {
+    return {
+      status: "no_email",
+      supportEmail: SUPPORT_CONTACT,
+      message: `This account has no email on file. Contact ${SUPPORT_CONTACT} to recover access.`,
+    };
+  }
+
+  if (user.password_reset_sent_at && isCodeFresh(user.password_reset_sent_at)) {
+    const sentAt = new Date(user.password_reset_sent_at).getTime();
+    if (Date.now() - sentAt < PASSWORD_RESET_COOLDOWN_MS) {
+      return {
+        status: "cooldown",
+        emailHint: maskEmail(user.email),
+        message: "A code was just sent. Wait a minute before requesting another.",
+      };
+    }
+  }
+
+  let result;
+  try {
+    result = await issueAndSendCode({
+      userId: user.id,
+      email: user.email,
+      username: user.username,
+      purpose: "password_reset",
+      column: "password_reset_token",
+      sentAtColumn: "password_reset_sent_at",
+      title: "Reset your Descall password",
+      subject: "Your Descall password reset code",
+      headline: "Reset your password",
+      purposeLabel: "Password reset",
+      footer:
+        "Use this 6-digit code in Descall to choose a new password. If you did not ask to reset your password, you can ignore this email — your account stays secure.",
+    });
+  } catch (err) {
+    console.error("[AUTH] password reset email failed:", err?.message || err);
+    return {
+      status: "send_failed",
+      message: "Could not send the reset email. Please try again shortly.",
+      supportEmail: SUPPORT_CONTACT,
+    };
+  }
+
+  if (result.skipped) {
+    return {
+      status: "misconfigured",
+      message: "Email delivery is not configured on the server. Contact support.",
+      supportEmail: SUPPORT_CONTACT,
+    };
+  }
+  if (!result.sent) {
+    return {
+      status: "send_failed",
+      message: "Could not send the reset email. Please try again shortly.",
+      supportEmail: SUPPORT_CONTACT,
+    };
+  }
+
+  return {
+    status: "sent",
+    emailHint: maskEmail(user.email),
+    message: "We sent a 6-digit code to your email.",
+  };
+}
+
+async function applyPasswordReset({ user, code, newPassword }) {
+  const passwordError = validatePassword(newPassword);
+  if (passwordError) return { ok: false, status: 400, error: passwordError };
+
+  const cleanCode = String(code || "").trim();
+  if (!/^\d{6}$/.test(cleanCode)) {
+    return { ok: false, status: 400, error: "Enter the 6-digit code from your email." };
+  }
+
+  const key = attemptKey(user.id, "password_reset");
+  const attempts = authCodeAttempts.get(key) || 0;
+  const verdict = verifyStoredCode({
+    code: cleanCode,
+    storedHash: user.password_reset_token,
+    sentAtIso: user.password_reset_sent_at,
+    attempts,
+  });
+
+  if (!verdict.ok) {
+    authCodeAttempts.set(key, attempts + 1);
+    const map = {
+      no_pending_code: "No active reset code. Request a new one.",
+      expired: "This code expired. Request a new one.",
+      too_many_attempts: "Too many incorrect attempts. Request a new code.",
+      invalid_code: "Incorrect code.",
+    };
+    return { ok: false, status: 400, error: map[verdict.reason] || "Incorrect code." };
+  }
+
+  const password_hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  const { error } = await supabase
+    .from("users")
+    .update({
+      password_hash,
+      password_reset_token: null,
+      password_reset_sent_at: null,
+      // Ensure password auth works after reset (Google-linked accounts included)
+      auth_provider: user.auth_provider === "google" ? "google" : user.auth_provider || "password",
+    })
+    .eq("id", user.id);
+
+  if (error) {
+    console.error("[AUTH] password reset update failed:", error.message);
+    return { ok: false, status: 500, error: "Could not update password." };
+  }
+
+  authCodeAttempts.set(key, 0);
+  return { ok: true };
+}
+
+// ─── Password reset (public forgot + authenticated settings) ─────────
+
+router.post("/password/forgot", async (req, res) => {
+  try {
+    const usernameOrEmail = String(req.body?.usernameOrEmail || req.body?.email || req.body?.username || "").trim();
+    if (!usernameOrEmail) {
+      return res.status(400).json({ error: "Enter your username or email." });
+    }
+
+    const user = await findUserForPasswordReset(usernameOrEmail);
+    if (!user) {
+      // Soft response — avoid confirming which accounts exist when looking up by email.
+      // Username lookups can still return no_email when the account is known.
+      if (!usernameOrEmail.includes("@")) {
+        return res.status(404).json({
+          error: "No account found with that username.",
+          status: "not_found",
+          supportEmail: SUPPORT_CONTACT,
+        });
+      }
+      return res.json({
+        status: "sent",
+        message: "If an account exists for that email, a reset code is on the way.",
+      });
+    }
+
+    if (!user.email) {
+      return res.json({
+        status: "no_email",
+        supportEmail: SUPPORT_CONTACT,
+        message: `This account has no email address. Email ${SUPPORT_CONTACT} to reset your password.`,
+      });
+    }
+
+    const outcome = await sendPasswordResetCode(user);
+    if (outcome.status === "send_failed" || outcome.status === "misconfigured") {
+      return res.status(503).json(outcome);
+    }
+    return res.json(outcome);
+  } catch (err) {
+    console.error("[AUTH] password/forgot error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+router.post("/password/reset", async (req, res) => {
+  try {
+    const usernameOrEmail = String(req.body?.usernameOrEmail || req.body?.email || req.body?.username || "").trim();
+    const code = req.body?.code;
+    const newPassword = req.body?.newPassword || req.body?.password;
+    if (!usernameOrEmail) {
+      return res.status(400).json({ error: "Enter your username or email." });
+    }
+
+    const user = await findUserForPasswordReset(usernameOrEmail);
+    if (!user) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+    if (!user.password_reset_token) {
+      return res.status(400).json({ error: "No active reset code. Request a new one." });
+    }
+
+    const result = await applyPasswordReset({ user, code, newPassword });
+    if (!result.ok) return res.status(result.status).json({ error: result.error });
+    return res.json({ message: "Password updated. You can sign in with your new password." });
+  } catch (err) {
+    console.error("[AUTH] password/reset error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+router.post("/password/request", requireAuth, async (req, res) => {
+  try {
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, username, email, email_confirmed_at, password_hash, password_reset_token, password_reset_sent_at, auth_provider")
+      .eq("id", req.user.id)
+      .maybeSingle();
+
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    if (!user.email) {
+      return res.json({
+        status: "no_email",
+        supportEmail: SUPPORT_CONTACT,
+        message: `Add an email in Settings, or contact ${SUPPORT_CONTACT} to reset your password.`,
+      });
+    }
+
+    const outcome = await sendPasswordResetCode(user);
+    if (outcome.status === "send_failed" || outcome.status === "misconfigured") {
+      return res.status(503).json(outcome);
+    }
+    return res.json(outcome);
+  } catch (err) {
+    console.error("[AUTH] password/request error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+router.post("/password/confirm", requireAuth, async (req, res) => {
+  try {
+    const code = req.body?.code;
+    const newPassword = req.body?.newPassword || req.body?.password;
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, username, email, password_reset_token, password_reset_sent_at, auth_provider")
+      .eq("id", req.user.id)
+      .maybeSingle();
+
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    const result = await applyPasswordReset({ user, code, newPassword });
+    if (!result.ok) return res.status(result.status).json({ error: result.error });
+    return res.json({ message: "Password updated successfully." });
+  } catch (err) {
+    console.error("[AUTH] password/confirm error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
 
 module.exports = router;

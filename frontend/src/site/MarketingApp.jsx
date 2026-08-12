@@ -3,9 +3,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X, ArrowLeft } from "lucide-react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
+import ForgotPasswordFlow from "../components/auth/ForgotPasswordFlow";
 import LegalContentModal from "../components/legal/LegalContentModal";
 import DownloadPage from "../components/download/DownloadPage";
 import "../components/download/DownloadPage.css";
+import "../styles/auth-splash.css";
 import { useT } from "../context/LocaleContext";
 import {
   persistInviteRef,
@@ -80,6 +82,7 @@ function AuthModal({
 }) {
   const t = useT();
   const [isRegistering, setIsRegistering] = useState(initialMode === "register");
+  const [forgotMode, setForgotMode] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
@@ -102,9 +105,11 @@ function AuthModal({
       setTwoFa(null);
       setCode("");
       setTwoFaError("");
+      setForgotMode(false);
       return;
     }
     setIsRegistering(initialMode === "register");
+    setForgotMode(false);
     Funnel.registerStart({
       mode: initialMode === "register" ? "register" : "login",
       source: authSource,
@@ -217,6 +222,15 @@ function AuthModal({
                   {t("Back to login")}
                 </button>
               </>
+            ) : forgotMode ? (
+              <>
+                <h2>{t("Forgot your password?")}</h2>
+                <p>{t("Reset your password with a secure email code")}</p>
+                <ForgotPasswordFlow
+                  variant="modal"
+                  onBack={() => setForgotMode(false)}
+                />
+              </>
             ) : (
               <>
                 <h2>{isRegistering ? t("Create Account") : t("Welcome Back")}</h2>
@@ -269,6 +283,13 @@ function AuthModal({
                     autoComplete={isRegistering ? "new-password" : "current-password"}
                     required
                   />
+                  {!isRegistering && (
+                    <div className="mkt-forgot-row">
+                      <button type="button" className="mkt-forgot-link" onClick={() => setForgotMode(true)}>
+                        {t("Forgot your password?")}
+                      </button>
+                    </div>
+                  )}
                   {isRegistering && (
                     <input
                       type="email"

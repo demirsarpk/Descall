@@ -9,6 +9,12 @@ export const verifyEmailCode = (code) => authedRequest("/api/auth/email/verify",
 export const enable2fa = () => authedRequest("/api/auth/2fa/enable", { method: "POST" });
 export const disable2fa = (password) => authedRequest("/api/auth/2fa/disable", { method: "POST", body: { password } });
 
+// Password reset (authenticated — Settings)
+export const requestPasswordResetCode = () =>
+  authedRequest("/api/auth/password/request", { method: "POST" });
+export const confirmPasswordResetCode = (code, newPassword) =>
+  authedRequest("/api/auth/password/confirm", { method: "POST", body: { code, newPassword } });
+
 // Session management
 export const getSessions = () => authedRequest("/api/auth/sessions");
 export const revokeSession = (sessionId) => authedRequest(`/api/auth/sessions/${sessionId}/revoke`, { method: "POST" });

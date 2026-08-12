@@ -44,3 +44,19 @@ export function getMe(token) {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+/** Public forgot-password: username or email → emailed 6-digit code. */
+export function requestPasswordReset(usernameOrEmail) {
+  return httpRequest("/auth/password/forgot", {
+    method: "POST",
+    body: JSON.stringify({ usernameOrEmail }),
+  });
+}
+
+/** Public: verify code + set new password. */
+export function confirmPasswordReset({ usernameOrEmail, code, newPassword }) {
+  return httpRequest("/auth/password/reset", {
+    method: "POST",
+    body: JSON.stringify({ usernameOrEmail, code, newPassword }),
+  });
+}
