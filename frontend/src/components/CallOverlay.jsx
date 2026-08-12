@@ -1113,7 +1113,8 @@ function ParticipantTile({
               animate="speaking"
               isSpeaking={isSpeaking}
             />
-            <StatusBadge status={presenceStatus} user={user} />
+            {/* No presence-flare here — flare glow skews the avatar ring on call tiles. */}
+            <StatusBadge status={presenceStatus} />
           </div>
           {!small && (
             <div className="participant-tile-identity">
