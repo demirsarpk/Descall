@@ -38,6 +38,7 @@ import { resolveDisplayName } from "../../lib/userProfile";
 import { Avatar } from "../ui/Avatar";
 import useSpeaking from "../../hooks/useSpeaking";
 import { isChannelMuted, toggleChannelMute } from "../../lib/serverChannelMutes";
+import { serverHasPermission } from "../../lib/serverPermissions";
 import { updateServerNotificationLevel } from "../../api/servers";
 import ServerRolesModal from "./ServerRolesModal";
 import ServerInviteModal from "./ServerInviteModal";
@@ -101,10 +102,7 @@ export default function ServersSidebar({
   const [mutedChannelTick, setMutedChannelTick] = useState(0);
 
   const canCreate = ownedCount < maxOwned;
-  const permFlags = activeServer?.myPermissions?.flags || {};
-  const canManageGuild = Boolean(
-    activeServer?.isOwner || permFlags.MANAGE_GUILD || permFlags.ADMINISTRATOR
-  );
+  const canManageGuild = serverHasPermission(activeServer, "MANAGE_GUILD");
   const notifLevel = ["all", "mentions", "muted"].includes(activeServer?.notificationLevel)
     ? activeServer.notificationLevel
     : "all";
@@ -114,9 +112,7 @@ export default function ServersSidebar({
       !activeServer?.rulesAcceptedAt &&
       !activeServer?.isOwner
   );
-  const canManageChannels = Boolean(
-    activeServer?.isOwner || permFlags.MANAGE_CHANNELS || permFlags.ADMINISTRATOR
-  );
+  const canManageChannels = serverHasPermission(activeServer, "MANAGE_CHANNELS");
 
   const setNotificationLevel = async (level) => {
     if (!activeServer?.id || level === notifLevel || notifBusy) return;
@@ -132,24 +128,12 @@ export default function ServersSidebar({
       setMenuOpen(false);
     }
   };
-  const canManageRoles = Boolean(
-    activeServer?.isOwner || permFlags.MANAGE_ROLES || permFlags.ADMINISTRATOR
-  );
-  const canCreateInvite = Boolean(
-    activeServer?.isOwner || permFlags.CREATE_INSTANT_INVITE || permFlags.ADMINISTRATOR
-  );
-  const canBanMembers = Boolean(
-    activeServer?.isOwner || permFlags.BAN_MEMBERS || permFlags.ADMINISTRATOR
-  );
-  const canViewAudit = Boolean(
-    activeServer?.isOwner || permFlags.VIEW_AUDIT_LOG || permFlags.ADMINISTRATOR
-  );
-  const canMoveMembers = Boolean(
-    activeServer?.isOwner || permFlags.MOVE_MEMBERS || permFlags.ADMINISTRATOR
-  );
-  const canMuteMembers = Boolean(
-    activeServer?.isOwner || permFlags.MUTE_MEMBERS || permFlags.ADMINISTRATOR
-  );
+  const canManageRoles = serverHasPermission(activeServer, "MANAGE_ROLES");
+  const canCreateInvite = serverHasPermission(activeServer, "CREATE_INSTANT_INVITE");
+  const canBanMembers = serverHasPermission(activeServer, "BAN_MEMBERS");
+  const canViewAudit = serverHasPermission(activeServer, "VIEW_AUDIT_LOG");
+  const canMoveMembers = serverHasPermission(activeServer, "MOVE_MEMBERS");
+  const canMuteMembers = serverHasPermission(activeServer, "MUTE_MEMBERS");
   const [channelAccess, setChannelAccess] = useState(null); // channel
   const [voiceMenu, setVoiceMenu] = useState(null); // { user, channelId, x, y }
   const voiceStates = serverVoice?.voiceStatesByServer?.[activeServer?.id] || {};

@@ -18,6 +18,7 @@ import {
   timeoutServerMember,
   removeServerMemberTimeout,
 } from "../../api/servers";
+import { serverHasPermission } from "../../lib/serverPermissions";
 
 function colorToHex(color) {
   const n = Math.max(0, Math.min(0xffffff, Number(color) || 0));
@@ -59,13 +60,12 @@ export default function ServerMembersPanel({
   const [busy, setBusy] = useState(false);
   const menuRef = useRef(null);
 
-  const flags = server?.myPermissions?.flags || {};
-  const canManageRoles = Boolean(server?.isOwner || flags.MANAGE_ROLES || flags.ADMINISTRATOR);
-  const canKick = Boolean(server?.isOwner || flags.KICK_MEMBERS || flags.ADMINISTRATOR);
-  const canBan = Boolean(server?.isOwner || flags.BAN_MEMBERS || flags.ADMINISTRATOR);
-  const canTimeout = Boolean(server?.isOwner || flags.MODERATE_MEMBERS || flags.ADMINISTRATOR);
-  const canChangeOwnNick = Boolean(server?.isOwner || flags.CHANGE_NICKNAME || flags.ADMINISTRATOR);
-  const canManageNicknames = Boolean(server?.isOwner || flags.MANAGE_NICKNAMES || flags.ADMINISTRATOR);
+  const canManageRoles = serverHasPermission(server, "MANAGE_ROLES");
+  const canKick = serverHasPermission(server, "KICK_MEMBERS");
+  const canBan = serverHasPermission(server, "BAN_MEMBERS");
+  const canTimeout = serverHasPermission(server, "MODERATE_MEMBERS");
+  const canChangeOwnNick = serverHasPermission(server, "CHANGE_NICKNAME");
+  const canManageNicknames = serverHasPermission(server, "MANAGE_NICKNAMES");
   const actorHighestPosition = Number(server?.myPermissions?.highestPosition) || 0;
   const assignableRoles = useMemo(
     () => roles.filter((r) => !r.isEveryone && (server?.isOwner || (Number(r.position) || 0) < actorHighestPosition)),

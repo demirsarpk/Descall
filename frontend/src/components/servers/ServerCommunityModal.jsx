@@ -4,6 +4,7 @@ import { ShieldCheck } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { useToast } from "../../context/ToastContext";
 import { updateServer } from "../../api/servers";
+import { serverHasPermission } from "../../lib/serverPermissions";
 
 const VERIFICATION_LEVELS = [
   { value: "none", label: "None" },
@@ -34,11 +35,7 @@ export default function ServerCommunityModal({ server, onClose, onServerUpdated 
     setIsPublic(Boolean(server?.isPublic));
   }, [server?.id, server?.communityEnabled, server?.rulesText, server?.splashUrl, server?.verificationLevel, server?.isPublic]);
 
-  const canManage = Boolean(
-    server?.isOwner ||
-      server?.myPermissions?.flags?.MANAGE_GUILD ||
-      server?.myPermissions?.flags?.ADMINISTRATOR
-  );
+  const canManage = serverHasPermission(server, "MANAGE_GUILD");
 
   const save = async (e) => {
     e?.preventDefault?.();

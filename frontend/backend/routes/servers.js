@@ -191,21 +191,43 @@ function isInviteExpired(invite) {
   return false;
 }
 
-function parsePermissionsInput(raw) {
+/** Bitmask of every permission the role editor can toggle. */
+const EDITABLE_PERMISSION_MASK = EDITABLE_PERMISSION_KEYS.reduce(
+  (acc, key) => (Permissions[key] != null ? acc | Permissions[key] : acc),
+  0n
+);
+
+/**
+ * Parse role permission input.
+ * - object flags → OR of true EDITABLE keys (ADMINISTRATOR expands to all editable)
+ * - number/string → bigint bitfield
+ * When `existingBits` is provided, non-editable bits (USE_VAD, etc.) are preserved
+ * so saving the role editor cannot silently strip baseline @everyone grants.
+ */
+function parsePermissionsInput(raw, existingBits = null) {
   if (raw == null) return null;
+  let parsed = null;
   if (typeof raw === "object" && !Array.isArray(raw)) {
     // { VIEW_CHANNEL: true, ... }
     let bits = 0n;
-    for (const key of EDITABLE_PERMISSION_KEYS) {
-      if (raw[key] && Permissions[key] != null) bits |= Permissions[key];
+    if (raw.ADMINISTRATOR) {
+      bits = EDITABLE_PERMISSION_MASK;
+    } else {
+      for (const key of EDITABLE_PERMISSION_KEYS) {
+        if (raw[key] && Permissions[key] != null) bits |= Permissions[key];
+      }
     }
-    return bits;
+    parsed = bits;
+  } else {
+    try {
+      parsed = fromPgBigint(raw);
+    } catch {
+      return null;
+    }
   }
-  try {
-    return fromPgBigint(raw);
-  } catch {
-    return null;
-  }
+  if (existingBits == null) return parsed;
+  const keep = fromPgBigint(existingBits) & ~EDITABLE_PERMISSION_MASK;
+  return keep | (parsed & EDITABLE_PERMISSION_MASK);
 }
 
 function clampColor(value) {
@@ -1611,7 +1633,7 @@ router.patch("/:id/roles/:roleId", requireAuth, async (req, res) => {
     if (req.body?.hoist !== undefined) patch.hoist = Boolean(req.body.hoist);
     if (req.body?.mentionable !== undefined) patch.mentionable = Boolean(req.body.mentionable);
     if (req.body?.permissions !== undefined) {
-      const perms = parsePermissionsInput(req.body.permissions);
+      const perms = parsePermissionsInput(req.body.permissions, existing.permissions);
       if (perms == null) return res.status(400).json({ error: "Invalid permissions." });
       patch.permissions = toPgBigint(perms);
     }

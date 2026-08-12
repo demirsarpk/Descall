@@ -10,6 +10,7 @@ import {
   getServerAuditLogs,
 } from "../../api/servers";
 import { resolveDisplayName } from "../../lib/userProfile";
+import { serverHasPermission } from "../../lib/serverPermissions";
 
 const ACTION_LABELS = {
   SERVER_CREATE: "Server created",
@@ -42,9 +43,8 @@ export default function ServerModerationModal({
 }) {
   const t = useT();
   const { toast } = useToast();
-  const flags = server?.myPermissions?.flags || {};
-  const canBan = Boolean(server?.isOwner || flags.BAN_MEMBERS || flags.ADMINISTRATOR);
-  const canAudit = Boolean(server?.isOwner || flags.VIEW_AUDIT_LOG || flags.ADMINISTRATOR);
+  const canBan = serverHasPermission(server, "BAN_MEMBERS");
+  const canAudit = serverHasPermission(server, "VIEW_AUDIT_LOG");
 
   const [tab, setTab] = useState(() => {
     if (initialTab === "audit" && canAudit) return "audit";

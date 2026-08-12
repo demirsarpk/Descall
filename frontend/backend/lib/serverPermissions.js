@@ -159,15 +159,26 @@ async function resolveMemberPermissions(supabase, serverId, userId) {
 async function getMemberHighestPosition(supabase, serverId, userId) {
   if (!serverId || !userId) return 0;
 
-  const { data: roles, error } = await supabase
+  // Prefer a plain join shape — nested `role:role_id(...)` embeds are flaky
+  // across PostgREST versions and silently returned position 0 before.
+  const { data: assigned, error } = await supabase
     .from("server_member_roles")
-    .select("role:role_id (position)")
+    .select("role_id")
     .eq("server_id", serverId)
     .eq("user_id", userId);
   if (error) throw error;
+  const roleIds = (assigned || []).map((r) => r.role_id).filter(Boolean);
+  if (!roleIds.length) return 0;
+
+  const { data: roles, error: rErr } = await supabase
+    .from("server_roles")
+    .select("id, position")
+    .eq("server_id", serverId)
+    .in("id", roleIds);
+  if (rErr) throw rErr;
 
   return (roles || []).reduce((top, row) => {
-    const pos = Number(row?.role?.position);
+    const pos = Number(row?.position);
     return Number.isFinite(pos) ? Math.max(top, pos) : top;
   }, 0);
 }

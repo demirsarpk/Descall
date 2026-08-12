@@ -16,6 +16,7 @@ import {
 import { Avatar } from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
+import { serverHasPermission } from "../../lib/serverPermissions";
 import useSpeaking from "../../hooks/useSpeaking";
 
 function streamHasLiveVideo(stream) {
@@ -367,24 +368,8 @@ export default function ServerVoicePanel({
     ? (serverVoice.participants?.length || 0) + 1
     : state?.memberCount || 0;
 
-  // If permissions haven't loaded yet, allow the click — the server still
-  // enforces CONNECT via assertVoiceAccess. Blocking here was stranding users
-  // after reload when myPermissions was missing from the list payload.
-  const permFlags = server?.myPermissions?.flags;
-  const permsLoaded = Boolean(server?.myPermissions?.flags);
-  const canConnect = Boolean(
-    server?.isOwner ||
-      !permsLoaded ||
-      permFlags?.CONNECT ||
-      permFlags?.ADMINISTRATOR
-  );
-
-  const canStream = Boolean(
-    server?.isOwner ||
-      !permsLoaded ||
-      permFlags?.STREAM ||
-      permFlags?.ADMINISTRATOR
-  );
+  const canConnect = serverHasPermission(server, "CONNECT");
+  const canStream = serverHasPermission(server, "STREAM");
   const canPublishMedia = Boolean(serverVoice?.canSpeak && isStageSpeaker);
   const canVideo = Boolean(canStream && serverVoice?.canStream && canPublishMedia);
 

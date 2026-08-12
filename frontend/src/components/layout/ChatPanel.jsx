@@ -24,6 +24,7 @@ import AdminBadge from "../social/AdminBadge";
 import UserProfileModal from "../social/UserProfileModal";
 import ServerMembersPanel from "../servers/ServerMembersPanel";
 import ServerVoicePanel from "../servers/ServerVoicePanel";
+import { serverHasPermission } from "../../lib/serverPermissions";
 
 export default function ChatPanel({
   activeView,
@@ -571,9 +572,7 @@ export default function ChatPanel({
           activeGroup ||
           (activeView === "servers" &&
             activeChannel?.type === "text" &&
-            (activeServer?.isOwner ||
-              activeServer?.myPermissions?.flags?.SEND_MESSAGES ||
-              activeServer?.myPermissions?.flags?.ADMINISTRATOR))) && (
+            serverHasPermission(activeServer, "SEND_MESSAGES"))) && (
         <>
           <AnimatePresence>
             {typingNames.length > 0 && (
@@ -602,9 +601,7 @@ export default function ChatPanel({
                 !(
                   activeView === "servers" &&
                   activeChannel?.type === "text" &&
-                  (activeServer?.isOwner ||
-                    activeServer?.myPermissions?.flags?.SEND_MESSAGES ||
-                    activeServer?.myPermissions?.flags?.ADMINISTRATOR)
+                  serverHasPermission(activeServer, "SEND_MESSAGES")
                 )
               }
               activeDmUser={activeDmUser}

@@ -11,6 +11,7 @@ import {
   assignMemberRole,
   removeMemberRole,
 } from "../../api/servers";
+import { permissionsToFlagMap } from "../../lib/serverPermissions";
 
 const PRESET_COLORS = [
   0x5865f2, 0x57f287, 0xfee75c, 0xed4245, 0xeb459e, 0xf47b67, 0x3ba55d, 0x3498db, 0x9b59b6, 0x95a5a6,
@@ -57,53 +58,6 @@ function hexToColor(hex) {
   const n = parseInt(cleaned, 16);
   return Number.isFinite(n) ? n : 0;
 }
-
-function permissionsToFlags(permissions, keys) {
-  let bits = 0n;
-  try {
-    bits = BigInt(permissions || "0");
-  } catch {
-    bits = 0n;
-  }
-  const flags = {};
-  for (const key of keys) {
-    const bit = PERM_BITS[key];
-    flags[key] = bit != null ? (bits & bit) !== 0n : false;
-  }
-  return flags;
-}
-
-/** Must match backend Permissions bit positions for editable keys. */
-const PERM_BITS = {
-  VIEW_CHANNEL: 1n << 10n,
-  SEND_MESSAGES: 1n << 11n,
-  MANAGE_MESSAGES: 1n << 13n,
-  MANAGE_CHANNELS: 1n << 4n,
-  MANAGE_GUILD: 1n << 5n,
-  MANAGE_ROLES: 1n << 28n,
-  USE_APPLICATION_COMMANDS: 1n << 31n,
-  CREATE_INSTANT_INVITE: 1n << 0n,
-  KICK_MEMBERS: 1n << 1n,
-  BAN_MEMBERS: 1n << 2n,
-  MODERATE_MEMBERS: 1n << 40n,
-  CHANGE_NICKNAME: 1n << 26n,
-  MANAGE_NICKNAMES: 1n << 27n,
-  VIEW_AUDIT_LOG: 1n << 7n,
-  MENTION_EVERYONE: 1n << 17n,
-  ATTACH_FILES: 1n << 15n,
-  EMBED_LINKS: 1n << 14n,
-  ADD_REACTIONS: 1n << 6n,
-  READ_MESSAGE_HISTORY: 1n << 16n,
-  PRIORITY_SPEAKER: 1n << 8n,
-  CONNECT: 1n << 20n,
-  SPEAK: 1n << 21n,
-  REQUEST_TO_SPEAK: 1n << 32n,
-  STREAM: 1n << 9n,
-  MUTE_MEMBERS: 1n << 22n,
-  DEAFEN_MEMBERS: 1n << 23n,
-  MOVE_MEMBERS: 1n << 24n,
-  ADMINISTRATOR: 1n << 3n,
-};
 
 /**
  * Owner roles manager — list / create / edit / delete + member assign.
@@ -161,7 +115,7 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
       color: selected.color ?? 0,
       hoist: Boolean(selected.hoist),
       mentionable: Boolean(selected.mentionable),
-      flags: permissionsToFlags(selected.permissions, editableKeys),
+      flags: permissionsToFlagMap(selected.permissions, editableKeys),
     });
   }, [selected?.id, selected?.permissions, selected?.name, selected?.color, editableKeys]);
 
@@ -418,12 +372,20 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
                             <input
                               type="checkbox"
                               checked={Boolean(draft.flags?.[key])}
-                              onChange={(e) =>
-                                setDraft((d) => ({
-                                  ...d,
-                                  flags: { ...d.flags, [key]: e.target.checked },
-                                }))
-                              }
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setDraft((d) => {
+                                  const next = { ...(d.flags || {}) };
+                                  if (key === "ADMINISTRATOR") {
+                                    // Admin is a master switch — mirror Discord's "all permissions".
+                                    for (const k of editableKeys) next[k] = checked;
+                                  } else {
+                                    next[key] = checked;
+                                    if (!checked) next.ADMINISTRATOR = false;
+                                  }
+                                  return { ...d, flags: next };
+                                });
+                              }}
                             />
                             <span className="server-perm-text">{t(PERM_LABELS[key] || key)}</span>
                           </label>
