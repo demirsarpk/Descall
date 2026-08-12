@@ -1471,7 +1471,6 @@ export const phrases = {
   "Slowmode: wait {time}": "Yavaş mod: {time} bekle",
   "Members must wait {time} between messages.": "Üyeler mesajlar arasında {time} beklemeli.",
   "Off — members can send freely.": "Kapalı — üyeler serbestçe yazabilir.",
-  "Off": "Kapalı",
   "Freeze Chat": "Sohbeti Dondur",
   "Clear Cache": "Önbelleği Temizle",
   "Backup": "Yedekle",
