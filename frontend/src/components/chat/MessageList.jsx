@@ -353,8 +353,16 @@ export default function MessageList({
                   conversationId={conversationId}
                   onReply={onReply}
                   highlight={trimmedSearch}
-                  chatBubbleKey={isOwn ? me?.equippedChatBubble?.effect_key || null : null}
-                  reactionBurstKey={isOwn ? me?.equippedReactionBurst?.effect_key || null : null}
+                  chatBubbleKey={
+                    isOwn
+                      ? me?.equippedChatBubble?.effect_key || avatarUser?.equippedChatBubble?.effect_key || null
+                      : avatarUser?.equippedChatBubble?.effect_key || null
+                  }
+                  reactionBurstKey={
+                    isOwn
+                      ? me?.equippedReactionBurst?.effect_key || avatarUser?.equippedReactionBurst?.effect_key || null
+                      : avatarUser?.equippedReactionBurst?.effect_key || null
+                  }
                 />
               ))}
             </div>

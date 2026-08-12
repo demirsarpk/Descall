@@ -6,7 +6,7 @@
 const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernameById } = require("../runtime/sharedState");
 const supabase = require("../db/supabase");
 const { handleGameCommand, createGameMessage } = require("./gameHandlers");
-const { getCachedPublicUser, getAvatarUrl } = require("../lib/userProfile");
+const { getCachedPublicUser, getAvatarUrl, pickChatCosmetics, ensureCosmeticsCached } = require("../lib/userProfile");
 const { sendGroupCallPush } = require("../lib/webPush");
 const descoin = require("../lib/descoin");
 const { shouldCreditMessage } = require("../lib/descoinMessageGuard");
@@ -207,6 +207,8 @@ function registerGroupHandlers(io, socket, state) {
         }
       : null;
 
+    await ensureCosmeticsCached([myId]).catch(() => {});
+
     const message = {
       id: row?.id ?? crypto.randomUUID(),
       sender_id: myId,
@@ -238,6 +240,7 @@ function registerGroupHandlers(io, socket, state) {
           updated_at: cached?.updated_at || null,
           is_admin: isAdmin,
           isAdmin,
+          ...pickChatCosmetics(cached),
         };
       })(),
     };

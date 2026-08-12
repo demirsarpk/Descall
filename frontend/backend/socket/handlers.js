@@ -10,6 +10,8 @@ const {
   toPublicUser,
   getCachedPublicUser,
   publicPresenceStatus,
+  ensureCosmeticsCached,
+  pickChatCosmetics,
 } = require("../lib/userProfile");
 const {
   presence,
@@ -164,6 +166,9 @@ async function loadDmMessages(myId, peerId, { before, limit = 100 } = {}) {
   if (profileError) console.warn("[DM] Sender profile lookup failed:", profileError.message);
 
   const usersById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  for (const profile of usersById.values()) cacheUserProfile(profile);
+  // Attach equipped cosmetics so chat avatars/name effects/bubbles match profiles
+  await ensureCosmeticsCached([...userIds, myId, peerId]);
   const messages = page.reverse().map((row) => mapDmRow(row, usersById));
   cacheDmMessages(convKey(myId, peerId), messages);
   return { messages, hasMore };
@@ -331,6 +336,7 @@ function messageSender(userId, fallbackUsername, fallbackAvatar) {
       updated_at: cached.updated_at,
       is_admin: isAdmin,
       isAdmin,
+      ...pickChatCosmetics(cached),
     };
   }
   const isAdmin = fallbackUsername === "admin";
@@ -720,8 +726,13 @@ function registerSocketHandlers(io) {
           message: "Socket connected successfully.",
         });
         socket.emit("status:current", { status: presence.get(myId)?.status || "online" });
-        socket.emit("friend:list", getFriendList(myId));
-        socket.emit("friend:requests", getPendingList(myId));
+        const friendIds = [...(friends.get(myId) || [])];
+        ensureCosmeticsCached(friendIds)
+          .catch(() => {})
+          .finally(() => {
+            socket.emit("friend:list", getFriendList(myId));
+            socket.emit("friend:requests", getPendingList(myId));
+          });
       } catch (emitErr) {
         console.error("[FRIENDS] Boot emit failed:", emitErr);
         socket.emit("connected", { user: me, message: "Socket connected successfully." });
@@ -787,6 +798,7 @@ function registerSocketHandlers(io) {
       // forever after a transient boot failure or missed accept event.
       await loadFriendsFromDB(myId);
       await loadPendingRequestsFromDB(myId);
+      await ensureCosmeticsCached([...(friends.get(myId) || [])]).catch(() => {});
       socket.emit("friend:list", getFriendList(myId));
       socket.emit("friend:requests", getPendingList(myId));
     });
@@ -1056,6 +1068,7 @@ function registerSocketHandlers(io) {
       }
       rateLimitDm.set(myId, now);
       socket.data.activeDmPeer = toUserId;
+      await ensureCosmeticsCached([myId]).catch(() => {});
       const sender = messageSender(myId, me.username, me.avatar_url || socket.user?.avatar_url);
       const replyMeta = replyTo && typeof replyTo === "object"
         ? {

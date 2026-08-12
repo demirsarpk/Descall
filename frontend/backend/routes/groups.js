@@ -541,6 +541,29 @@ router.get("/:groupId/messages", requireAuth, async (req, res) => {
     const { data: messages, error } = await query;
     if (error) throw error;
 
+    const senderIds = [...new Set((messages || []).map((m) => m.sender_id || m.sender?.id).filter(Boolean))];
+    try {
+      const { ensureCosmeticsCached, getCachedPublicUser, cacheUserProfile } = require("../lib/userProfile");
+      for (const m of messages || []) {
+        if (m.sender) cacheUserProfile({ ...m.sender, avatar_url: m.sender.avatar_url || m.sender.avatarUrl });
+      }
+      await ensureCosmeticsCached(senderIds);
+      for (const m of messages || []) {
+        const pub = getCachedPublicUser(m.sender_id || m.sender?.id);
+        if (pub && m.sender) {
+          m.sender = {
+            ...m.sender,
+            ...pub,
+            id: m.sender.id || pub.id,
+            username: m.sender.username || pub.username,
+          };
+          m.from = m.sender;
+        }
+      }
+    } catch (err) {
+      console.warn("[Groups] cosmetics enrich failed:", err?.message || err);
+    }
+
     const normalized = (messages || []).reverse().map((m) => {
       if (m.message_type === "call_summary") {
         try {
@@ -594,6 +617,21 @@ router.post("/:groupId/messages", requireAuth, async (req, res) => {
       .single();
     
     if (error) throw error;
+
+    try {
+      const { ensureCosmeticsCached, getCachedPublicUser, cacheUserProfile } = require("../lib/userProfile");
+      if (message.sender) {
+        cacheUserProfile({ ...message.sender, avatar_url: message.sender.avatar_url });
+      }
+      await ensureCosmeticsCached([userId]);
+      const pub = getCachedPublicUser(userId);
+      if (pub) {
+        message.sender = { ...(message.sender || {}), ...pub, id: userId };
+        message.from = message.sender;
+      }
+    } catch {
+      /* ignore cosmetics enrich */
+    }
     
     // Broadcast to other group members via socket
     const io = req.app.get("io");

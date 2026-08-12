@@ -132,6 +132,13 @@ router.post("/equip", requireAuth, async (req, res) => {
     const io = req.app.get("io");
     if (io) {
       io.to(`user:${req.user.id}`).emit("shop:equipped", { category, itemId: itemId || null });
+      // Broadcast full public profile (incl. cosmetics) so friends see frames/badges in chat
+      try {
+        const { broadcastUserProfileUpdate } = require("../lib/userProfile");
+        await broadcastUserProfileUpdate(io, req.user.id);
+      } catch (err) {
+        console.warn("[shop] profile broadcast after equip failed:", err?.message || err);
+      }
     }
     res.json({ ok: true });
   } catch (err) {
