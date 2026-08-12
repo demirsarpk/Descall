@@ -31,3 +31,31 @@ export function MessageSkeleton({ count = 6 }) {
     </div>
   );
 }
+
+/**
+ * Sidebar DM / group conversation-row placeholders — same shimmer language
+ * as MessageSkeleton, sized like `.conv-row` / `.dm-item`.
+ */
+export function ConversationListSkeleton({ count = 6, label }) {
+  const t = useT();
+  return (
+    <div
+      className="skeleton-conversations"
+      aria-busy="true"
+      aria-label={label || t("Loading conversations")}
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="skeleton-conv-row">
+          <SkeletonLine width={40} circle />
+          <div className="skeleton-conv-body">
+            <div className="skeleton-conv-top">
+              <SkeletonLine width={`${42 + (i % 4) * 8}%`} height={12} />
+              <SkeletonLine width={28 + (i % 3) * 4} height={10} />
+            </div>
+            <SkeletonLine width={`${58 + (i % 5) * 7}%`} height={11} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

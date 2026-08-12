@@ -85,6 +85,8 @@ export default function AppLayout({
   settingsTab,
   onSettingsTabChange,
   activeTimeout = null,
+  friendsLoaded = true,
+  groupsLoaded = true,
 }) {
   const t = useT();
   const { isMobile } = useMobile();
@@ -363,6 +365,8 @@ export default function AppLayout({
             isMobile={isMobile}
             dmUnread={dmUnread}
             groupUnread={groupUnread}
+            friendsLoaded={friendsLoaded}
+            groupsLoaded={groupsLoaded}
             onStartCall={handleStartCall}
             onStartGroupCall={handleStartGroupCallFromCalls}
             onOpenChatFromCalls={handleOpenChatFromCalls}

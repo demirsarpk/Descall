@@ -2801,6 +2801,8 @@ export default function App() {
           groups={sortedGroups}
           dms={sortedDms}
           friends={friends}
+          friendsLoaded={friendsLoaded}
+          groupsLoaded={groupsLoaded}
           onlineUsers={onlineUsers}
           myStatus={myStatus}
           onStatusChange={handleStatusChange}

@@ -21,6 +21,7 @@ import { markFeedbackSubmitted } from "../../lib/feedbackNudge";
 import { useLocale, useT } from "../../context/LocaleContext";
 import AdminBadge from "../social/AdminBadge";
 import InviteCard from "../friends/InviteCard";
+import { ConversationListSkeleton } from "../ui/Skeleton";
 import { parseAppDate, formatMessageClock, formatMessageDate } from "../../lib/datetime";
 
 const FEEDBACK_TYPE_TO_CATEGORY = {
@@ -68,6 +69,8 @@ export default function ServerSidebar({
   dmUnread = {},
   groupUnread = {},
   me = null,
+  friendsLoaded = true,
+  groupsLoaded = true,
   onStartCall,
   onOpenChatFromCalls,
   onStartGroupCall,
@@ -482,6 +485,7 @@ export default function ServerSidebar({
               onDmSelect={onDmSelect}
               isMobile={isMobile}
               unreadById={dmUnread}
+              loading={!friendsLoaded}
             />
           )}
 
@@ -497,6 +501,7 @@ export default function ServerSidebar({
               onGroupRenamed={onGroupRenamed}
               isMobile={isMobile}
               unreadById={groupUnread}
+              loading={!groupsLoaded}
             />
           )}
 
@@ -867,7 +872,7 @@ const LIST_LAYOUT_TRANSITION = {
   opacity: { duration: 0.2 },
 };
 
-function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect, isMobile, unreadById = {} }) {
+function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect, isMobile, unreadById = {}, loading = false }) {
   const t = useT();
   const { locale } = useLocale();
   const safeDms = Array.isArray(dms) ? dms : [];
@@ -883,7 +888,9 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
       </button>
 
       <SidebarSectionContent expanded={expanded}>
-        {safeDms.length === 0 ? (
+        {loading && safeDms.length === 0 ? (
+          <ConversationListSkeleton count={7} label={t("Loading conversations")} />
+        ) : safeDms.length === 0 ? (
           <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
             {t("No conversations yet")}
           </div>
@@ -1388,7 +1395,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
   );
 }
 
-function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed, isMobile, unreadById = {} }) {
+function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed, isMobile, unreadById = {}, loading = false }) {
   const t = useT();
   const { locale } = useLocale();
   const safeGroups = Array.isArray(groups) ? groups : [];
@@ -1478,7 +1485,9 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
         </button>
 
         <SidebarSectionContent expanded={expanded}>
-              {safeGroups.length === 0 ? (
+              {loading && safeGroups.length === 0 ? (
+                <ConversationListSkeleton count={6} label={t("Loading groups")} />
+              ) : safeGroups.length === 0 ? (
                 <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
                   {t("No groups yet")}
                 </div>

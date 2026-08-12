@@ -919,6 +919,8 @@ export const phrases = {
   "Brazil": "Brazil",
   "Linked": "Linked",
   "Loading messages": "Loading messages",
+  "Loading conversations": "Loading conversations",
+  "Loading groups": "Loading groups",
   "End Call": "End Call",
   "Muted": "Muted",
   "Speaking": "Speaking",
