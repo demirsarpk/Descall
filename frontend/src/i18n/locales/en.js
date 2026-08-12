@@ -1133,6 +1133,8 @@ export const phrases = {
   "Home": "Home",
   "Add Friend": "Add Friend",
   "Pending Requests": "Pending Requests",
+  "No groups yet": "No groups yet",
+  "No conversations yet": "No conversations yet",
   "is now online": "is now online",
   "Purchased — equip it anytime": "Purchased — equip it anytime",
   "Add a friend to start chatting — messages, voice, and screen share in one place.": "Add a friend to start chatting — messages, voice, and screen share in one place.",
