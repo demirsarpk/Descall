@@ -157,6 +157,12 @@
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 
+.message-bubble:not(.own).has-media,
+.message-bubble:not(.own).has-media-only {
+  /* Leave room for the avatar gutter (60px) so media bubbles don't clip. */
+  max-width: calc(100% - 68px);
+}
+
 .message-bubble.own.has-media-only {
   background: color-mix(in srgb, var(--primary) 22%, var(--surface-2));
   border-color: color-mix(in srgb, var(--primary) 35%, rgba(255, 255, 255, 0.08));
