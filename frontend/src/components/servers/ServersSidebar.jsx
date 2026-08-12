@@ -750,17 +750,19 @@ function ServerVoiceUserRow({ member, stream = null, size = 20, onContextMenu })
       {member?.muted || member?.serverMuted ? (
         <MicOff size={12} className="server-voice-user-mic" aria-hidden />
       ) : null}
-      <button
-        type="button"
-        className="icon-btn server-voice-user-more"
-        title="…"
-        onClick={(e) => {
-          e.stopPropagation();
-          onContextMenu?.(e);
-        }}
-      >
-        <MoreHorizontal size={12} />
-      </button>
+      {onContextMenu ? (
+        <button
+          type="button"
+          className="icon-btn server-voice-user-more"
+          title="…"
+          onClick={(e) => {
+            e.stopPropagation();
+            onContextMenu(e);
+          }}
+        >
+          <MoreHorizontal size={12} />
+        </button>
+      ) : null}
     </li>
   );
 }
