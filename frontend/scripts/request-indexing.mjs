@@ -100,20 +100,25 @@ async function submitIndexNow(key, urls) {
   return { ...last, submitted: 0 };
 }
 
-async function pingGoogleSitemap(sitemapUrl) {
-  const pingUrl = `https://www.google.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`;
+async function pingSitemapEngines(sitemapUrl) {
+  // Google retired /ping; keep for logs. Bing still accepts sitemap ping.
+  const targets = [
+    ["Bing", `https://www.bing.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`],
+    ["Google", `https://www.google.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`],
+  ];
   if (DRY_RUN) {
-    console.log(`[dry-run] Google sitemap ping ${sitemapUrl}`);
+    for (const [name] of targets) console.log(`[dry-run] ${name} sitemap ping ${sitemapUrl}`);
     return { ok: true, status: 200, dryRun: true };
   }
-  try {
-    const res = await fetch(pingUrl, { method: "GET", redirect: "follow" });
-    console.log(`Google sitemap ping → HTTP ${res.status} (${sitemapUrl})`);
-    return { ok: res.ok || res.status === 200, status: res.status };
-  } catch (err) {
-    console.warn("Google sitemap ping failed:", err?.message || err);
-    return { ok: false, status: 0 };
+  for (const [name, pingUrl] of targets) {
+    try {
+      const res = await fetch(pingUrl, { method: "GET", redirect: "follow" });
+      console.log(`${name} sitemap ping → HTTP ${res.status} (${sitemapUrl})`);
+    } catch (err) {
+      console.warn(`${name} sitemap ping failed:`, err?.message || err);
+    }
   }
+  return { ok: true };
 }
 
 async function submitGoogleIndexingApi(urls) {
@@ -226,10 +231,10 @@ async function main() {
     }
   }
 
-  await pingGoogleSitemap(`${SITE_ORIGIN}/sitemap.xml`);
-  await pingGoogleSitemap(`${SITE_ORIGIN}/sitemap-pages.xml`);
+  await pingSitemapEngines(`${SITE_ORIGIN}/sitemap.xml`);
+  await pingSitemapEngines(`${SITE_ORIGIN}/sitemap-pages.xml`);
   for (const table of SITEMAP_TABLES) {
-    await pingGoogleSitemap(`${SITE_ORIGIN}/${table.file}`);
+    await pingSitemapEngines(`${SITE_ORIGIN}/${table.file}`);
   }
 
   const googleResult = await submitGoogleIndexingApi(googleBatch);
