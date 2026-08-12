@@ -1,8 +1,9 @@
 "use strict";
 
 /**
- * Descall Servers API — Steps 1–6
- * Create / list / get / delete / leave + channel CRUD + text chat + roles + permission gates
+ * Descall Servers API — Steps 1–8
+ * Create / list / get / delete / leave + channel CRUD + text chat + roles +
+ * permission gates + member kick + invites / public discovery.
  * Ownership limit: max 10 servers owned per user (membership unlimited).
  * Channel/role manage gated by MANAGE_CHANNELS / MANAGE_ROLES (owner always has all).
  */
@@ -32,6 +33,8 @@ const CHANNEL_NAME_MAX = 100;
 const CHANNEL_TYPES = new Set(["text", "voice", "category"]);
 const ROLE_NAME_MIN = 1;
 const ROLE_NAME_MAX = 100;
+const INVITE_CODE_LENGTH = 8;
+const INVITE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
 /** Permission keys editable in the role UI. */
 const EDITABLE_PERMISSION_KEYS = [
@@ -40,6 +43,7 @@ const EDITABLE_PERMISSION_KEYS = [
   "MANAGE_MESSAGES",
   "MANAGE_CHANNELS",
   "MANAGE_ROLES",
+  "CREATE_INSTANT_INVITE",
   "KICK_MEMBERS",
   "BAN_MEMBERS",
   "MENTION_EVERYONE",
@@ -49,6 +53,46 @@ const EDITABLE_PERMISSION_KEYS = [
   "MOVE_MEMBERS",
   "ADMINISTRATOR",
 ];
+
+function generateInviteCode() {
+  let code = "";
+  for (let i = 0; i < INVITE_CODE_LENGTH; i++) {
+    code += INVITE_CHARS.charAt(Math.floor(Math.random() * INVITE_CHARS.length));
+  }
+  return code;
+}
+
+function publicInviteUrl(req, code) {
+  const origin =
+    process.env.PUBLIC_APP_URL ||
+    process.env.APP_ORIGIN ||
+    `${req.protocol}://${req.get("host")}`;
+  return `${String(origin).replace(/\/$/, "")}/servers/join/${code}`;
+}
+
+function publicInvite(row, req) {
+  if (!row) return null;
+  return {
+    code: row.code,
+    serverId: row.server_id,
+    creatorId: row.creator_id,
+    channelId: row.channel_id || null,
+    maxUses: row.max_uses,
+    uses: row.uses || 0,
+    maxAgeSeconds: row.max_age_seconds,
+    temporary: Boolean(row.temporary),
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    url: publicInviteUrl(req, row.code),
+  };
+}
+
+function isInviteExpired(invite) {
+  if (!invite) return true;
+  if (invite.expires_at && new Date(invite.expires_at) < new Date()) return true;
+  if (invite.max_uses != null && (invite.uses || 0) >= invite.max_uses) return true;
+  return false;
+}
 
 function parsePermissionsInput(raw) {
   if (raw == null) return null;
@@ -570,6 +614,300 @@ router.post("/", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[SERVERS] POST / error:", err);
     return res.status(500).json({ error: "Failed to create server." });
+  }
+});
+
+/**
+ * GET /servers/discover — public servers directory (is_public = true)
+ */
+router.get("/discover", requireAuth, async (req, res) => {
+  try {
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 24));
+    const q = String(req.query.q || "").trim().slice(0, 80);
+
+    let query = supabase
+      .from("servers")
+      .select("id, name, icon_url, description, owner_id, vanity_slug, is_public, created_at")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (q) {
+      query = query.ilike("name", `%${q.replace(/[%_]/g, "")}%`);
+    }
+
+    const { data: rows, error } = await query;
+    if (error) throw error;
+
+    const ids = (rows || []).map((r) => r.id);
+    let counts = new Map();
+    if (ids.length) {
+      const { data: members } = await supabase
+        .from("server_members")
+        .select("server_id")
+        .in("server_id", ids);
+      counts = (members || []).reduce((map, m) => {
+        map.set(m.server_id, (map.get(m.server_id) || 0) + 1);
+        return map;
+      }, new Map());
+    }
+
+    const { data: myMemberships } = await supabase
+      .from("server_members")
+      .select("server_id")
+      .eq("user_id", req.user.id)
+      .in("server_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+    const joined = new Set((myMemberships || []).map((m) => m.server_id));
+
+    return res.json({
+      servers: (rows || []).map((row) =>
+        publicServer(row, {
+          memberCount: counts.get(row.id) || 1,
+          isMember: joined.has(row.id),
+          isOwner: row.owner_id === req.user.id,
+        })
+      ),
+    });
+  } catch (err) {
+    console.error("[SERVERS] GET /discover error:", err);
+    return res.status(500).json({ error: "Failed to load public servers." });
+  }
+});
+
+/**
+ * GET /servers/invites/:code — public invite preview (auth optional but requireAuth for consistency)
+ */
+router.get("/invites/:code", requireAuth, async (req, res) => {
+  try {
+    const code = String(req.params.code || "").trim();
+    if (!code) return res.status(400).json({ error: "Invite code is required." });
+
+    const { data: invite, error } = await supabase
+      .from("server_invites")
+      .select("*")
+      .eq("code", code)
+      .maybeSingle();
+    if (error) throw error;
+    if (!invite) return res.status(404).json({ error: "Invite invalid or expired.", code: "INVITE_INVALID" });
+
+    if (isInviteExpired(invite)) {
+      await supabase.from("server_invites").delete().eq("code", code);
+      return res.status(410).json({ error: "Invite invalid or expired.", code: "INVITE_EXPIRED" });
+    }
+
+    const { data: server } = await supabase
+      .from("servers")
+      .select("id, name, icon_url, description, owner_id, is_public")
+      .eq("id", invite.server_id)
+      .maybeSingle();
+    if (!server) {
+      return res.status(404).json({ error: "Invite invalid or expired.", code: "INVITE_INVALID" });
+    }
+
+    const { count } = await supabase
+      .from("server_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("server_id", server.id);
+
+    const membership = await getMembership(server.id, req.user.id);
+
+    return res.json({
+      invite: publicInvite(invite, req),
+      server: publicServer(server, {
+        memberCount: count || 1,
+        isMember: Boolean(membership),
+        isOwner: server.owner_id === req.user.id,
+      }),
+    });
+  } catch (err) {
+    console.error("[SERVERS] GET /invites/:code error:", err);
+    return res.status(500).json({ error: "Failed to load invite." });
+  }
+});
+
+/**
+ * POST /servers/invites/:code/join — redeem invite
+ */
+router.post("/invites/:code/join", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const code = String(req.params.code || "").trim();
+    if (!code) return res.status(400).json({ error: "Invite code is required." });
+
+    const { data: invite, error } = await supabase
+      .from("server_invites")
+      .select("*")
+      .eq("code", code)
+      .maybeSingle();
+    if (error) throw error;
+    if (!invite) return res.status(404).json({ error: "Invite invalid or expired.", code: "INVITE_INVALID" });
+    if (isInviteExpired(invite)) {
+      await supabase.from("server_invites").delete().eq("code", code);
+      return res.status(410).json({ error: "Invite invalid or expired.", code: "INVITE_EXPIRED" });
+    }
+
+    const { data: ban } = await supabase
+      .from("server_bans")
+      .select("user_id")
+      .eq("server_id", invite.server_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (ban) {
+      return res.status(403).json({ error: "You are banned from this server.", code: "BANNED" });
+    }
+
+    const existing = await getMembership(invite.server_id, userId);
+    if (existing) {
+      const bundle = await loadServerBundle(invite.server_id);
+      const myPermissions = await buildMyPermissionsPayload(invite.server_id, userId);
+      return res.json({
+        alreadyMember: true,
+        server: publicServer(bundle.server, {
+          isOwner: bundle.server.owner_id === userId,
+          memberCount: bundle.memberCount,
+          nickname: existing.nickname || null,
+          listPosition: existing.list_position ?? 0,
+          joinedAt: existing.joined_at,
+          channels: bundle.channels.map(publicChannel),
+          roles: bundle.roles.map(publicRole),
+          myPermissions,
+        }),
+      });
+    }
+
+    const { count: existingPos } = await supabase
+      .from("server_members")
+      .select("server_id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    const listPosition = existingPos || 0;
+
+    const { error: joinErr } = await supabase.from("server_members").insert({
+      server_id: invite.server_id,
+      user_id: userId,
+      list_position: listPosition,
+    });
+    if (joinErr) throw joinErr;
+
+    const nextUses = (invite.uses || 0) + 1;
+    if (invite.max_uses != null && nextUses >= invite.max_uses) {
+      await supabase.from("server_invites").delete().eq("code", code);
+    } else {
+      await supabase.from("server_invites").update({ uses: nextUses }).eq("code", code);
+    }
+
+    await writeAudit({
+      serverId: invite.server_id,
+      actorId: userId,
+      action: "MEMBER_JOIN",
+      targetType: "member",
+      targetId: userId,
+      changes: { via: "invite", code },
+    });
+
+    const bundle = await loadServerBundle(invite.server_id);
+    const myPermissions = await buildMyPermissionsPayload(invite.server_id, userId);
+
+    return res.status(201).json({
+      alreadyMember: false,
+      server: publicServer(bundle.server, {
+        isOwner: false,
+        memberCount: bundle.memberCount,
+        nickname: null,
+        listPosition,
+        channels: bundle.channels.map(publicChannel),
+        roles: bundle.roles.map(publicRole),
+        myPermissions,
+      }),
+    });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] POST /invites/:code/join error:", err);
+    return res.status(status).json({ error: err.message || "Failed to join server.", code: err.code });
+  }
+});
+
+/**
+ * POST /servers/discover/:id/join — join a public server without invite
+ */
+router.post("/discover/:id/join", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const serverId = req.params.id;
+
+    const { data: server, error } = await supabase
+      .from("servers")
+      .select("*")
+      .eq("id", serverId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!server || !server.is_public) {
+      return res.status(404).json({ error: "Public server not found." });
+    }
+
+    const { data: ban } = await supabase
+      .from("server_bans")
+      .select("user_id")
+      .eq("server_id", serverId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (ban) {
+      return res.status(403).json({ error: "You are banned from this server.", code: "BANNED" });
+    }
+
+    const existing = await getMembership(serverId, userId);
+    if (existing) {
+      const bundle = await loadServerBundle(serverId);
+      const myPermissions = await buildMyPermissionsPayload(serverId, userId);
+      return res.json({
+        alreadyMember: true,
+        server: publicServer(bundle.server, {
+          isOwner: bundle.server.owner_id === userId,
+          memberCount: bundle.memberCount,
+          nickname: existing.nickname || null,
+          listPosition: existing.list_position ?? 0,
+          channels: bundle.channels.map(publicChannel),
+          roles: bundle.roles.map(publicRole),
+          myPermissions,
+        }),
+      });
+    }
+
+    const { count: existingPos } = await supabase
+      .from("server_members")
+      .select("server_id", { count: "exact", head: true })
+      .eq("user_id", userId);
+
+    const { error: joinErr } = await supabase.from("server_members").insert({
+      server_id: serverId,
+      user_id: userId,
+      list_position: existingPos || 0,
+    });
+    if (joinErr) throw joinErr;
+
+    await writeAudit({
+      serverId,
+      actorId: userId,
+      action: "MEMBER_JOIN",
+      targetType: "member",
+      targetId: userId,
+      changes: { via: "discover" },
+    });
+
+    const bundle = await loadServerBundle(serverId);
+    const myPermissions = await buildMyPermissionsPayload(serverId, userId);
+    return res.status(201).json({
+      alreadyMember: false,
+      server: publicServer(bundle.server, {
+        isOwner: false,
+        memberCount: bundle.memberCount,
+        channels: bundle.channels.map(publicChannel),
+        roles: bundle.roles.map(publicRole),
+        myPermissions,
+      }),
+    });
+  } catch (err) {
+    console.error("[SERVERS] POST /discover/:id/join error:", err);
+    return res.status(500).json({ error: "Failed to join public server." });
   }
 });
 
@@ -1427,6 +1765,218 @@ router.delete("/:id/channels/:channelId", requireAuth, async (req, res) => {
     const status = err.status || 500;
     if (status >= 500) console.error("[SERVERS] DELETE /:id/channels/:channelId error:", err);
     return res.status(status).json({ error: err.message || "Failed to delete channel.", code: err.code });
+  }
+});
+
+/**
+ * PATCH /servers/:id — owner settings (name / icon / description / is_public)
+ */
+router.patch("/:id", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const { server } = await requireServerOwner(serverId, req.user.id);
+    const patch = {};
+
+    if (req.body?.name != null) {
+      const name = cleanName(req.body.name);
+      if (name.length < NAME_MIN || name.length > NAME_MAX) {
+        return res.status(400).json({
+          error: `Server name must be ${NAME_MIN}–${NAME_MAX} characters.`,
+        });
+      }
+      patch.name = name;
+    }
+    if (req.body?.iconUrl !== undefined) {
+      patch.icon_url = req.body.iconUrl ? String(req.body.iconUrl).trim().slice(0, 500) : null;
+    }
+    if (req.body?.description !== undefined) {
+      patch.description = req.body.description
+        ? String(req.body.description).trim().slice(0, 500)
+        : null;
+    }
+    if (req.body?.isPublic !== undefined) {
+      patch.is_public = Boolean(req.body.isPublic);
+    }
+
+    if (!Object.keys(patch).length) {
+      return res.status(400).json({ error: "No changes provided." });
+    }
+
+    patch.updated_at = new Date().toISOString();
+    const { data: updated, error } = await supabase
+      .from("servers")
+      .update(patch)
+      .eq("id", serverId)
+      .select("*")
+      .single();
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "SERVER_UPDATE",
+      targetType: "server",
+      targetId: serverId,
+      changes: patch,
+    });
+
+    const membership = await getMembership(serverId, req.user.id);
+    const bundle = await loadServerBundle(serverId);
+    const myPermissions = await buildMyPermissionsPayload(serverId, req.user.id);
+
+    return res.json({
+      server: publicServer(updated || server, {
+        isOwner: true,
+        memberCount: bundle.memberCount,
+        nickname: membership?.nickname || null,
+        listPosition: membership?.list_position ?? 0,
+        channels: bundle.channels.map(publicChannel),
+        roles: bundle.roles.map(publicRole),
+        myPermissions,
+      }),
+    });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] PATCH /:id error:", err);
+    return res.status(status).json({ error: err.message || "Failed to update server.", code: err.code });
+  }
+});
+
+/**
+ * POST /servers/:id/invites — create invite (CREATE_INSTANT_INVITE)
+ */
+router.post("/:id/invites", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    await requireServerPermission(serverId, req.user.id, Permissions.CREATE_INSTANT_INVITE);
+
+    const maxUses =
+      req.body?.maxUses == null || req.body.maxUses === "" || Number(req.body.maxUses) === 0
+        ? null
+        : Math.max(1, Math.min(100000, Math.floor(Number(req.body.maxUses))));
+    const maxAgeSeconds =
+      req.body?.maxAgeSeconds == null || Number(req.body.maxAgeSeconds) === 0
+        ? null
+        : Math.max(60, Math.min(60 * 60 * 24 * 30, Math.floor(Number(req.body.maxAgeSeconds))));
+    // Default 7 days when neither explicit 0 (forever) nor a value is given
+    const age =
+      req.body?.maxAgeSeconds === 0 || req.body?.maxAgeSeconds === null
+        ? null
+        : maxAgeSeconds != null
+          ? maxAgeSeconds
+          : 60 * 60 * 24 * 7;
+
+    let code = generateInviteCode();
+    for (let i = 0; i < 6; i++) {
+      const { data: existing } = await supabase
+        .from("server_invites")
+        .select("code")
+        .eq("code", code)
+        .maybeSingle();
+      if (!existing) break;
+      code = generateInviteCode();
+    }
+
+    const expiresAt = age ? new Date(Date.now() + age * 1000).toISOString() : null;
+
+    const { data: invite, error } = await supabase
+      .from("server_invites")
+      .insert({
+        code,
+        server_id: serverId,
+        creator_id: req.user.id,
+        channel_id: req.body?.channelId || null,
+        max_uses: maxUses,
+        uses: 0,
+        max_age_seconds: age,
+        temporary: Boolean(req.body?.temporary),
+        expires_at: expiresAt,
+      })
+      .select("*")
+      .single();
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "INVITE_CREATE",
+      targetType: "invite",
+      targetId: code,
+      changes: { maxUses, maxAgeSeconds: age },
+    });
+
+    return res.status(201).json({ invite: publicInvite(invite, req) });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] POST /:id/invites error:", err);
+    return res.status(status).json({ error: err.message || "Failed to create invite.", code: err.code });
+  }
+});
+
+/**
+ * GET /servers/:id/invites — list invites
+ */
+router.get("/:id/invites", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    await requireServerPermission(serverId, req.user.id, Permissions.CREATE_INSTANT_INVITE);
+
+    const { data: invites, error } = await supabase
+      .from("server_invites")
+      .select("*")
+      .eq("server_id", serverId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+
+    const live = [];
+    for (const invite of invites || []) {
+      if (isInviteExpired(invite)) {
+        await supabase.from("server_invites").delete().eq("code", invite.code);
+        continue;
+      }
+      live.push(publicInvite(invite, req));
+    }
+
+    return res.json({ invites: live });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] GET /:id/invites error:", err);
+    return res.status(status).json({ error: err.message || "Failed to list invites.", code: err.code });
+  }
+});
+
+/**
+ * DELETE /servers/:id/invites/:code — revoke invite
+ */
+router.delete("/:id/invites/:code", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const code = String(req.params.code || "").trim();
+    await requireServerPermission(serverId, req.user.id, Permissions.CREATE_INSTANT_INVITE);
+
+    const { data: invite } = await supabase
+      .from("server_invites")
+      .select("code, server_id")
+      .eq("code", code)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (!invite) return res.status(404).json({ error: "Invite not found." });
+
+    await supabase.from("server_invites").delete().eq("code", code).eq("server_id", serverId);
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "INVITE_DELETE",
+      targetType: "invite",
+      targetId: code,
+    });
+
+    return res.json({ message: "Invite revoked.", code });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] DELETE /:id/invites/:code error:", err);
+    return res.status(status).json({ error: err.message || "Failed to revoke invite.", code: err.code });
   }
 });
 

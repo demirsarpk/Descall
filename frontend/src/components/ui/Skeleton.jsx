@@ -59,3 +59,28 @@ export function ConversationListSkeleton({ count = 6, label }) {
     </div>
   );
 }
+
+/**
+ * Servers list placeholders — same shimmer as ConversationListSkeleton,
+ * sized like `.server-list-item` (40×40 squircle icon + name/subtitle).
+ */
+export function ServerListSkeleton({ count = 6, label }) {
+  const t = useT();
+  return (
+    <div
+      className="skeleton-server-list"
+      aria-busy="true"
+      aria-label={label || t("Loading servers")}
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="skeleton-server-row">
+          <div className="skeleton-line skeleton-server-icon" />
+          <div className="skeleton-server-body">
+            <SkeletonLine width={`${46 + (i % 4) * 9}%`} height={13} />
+            <SkeletonLine width={`${34 + (i % 3) * 8}%`} height={10} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

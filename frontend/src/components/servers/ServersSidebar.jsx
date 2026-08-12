@@ -17,9 +17,14 @@ import {
   Pencil,
   Settings2,
   Shield,
+  Link2,
+  LogIn,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import ServerRolesModal from "./ServerRolesModal";
+import ServerInviteModal from "./ServerInviteModal";
+import JoinServerModal from "./JoinServerModal";
+import { ServerListSkeleton } from "../ui/Skeleton";
 
 /**
  * Servers list + in-server channel shell (Steps 2–3).
@@ -43,11 +48,15 @@ export default function ServersSidebar({
   onDeleteChannel,
   onRolesChanged,
   onRefresh,
+  onJoinServer,
+  onServerUpdated,
   onMobileClose,
   isMobile = false,
 }) {
   const t = useT();
   const [showCreate, setShowCreate] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // { mode: 'leave'|'delete', server }
   const [channelModal, setChannelModal] = useState(null); // { mode, channel?, defaultType?, parentId? }
@@ -63,6 +72,9 @@ export default function ServersSidebar({
   );
   const canManageRoles = Boolean(
     activeServer?.isOwner || permFlags.MANAGE_ROLES || permFlags.ADMINISTRATOR
+  );
+  const canCreateInvite = Boolean(
+    activeServer?.isOwner || permFlags.CREATE_INSTANT_INVITE || permFlags.ADMINISTRATOR
   );
   const categories = useMemo(
     () => (activeServer?.channels || []).filter((c) => c.type === "category").sort((a, b) => a.position - b.position),
@@ -183,6 +195,19 @@ export default function ServersSidebar({
                       <Shield size={15} />
                       {t("Roles")}
                     </button>
+                )}
+                {canCreateInvite && (
+                  <button
+                    type="button"
+                    className="server-dropdown-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowInvite(true);
+                    }}
+                  >
+                    <Link2 size={15} />
+                    {t("Invite people")}
+                  </button>
                 )}
                 {activeServer.isOwner ? (
                   <button type="button" className="server-dropdown-item danger" onClick={() => openConfirm("delete")}>
@@ -378,6 +403,13 @@ export default function ServersSidebar({
               onRolesChanged={(roles) => onRolesChanged?.(roles)}
             />
           )}
+          {showInvite && (
+            <ServerInviteModal
+              server={activeServer}
+              onClose={() => setShowInvite(false)}
+              onServerUpdated={(updated) => onServerUpdated?.(updated)}
+            />
+          )}
         </AnimatePresence>
       </aside>
     );
@@ -409,6 +441,14 @@ export default function ServersSidebar({
             <button
               type="button"
               className="icon-btn"
+              title={t("Join Server")}
+              onClick={() => setShowJoin(true)}
+            >
+              <LogIn size={18} />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
               title={canCreate ? t("Create server") : t("Own limit reached ({max})", { max: maxOwned })}
               disabled={!canCreate}
               onClick={() => canCreate && setShowCreate(true)}
@@ -424,7 +464,7 @@ export default function ServersSidebar({
 
         <div className="sidebar-content">
           {!serversLoaded ? (
-            <p className="server-empty-hint">{t("Loading…")}</p>
+            <ServerListSkeleton count={6} label={t("Loading servers")} />
           ) : servers.length === 0 ? (
             <div className="server-empty-state">
               <Server size={36} strokeWidth={1.5} />
@@ -438,6 +478,14 @@ export default function ServersSidebar({
               >
                 <Plus size={16} />
                 {t("Create server")}
+              </button>
+              <button
+                type="button"
+                className="server-ghost-btn"
+                onClick={() => setShowJoin(true)}
+              >
+                <LogIn size={16} />
+                {t("Join Server")}
               </button>
             </div>
           ) : (
@@ -477,6 +525,15 @@ export default function ServersSidebar({
             onCreate={async (payload) => {
               await onCreateServer?.(payload);
               setShowCreate(false);
+            }}
+          />
+        )}
+        {showJoin && (
+          <JoinServerModal
+            onClose={() => setShowJoin(false)}
+            onJoined={(server) => {
+              onJoinServer?.(server);
+              setShowJoin(false);
             }}
           />
         )}

@@ -136,3 +136,54 @@ export function kickServerMember(serverId, userId, reason) {
     body: reason ? { reason } : {},
   });
 }
+
+/** Create a shareable server invite (CREATE_INSTANT_INVITE). */
+export function createServerInvite(serverId, { maxUses, maxAgeSeconds, channelId } = {}) {
+  return serversRequest(`/api/servers/${serverId}/invites`, {
+    method: "POST",
+    body: { maxUses, maxAgeSeconds, channelId },
+  });
+}
+
+export function listServerInvites(serverId) {
+  return serversRequest(`/api/servers/${serverId}/invites`);
+}
+
+export function revokeServerInvite(serverId, code) {
+  return serversRequest(`/api/servers/${serverId}/invites/${encodeURIComponent(code)}`, {
+    method: "DELETE",
+  });
+}
+
+export function previewServerInvite(code) {
+  return serversRequest(`/api/servers/invites/${encodeURIComponent(code)}`);
+}
+
+export function joinServerByInvite(code) {
+  return serversRequest(`/api/servers/invites/${encodeURIComponent(code)}/join`, {
+    method: "POST",
+    body: {},
+  });
+}
+
+export function discoverPublicServers({ q, limit } = {}) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (limit) params.set("limit", String(limit));
+  const qs = params.toString();
+  return serversRequest(`/api/servers/discover${qs ? `?${qs}` : ""}`);
+}
+
+export function joinPublicServer(serverId) {
+  return serversRequest(`/api/servers/discover/${serverId}/join`, {
+    method: "POST",
+    body: {},
+  });
+}
+
+export function updateServer(serverId, patch = {}) {
+  return serversRequest(`/api/servers/${serverId}`, {
+    method: "PATCH",
+    body: patch,
+  });
+}

@@ -2808,6 +2808,39 @@ export default function App() {
     }
   };
 
+  const handleJoinServer = (server) => {
+    if (!server?.id) return;
+    setMyServers((prev) => {
+      if (prev.some((s) => s.id === server.id)) {
+        return prev.map((s) => (s.id === server.id ? { ...s, ...server } : s));
+      }
+      return [...prev, server];
+    });
+    setActiveDmUser(null);
+    setActiveGroup(null);
+    setActiveServer(server);
+    setActiveChannel(null);
+    setActiveView("servers");
+    const nextPath = serverPath(server);
+    if (location.pathname !== nextPath) navigate(nextPath);
+    getServer(server.id)
+      .then((data) => {
+        if (data?.server) {
+          setActiveServer(data.server);
+          setMyServers((prev) =>
+            prev.map((s) => (s.id === data.server.id ? { ...s, ...data.server } : s))
+          );
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleServerUpdated = (server) => {
+    if (!server?.id) return;
+    setActiveServer((prev) => (prev?.id === server.id ? { ...prev, ...server } : prev));
+    setMyServers((prev) => prev.map((s) => (s.id === server.id ? { ...s, ...server } : s)));
+  };
+
   const handleDeleteServer = async (serverId, confirmName) => {
     await deleteServer(serverId, confirmName);
     setMyServers((prev) => prev.filter((s) => s.id !== serverId));
@@ -3024,6 +3057,8 @@ export default function App() {
           onServerBack={handleServerBack}
           onChannelBack={handleChannelBack}
           onCreateServer={handleCreateServer}
+          onJoinServer={handleJoinServer}
+          onServerUpdated={handleServerUpdated}
           onLeaveServer={handleLeaveServer}
           onDeleteServer={handleDeleteServer}
           onCreateChannel={handleCreateChannel}

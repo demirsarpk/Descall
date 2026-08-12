@@ -886,6 +886,222 @@ button.member-row.server-member-row {
   flex-shrink: 0;
 }
 
+/* ── Invites / discovery (Step 8) ── */
+.server-empty-state .server-ghost-btn {
+  margin-top: 8px;
+}
+
+.server-invite-modal,
+.server-join-modal {
+  width: min(460px, 100%);
+}
+
+.server-invite-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.server-field select {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border-3);
+  background: var(--surface-3, var(--surface-1));
+  color: var(--text-1);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.server-invite-create {
+  width: 100%;
+  margin-top: 4px;
+  justify-content: center;
+}
+
+.server-invite-link-box {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.server-invite-link-box input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border-3);
+  background: var(--surface-3, var(--surface-1));
+  color: var(--text-1);
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.server-invite-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.server-invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.server-invite-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-3, var(--surface-1));
+  border: 1px solid var(--border-2);
+}
+
+.server-invite-item-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.server-invite-item-meta code {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-0);
+}
+
+.server-invite-item-meta span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.server-invite-item-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.server-invite-item-actions .icon-btn.danger {
+  color: var(--danger, #ed4245);
+}
+
+.server-public-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-2);
+  background: var(--surface-3, var(--surface-1));
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.server-public-toggle span {
+  flex: 1;
+}
+
+.server-public-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+
+.server-join-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.server-join-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border-2);
+  background: transparent;
+  color: var(--text-2);
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.server-join-tabs button.active {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border-2));
+  color: var(--text-0);
+}
+
+.server-join-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-3, var(--surface-1));
+  border: 1px solid var(--border-2);
+}
+
+.server-join-preview strong {
+  display: block;
+  font-size: 14px;
+  color: var(--text-0);
+}
+
+.server-join-preview span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.server-discover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 8px 0 4px;
+}
+
+.server-discover-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+}
+
+.server-discover-row:hover {
+  background: var(--surface-3, var(--surface-2));
+}
+
+.server-primary-btn.sm {
+  padding: 7px 12px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.server-empty-state.compact {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
 @media (max-width: 720px) {
   .server-roles-layout {
     grid-template-columns: 1fr;
@@ -899,5 +1115,8 @@ button.member-row.server-member-row {
   }
   .server-perm-label {
     padding: 13px 12px;
+  }
+  .server-invite-row {
+    grid-template-columns: 1fr;
   }
 }

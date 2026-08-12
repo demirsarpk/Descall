@@ -96,6 +96,8 @@ export default function AppLayout({
   onDeleteChannel,
   onRolesChanged,
   onRefreshServers,
+  onJoinServer,
+  onServerUpdated,
 }) {
   const t = useT();
   const { isMobile } = useMobile();
@@ -393,6 +395,8 @@ export default function AppLayout({
             onDeleteChannel={onDeleteChannel}
             onRolesChanged={onRolesChanged}
             onRefresh={onRefreshServers}
+            onJoinServer={onJoinServer}
+            onServerUpdated={onServerUpdated}
             onMobileClose={isMobile ? closeMobileDrawer : undefined}
             isMobile={isMobile}
           />

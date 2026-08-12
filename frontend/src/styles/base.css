@@ -383,6 +383,37 @@ select {
   opacity: 0.85;
 }
 
+/* Sidebar servers list skeletons (match .server-list-item rhythm) */
+.skeleton-server-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 8px 16px;
+}
+
+.skeleton-server-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+.skeleton-server-icon {
+  width: 40px !important;
+  height: 40px;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.skeleton-server-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .message-day-sep,
 .message-unread-sep {
   display: flex;
