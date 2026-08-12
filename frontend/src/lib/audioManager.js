@@ -15,6 +15,7 @@ import { getSoundSettings, setSoundSettings } from "./storage";
 import {
   isKnownSoundPack,
   playSoundPackCue,
+  preloadSoundPack,
   startSoundPackLoop,
   unlockSoundPackAudio,
 } from "./soundPackSynth";
@@ -137,6 +138,7 @@ class AudioManager {
     });
     this.synthLoops.clear();
     this.soundPackKey = next;
+    if (next) preloadSoundPack(next);
   }
 
   getSoundPack() {
@@ -501,5 +503,7 @@ export const destroyAudioManager = () => audioManager.destroy();
 export const setEquippedSoundPack = (effectKey) => audioManager.setSoundPack(effectKey);
 export const previewSoundPack = (effectKey, volume) => {
   void unlockSoundPackAudio();
-  return playSoundPackCue(effectKey, "preview", volume ?? audioManager.getSettings().volume);
+  if (!isKnownSoundPack(effectKey)) return false;
+  // Shop preview: play the notification clip (short, recognizable)
+  return playSoundPackCue(effectKey, "notification", volume ?? audioManager.getSettings().volume);
 };

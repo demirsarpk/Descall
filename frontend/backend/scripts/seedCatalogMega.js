@@ -662,7 +662,7 @@ function buildCatalog() {
         {
           sku: `sound-pack-${slug}`,
           name,
-          description: `Sound pack — ${name}. Premium notification & call tone theme.`,
+          description: `Sound pack — ${name}. Premium ringtone + notification tones (not 8-bit beeps).`,
           category: "sound_pack",
           rarity,
           price_descoin: price,
