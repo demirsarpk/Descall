@@ -1153,7 +1153,7 @@ export const phrases = {
   "No channels yet.": "No channels yet.",
   "Text chat and voice connect land in the next steps. Channels are preview-only for now.": "Text chat and voice connect land in the next steps. Channels are preview-only for now.",
   "Select a channel to open it. Messaging and voice connect arrive in the next steps.": "Select a channel to open it. Messaging and voice connect arrive in the next steps.",
-  "Open a text channel to chat. Voice connect arrives in a later step.": "Open a text channel to chat. Voice connect arrives in a later step.",
+  "Open a text channel to chat, or join a voice channel to hang out.": "Open a text channel to chat, or join a voice channel to hang out.",
   "Roles": "Roles",
   "Create role": "Create role",
   "Role name": "Role name",

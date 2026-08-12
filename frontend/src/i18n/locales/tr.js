@@ -1113,7 +1113,7 @@ export const phrases = {
   "No channels yet.": "Henüz kanal yok.",
   "Text chat and voice connect land in the next steps. Channels are preview-only for now.": "Yazılı sohbet ve ses sonraki adımlarda gelecek. Kanallar şimdilik yalnızca önizleme.",
   "Select a channel to open it. Messaging and voice connect arrive in the next steps.": "Açmak için bir kanal seç. Mesajlaşma ve ses bağlantısı sonraki adımlarda gelecek.",
-  "Open a text channel to chat. Voice connect arrives in a later step.": "Sohbet için bir yazı kanalı aç. Ses bağlantısı sonraki adımda gelecek.",
+  "Open a text channel to chat, or join a voice channel to hang out.": "Sohbet için yazı kanalı aç, ya da ses kanalına katıl.",
   "Roles": "Roller",
   "Create role": "Rol oluştur",
   "Role name": "Rol adı",
