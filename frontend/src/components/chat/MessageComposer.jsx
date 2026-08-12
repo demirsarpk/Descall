@@ -11,6 +11,7 @@ import { API_BASE_URL } from "../../config/api";
 import { encodeVoiceContent, pickRecorderMime, extensionForMime } from "../../lib/voiceMessage";
 import { useT } from "../../context/LocaleContext";
 import { getSlashCommandsForSurface } from "../../lib/slashCommands";
+import { serverHasPermission } from "../../lib/serverPermissions";
 
 const EMOJI_CATEGORIES = [
   { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖","😺","😸","😹","😻","😼","😽","🙀","😿","😾"] },
@@ -68,7 +69,16 @@ export default function MessageComposer({
   const [pendingAttach, setPendingAttach] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [sendFlash, setSendFlash] = useState(false);
-  const slowmodeLabel = formatSlowmode(activeChannel?.slowmodeSeconds);
+  const [slowmodeUntil, setSlowmodeUntil] = useState(0);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const slowmodeSeconds = Math.max(0, Math.floor(Number(activeChannel?.slowmodeSeconds) || 0));
+  const slowmodeLabel = formatSlowmode(slowmodeSeconds);
+  const bypassSlowmode =
+    Boolean(activeServer) &&
+    (serverHasPermission(activeServer, "MANAGE_MESSAGES") ||
+      serverHasPermission(activeServer, "ADMINISTRATOR"));
+  const slowmodeRemaining = Math.max(0, Math.ceil((slowmodeUntil - nowTick) / 1000));
+  const slowmodeBlocked = Boolean(activeChannel?.id) && !bypassSlowmode && slowmodeRemaining > 0;
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -209,8 +219,36 @@ export default function MessageComposer({
     return { ...payload, replyTo: replyMeta };
   };
 
+  useEffect(() => {
+    setSlowmodeUntil(0);
+  }, [activeChannel?.id, slowmodeSeconds]);
+
+  useEffect(() => {
+    if (!slowmodeUntil) return undefined;
+    const id = window.setInterval(() => setNowTick(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, [slowmodeUntil]);
+
+  useEffect(() => {
+    const onSlowmode = (event) => {
+      const detail = event?.detail || {};
+      if (!activeChannel?.id || String(detail.channelId) !== String(activeChannel.id)) return;
+      const wait = Math.max(1, Math.ceil(Number(detail.retryAfterSeconds) || 1));
+      setSlowmodeUntil(Date.now() + wait * 1000);
+      setNowTick(Date.now());
+    };
+    window.addEventListener("descall:slowmode", onSlowmode);
+    return () => window.removeEventListener("descall:slowmode", onSlowmode);
+  }, [activeChannel?.id]);
+
+  const armLocalSlowmode = () => {
+    if (!activeChannel?.id || !slowmodeSeconds || bypassSlowmode) return;
+    setSlowmodeUntil(Date.now() + slowmodeSeconds * 1000);
+    setNowTick(Date.now());
+  };
+
   const handleSend = () => {
-    if (disabled) return;
+    if (disabled || slowmodeBlocked) return;
     clearTimeout(typingTimerRef.current);
     emitTypingStop();
 
@@ -224,6 +262,7 @@ export default function MessageComposer({
       setPendingAttach(null);
       if (pendingAttach.previewUrl) URL.revokeObjectURL(pendingAttach.previewUrl);
       onClearReply?.();
+      armLocalSlowmode();
       flash();
       return;
     }
@@ -232,6 +271,7 @@ export default function MessageComposer({
     onSend?.(withReply(message.trim()));
     setMessage("");
     onClearReply?.();
+    armLocalSlowmode();
     flash();
   };
 
@@ -498,7 +538,7 @@ export default function MessageComposer({
   };
 
   const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
-  const canSend = Boolean(message.trim() || pendingAttach);
+  const canSend = Boolean(message.trim() || pendingAttach) && !slowmodeBlocked;
 
   return (
     <div
@@ -523,7 +563,11 @@ export default function MessageComposer({
             exit={{ opacity: 0, height: 0 }}
           >
             <Timer size={13} />
-            <span>{t("Slowmode is on: {time} between messages", { time: slowmodeLabel })}</span>
+            <span>
+              {slowmodeBlocked
+                ? t("Slowmode: wait {time}", { time: `${slowmodeRemaining}s` })
+                : t("Slowmode is on: {time} between messages", { time: slowmodeLabel })}
+            </span>
           </motion.div>
         )}
       </AnimatePresence>

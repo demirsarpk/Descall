@@ -131,6 +131,7 @@ async function assertServerTimeout({ userId, serverId, channelId, tempId, socket
 async function assertSlowmode({ userId, channel, channelId, channelBits, tempId, socket }) {
   const slowmodeSeconds = Math.max(0, Math.floor(Number(channel?.slowmode_seconds) || 0));
   if (!slowmodeSeconds) return false;
+  // Discord parity: admins / manage-messages can bypass server enforcement.
   if (
     hasPermission(channelBits, Permissions.ADMINISTRATOR) ||
     hasPermission(channelBits, Permissions.MANAGE_MESSAGES)
@@ -138,17 +139,23 @@ async function assertSlowmode({ userId, channel, channelId, channelBits, tempId,
     return false;
   }
 
-  const { data: lastMessage, error } = await supabase
-    .from("server_messages")
-    .select("created_at")
-    .eq("server_id", channel.server_id)
-    .eq("channel_id", channelId)
-    .eq("sender_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  const dbTime = lastMessage?.created_at ? new Date(lastMessage.created_at).getTime() : 0;
+  let dbTime = 0;
+  try {
+    const { data: rows, error } = await supabase
+      .from("server_messages")
+      .select("created_at")
+      .eq("server_id", channel.server_id)
+      .eq("channel_id", channelId)
+      .eq("sender_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    const lastMessage = Array.isArray(rows) ? rows[0] : null;
+    dbTime = lastMessage?.created_at ? new Date(lastMessage.created_at).getTime() : 0;
+  } catch (err) {
+    // Fall back to in-memory marker so a history query failure can't disable slowmode.
+    console.warn("[ServerChannel] slowmode history lookup failed:", err?.message || err);
+  }
   const memTime = slowmodeLastSend.get(slowmodeKey(channelId, userId)) || 0;
   const lastTime = Math.max(dbTime, memTime);
   if (!lastTime) return false;

@@ -2373,10 +2373,13 @@ router.post("/:id/channels", requireAuth, async (req, res) => {
       type === "text" && req.body?.topic != null
         ? String(req.body.topic).trim().slice(0, 1024) || null
         : null;
-    const slowmodeSeconds =
-      type === "text" && typeof req.body?.slowmodeSeconds === "number"
-        ? Math.max(0, Math.min(21600, Math.floor(req.body.slowmodeSeconds)))
+    const slowmodeParsed =
+      type === "text" && req.body?.slowmodeSeconds != null && req.body?.slowmodeSeconds !== ""
+        ? Math.floor(Number(req.body.slowmodeSeconds))
         : 0;
+    const slowmodeSeconds = Number.isFinite(slowmodeParsed)
+      ? Math.max(0, Math.min(21600, slowmodeParsed))
+      : 0;
 
     const position =
       typeof req.body?.position === "number" && Number.isFinite(req.body.position)
@@ -2459,8 +2462,12 @@ router.patch("/:id/channels/:channelId", requireAuth, async (req, res) => {
     if (req.body?.nsfw !== undefined && existing.type === "text") {
       patch.nsfw = Boolean(req.body.nsfw);
     }
-    if (typeof req.body?.slowmodeSeconds === "number" && existing.type === "text") {
-      patch.slowmode_seconds = Math.max(0, Math.min(21600, Math.floor(req.body.slowmodeSeconds)));
+    if (req.body?.slowmodeSeconds !== undefined && existing.type === "text") {
+      const parsed = Math.floor(Number(req.body.slowmodeSeconds));
+      if (!Number.isFinite(parsed)) {
+        return res.status(400).json({ error: "Invalid slowmode value." });
+      }
+      patch.slowmode_seconds = Math.max(0, Math.min(21600, parsed));
     }
 
     if (Object.keys(patch).length === 0) {

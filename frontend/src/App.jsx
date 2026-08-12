@@ -1552,6 +1552,11 @@ export default function App() {
       if (code === "SLOWMODE") {
         const wait = Math.max(1, Math.ceil(Number(retryAfterSeconds) || 1));
         toast(`Slowmode is on. Try again in ${wait}s.`, "warning");
+        window.dispatchEvent(
+          new CustomEvent("descall:slowmode", {
+            detail: { channelId, retryAfterSeconds: wait },
+          })
+        );
       } else if (message) {
         toast(message, "error");
       }
@@ -3410,9 +3415,15 @@ export default function App() {
     if (location.pathname !== nextPath) navigate(nextPath);
   };
 
-  const handleCreateChannel = async ({ name, type, parentId, topic }) => {
+  const handleCreateChannel = async ({ name, type, parentId, topic, slowmodeSeconds }) => {
     if (!activeServer?.id) return;
-    const { channel } = await createChannel(activeServer.id, { name, type, parentId, topic });
+    const { channel } = await createChannel(activeServer.id, {
+      name,
+      type,
+      parentId,
+      topic,
+      slowmodeSeconds,
+    });
     if (!channel) return;
     patchServerChannels(activeServer.id, (channels) => [...channels, channel]);
     if (channel.type !== "category") {

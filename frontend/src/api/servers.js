@@ -62,10 +62,20 @@ export function getServerMembers(serverId) {
 }
 
 /** Create text | voice | category channel (owner only for now). */
-export function createChannel(serverId, { name, type = "text", parentId, topic, position } = {}) {
+export function createChannel(
+  serverId,
+  { name, type = "text", parentId, topic, position, slowmodeSeconds } = {}
+) {
   return serversRequest(`/api/servers/${serverId}/channels`, {
     method: "POST",
-    body: { name, type, parentId, topic, position },
+    body: {
+      name,
+      type,
+      parentId,
+      topic,
+      position,
+      ...(slowmodeSeconds !== undefined ? { slowmodeSeconds } : {}),
+    },
   });
 }
 

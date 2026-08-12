@@ -1303,11 +1303,27 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
                 type="number"
                 min="0"
                 max="21600"
-                value={slowmodeSeconds}
-                onChange={(e) => setSlowmodeSeconds(e.target.value)}
+                step="1"
+                value={Number(slowmodeSeconds) || 0}
+                onChange={(e) => {
+                  const next = Math.floor(Number(e.target.value));
+                  setSlowmodeSeconds(Number.isFinite(next) ? Math.max(0, Math.min(21600, next)) : 0);
+                }}
                 placeholder="0"
               />
             </label>
+            <p className="server-modal-sub" style={{ marginTop: -6, marginBottom: 10 }}>
+              {Number(slowmodeSeconds) > 0
+                ? t("Members must wait {time} between messages.", {
+                    time:
+                      Number(slowmodeSeconds) >= 3600
+                        ? `${Math.round(Number(slowmodeSeconds) / 3600)}h`
+                        : Number(slowmodeSeconds) >= 60
+                          ? `${Math.round(Number(slowmodeSeconds) / 60)}m`
+                          : `${Number(slowmodeSeconds)}s`,
+                  })
+                : t("Off — members can send freely.")}
+            </p>
             <div className="server-slowmode-presets" role="group" aria-label={t("Slowmode presets")}>
               {[
                 [0, t("Off")],
