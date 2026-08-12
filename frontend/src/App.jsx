@@ -329,12 +329,16 @@ export default function App() {
   const serverVoice = useServerVoice(socketApi);
   const callRef = useRef(call);
   const groupCallRef = useRef(groupCall);
+  const serverVoiceRef = useRef(serverVoice);
   useEffect(() => {
     callRef.current = call;
   }, [call]);
   useEffect(() => {
     groupCallRef.current = groupCall;
   }, [groupCall]);
+  useEffect(() => {
+    serverVoiceRef.current = serverVoice;
+  }, [serverVoice]);
 
   useEffect(() => {
     callOccupancyRef.current = {
@@ -1734,6 +1738,65 @@ export default function App() {
     socket.on("server:announcement", ({ text } = {}) => {
       setFriendNotice(`Server: ${text || ""}`);
       setTimeout(() => setFriendNotice(""), 8000);
+    });
+
+    socket.on("server:member:removed", ({ serverId, userId, action, reason, serverName } = {}) => {
+      if (!serverId || !userId) return;
+      const meId = me?.id || getUser()?.id;
+      const isMe = meId && String(userId) === String(meId);
+
+      if (isMe) {
+        setMyServers((prev) => prev.filter((s) => String(s.id) !== String(serverId)));
+        setActiveServer((prev) => {
+          if (prev && String(prev.id) === String(serverId)) {
+            setActiveChannel(null);
+            return null;
+          }
+          return prev;
+        });
+        const voice = serverVoiceRef.current;
+        if (voice?.activeServerId && String(voice.activeServerId) === String(serverId)) {
+          voice.leave?.();
+        }
+        try {
+          if (typeof window !== "undefined" && window.location?.pathname?.startsWith("/servers")) {
+            navigate("/servers");
+          }
+        } catch {
+          /* ignore */
+        }
+        const name = serverName || t("the server");
+        const base =
+          action === "ban"
+            ? t("You were banned from {name}", { name })
+            : t("You were kicked from {name}", { name });
+        toast(reason ? `${base} — ${reason}` : base, "error");
+        return;
+      }
+
+      // Other members: drop from active server memberCount if viewing it
+      setActiveServer((prev) => {
+        if (!prev || String(prev.id) !== String(serverId)) return prev;
+        const nextCount = Math.max(1, (prev.memberCount || 1) - 1);
+        return { ...prev, memberCount: nextCount };
+      });
+      setMyServers((prev) =>
+        prev.map((s) =>
+          String(s.id) === String(serverId)
+            ? { ...s, memberCount: Math.max(1, (s.memberCount || 1) - 1) }
+            : s
+        )
+      );
+      // Notify open members panel via custom event
+      try {
+        window.dispatchEvent(
+          new CustomEvent("descall:server-member-removed", {
+            detail: { serverId, userId, action },
+          })
+        );
+      } catch {
+        /* ignore */
+      }
     });
 
     socket.on("system:kick", (payload = {}) => {

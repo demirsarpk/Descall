@@ -374,6 +374,59 @@ async function deleteServerCascade(serverId) {
 }
 
 /**
+ * Live-notify a kicked/banned user + other server members.
+ * Also drops them from server voice rooms.
+ */
+function notifyServerMemberRemoved(req, {
+  serverId,
+  serverName,
+  targetUserId,
+  action,
+  reason,
+  actorId,
+}) {
+  const io = req.app?.get?.("io");
+  if (!io || !serverId || !targetUserId) return;
+
+  const payload = {
+    serverId,
+    serverName: serverName || null,
+    userId: targetUserId,
+    action: action === "ban" ? "ban" : "kick",
+    reason: reason || null,
+    actorId: actorId || null,
+  };
+
+  io.to(`user:${targetUserId}`).emit("server:member:removed", payload);
+  io.to(`server:${serverId}`).emit("server:member:removed", payload);
+
+  try {
+    const userRoom = io.sockets?.adapter?.rooms?.get(`user:${targetUserId}`);
+    if (userRoom) {
+      for (const sockId of userRoom) {
+        const sock = io.sockets.sockets.get(sockId);
+        if (!sock) continue;
+        sock.leave(`server:${serverId}`);
+        for (const roomName of [...sock.rooms]) {
+          if (typeof roomName === "string" && roomName.startsWith("server-channel:")) {
+            sock.leave(roomName);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[SERVERS] leave rooms after remove failed:", err?.message || err);
+  }
+
+  try {
+    const { removeUserFromAllServerVoice } = require("../socket/serverVoiceHandlers");
+    removeUserFromAllServerVoice(io, targetUserId);
+  } catch (err) {
+    console.warn("[SERVERS] voice cleanup after remove failed:", err?.message || err);
+  }
+}
+
+/**
  * GET /servers/my
  * Servers the user is a member of (owned + joined), ordered by list_position.
  */
@@ -1555,6 +1608,15 @@ router.delete("/:id/members/:userId", requireAuth, async (req, res) => {
       reason: req.body?.reason ? String(req.body.reason).slice(0, 200) : null,
     });
 
+    notifyServerMemberRemoved(req, {
+      serverId,
+      serverName: server.name,
+      targetUserId,
+      action: "kick",
+      reason: req.body?.reason ? String(req.body.reason).slice(0, 200) : null,
+      actorId: req.user.id,
+    });
+
     return res.json({ message: "Member kicked.", userId: targetUserId, serverId });
   } catch (err) {
     const status = err.status || 500;
@@ -1657,6 +1719,15 @@ router.put("/:id/bans/:userId", requireAuth, async (req, res) => {
       targetType: "member",
       targetId: targetUserId,
       reason,
+    });
+
+    notifyServerMemberRemoved(req, {
+      serverId,
+      serverName: server.name,
+      targetUserId,
+      action: "ban",
+      reason,
+      actorId: req.user.id,
     });
 
     return res.json({ message: "Member banned.", userId: targetUserId, serverId, reason });

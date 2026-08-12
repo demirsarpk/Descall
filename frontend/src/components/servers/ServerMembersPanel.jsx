@@ -89,6 +89,21 @@ export default function ServerMembersPanel({
   }, [server?.id]);
 
   useEffect(() => {
+    if (!server?.id) return undefined;
+    const onRemoved = (e) => {
+      const { serverId, userId } = e?.detail || {};
+      if (!serverId || !userId) return;
+      if (String(serverId) !== String(server.id)) return;
+      setMembers((prev) => prev.filter((m) => String(m.userId) !== String(userId)));
+      setMenu((prev) =>
+        prev && String(prev.member?.userId) === String(userId) ? null : prev
+      );
+    };
+    window.addEventListener("descall:server-member-removed", onRemoved);
+    return () => window.removeEventListener("descall:server-member-removed", onRemoved);
+  }, [server?.id]);
+
+  useEffect(() => {
     if (Array.isArray(server?.roles)) setRoles(server.roles);
   }, [server?.roles]);
 
