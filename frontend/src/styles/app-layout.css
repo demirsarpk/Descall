@@ -417,7 +417,8 @@
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 2px 0 8px;
+  /* Extra top/side padding so active rail glow isn't clipped by overflow */
+  padding: 12px 8px 10px;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
