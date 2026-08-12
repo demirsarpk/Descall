@@ -634,6 +634,11 @@ export default function App() {
     const token = getToken();
     const bootStatus = document.getElementById("boot-status");
     if (!token) {
+      // descall.com / vercel.app have separate localStorage. A leftover
+      // descall_user without a token left the UI "logged in" with empty
+      // friends/groups because REST 401'd and the socket never connected.
+      clearUser();
+      setMe(null);
       if (bootStatus) bootStatus.textContent = tRuntime("Almost ready");
       setSessionChecked(true);
       return;
@@ -1878,6 +1883,7 @@ export default function App() {
   };
 
   const fetchFriends = useCallback(async () => {
+    if (!getToken()) return;
     try {
       const [listRes, reqRes] = await Promise.all([
         getFriendsList(),
@@ -1893,12 +1899,15 @@ export default function App() {
       setFriendRequests(requests.map((u) => normalizeUser(u)));
     } catch (err) {
       console.error("[friends] REST bootstrap failed", err);
-      // Still mark loaded so deep-links / empty states can render.
-      if (!friendsFromSocketRef.current) setFriendsLoaded(true);
+      // Don't mark loaded on auth failure — socket friend:list may still arrive.
+      const msg = String(err?.message || "");
+      const authFail = /authorization|token|401|unauthorized/i.test(msg);
+      if (!friendsFromSocketRef.current && !authFail) setFriendsLoaded(true);
     }
   }, []);
 
   const fetchGroups = useCallback(async () => {
+    if (!getToken()) return;
     try {
       const raw = await getMyGroups();
       const groups = normalizeGroups(raw);
@@ -2047,11 +2056,14 @@ export default function App() {
   }, [activeGroup?.id, groupCall.setViewingGroupId]);
 
   useEffect(() => {
-    if (!me?.id) return;
+    // Wait for session validation so we never fire authed REST calls with a
+    // stale cached user and a missing/expired token (common on descall.com
+    // after an old tab, while descall.vercel.app still had a fresh login).
+    if (!sessionChecked || !me?.id || !getToken()) return;
     friendsFromSocketRef.current = false;
     fetchGroups();
     fetchFriends();
-  }, [me?.id, fetchGroups, fetchFriends]);
+  }, [sessionChecked, me?.id, fetchGroups, fetchFriends]);
 
   // URL is authoritative for an existing browser entry. Only friends and
   // current group members can resolve a conversation route; invalid targets
