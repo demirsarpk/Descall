@@ -21,8 +21,12 @@ import {
   LogIn,
   Ban,
   ScrollText,
+  MicOff,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
+import { resolveDisplayName } from "../../lib/userProfile";
+import { Avatar } from "../ui/Avatar";
+import useSpeaking from "../../hooks/useSpeaking";
 import ServerRolesModal from "./ServerRolesModal";
 import ServerInviteModal from "./ServerInviteModal";
 import JoinServerModal from "./JoinServerModal";
@@ -88,6 +92,9 @@ export default function ServersSidebar({
     activeServer?.isOwner || permFlags.VIEW_AUDIT_LOG || permFlags.ADMINISTRATOR
   );
   const voiceStates = serverVoice?.voiceStatesByServer?.[activeServer?.id] || {};
+  const participantStreams = serverVoice?.remoteStreams || null;
+  const localVoiceStream = serverVoice?.localStream || null;
+  const myVoiceUserId = serverVoice?.myUserId || null;
   const categories = useMemo(
     () => (activeServer?.channels || []).filter((c) => c.type === "category").sort((a, b) => a.position - b.position),
     [activeServer?.channels]
@@ -320,6 +327,9 @@ export default function ServersSidebar({
                           menuOpen={channelMenuId === ch.id}
                           voiceState={voiceStates[ch.id]}
                           joinedHere={serverVoice?.activeChannelId === ch.id}
+                          participantStreams={participantStreams}
+                          localStream={localVoiceStream}
+                          myUserId={myVoiceUserId}
                           onOpenMenu={() => setChannelMenuId((id) => (id === ch.id ? null : ch.id))}
                           onCloseMenu={() => setChannelMenuId(null)}
                           onSelect={() => {
@@ -348,6 +358,9 @@ export default function ServersSidebar({
                   menuOpen={channelMenuId === node.id}
                   voiceState={voiceStates[node.id]}
                   joinedHere={serverVoice?.activeChannelId === node.id}
+                  participantStreams={participantStreams}
+                  localStream={localVoiceStream}
+                  myUserId={myVoiceUserId}
                   onOpenMenu={() => setChannelMenuId((id) => (id === node.id ? null : node.id))}
                   onCloseMenu={() => setChannelMenuId(null)}
                   onSelect={() => {
@@ -369,7 +382,7 @@ export default function ServersSidebar({
               <p className="server-empty-hint">{t("No channels yet.")}</p>
             )}
             <p className="server-step-hint">
-              {t("Open a text channel to chat. Voice connect arrives in a later step.")}
+              {t("Open a text channel to chat, or join a voice channel to hang out.")}
             </p>
           </div>
         </div>
@@ -604,6 +617,21 @@ function ServerAvatar({ server }) {
   return <div className="server-list-icon server-list-icon-fallback">{initials}</div>;
 }
 
+function ServerVoiceUserRow({ member, stream = null, size = 20 }) {
+  const name = resolveDisplayName(member) || member?.username || "User";
+  const speaking = useSpeaking(stream, { muted: Boolean(member?.muted) });
+  return (
+    <li
+      className={`server-voice-user${member?.muted ? " is-muted" : ""}${speaking ? " is-speaking" : ""}`}
+      title={member?.username || name}
+    >
+      <Avatar name={name} size={size} user={member} animate="never" className="server-voice-user-avatar" />
+      <span className="server-voice-user-name">{name}</span>
+      {member?.muted ? <MicOff size={12} className="server-voice-user-mic" aria-hidden /> : null}
+    </li>
+  );
+}
+
 function ChannelRow({
   channel,
   active,
@@ -611,6 +639,9 @@ function ChannelRow({
   menuOpen,
   voiceState = null,
   joinedHere = false,
+  participantStreams = null,
+  localStream = null,
+  myUserId = null,
   onOpenMenu,
   onCloseMenu,
   onSelect,
@@ -670,12 +701,16 @@ function ChannelRow({
         </div>
       )}
       {channel.type === "voice" && voiceMembers.length > 0 && (
-        <ul className="server-voice-user-list">
-          {voiceMembers.slice(0, 8).map((m) => (
-            <li key={m.id} className={m.muted ? "is-muted" : ""}>
-              {m.displayName || m.username || "User"}
-            </li>
-          ))}
+        <ul className="server-voice-user-list" aria-label={t("In this channel")}>
+          {voiceMembers.slice(0, 12).map((m) => {
+            let stream = null;
+            if (joinedHere) {
+              if (myUserId && m.id === myUserId) stream = localStream;
+              else if (participantStreams?.has?.(m.id)) stream = participantStreams.get(m.id);
+              else if (m.stream) stream = m.stream;
+            }
+            return <ServerVoiceUserRow key={m.id} member={m} stream={stream} />;
+          })}
         </ul>
       )}
     </div>

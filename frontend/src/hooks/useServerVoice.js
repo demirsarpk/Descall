@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 import { getUser } from "../lib/storage";
 
@@ -29,9 +29,12 @@ export function useServerVoice(socket) {
   const localStreamRef = useRef(null);
   const pcMapRef = useRef(new Map()); // userId -> { pc, pendingIce }
   const remoteAudioRefs = useRef(new Map());
+  const remoteStreamMapRef = useRef(new Map()); // userId -> MediaStream
   const activeChannelIdRef = useRef(null);
   const myIdRef = useRef(getUser()?.id || null);
   const mutedRef = useRef(false);
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStreamsVersion, setRemoteStreamsVersion] = useState(0);
 
   useEffect(() => {
     preloadIceServers().catch(() => {});
@@ -57,6 +60,13 @@ export function useServerVoice(socket) {
     }
     el.srcObject = stream;
     el.play().catch(() => {});
+    remoteStreamMapRef.current.set(userId, stream);
+    setRemoteStreamsVersion((v) => v + 1);
+    setParticipants((prev) => {
+      const exists = prev.find((p) => p.id === userId);
+      if (exists) return prev.map((p) => (p.id === userId ? { ...p, stream, hasAudio: true } : p));
+      return [...prev, { id: userId, username: "Member", stream, hasAudio: true }];
+    });
   }, []);
 
   const cleanupPeer = useCallback((userId) => {
@@ -69,6 +79,10 @@ export function useServerVoice(socket) {
       }
     }
     pcMapRef.current.delete(userId);
+    if (remoteStreamMapRef.current.has(userId)) {
+      remoteStreamMapRef.current.delete(userId);
+      setRemoteStreamsVersion((v) => v + 1);
+    }
     const el = remoteAudioRefs.current.get(userId);
     if (el) {
       try {
@@ -88,6 +102,9 @@ export function useServerVoice(socket) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     }
+    remoteStreamMapRef.current = new Map();
+    setLocalStream(null);
+    setRemoteStreamsVersion((v) => v + 1);
     setActiveChannelId(null);
     setActiveServerId(null);
     setChannelName("");
@@ -115,11 +132,6 @@ export function useServerVoice(socket) {
       pc.ontrack = (e) => {
         const remote = e.streams?.[0] || new MediaStream([e.track]);
         attachRemoteAudio(userId, remote);
-        setParticipants((prev) => {
-          const exists = prev.find((p) => p.id === userId);
-          if (exists) return prev.map((p) => (p.id === userId ? { ...p, hasAudio: true } : p));
-          return [...prev, { id: userId, username: "Member", hasAudio: true }];
-        });
       };
       pc.onicecandidate = (e) => {
         if (e.candidate && socket?.connected) {
@@ -189,6 +201,7 @@ export function useServerVoice(socket) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
         localStreamRef.current = stream;
+        setLocalStream(stream);
         stream.getAudioTracks().forEach((t) => {
           t.enabled = true;
         });
@@ -394,6 +407,11 @@ export function useServerVoice(socket) {
 
   useEffect(() => () => cleanupAll(), [cleanupAll]);
 
+  const remoteStreams = useMemo(() => {
+    void remoteStreamsVersion;
+    return new Map(remoteStreamMapRef.current);
+  }, [remoteStreamsVersion]);
+
   return {
     isInVoice: Boolean(activeChannelId),
     activeChannelId,
@@ -404,6 +422,9 @@ export function useServerVoice(socket) {
     connecting,
     error,
     voiceStatesByServer,
+    localStream,
+    remoteStreams,
+    myUserId: myIdRef.current,
     join,
     leave,
     toggleMute,

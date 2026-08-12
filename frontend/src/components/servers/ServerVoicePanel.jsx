@@ -2,6 +2,21 @@ import { Headphones, LogIn, LogOut, Mic, MicOff, Users } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
+import useSpeaking from "../../hooks/useSpeaking";
+
+function VoiceMemberRow({ member, label, stream = null, muted = false, micIcon = true }) {
+  const speaking = useSpeaking(stream, { muted: Boolean(muted) });
+  const name = label || resolveDisplayName(member) || member?.username || "User";
+  return (
+    <div
+      className={`server-voice-member${muted ? " is-muted" : ""}${speaking ? " is-speaking" : ""}`}
+    >
+      <Avatar name={name} size={32} user={member} className="server-voice-member-avatar" />
+      <span>{name}</span>
+      {micIcon ? muted ? <MicOff size={12} /> : <Mic size={12} /> : null}
+    </div>
+  );
+}
 
 /**
  * Discord-like voice channel hangout panel (Step 10).
@@ -91,20 +106,25 @@ export default function ServerVoicePanel({
         </div>
         <div className="server-voice-members-list">
           {inThis && me && (
-            <div className={`server-voice-member ${serverVoice.muted ? "is-muted" : ""}`}>
-              <Avatar name={resolveDisplayName(me)} size={32} user={me} />
-              <span>{resolveDisplayName(me)} ({t("You")})</span>
-              {serverVoice.muted ? <MicOff size={12} /> : <Mic size={12} />}
-            </div>
+            <VoiceMemberRow
+              member={me}
+              label={`${resolveDisplayName(me)} (${t("You")})`}
+              stream={serverVoice.localStream}
+              muted={serverVoice.muted}
+            />
           )}
           {remoteMembers.map((m) => {
-            const name = resolveDisplayName(m);
+            const stream =
+              inThis
+                ? m.stream || serverVoice.remoteStreams?.get?.(m.id) || null
+                : null;
             return (
-              <div key={m.id} className={`server-voice-member ${m.muted ? "is-muted" : ""}`}>
-                <Avatar name={name} size={32} user={m} />
-                <span>{name}</span>
-                {m.muted ? <MicOff size={12} /> : <Mic size={12} />}
-              </div>
+              <VoiceMemberRow
+                key={m.id}
+                member={m}
+                stream={stream}
+                muted={m.muted}
+              />
             );
           })}
           {!inThis && remoteMembers.length === 0 && (

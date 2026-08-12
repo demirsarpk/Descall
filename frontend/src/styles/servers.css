@@ -1318,10 +1318,17 @@ button.member-row.server-member-row {
 .server-voice-member span {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .server-voice-member.is-muted {
   opacity: 0.7;
+}
+
+.server-voice-member.is-speaking .ui-avatar {
+  box-shadow: 0 0 0 2px #23a559;
 }
 
 .server-voice-count {
@@ -1334,23 +1341,66 @@ button.member-row.server-member-row {
   padding: 1px 7px;
 }
 
+/* Nested under voice channels — Discord-like avatar rows, not plain text */
 .server-voice-user-list {
   list-style: none;
-  margin: 0 0 4px 28px;
-  padding: 0;
+  margin: 0 0 6px;
+  padding: 2px 8px 4px 28px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
-.server-voice-user-list li {
-  font-size: 12px;
-  color: var(--text-2);
-  padding: 2px 0;
+.server-voice-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-muted, var(--text-2));
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
-.server-voice-user-list li.is-muted {
-  opacity: 0.65;
+.server-voice-user:hover {
+  background: color-mix(in srgb, var(--surface-3, rgba(79, 84, 92, 0.32)) 70%, transparent);
+  color: var(--text-1);
+}
+
+.server-voice-user .ui-avatar,
+.server-voice-user-avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.server-voice-user-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: inherit;
+}
+
+.server-voice-user.is-muted .server-voice-user-name {
+  opacity: 0.72;
+}
+
+.server-voice-user-mic {
+  flex-shrink: 0;
+  color: #f23f43;
+  opacity: 0.9;
+}
+
+.server-voice-user.is-speaking {
+  color: var(--text-1);
+}
+
+.server-voice-user.is-speaking .ui-avatar {
+  box-shadow: 0 0 0 2px #23a559;
 }
 
 .server-channel-row-wrap.is-joined-voice > .server-channel-row {
