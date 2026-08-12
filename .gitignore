@@ -26,6 +26,7 @@ Descall-Setup.exe
 .env.local
 .env.*.local
 render.env
+frontend/.seo-indexing-state.json
 frontend/android/keystore.properties
 frontend/android/local.properties
 frontend/android/**/*.jks

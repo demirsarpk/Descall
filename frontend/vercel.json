@@ -37,7 +37,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|robots\\.txt|sitemap\\.xml|sitemap-pages\\.xml|sitemap\\.html|sitemap\\.xsl|og-default\\.svg|favicon\\.svg|icon\\.png|manifest\\.webmanifest|sw\\.js).*)",
+      "source": "/((?!assets/|robots\\.txt|sitemap\\.xml|sitemap-pages\\.xml|sitemap-core\\.xml|sitemap-niches\\.xml|sitemap-blog\\.xml|sitemap-company\\.xml|sitemap\\.html|sitemap\\.xsl|4f463b15fd51f502c6bb73abbeb38e3c\\.txt|og-default\\.svg|favicon\\.svg|icon\\.png|manifest\\.webmanifest|sw\\.js).*)",
       "destination": "/index.html"
     }
   ],
@@ -55,10 +55,17 @@
       ]
     },
     {
-      "source": "/(sitemap.xml|sitemap-pages.xml|robots.txt)",
+      "source": "/(sitemap.xml|sitemap-pages.xml|sitemap-core.xml|sitemap-niches.xml|sitemap-blog.xml|sitemap-company.xml|robots.txt)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=300, stale-while-revalidate=600" },
         { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/:key([a-f0-9]{32}).txt",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" }
       ]
     },
     {

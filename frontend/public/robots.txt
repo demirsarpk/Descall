@@ -24,6 +24,10 @@ Allow: /blog
 Allow: /blog/
 Allow: /sitemap.xml
 Allow: /sitemap-pages.xml
+Allow: /sitemap-core.xml
+Allow: /sitemap-niches.xml
+Allow: /sitemap-blog.xml
+Allow: /sitemap-company.xml
 Allow: /sitemap.html
 
 Disallow: /app/

@@ -37,6 +37,11 @@ const { BLOG_BODIES } = await import(pathToFileURL(path.join(root, "src/site/seo
 const marketingApp = fs.readFileSync(path.join(root, "src/site/MarketingApp.jsx"), "utf8");
 const sitemapJs = fs.readFileSync(path.join(root, "backend/routes/sitemap.js"), "utf8");
 const robotsTxt = fs.readFileSync(path.join(root, "public/robots.txt"), "utf8");
+const {
+  SITEMAP_TABLES,
+  allSitemapEntries,
+  indexingUrlQueue,
+} = await import(pathToFileURL(path.join(root, "src/site/sitemapCatalog.js")).href);
 
 const paths = PUBLIC_ROUTES.map((r) => r.path);
 const titles = new Map();
@@ -79,11 +84,24 @@ for (const route of PUBLIC_ROUTES) {
     }
   }
 
-  if (!sitemapJs.includes(`path: "${route.path}"`) && route.path !== "/") {
-    // "/" is present as path: "/"
-    if (!sitemapJs.includes(`path: "${route.path}"`)) {
-      fail(`Sitemap missing path: ${route.path}`);
-    }
+}
+
+const catalogPaths = new Set(allSitemapEntries("https://descall.com").map((e) => e.path));
+for (const route of PUBLIC_ROUTES) {
+  if (route.noindex) continue;
+  if (!catalogPaths.has(route.path)) {
+    fail(`sitemapCatalog missing path: ${route.path}`);
+  }
+}
+if (!sitemapJs.includes("sitemapCatalog") || !sitemapJs.includes("sitemap-core.xml")) {
+  fail("backend/routes/sitemap.js must serve multi-table sitemapCatalog children");
+}
+if (indexingUrlQueue("https://descall.com").length < PUBLIC_ROUTES.filter((r) => !r.noindex).length) {
+  fail("indexingUrlQueue shorter than indexable PUBLIC_ROUTES");
+}
+for (const table of SITEMAP_TABLES) {
+  if (!["core", "niches", "blog", "company"].includes(table.id)) {
+    fail(`Unexpected sitemap table id: ${table.id}`);
   }
 }
 
@@ -137,6 +155,10 @@ if (checkDist) {
       "robots.txt",
       "sitemap.xml",
       "sitemap-pages.xml",
+      "sitemap-core.xml",
+      "sitemap-niches.xml",
+      "sitemap-blog.xml",
+      "sitemap-company.xml",
       "sitemap.html",
       "sitemap.xsl",
     ]) {
@@ -151,6 +173,16 @@ if (checkDist) {
       }
       if (/http:\/\/descall\.com/i.test(body)) {
         fail(`dist/${name} contains http://descall.com`);
+      }
+    }
+
+    const indexXml = fs.readFileSync(path.join(dist, "sitemap.xml"), "utf8");
+    if (!indexXml.includes("<sitemapindex")) {
+      fail("dist/sitemap.xml must be a sitemapindex of child tables");
+    }
+    for (const table of SITEMAP_TABLES) {
+      if (!indexXml.includes(`https://descall.com/${table.file}`)) {
+        fail(`dist/sitemap.xml missing child ${table.file}`);
       }
     }
 

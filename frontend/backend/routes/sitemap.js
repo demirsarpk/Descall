@@ -8,8 +8,12 @@
  *
  * Endpoints:
  *   GET /robots.txt
- *   GET /sitemap.xml              — sitemap index
- *   GET /sitemap-pages.xml       — static public pages
+ *   GET /sitemap.xml              — sitemap index (child tables)
+ *   GET /sitemap-core.xml
+ *   GET /sitemap-niches.xml
+ *   GET /sitemap-blog.xml
+ *   GET /sitemap-company.xml
+ *   GET /sitemap-pages.xml       — full combined urlset (compat)
  *   GET /sitemap.html            — human-readable HTML sitemap
  *   GET /sitemap.xsl
  *   GET /api/sitemap/stats
@@ -32,6 +36,15 @@ function loadSitemapHtmlModule() {
     _sitemapHtmlModulePromise = import(pathToFileURL(modPath).href);
   }
   return _sitemapHtmlModulePromise;
+}
+
+let _sitemapCatalogPromise = null;
+function loadSitemapCatalog() {
+  if (!_sitemapCatalogPromise) {
+    const modPath = path.join(__dirname, "../../src/site/sitemapCatalog.js");
+    _sitemapCatalogPromise = import(pathToFileURL(modPath).href);
+  }
+  return _sitemapCatalogPromise;
 }
 
 // Canonical public host for ALL sitemap/robots output.
@@ -101,48 +114,39 @@ function sendHtml(res, body) {
   return res.status(200).send(body);
 }
 
-/** Canonical public marketing pages — must match client routes in src/site/seoConfig.js. */
+/**
+ * Canonical public marketing pages from shared sitemapCatalog.
+ * Sync wrapper kept for callers that expect a plain array (stats / html).
+ */
 function staticPages(origin) {
+  // Fallback list if ESM catalog fails to load in sync context — prefer asyncCatalogPages.
   const now = new Date().toISOString();
-  const pages = [
-    { path: "/", title: "Descall — Free Discord Alternative for Chat, Voice & LFG", changefreq: "daily", priority: "1.0" },
-    { path: "/download", title: "Download Descall — Discord alternative for Windows & Android", changefreq: "weekly", priority: "0.9" },
-    { path: "/features", title: "Descall Features — Chat, calls, screen share & LFG", changefreq: "weekly", priority: "0.85" },
-    { path: "/discord-alternative", title: "Best Free Discord Alternative for Friends & Gamers | Descall", changefreq: "weekly", priority: "0.95" },
-    { path: "/alternatives", title: "Best Discord Alternatives in 2026 — Compare Apps Like Discord", changefreq: "weekly", priority: "0.9" },
-    { path: "/compare/discord", title: "Descall vs Discord (2026) — Feature Comparison & Verdict", changefreq: "weekly", priority: "0.95" },
-    { path: "/best-discord-alternative-for-gamers", title: "Best Discord Alternative for Gamers & Valorant LFG | Descall", changefreq: "weekly", priority: "0.9" },
-    { path: "/discord-alternative-for-communities", title: "Discord Alternative for Communities | Descall Groups", changefreq: "weekly", priority: "0.88" },
-    { path: "/discord-alternative-for-lfg", title: "Discord Alternative for LFG — Valorant Lobbies | Descall", changefreq: "weekly", priority: "0.9" },
-    { path: "/discord-alternative-for-voice-chat", title: "Voice Chat Alternative to Discord — Free Calls | Descall", changefreq: "weekly", priority: "0.88" },
-    { path: "/discord-alternative-for-friends", title: "Discord Alternative for Friends — DMs, Groups & Voice", changefreq: "weekly", priority: "0.88" },
-    { path: "/apps-like-discord", title: "Apps Like Discord (2026) — Websites & Platforms Compared", changefreq: "weekly", priority: "0.9" },
-    { path: "/discord-replacement", title: "Discord Replacement for Friend Groups | Switch to Descall", changefreq: "weekly", priority: "0.88" },
-    { path: "/discord-alternative-turkey", title: "Türkiye için Discord Alternatifi — Descall", changefreq: "weekly", priority: "0.9" },
-    { path: "/blog", title: "Descall Blog — Discord Alternatives, LFG & Voice Chat Guides", changefreq: "weekly", priority: "0.8" },
-    { path: "/blog/discord-vs-descall", title: "Discord vs Descall (2026)", changefreq: "monthly", priority: "0.85" },
-    { path: "/blog/best-discord-alternatives-2026", title: "Best Discord Alternatives in 2026", changefreq: "monthly", priority: "0.85" },
-    { path: "/blog/apps-like-discord", title: "Apps Like Discord — What to Use Instead", changefreq: "monthly", priority: "0.85" },
-    { path: "/blog/discord-competitors", title: "Discord Competitors in 2026", changefreq: "monthly", priority: "0.85" },
-    { path: "/blog/best-discord-alternative-for-lfg", title: "Best Discord Alternative for Valorant LFG", changefreq: "monthly", priority: "0.85" },
-    { path: "/blog/leave-nitro-keep-voice-chat", title: "Leave Nitro. Keep voice chat.", changefreq: "monthly", priority: "0.8" },
-    { path: "/blog/discord-alternative-for-communities-guide", title: "Discord Alternative for Communities Guide", changefreq: "monthly", priority: "0.8" },
-    { path: "/blog/voice-chat-alternative-to-discord", title: "Voice Chat Alternative to Discord", changefreq: "monthly", priority: "0.8" },
-    { path: "/faq", title: "Descall FAQ — Discord alternative questions answered", changefreq: "weekly", priority: "0.75" },
-    { path: "/security", title: "Descall Security", changefreq: "monthly", priority: "0.6" },
-    { path: "/about", title: "About Descall — Building a lighter Discord alternative", changefreq: "monthly", priority: "0.65" },
-    { path: "/privacy", title: "Descall Privacy Policy", changefreq: "monthly", priority: "0.5" },
-    { path: "/terms", title: "Descall Terms of Service", changefreq: "monthly", priority: "0.5" },
-    { path: "/contact", title: "Contact Descall", changefreq: "monthly", priority: "0.5" },
+  return [
+    { path: "/", title: "Descall", changefreq: "daily", priority: "1.0" },
+    { path: "/download", title: "Download Descall", changefreq: "weekly", priority: "0.9" },
     { path: "/sitemap.html", title: "Sitemap", changefreq: "weekly", priority: "0.3" },
-  ];
-
-  return pages.map((p) => ({
+  ].map((p) => ({
     loc: p.path === "/" ? `${origin}/` : `${origin}${p.path}`,
     lastmod: now,
     changefreq: p.changefreq,
     priority: p.priority,
     title: p.title,
+  }));
+}
+
+async function catalogEntries(origin, tableId = null) {
+  const catalog = await loadSitemapCatalog();
+  const now = new Date().toISOString();
+  const entries = tableId
+    ? catalog.entriesForTable(tableId, origin, now)
+    : catalog.allSitemapEntries(origin, now);
+  return entries.map((e) => ({
+    loc: e.loc,
+    lastmod: e.lastmod,
+    changefreq: e.changefreq,
+    priority: e.priority,
+    title: e.title,
+    path: e.path,
   }));
 }
 
@@ -274,8 +278,15 @@ router.get("/sitemap.xsl", async (_req, res) => {
   }
 });
 
-router.get("/robots.txt", (req, res) => {
+router.get("/robots.txt", async (req, res) => {
   const origin = siteOrigin(req);
+  let childAllows = "";
+  try {
+    const { SITEMAP_TABLES } = await loadSitemapCatalog();
+    childAllows = SITEMAP_TABLES.map((t) => `Allow: /${t.file}`).join("\n") + "\n";
+  } catch {
+    childAllows = "";
+  }
   const body = `# Descall robots.txt
 User-agent: *
 Allow: /
@@ -302,7 +313,7 @@ Allow: /blog
 Allow: /blog/
 Allow: /sitemap.xml
 Allow: /sitemap-pages.xml
-Allow: /sitemap.html
+${childAllows}Allow: /sitemap.html
 
 # Private / ephemeral — do not index
 Disallow: /app/
@@ -334,19 +345,42 @@ Host: ${origin.replace(/^https?:\/\//, "")}
   res.send(body);
 });
 
-router.get("/sitemap.xml", (req, res) => {
-  const origin = siteOrigin(req);
-  const now = isoDate();
-  return sendXml(
-    res,
-    buildIndex(origin, [{ loc: `${origin}/sitemap-pages.xml`, lastmod: now }])
-  );
+router.get("/sitemap.xml", async (req, res) => {
+  try {
+    const origin = siteOrigin(req);
+    const now = isoDate();
+    const { SITEMAP_TABLES } = await loadSitemapCatalog();
+    return sendXml(
+      res,
+      buildIndex(
+        origin,
+        SITEMAP_TABLES.map((t) => ({ loc: `${origin}/${t.file}`, lastmod: now }))
+      )
+    );
+  } catch (err) {
+    return res.status(500).type("text/plain").send(err?.message || "sitemap index unavailable");
+  }
 });
 
-router.get("/sitemap-pages.xml", (req, res) => {
-  const origin = siteOrigin(req);
-  return sendXml(res, buildUrlset(staticPages(origin)));
+router.get("/sitemap-pages.xml", async (req, res) => {
+  try {
+    const origin = siteOrigin(req);
+    return sendXml(res, buildUrlset(await catalogEntries(origin)));
+  } catch (err) {
+    return res.status(500).type("text/plain").send(err?.message || "sitemap pages unavailable");
+  }
 });
+
+for (const tableId of ["core", "niches", "blog", "company"]) {
+  router.get(`/sitemap-${tableId}.xml`, async (req, res) => {
+    try {
+      const origin = siteOrigin(req);
+      return sendXml(res, buildUrlset(await catalogEntries(origin, tableId)));
+    } catch (err) {
+      return res.status(500).type("text/plain").send(err?.message || "sitemap table unavailable");
+    }
+  });
+}
 
 // Legacy endpoints: empty urlsets so old crawler bookmarks do not 404,
 // but they are no longer linked from the sitemap index.
@@ -356,14 +390,18 @@ router.get("/sitemap-announcements.xml", (_req, res) => sendXml(res, buildUrlset
 router.get("/sitemap.html", async (req, res) => {
   try {
     const origin = siteOrigin(req);
-    const pages = staticPages(origin).filter((p) => !String(p.loc || "").endsWith("/sitemap.html"));
+    const pages = (await catalogEntries(origin)).filter(
+      (p) => !String(p.loc || "").endsWith("/sitemap.html")
+    );
     const { buildHumanSitemapHtml } = await loadSitemapHtmlModule();
     const routes = pages.map((p) => {
-      let pathname = "/";
-      try {
-        pathname = new URL(p.loc).pathname || "/";
-      } catch {
-        pathname = "/";
+      let pathname = p.path || "/";
+      if (!pathname || pathname === "/") {
+        try {
+          pathname = new URL(p.loc).pathname || "/";
+        } catch {
+          pathname = "/";
+        }
       }
       return {
         path: pathname,
@@ -380,22 +418,29 @@ router.get("/sitemap.html", async (req, res) => {
 
 router.get("/api/sitemap/stats", async (req, res) => {
   const origin = siteOrigin(req);
-  const [invites, announcements] = await Promise.all([
+  const [invites, announcements, pages, catalog] = await Promise.all([
     fetchActiveInvites(origin),
     fetchAnnouncements(origin),
+    catalogEntries(origin),
+    loadSitemapCatalog().catch(() => null),
   ]);
   res.json({
     origin,
     generatedAt: new Date().toISOString(),
-    policy: "pages-only",
+    policy: "multi-table-pages-only",
     counts: {
-      pages: staticPages(origin).length,
+      pages: pages.length,
       invitesActiveNotIndexed: invites.length,
       announcementsActiveNotIndexed: announcements.length,
     },
+    tables: (catalog?.SITEMAP_TABLES || []).map((t) => t.file),
     endpoints: [
       "/robots.txt",
       "/sitemap.xml",
+      "/sitemap-core.xml",
+      "/sitemap-niches.xml",
+      "/sitemap-blog.xml",
+      "/sitemap-company.xml",
       "/sitemap-pages.xml",
       "/sitemap.html",
       "/sitemap.xsl",
