@@ -219,9 +219,10 @@ export default function ChannelPermissionsModal({ server, channel, onClose }) {
         role="dialog"
         aria-modal="true"
         aria-label={t("Channel access")}
-        initial={{ opacity: 0, y: 12, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 8, scale: 0.98 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="server-modal-head">
@@ -354,23 +355,26 @@ export default function ChannelPermissionsModal({ server, channel, onClose }) {
                     </div>
                   ))}
                 </div>
-                <footer className="server-modal-actions">
-                  <button type="button" className="server-ghost-btn" onClick={onClose}>
-                    {t("Cancel")}
-                  </button>
-                  <button
-                    type="button"
-                    className="server-primary-btn"
-                    disabled={busy}
-                    onClick={save}
-                  >
-                    {busy ? t("Please wait...") : t("Save")}
-                  </button>
-                </footer>
               </>
             )}
           </div>
         </div>
+
+        {selected ? (
+          <footer className="server-modal-actions server-channel-perms-footer">
+            <button type="button" className="server-ghost-btn" onClick={onClose}>
+              {t("Cancel")}
+            </button>
+            <button
+              type="button"
+              className="server-primary-btn"
+              disabled={busy}
+              onClick={save}
+            >
+              {busy ? t("Please wait...") : t("Save")}
+            </button>
+          </footer>
+        ) : null}
       </motion.div>
     </div>,
     document.body
