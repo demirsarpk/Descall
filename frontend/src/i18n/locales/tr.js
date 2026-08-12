@@ -920,6 +920,8 @@ export const phrases = {
   "Brazil": "Brazil",
   "Linked": "Bağlandı",
   "Loading messages": "Mesajlar yükleniyor",
+  "Loading conversations": "Sohbetler yükleniyor",
+  "Loading groups": "Gruplar yükleniyor",
   "End Call": "Aramayı Bitir",
   "Muted": "Sessiz",
   "Speaking": "Konuşuyor",
