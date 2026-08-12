@@ -320,6 +320,7 @@ export default function DmRemoteParticipantSlot({
               </span>
             )}
           </div>
+          )}
         </motion.div>
       )}
       {phase === "exiting" && displayPeer && (
