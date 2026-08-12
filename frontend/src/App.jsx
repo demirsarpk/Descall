@@ -2010,12 +2010,36 @@ export default function App() {
       });
     };
 
+    const refreshServerBundle = (serverId) => {
+      if (!serverId) return;
+      getServer(serverId)
+        .then((data) => {
+          if (!data?.server) return;
+          setActiveServer((prev) =>
+            prev && String(prev.id) === String(serverId) ? { ...prev, ...data.server } : prev
+          );
+          setMyServers((prev) =>
+            prev.map((s) =>
+              String(s.id) === String(serverId) ? { ...s, ...data.server } : s
+            )
+          );
+        })
+        .catch(() => {});
+    };
+
     socket.on("server:role:created", ({ serverId, role } = {}) => {
       upsertServerRole(serverId, role);
     });
 
     socket.on("server:role:updated", ({ serverId, role } = {}) => {
       upsertServerRole(serverId, role);
+      // Permission bits may have changed for everyone holding this role.
+      if (
+        activeServerRef.current &&
+        String(activeServerRef.current.id) === String(serverId)
+      ) {
+        refreshServerBundle(serverId);
+      }
     });
 
     socket.on("server:role:deleted", ({ serverId, roleId } = {}) => {
@@ -2089,6 +2113,10 @@ export default function App() {
         );
       } catch {
         /* ignore */
+      }
+      const meId = myIdRef.current || getUser()?.id;
+      if (meId && String(userId) === String(meId)) {
+        refreshServerBundle(serverId);
       }
     });
 
@@ -2671,6 +2699,25 @@ export default function App() {
       if (activeServer?.id !== server.id) {
         setActiveServer(server);
       }
+      // URL/reload hydration used to keep the list payload forever — without a
+      // follow-up getServer(), myPermissions/roles stayed missing and Join/manage UI broke.
+      if (!server.myPermissions || !Array.isArray(server.roles)) {
+        getServer(server.id)
+          .then((data) => {
+            if (!data?.server) return;
+            setActiveServer((prev) =>
+              !prev || String(prev.id) !== String(data.server.id)
+                ? prev
+                : { ...prev, ...data.server }
+            );
+            setMyServers((prev) =>
+              prev.map((s) =>
+                String(s.id) === String(data.server.id) ? { ...s, ...data.server } : s
+              )
+            );
+          })
+          .catch(() => {});
+      }
       const channels =
         (activeServer?.id === server.id ? activeServer?.channels : server.channels) ||
         server.channels ||
@@ -3233,10 +3280,21 @@ export default function App() {
       setServersLoaded(true);
       if (activeServer?.id) {
         const updated = (data?.servers || []).find((s) => s.id === activeServer.id);
-        setActiveServer(updated || null);
-        if (activeChannel?.id && updated) {
-          const nextCh = (updated.channels || []).find((c) => c.id === activeChannel.id);
-          setActiveChannel(nextCh || null);
+        if (!updated) {
+          setActiveServer(null);
+          setActiveChannel(null);
+        } else {
+          // Merge so richer fields (roles, etc.) from the open server aren't wiped
+          // when the list payload is thinner.
+          setActiveServer((prev) =>
+            prev && String(prev.id) === String(updated.id)
+              ? { ...prev, ...updated, myPermissions: updated.myPermissions || prev.myPermissions }
+              : updated
+          );
+          if (activeChannel?.id) {
+            const nextCh = (updated.channels || []).find((c) => c.id === activeChannel.id);
+            setActiveChannel(nextCh || null);
+          }
         }
       }
     } catch (err) {

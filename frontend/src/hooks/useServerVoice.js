@@ -1202,8 +1202,12 @@ export function useServerVoice(socket) {
 
     const onError = ({ message, code } = {}) => {
       if (message) setError(message);
-      // Moderation / permission errors should not kick you from voice
-      if (code === "MISSING_PERMISSION" || code === "NOT_MEMBER") return;
+      // Join-time permission failures happen after optimistic local join — always
+      // roll back so the UI doesn't look "in voice" while the server rejected us.
+      if (code === "MISSING_PERMISSION" || code === "NOT_MEMBER") {
+        cleanupAll();
+        return;
+      }
       if (activeChannelIdRef.current && /join|microphone|connect/i.test(message || "")) {
         cleanupAll();
       }

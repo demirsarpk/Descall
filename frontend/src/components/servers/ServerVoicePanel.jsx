@@ -367,16 +367,23 @@ export default function ServerVoicePanel({
     ? (serverVoice.participants?.length || 0) + 1
     : state?.memberCount || 0;
 
+  // If permissions haven't loaded yet, allow the click — the server still
+  // enforces CONNECT via assertVoiceAccess. Blocking here was stranding users
+  // after reload when myPermissions was missing from the list payload.
+  const permFlags = server?.myPermissions?.flags;
+  const permsLoaded = Boolean(server?.myPermissions?.flags);
   const canConnect = Boolean(
     server?.isOwner ||
-      server?.myPermissions?.flags?.CONNECT ||
-      server?.myPermissions?.flags?.ADMINISTRATOR
+      !permsLoaded ||
+      permFlags?.CONNECT ||
+      permFlags?.ADMINISTRATOR
   );
 
   const canStream = Boolean(
     server?.isOwner ||
-      server?.myPermissions?.flags?.STREAM ||
-      server?.myPermissions?.flags?.ADMINISTRATOR
+      !permsLoaded ||
+      permFlags?.STREAM ||
+      permFlags?.ADMINISTRATOR
   );
   const canPublishMedia = Boolean(serverVoice?.canSpeak && isStageSpeaker);
   const canVideo = Boolean(canStream && serverVoice?.canStream && canPublishMedia);

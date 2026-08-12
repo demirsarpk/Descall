@@ -617,6 +617,13 @@ router.get("/my", requireAuth, async (req, res) => {
       channelsByServer.get(ch.server_id).push(publicChannel(ch));
     }
 
+    // Attach resolved permissions so clients don't need a separate GET /:id
+    // before CONNECT / manage UI works (reload + list hydration path).
+    const permEntries = await Promise.all(
+      ids.map(async (id) => [id, await buildMyPermissionsPayload(id, userId)])
+    );
+    const permsByServer = new Map(permEntries);
+
     const list = (memberships || [])
       .map((m) => {
         const row = byId.get(m.server_id);
@@ -633,6 +640,7 @@ router.get("/my", requireAuth, async (req, res) => {
           isOwner: row.owner_id === userId,
           memberCount: counts.get(row.id) || 0,
           channels: channelsByServer.get(row.id) || [],
+          myPermissions: permsByServer.get(row.id) || null,
         });
       })
       .filter(Boolean);
