@@ -1174,8 +1174,60 @@ router.delete("/:id/members/:userId/roles/:roleId", requireAuth, async (req, res
 });
 
 /**
+ * DELETE /servers/:id/members/:userId — kick member (KICK_MEMBERS)
+ * Cannot kick the owner or yourself (use leave).
+ */
+router.delete("/:id/members/:userId", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const targetUserId = req.params.userId;
+    const { server } = await requireServerPermission(serverId, req.user.id, Permissions.KICK_MEMBERS);
+
+    if (targetUserId === req.user.id) {
+      return res.status(400).json({ error: "Use leave to remove yourself.", code: "USE_LEAVE" });
+    }
+    if (server.owner_id === targetUserId) {
+      return res.status(403).json({ error: "Cannot kick the server owner.", code: "CANNOT_KICK_OWNER" });
+    }
+
+    const targetMembership = await getMembership(serverId, targetUserId);
+    if (!targetMembership) {
+      return res.status(404).json({ error: "Member not found in this server." });
+    }
+
+    const { error: delErr } = await supabase
+      .from("server_members")
+      .delete()
+      .eq("server_id", serverId)
+      .eq("user_id", targetUserId);
+    if (delErr) throw delErr;
+
+    await supabase
+      .from("server_member_roles")
+      .delete()
+      .eq("server_id", serverId)
+      .eq("user_id", targetUserId);
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "MEMBER_KICK",
+      targetType: "member",
+      targetId: targetUserId,
+      reason: req.body?.reason ? String(req.body.reason).slice(0, 200) : null,
+    });
+
+    return res.json({ message: "Member kicked.", userId: targetUserId, serverId });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] DELETE member kick error:", err);
+    return res.status(status).json({ error: err.message || "Failed to kick member.", code: err.code });
+  }
+});
+
+/**
  * POST /servers/:id/channels
- * Create text | voice | category. Owner only (Step 3).
+ * Create text | voice | category. Owner or MANAGE_CHANNELS.
  */
 router.post("/:id/channels", requireAuth, async (req, res) => {
   try {

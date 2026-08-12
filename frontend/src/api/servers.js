@@ -128,3 +128,11 @@ export function removeMemberRole(serverId, userId, roleId) {
     method: "DELETE",
   });
 }
+
+/** Kick a member (KICK_MEMBERS). Cannot kick owner or yourself. */
+export function kickServerMember(serverId, userId, reason) {
+  return serversRequest(`/api/servers/${serverId}/members/${userId}`, {
+    method: "DELETE",
+    body: reason ? { reason } : {},
+  });
+}

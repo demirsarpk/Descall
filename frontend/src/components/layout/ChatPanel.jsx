@@ -22,6 +22,7 @@ import { resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
 import AdminBadge from "../social/AdminBadge";
 import UserProfileModal from "../social/UserProfileModal";
+import ServerMembersPanel from "../servers/ServerMembersPanel";
 
 export default function ChatPanel({
   activeView,
@@ -165,10 +166,12 @@ export default function ChatPanel({
     setSearchQuery("");
   }, [activeDmUser, activeGroup]);
 
-  // Close members sheet when leaving a conversation surface
+  // Close members sheet when leaving a conversation / server surface
   useEffect(() => {
-    if (!activeDmUser && !activeGroup) setShowMembers(false);
-  }, [activeDmUser, activeGroup]);
+    if (!activeDmUser && !activeGroup && !(activeView === "servers" && activeServer)) {
+      setShowMembers(false);
+    }
+  }, [activeDmUser, activeGroup, activeView, activeServer]);
 
   const getTitle = () => {
     if (activeDmUser) return resolveDisplayName(activeDmUser);
@@ -636,7 +639,7 @@ export default function ChatPanel({
           />
           <motion.aside
             key="members-panel"
-            className="members-panel"
+            className={`members-panel${activeView === "servers" && activeServer ? " server-members-panel" : ""}`}
             role="complementary"
             aria-label={t("Members")}
             initial={isMobile ? { x: "100%" } : { x: 24, opacity: 0 }}
@@ -644,100 +647,112 @@ export default function ChatPanel({
             exit={isMobile ? { x: "100%" } : { x: 24, opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
           >
-            {(() => {
-              const raw =
-                activeGroup?.members?.length > 0
-                  ? activeGroup.members
-                  : activeDmUser
-                    ? [activeDmUser]
-                    : [];
-              const ownerId = activeGroup?.created_by ?? null;
-              const decorated = raw.map((m) => {
-                const status = getPresenceStatus(onlineUsers, m.id);
-                return {
-                  ...m,
-                  _status: status,
-                  _online: isVisiblyOnline(onlineUsers, m.id),
-                  _isOwner: ownerId != null && m.id === ownerId,
-                };
-              });
-              const online = decorated
-                .filter((m) => m._online)
-                .sort((a, b) => Number(b._isOwner) - Number(a._isOwner) || resolveDisplayName(a).localeCompare(resolveDisplayName(b)));
-              const offline = decorated
-                .filter((m) => !m._online)
-                .sort((a, b) => Number(b._isOwner) - Number(a._isOwner) || resolveDisplayName(a).localeCompare(resolveDisplayName(b)));
+            {activeView === "servers" && activeServer ? (
+              <ServerMembersPanel
+                server={activeServer}
+                me={me}
+                friends={friends}
+                onlineUsers={onlineUsers}
+                onClose={() => setShowMembers(false)}
+                onOpenProfile={(user) => setProfileTarget(user)}
+                onStartDm={onStartDm}
+              />
+            ) : (
+              (() => {
+                const raw =
+                  activeGroup?.members?.length > 0
+                    ? activeGroup.members
+                    : activeDmUser
+                      ? [activeDmUser]
+                      : [];
+                const ownerId = activeGroup?.created_by ?? null;
+                const decorated = raw.map((m) => {
+                  const status = getPresenceStatus(onlineUsers, m.id);
+                  return {
+                    ...m,
+                    _status: status,
+                    _online: isVisiblyOnline(onlineUsers, m.id),
+                    _isOwner: ownerId != null && m.id === ownerId,
+                  };
+                });
+                const online = decorated
+                  .filter((m) => m._online)
+                  .sort((a, b) => Number(b._isOwner) - Number(a._isOwner) || resolveDisplayName(a).localeCompare(resolveDisplayName(b)));
+                const offline = decorated
+                  .filter((m) => !m._online)
+                  .sort((a, b) => Number(b._isOwner) - Number(a._isOwner) || resolveDisplayName(a).localeCompare(resolveDisplayName(b)));
 
-              const renderRow = (m) => {
-                const name = resolveDisplayName(m);
-                const statusLabel = t(STATUS_META[m._status]?.label || "Offline");
-                return (
-                  <div
-                    key={m.id}
-                    className={`member-row${m._online ? "" : " is-offline"}`}
-                  >
-                    <div className="member-avatar-wrap">
-                      <Avatar name={name} size={36} user={m} />
-                      <StatusBadge status={m._status} />
-                    </div>
-                    <div className="member-meta">
-                      <div className="member-name-row">
-                        <span className="member-name">{name}</span>
-                        <AdminBadge user={m} variant="inline" />
-                        {m._isOwner && (
-                          <span className="member-owner-badge" title={t("Owner")}>
-                            <Crown size={11} strokeWidth={2.25} aria-hidden="true" />
-                            <span className="member-owner-text">{t("Owner")}</span>
-                          </span>
-                        )}
-                      </div>
-                      <span className="member-status-label">{statusLabel}</span>
-                    </div>
-                  </div>
-                );
-              };
-
-              return (
-                <>
-                  <div className="members-panel-header">
-                    <h4>
-                      {t("Members")}
-                      <span className="members-panel-count">{decorated.length}</span>
-                    </h4>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      onClick={() => setShowMembers(false)}
-                      title={t("Close")}
-                      aria-label={t("Close")}
+                const renderRow = (m) => {
+                  const name = resolveDisplayName(m);
+                  const statusLabel = t(STATUS_META[m._status]?.label || "Offline");
+                  return (
+                    <div
+                      key={m.id}
+                      className={`member-row${m._online ? "" : " is-offline"}`}
                     >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <div className="members-panel-scroll">
-                    {online.length > 0 && (
-                      <section className="members-section">
-                        <h5 className="members-section-label">
-                          {t("Online — {count}", { count: online.length })}
-                        </h5>
-                        <div className="members-section-list">{online.map(renderRow)}</div>
-                      </section>
-                    )}
-                    {offline.length > 0 && (
-                      <section className="members-section">
-                        <h5 className="members-section-label">
-                          {t("Offline — {count}", { count: offline.length })}
-                        </h5>
-                        <div className="members-section-list">{offline.map(renderRow)}</div>
-                      </section>
-                    )}
-                    {decorated.length === 0 && (
-                      <p className="members-empty">{t("No members")}</p>
-                    )}
-                  </div>
-                </>
-              );
-            })()}
+                      <div className="member-avatar-wrap">
+                        <Avatar name={name} size={36} user={m} />
+                        <StatusBadge status={m._status} />
+                      </div>
+                      <div className="member-meta">
+                        <div className="member-name-row">
+                          <span className="member-name">{name}</span>
+                          <AdminBadge user={m} variant="inline" />
+                          {m._isOwner && (
+                            <span className="member-owner-badge" title={t("Owner")}>
+                              <Crown size={11} strokeWidth={2.25} aria-hidden="true" />
+                              <span className="member-owner-text">{t("Owner")}</span>
+                            </span>
+                          )}
+                        </div>
+                        <span className="member-status-label">{statusLabel}</span>
+                      </div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <>
+                    <div className="members-panel-header">
+                      <h4>
+                        {t("Members")}
+                        <span className="members-panel-count">{decorated.length}</span>
+                      </h4>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => setShowMembers(false)}
+                        title={t("Close")}
+                        aria-label={t("Close")}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                    <div className="members-panel-scroll">
+                      {online.length > 0 && (
+                        <section className="members-section">
+                          <h5 className="members-section-label">
+                            {t("Online — {count}", { count: online.length })}
+                          </h5>
+                          <div className="members-section-list">{online.map(renderRow)}</div>
+                        </section>
+                      )}
+                      {offline.length > 0 && (
+                        <section className="members-section">
+                          <h5 className="members-section-label">
+                            {t("Offline — {count}", { count: offline.length })}
+                          </h5>
+                          <div className="members-section-list">{offline.map(renderRow)}</div>
+                        </section>
+                      )}
+                      {decorated.length === 0 && (
+                        <p className="members-empty">{t("No members")}</p>
+                      )}
+                    </div>
+                  </>
+                );
+              })()
+            )}
           </motion.aside>
         </>
       )}

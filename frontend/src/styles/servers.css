@@ -794,6 +794,98 @@
   background: color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
+/* ── Server members panel (Step 7) ── */
+.members-panel.server-members-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.server-members-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-3, var(--surface-2));
+  border: 1px solid var(--border-2);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.server-members-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.server-members-search input::placeholder {
+  color: var(--text-muted);
+}
+
+button.member-row.server-member-row {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  position: relative;
+}
+
+.server-member-row-more {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+  color: var(--text-muted);
+  transition: opacity 0.12s ease;
+}
+
+.server-member-row:hover .server-member-row-more,
+.server-member-row:focus-visible .server-member-row-more {
+  opacity: 1;
+}
+
+.server-member-menu {
+  position: fixed;
+  z-index: 12000;
+  min-width: 200px;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-3);
+  box-shadow: var(--shadow-xl, 0 12px 40px rgba(0, 0, 0, 0.35));
+}
+
+.server-member-role-submenu {
+  margin: 2px 0 4px 8px;
+  padding: 4px;
+  border-left: 2px solid var(--border-2);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.server-dropdown-item.active {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.server-role-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 @media (max-width: 720px) {
   .server-roles-layout {
     grid-template-columns: 1fr;
