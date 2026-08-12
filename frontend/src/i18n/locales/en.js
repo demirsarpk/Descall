@@ -1517,7 +1517,6 @@ export const phrases = {
   "Slowmode: wait {time}": "Slowmode: wait {time}",
   "Members must wait {time} between messages.": "Members must wait {time} between messages.",
   "Off — members can send freely.": "Off — members can send freely.",
-  "Off": "Off",
   "Freeze Chat": "Freeze Chat",
   "Clear Cache": "Clear Cache",
   "Backup": "Backup",
