@@ -1914,8 +1914,8 @@ button.member-row.server-member-row {
 }
 
 .server-channel-perms-editor {
-  padding: 14px 16px 16px;
-  overflow: auto;
+  padding: 14px 16px 0;
+  overflow: hidden;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1943,8 +1943,12 @@ button.member-row.server-member-row {
   display: flex;
   flex-direction: column;
   gap: 0;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
 }
 
 .server-channel-perms-row {
@@ -2002,12 +2006,15 @@ button.member-row.server-member-row {
 }
 
 .server-channel-perms-editor .server-modal-actions {
-  margin-top: 12px;
-  padding-top: 4px;
+  margin-top: auto;
+  margin-left: -16px;
+  margin-right: -16px;
+  padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
   flex-shrink: 0;
-  position: sticky;
-  bottom: 0;
-  background: linear-gradient(to top, var(--surface-2) 70%, transparent);
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid var(--border-2);
+  background: var(--surface-2, #0e1220);
 }
 
 .server-voice-user {
@@ -2088,7 +2095,9 @@ button.member-row.server-member-row {
 
   .server-channel-perms-layout {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
   }
 
   .server-channel-perms-targets {
@@ -2097,6 +2106,7 @@ button.member-row.server-member-row {
     max-height: none;
     padding: 8px 0 10px;
     overflow: visible;
+    flex-shrink: 0;
   }
 
   .server-channel-perms-targets-head {
@@ -2141,7 +2151,10 @@ button.member-row.server-member-row {
   }
 
   .server-channel-perms-editor {
-    padding: 10px 2px calc(12px + env(safe-area-inset-bottom));
+    padding: 10px 2px 0;
+    overflow: hidden;
+    min-height: 0;
+    height: 100%;
   }
 
   .server-channel-perms-editor-head {
@@ -2189,6 +2202,9 @@ button.member-row.server-member-row {
 
   .server-channel-perms-editor .server-modal-actions {
     gap: 8px;
+    margin-left: -2px;
+    margin-right: -2px;
+    padding: 10px 2px calc(12px + env(safe-area-inset-bottom, 0px));
   }
 
   .server-channel-perms-editor .server-modal-actions .server-ghost-btn,
