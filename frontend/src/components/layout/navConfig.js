@@ -8,12 +8,14 @@ import {
   Settings,
   Plus,
   Shield,
+  Server,
 } from "lucide-react";
 
 /** Shared primary destinations for the left vertical nav rail. */
 export const MAIN_NAV_IDS = [
   "chat",
   "groups",
+  "servers",
   "play",
   "friends",
   "activity",
@@ -28,6 +30,7 @@ export function buildMainNavItems(t) {
   return [
     { id: "chat", icon: MessageSquare, label: t("nav.chats"), group: "main" },
     { id: "groups", icon: Users, label: t("nav.groups"), group: "main" },
+    { id: "servers", icon: Server, label: t("nav.servers"), group: "main" },
     { id: "play", icon: Crosshair, label: t("nav.play"), group: "main" },
     { id: "friends", icon: UserPlus, label: t("nav.friends"), group: "main" },
     { id: "activity", icon: Zap, label: t("Activity"), group: "main" },

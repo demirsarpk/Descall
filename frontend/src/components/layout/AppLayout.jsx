@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, X, MessageSquare, Users, Phone, Activity, Settings, Crosshair } from "lucide-react";
+import { Bell, X, MessageSquare, Users, Phone, Activity, Settings, Crosshair, Server } from "lucide-react";
 import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
+import ServersSidebar from "../servers/ServersSidebar";
 import ChatPanel from "./ChatPanel";
 import UserPanel from "./UserPanel";
 import ActivitySidebar from "../activity/ActivitySidebar";
@@ -77,6 +78,17 @@ export default function AppLayout({
   activeTimeout = null,
   friendsLoaded = true,
   groupsLoaded = true,
+  servers = [],
+  serversLoaded = false,
+  activeServer = null,
+  ownedServerCount = 0,
+  maxOwnedServers = 10,
+  onServerSelect,
+  onServerBack,
+  onCreateServer,
+  onLeaveServer,
+  onDeleteServer,
+  onRefreshServers,
 }) {
   const t = useT();
   const { isMobile } = useMobile();
@@ -114,24 +126,24 @@ export default function AppLayout({
   const openUserPanel = useCallback(() => {
     setUserPanelOpen(true);
     if (isMobile) setMobileDrawerOpen(false);
-  }, [isMobile]);
+  }, [isMobile, setUserPanelOpen]);
 
   const closeUserPanel = useCallback(() => {
     setUserPanelOpen(false);
-    if (isMobile && !activeDmUser && !activeGroup) {
+    if (isMobile && !activeDmUser && !activeGroup && !activeServer) {
       setMobileDrawerOpen(true);
     }
-  }, [isMobile, activeDmUser, activeGroup]);
+  }, [isMobile, activeDmUser, activeGroup, activeServer, setUserPanelOpen]);
 
   useEffect(() => {
     if (!isMobile) setMobileDrawerOpen(false);
   }, [isMobile]);
 
   useEffect(() => {
-    if (isMobile && !activeDmUser && !activeGroup) {
+    if (isMobile && !activeDmUser && !activeGroup && !(activeView === "servers" && activeServer)) {
       setMobileDrawerOpen(true);
     }
-  }, [isMobile, activeDmUser, activeGroup]);
+  }, [isMobile, activeDmUser, activeGroup, activeServer, activeView]);
 
   useEffect(() => {
     if (!isMobile || !mobileDrawerOpen) return;
@@ -191,25 +203,35 @@ export default function AppLayout({
   const handleViewChange = useCallback((view) => {
     setActiveView(view);
     if (view === "calls" || view === "activity" || view === "friends" || view === "play") {
-      // Leave conversation so the dedicated view can fill the main panel
+      if (activeDmUser) onDmSelect?.(null);
+      if (activeGroup) onGroupSelect?.(null);
+      if (activeServer) onServerBack?.();
+    }
+    if (view === "chat" || view === "groups") {
+      if (activeServer) onServerBack?.();
+    }
+    if (view === "servers") {
       if (activeDmUser) onDmSelect?.(null);
       if (activeGroup) onGroupSelect?.(null);
     }
     if (isMobile) {
-      // Play + Activity are full-page layouts (no list drawer overlay).
-      // Friends/calls/chat open the drawer to pick a conversation.
       setMobileDrawerOpen(view !== "play" && view !== "activity");
     }
-  }, [isMobile, activeDmUser, activeGroup, onDmSelect, onGroupSelect]);
+  }, [isMobile, activeDmUser, activeGroup, activeServer, onDmSelect, onGroupSelect, onServerBack, setActiveView]);
 
   const handleMobileBack = useCallback(() => {
+    if (activeServer) {
+      onServerBack?.();
+      openMobileDrawer();
+      return;
+    }
     if (activeDmUser) onDmSelect?.(null);
     if (activeGroup) onGroupSelect?.(null);
     openMobileDrawer();
-  }, [activeDmUser, activeGroup, onDmSelect, onGroupSelect, openMobileDrawer]);
+  }, [activeDmUser, activeGroup, activeServer, onDmSelect, onGroupSelect, onServerBack, openMobileDrawer]);
 
   const isElectron = typeof window !== "undefined" && !!window.electronAPI?.isElectron;
-  const inConversation = !!(activeDmUser || activeGroup);
+  const inConversation = !!(activeDmUser || activeGroup || (activeView === "servers" && activeServer));
   // On a narrow conversation surface the fixed banner sits directly over the
   // DM header, stealing profile/voice-call taps. Offer it once the user leaves
   // the conversation instead.
@@ -323,6 +345,22 @@ export default function AppLayout({
             /* Full-page on mobile (not a drawer) — X returns to chats like Play. */
             onMobileClose={isMobile ? () => handleViewChange("chat") : undefined}
           />
+        ) : activeView === "servers" ? (
+          <ServersSidebar
+            servers={servers}
+            serversLoaded={serversLoaded}
+            activeServer={activeServer}
+            ownedCount={ownedServerCount}
+            maxOwned={maxOwnedServers}
+            onSelectServer={onServerSelect}
+            onBackToList={onServerBack}
+            onCreateServer={onCreateServer}
+            onLeaveServer={onLeaveServer}
+            onDeleteServer={onDeleteServer}
+            onRefresh={onRefreshServers}
+            onMobileClose={isMobile ? closeMobileDrawer : undefined}
+            isMobile={isMobile}
+          />
         ) : (
           <ServerSidebar
             collapsed={sidebarCollapsed}
@@ -387,6 +425,7 @@ export default function AppLayout({
         activeView={activeView}
         activeDmUser={activeDmUser}
         activeGroup={activeGroup}
+        activeServer={activeServer}
         socket={socket}
         me={me}
         activeTimeout={activeTimeout}
@@ -457,6 +496,14 @@ export default function AppLayout({
           >
             <MessageSquare size={20} />
             <span>{t("Chat")}</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "servers" ? "active" : ""}`}
+            onClick={() => handleViewChange("servers")}
+          >
+            <Server size={20} />
+            <span>{t("Servers")}</span>
           </button>
           <button
             type="button"

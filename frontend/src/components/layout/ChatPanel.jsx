@@ -27,6 +27,7 @@ export default function ChatPanel({
   activeView,
   activeDmUser,
   activeGroup,
+  activeServer = null,
   socket,
   me,
   sidebarCollapsed,
@@ -171,6 +172,7 @@ export default function ChatPanel({
   const getTitle = () => {
     if (activeDmUser) return resolveDisplayName(activeDmUser);
     if (activeGroup) return activeGroup.name;
+    if (activeServer) return activeServer.name;
     if (activeView === "chat") return t("Chats");
     if (activeView === "dms") return t("Direct Messages");
     if (activeView === "groups") return t("Groups");
@@ -188,6 +190,9 @@ export default function ChatPanel({
     }
     if (activeGroup) {
       return t("{count} members", { count: activeGroup.memberCount || 0 });
+    }
+    if (activeServer) {
+      return t("{count} members", { count: activeServer.memberCount || 1 });
     }
     return "";
   };
@@ -225,6 +230,16 @@ export default function ChatPanel({
         secondary: { label: t("Open groups"), action: () => onViewChange?.("groups"), icon: Users },
         icon: Phone,
         illustration: "calls",
+      };
+    }
+    if (activeView === "servers") {
+      return {
+        title: t("Your servers"),
+        body: t("Pick a server from the sidebar — or create one to get started."),
+        primary: undefined,
+        secondary: undefined,
+        icon: Hash,
+        illustration: "chat",
       };
     }
     return {
@@ -452,6 +467,16 @@ export default function ChatPanel({
           onOpenChat={onOpenChatFromCalls}
           onOpenGroup={onOpenGroupFromCalls}
         />
+      ) : activeView === "servers" ? (
+        <div className="server-main-placeholder">
+          <Hash size={40} strokeWidth={1.5} />
+          <h2>{activeServer ? activeServer.name : t("Servers")}</h2>
+          <p>
+            {activeServer
+              ? t("Text chat and voice connect land in the next steps. Channels are preview-only for now.")
+              : t("Pick a server from the sidebar — or create one to get started.")}
+          </p>
+        </div>
       ) : (
       <div className="messages-container" ref={messagesRef}>
         {showSearch && (

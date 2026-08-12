@@ -9,6 +9,13 @@ import SeoHead from "./site/SeoHead";
 import { getMe, login, loginWithGoogle, register, verify2faLogin } from "./api/auth";
 import { getMyGroups, getGroupMessages } from "./api/groups";
 import { getFriendsList, getFriendRequestsList } from "./api/friends";
+import {
+  getMyServers,
+  createServer,
+  deleteServer,
+  leaveServer,
+  getServer,
+} from "./api/servers";
 import { createSocket } from "./socket";
 import { API_BASE_URL } from "./config/api";
 import { preloadIceServers } from "./lib/iceConfig";
@@ -36,7 +43,7 @@ import { requestNativePushPermission, syncNativePushToken, isNativePushPlatform 
 import { useToast } from "./context/ToastContext";
 import { useLocale } from "./context/LocaleContext";
 import { t as tRuntime } from "./i18n/runtime";
-import { appPathForView, directPath, groupPath, isAuthenticatedAppPath, parseAppRoute } from "./lib/appRoutes";
+import { appPathForView, directPath, groupPath, serverPath, isAuthenticatedAppPath, parseAppRoute } from "./lib/appRoutes";
 import { parseAppDate } from "./lib/datetime";
 import AdminPanel from "./components/admin/AdminPanel";
 import ShopGiftPopup from "./components/shop/ShopGiftPopup";
@@ -287,6 +294,11 @@ export default function App() {
   const [adminChanged, setAdminChanged] = useState(false);
   const [myGroups, setMyGroups] = useState([]);
   const [groupMessagesById, setGroupMessagesById] = useState({});
+  const [myServers, setMyServers] = useState([]);
+  const [serversLoaded, setServersLoaded] = useState(false);
+  const [activeServer, setActiveServer] = useState(null);
+  const [ownedServerCount, setOwnedServerCount] = useState(0);
+  const [maxOwnedServers, setMaxOwnedServers] = useState(10);
   // Electron silent auto-update state: null | 'downloading' | 'installing'
   const [updateState, setUpdateState] = useState(null);
   const [updateVersion, setUpdateVersion] = useState(null);
@@ -931,6 +943,17 @@ export default function App() {
           socket.emit("groups:rejoin", ids);
         }
       }).catch(console.error);
+      getMyServers()
+        .then((data) => {
+          setMyServers(data?.servers || []);
+          setOwnedServerCount(data?.ownedCount || 0);
+          setMaxOwnedServers(data?.maxOwned || 10);
+          setServersLoaded(true);
+        })
+        .catch((err) => {
+          console.error("[App] load servers error:", err);
+          setServersLoaded(true);
+        });
     });
 
     socket.on("status:current", ({ status } = {}) => {
@@ -2058,6 +2081,7 @@ export default function App() {
 
     if (requestedRoute.view === "chat") {
       setActiveGroup(null);
+      setActiveServer(null);
       if (!requestedRoute.username) {
         setActiveDmUser(null);
         return;
@@ -2077,6 +2101,7 @@ export default function App() {
 
     if (requestedRoute.view === "groups") {
       setActiveDmUser(null);
+      setActiveServer(null);
       if (!requestedRoute.groupId) {
         setActiveGroup(null);
         return;
@@ -2095,9 +2120,31 @@ export default function App() {
       return;
     }
 
+    if (requestedRoute.view === "servers") {
+      setActiveDmUser(null);
+      setActiveGroup(null);
+      if (!requestedRoute.serverId) {
+        setActiveServer(null);
+        return;
+      }
+      if (!serversLoaded) return;
+      const server = myServers.find((item) => item?.id === requestedRoute.serverId);
+      if (!server) {
+        setActiveServer(null);
+        navigate("/servers", { replace: true });
+        return;
+      }
+      if (activeServer?.id !== server.id) {
+        setActiveServer(server);
+      }
+      return;
+    }
+
     setActiveDmUser(null);
     setActiveGroup(null);
+    setActiveServer(null);
   }, [
+    activeServer,
     friends,
     friendsLoaded,
     groupsLoaded,
@@ -2105,8 +2152,10 @@ export default function App() {
     location.pathname,
     me?.id,
     myGroups,
+    myServers,
     navigate,
     requestedRoute,
+    serversLoaded,
     sessionChecked,
   ]);
 
@@ -2615,6 +2664,83 @@ export default function App() {
           <DesCoinGiftPopup gift={descoinGift} onDismiss={() => setDescoinGift(null)} />
         )}
         
+
+  const handleRefreshServers = async () => {
+    try {
+      const data = await getMyServers();
+      setMyServers(data?.servers || []);
+      setOwnedServerCount(data?.ownedCount || 0);
+      setMaxOwnedServers(data?.maxOwned || 10);
+      setServersLoaded(true);
+      if (activeServer?.id) {
+        const updated = (data?.servers || []).find((s) => s.id === activeServer.id);
+        setActiveServer(updated || null);
+      }
+    } catch (err) {
+      console.error("[App] refresh servers error:", err);
+      setFriendNotice(err.message || "Failed to load servers");
+      setTimeout(() => setFriendNotice(""), 4000);
+    }
+  };
+
+  const handleCreateServer = async ({ name, iconUrl }) => {
+    const { server, ownedCount, maxOwned } = await createServer({ name, iconUrl });
+    if (server) {
+      setMyServers((prev) => (prev.some((s) => s.id === server.id) ? prev : [...prev, server]));
+      setOwnedServerCount(ownedCount ?? ((ownedServerCount || 0) + 1));
+      if (maxOwned) setMaxOwnedServers(maxOwned);
+      setActiveServer(server);
+      setActiveView("servers");
+      const nextPath = serverPath(server);
+      if (location.pathname !== nextPath) navigate(nextPath);
+    }
+  };
+
+  const handleDeleteServer = async (serverId, confirmName) => {
+    await deleteServer(serverId, confirmName);
+    setMyServers((prev) => prev.filter((s) => s.id !== serverId));
+    setOwnedServerCount((c) => Math.max(0, (c || 1) - 1));
+    if (activeServer?.id === serverId) {
+      setActiveServer(null);
+      navigate("/servers");
+    }
+  };
+
+  const handleLeaveServer = async (serverId, confirmName) => {
+    const result = await leaveServer(serverId, confirmName);
+    setMyServers((prev) => prev.filter((s) => s.id !== serverId));
+    if (result?.deleted) setOwnedServerCount((c) => Math.max(0, (c || 1) - 1));
+    if (activeServer?.id === serverId) {
+      setActiveServer(null);
+      navigate("/servers");
+    }
+  };
+
+  const handleServerSelect = (server) => {
+    if (!server?.id) return;
+    setActiveDmUser(null);
+    setActiveGroup(null);
+    setActiveServer(server);
+    setActiveView("servers");
+    const nextPath = serverPath(server);
+    if (location.pathname !== nextPath) navigate(nextPath);
+    getServer(server.id)
+      .then((data) => {
+        if (data?.server) {
+          setActiveServer(data.server);
+          setMyServers((prev) =>
+            prev.map((s) => (s.id === data.server.id ? { ...s, ...data.server } : s))
+          );
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleServerBack = () => {
+    setActiveServer(null);
+    if (location.pathname.startsWith("/servers/")) navigate("/servers");
+  };
+
         {/* NEW MODULAR LAYOUT SYSTEM */}
         <AppLayout
           me={me}
@@ -2626,8 +2752,16 @@ export default function App() {
           activeGroup={activeGroup}
           activeView={activeView}
           onActiveViewChange={(view) => {
-            const nextPath = appPathForView(view);
             setActiveView(view);
+            if (view !== "servers") {
+              setActiveServer(null);
+              const nextPath = appPathForView(view);
+              if (location.pathname !== nextPath) navigate(nextPath);
+              return;
+            }
+            setActiveDmUser(null);
+            setActiveGroup(null);
+            const nextPath = activeServer?.id ? serverPath(activeServer) : "/servers";
             if (location.pathname !== nextPath) navigate(nextPath);
           }}
           userPanelOpen={userPanelOpen}
@@ -2646,6 +2780,17 @@ export default function App() {
           friends={friends}
           friendsLoaded={friendsLoaded}
           groupsLoaded={groupsLoaded}
+          servers={myServers}
+          serversLoaded={serversLoaded}
+          activeServer={activeServer}
+          ownedServerCount={ownedServerCount}
+          maxOwnedServers={maxOwnedServers}
+          onServerSelect={handleServerSelect}
+          onServerBack={handleServerBack}
+          onCreateServer={handleCreateServer}
+          onLeaveServer={handleLeaveServer}
+          onDeleteServer={handleDeleteServer}
+          onRefreshServers={handleRefreshServers}
           onlineUsers={onlineUsers}
           myStatus={myStatus}
           onStatusChange={handleStatusChange}
@@ -2666,6 +2811,7 @@ export default function App() {
             const unread = dmUnread[dm.id] || 0;
             setUnreadMarker(unread > 0 ? { key: `dm:${dm.id}`, count: unread } : null);
             setActiveGroup(null);
+            setActiveServer(null);
             setActiveDmUser(dm);
             if (dmByUserId[dm.id] === undefined) setMessagesLoading(true);
             setDmUnread((u) => { const n = { ...u }; delete n[dm.id]; return n; });
@@ -2676,6 +2822,7 @@ export default function App() {
           onGroupSelect={(group) => {
             setReplyTo(null);
             setActiveDmUser(null);
+            setActiveServer(null);
             if (!group?.id) {
               setActiveGroup(null);
               setUnreadMarker(null);
