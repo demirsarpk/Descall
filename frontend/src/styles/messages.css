@@ -51,6 +51,20 @@
 .message-avatar {
   position: relative;
   flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  overflow: visible;
+}
+
+.message-avatar .status-badge {
+  /* Sit on the photo corner; frame/effect rings may extend past this box */
+  right: -1px;
+  bottom: -1px;
+  z-index: 4;
 }
 
 .message-meta {

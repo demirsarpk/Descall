@@ -224,8 +224,10 @@
 
 /* ── Presence flares (status badge cosmetics) ──────────────────────────── */
 
+/* Do NOT set position here — StatusBadge relies on position:absolute on
+   .status-badge. Overriding to relative pulled the dot into normal flow
+   next to the avatar and stretched it into a tall green oval. */
 .cosmetic-presence-flare {
-  position: relative;
   box-shadow: 0 0 0 2px rgba(255,255,255,0.2);
 }
 .cosmetic-presence-flare.flare-pulse-cyan { box-shadow: 0 0 0 2px #22d3ee, 0 0 10px #22d3ee; animation: cosmetic-pulse-ring 1.6s ease-out infinite; }
