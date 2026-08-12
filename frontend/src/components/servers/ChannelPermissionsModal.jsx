@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
-import { Shield, UserPlus, X, Trash2 } from "lucide-react";
+import { Check, Minus, Shield, UserPlus, X, Trash2 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
 import {
@@ -29,6 +30,12 @@ const PERM_LABELS = {
   MUTE_MEMBERS: "Mute members",
   MOVE_MEMBERS: "Move members",
 };
+
+const TRI_STATES = [
+  { state: "allow", labelKey: "Allow", Icon: Check },
+  { state: "inherit", labelKey: "Inherit", Icon: Minus },
+  { state: "deny", labelKey: "Deny", Icon: X },
+];
 
 function stateFromOverride(override, key) {
   if (!override) return "inherit";
@@ -78,6 +85,14 @@ export default function ChannelPermissionsModal({ server, channel, onClose }) {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server?.id, channel?.id]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const selected = useMemo(() => {
     if (!selectedKey) return null;
@@ -150,10 +165,10 @@ export default function ChannelPermissionsModal({ server, channel, onClose }) {
   }, [roles, members, overrides]);
 
   const addableRoles = roles.filter(
-    (r) => !targetsOnList.some((t) => t.key === `role:${r.id}`)
+    (r) => !targetsOnList.some((item) => item.key === `role:${r.id}`)
   );
   const addableMembers = members.filter(
-    (m) => !targetsOnList.some((t) => t.key === `member:${m.userId}`)
+    (m) => !targetsOnList.some((item) => item.key === `member:${m.userId}`)
   );
 
   const save = async () => {
@@ -195,8 +210,10 @@ export default function ChannelPermissionsModal({ server, channel, onClose }) {
     }
   };
 
-  return (
-    <div className="server-modal-backdrop" role="presentation" onClick={onClose}>
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="server-modal-overlay" role="presentation" onClick={onClose}>
       <motion.div
         className="server-modal server-channel-perms-modal"
         role="dialog"
@@ -309,27 +326,28 @@ export default function ChannelPermissionsModal({ server, channel, onClose }) {
                       onClick={clearOverride}
                     >
                       <Trash2 size={14} />
-                      {t("Remove override")}
+                      <span className="server-channel-perms-remove-label">{t("Remove override")}</span>
                     </button>
                   )}
                 </div>
                 <div className="server-channel-perms-rows">
                   {editableKeys.map((key) => (
                     <div key={key} className="server-channel-perms-row">
-                      <span>{t(PERM_LABELS[key] || key)}</span>
-                      <div className="server-channel-perms-tri">
-                        {["allow", "inherit", "deny"].map((state) => (
+                      <span className="server-channel-perms-label">
+                        {t(PERM_LABELS[key] || key)}
+                      </span>
+                      <div className="server-channel-perms-tri" role="group" aria-label={t(PERM_LABELS[key] || key)}>
+                        {TRI_STATES.map(({ state, labelKey, Icon }) => (
                           <button
                             key={state}
                             type="button"
                             className={`server-perm-tri ${draft[key] === state ? `is-${state}` : ""}`}
+                            aria-label={t(labelKey)}
+                            title={t(labelKey)}
                             onClick={() => setDraft((d) => ({ ...d, [key]: state }))}
                           >
-                            {state === "allow"
-                              ? t("Allow")
-                              : state === "deny"
-                                ? t("Deny")
-                                : t("Inherit")}
+                            <Icon size={15} strokeWidth={2.4} aria-hidden />
+                            <span className="server-perm-tri-text">{t(labelKey)}</span>
                           </button>
                         ))}
                       </div>
@@ -354,6 +372,7 @@ export default function ChannelPermissionsModal({ server, channel, onClose }) {
           </div>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 }
