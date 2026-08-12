@@ -1,11 +1,31 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Headphones, LogIn, LogOut, Mic, MicOff, Monitor, MonitorOff, Users } from "lucide-react";
+import {
+  Headphones,
+  LogIn,
+  LogOut,
+  Mic,
+  MicOff,
+  Monitor,
+  MonitorOff,
+  Radio,
+  Users,
+  Video,
+  VideoOff,
+} from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
 import useSpeaking from "../../hooks/useSpeaking";
 
-function VoiceMemberRow({ member, label, stream = null, muted = false, micIcon = true, sharing = false }) {
+function VoiceMemberRow({
+  member,
+  label,
+  stream = null,
+  muted = false,
+  micIcon = true,
+  sharing = false,
+  cameraOn = false,
+}) {
   const speaking = useSpeaking(stream, { muted: Boolean(muted) });
   const name = label || resolveDisplayName(member) || member?.username || "User";
   return (
@@ -14,6 +34,9 @@ function VoiceMemberRow({ member, label, stream = null, muted = false, micIcon =
     >
       <Avatar name={name} size={32} user={member} className="server-voice-member-avatar" />
       <span>{name}</span>
+      {member?.stageRole === "speaker" ? <span className="server-stage-speaker-badge">Speaker</span> : null}
+      {member?.requestedToSpeak ? <span className="server-stage-request-badge">Requested</span> : null}
+      {cameraOn ? <Video size={12} className="server-voice-member-camera" /> : null}
       {sharing ? <Monitor size={12} className="server-voice-member-screen" /> : null}
       {micIcon ? muted ? <MicOff size={12} /> : <Mic size={12} /> : null}
     </div>
@@ -53,6 +76,32 @@ function ScreenStage({ stream, label }) {
   );
 }
 
+function CameraTile({ stream, label, muted = false }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (el.srcObject !== stream) el.srcObject = stream || null;
+    if (stream) el.play?.().catch(() => {});
+  }, [stream]);
+
+  if (!stream) return null;
+
+  return (
+    <div className="server-voice-camera-tile">
+      <video
+        ref={videoRef}
+        className="server-voice-camera-video"
+        autoPlay
+        playsInline
+        muted={muted}
+      />
+      <span className="server-voice-camera-label">{label}</span>
+    </div>
+  );
+}
+
 /**
  * Discord-like voice channel hangout panel (Step 10).
  * Screen share uses the same WebRTC mesh path as group/DM voicechat.
@@ -67,6 +116,8 @@ export default function ServerVoicePanel({
   const inThis =
     serverVoice?.isInVoice &&
     serverVoice.activeChannelId === channel?.id;
+  const isStage = channel?.type === "stage" || serverVoice?.channelType === "stage";
+  const isStageSpeaker = !isStage || serverVoice?.stageRole === "speaker";
   const state =
     serverVoice?.voiceStatesByServer?.[server?.id]?.[channel?.id] || null;
   const remoteMembers = inThis
@@ -85,9 +136,10 @@ export default function ServerVoicePanel({
   const canStream = Boolean(
     server?.isOwner ||
       server?.myPermissions?.flags?.STREAM ||
-      server?.myPermissions?.flags?.ADMINISTRATOR ||
-      server?.myPermissions?.flags?.VIDEO
+      server?.myPermissions?.flags?.ADMINISTRATOR
   );
+  const canPublishMedia = Boolean(serverVoice?.canSpeak && isStageSpeaker);
+  const canVideo = Boolean(canStream && serverVoice?.canStream && canPublishMedia);
 
   const activeScreen = useMemo(() => {
     if (!inThis) return null;
@@ -119,8 +171,26 @@ export default function ServerVoicePanel({
     t,
   ]);
 
+  const cameraTiles = useMemo(() => {
+    if (!inThis) return [];
+    const tiles = [];
+    if (serverVoice?.isCameraOn && serverVoice?.cameraStream) {
+      tiles.push({ id: "local", stream: serverVoice.cameraStream, label: t("You"), muted: true });
+    }
+    for (const member of serverVoice?.participants || []) {
+      if (!member?.cameraStream) continue;
+      tiles.push({
+        id: member.id,
+        stream: member.cameraStream,
+        label: resolveDisplayName(member) || member.username || "Member",
+        muted: false,
+      });
+    }
+    return tiles;
+  }, [inThis, serverVoice?.cameraStream, serverVoice?.isCameraOn, serverVoice?.participants, t]);
+
   const onToggleScreen = async () => {
-    if (!canStream) return;
+    if (!canVideo) return;
     if (serverVoice?.isScreenSharing) {
       await serverVoice.stopScreenShare?.();
     } else {
@@ -128,24 +198,47 @@ export default function ServerVoicePanel({
     }
   };
 
+  const onToggleCamera = async () => {
+    if (!canVideo) return;
+    await serverVoice?.toggleCamera?.();
+  };
+
   return (
     <div className="server-voice-panel">
       <div className="server-voice-hero">
         <span className="server-voice-hero-icon" aria-hidden>
-          <Headphones size={36} strokeWidth={1.5} />
+          {isStage ? <Radio size={36} strokeWidth={1.5} /> : <Headphones size={36} strokeWidth={1.5} />}
         </span>
-        <h2>{channel?.name || t("Voice channel")}</h2>
+        <h2>
+          {channel?.name || t("Voice channel")}
+          {isStage ? <span className="server-stage-pill">{t("Stage")}</span> : null}
+        </h2>
         <p>
           {count > 0
-            ? t("{count} in voice", { count })
-            : t("Join to talk — no ringing, drop in anytime.")}
+            ? isStage
+              ? t("{count} in stage", { count })
+              : t("{count} in voice", { count })
+            : isStage
+              ? t("Join as audience, then request to speak.")
+              : t("Join to talk — no ringing, drop in anytime.")}
         </p>
+        {serverVoice?.mediaMode === "sfu" ? (
+          <p className="server-media-mode">{t("SFU voice enabled")}</p>
+        ) : null}
         {channel?.topic ? <p className="server-channel-topic">{channel.topic}</p> : null}
         {serverVoice?.error ? <p className="server-modal-error">{serverVoice.error}</p> : null}
       </div>
 
       {activeScreen ? (
         <ScreenStage stream={activeScreen.stream} label={activeScreen.label} />
+      ) : null}
+
+      {cameraTiles.length > 0 ? (
+        <div className="server-voice-camera-grid">
+          {cameraTiles.map((tile) => (
+            <CameraTile key={tile.id} stream={tile.stream} label={tile.label} muted={tile.muted} />
+          ))}
+        </div>
       ) : null}
 
       <div className="server-voice-controls">
@@ -155,17 +248,41 @@ export default function ServerVoicePanel({
               type="button"
               className={`server-voice-btn ${serverVoice.muted ? "is-off" : ""}`}
               onClick={() => serverVoice.toggleMute?.()}
+              disabled={!serverVoice.canSpeak}
+              title={!serverVoice.canSpeak ? t("You need to be invited to speak first.") : undefined}
             >
               {serverVoice.muted ? <MicOff size={16} /> : <Mic size={16} />}
               {serverVoice.muted ? t("Unmute") : t("Mute")}
+            </button>
+            {isStage && serverVoice.stageRole !== "speaker" ? (
+              <button
+                type="button"
+                className={`server-voice-btn ${serverVoice.requestedToSpeak ? "is-screen-on" : ""}`}
+                onClick={() => serverVoice.requestToSpeak?.()}
+                disabled={!serverVoice.canRequestToSpeak || serverVoice.requestedToSpeak}
+                title={!serverVoice.canRequestToSpeak ? t("Permission denied") : undefined}
+              >
+                <Radio size={16} />
+                {serverVoice.requestedToSpeak ? t("Requested") : t("Request to Speak")}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`server-voice-btn ${serverVoice.isCameraOn ? "is-screen-on" : ""}`}
+              onClick={onToggleCamera}
+              disabled={!canVideo}
+              title={!canVideo ? t("Permission denied") : serverVoice.isCameraOn ? t("Turn Camera Off") : t("Turn Camera On")}
+            >
+              {serverVoice.isCameraOn ? <VideoOff size={16} /> : <Video size={16} />}
+              {serverVoice.isCameraOn ? t("Camera Off") : t("Camera")}
             </button>
             <button
               type="button"
               className={`server-voice-btn ${serverVoice.isScreenSharing ? "is-screen-on" : ""}`}
               onClick={onToggleScreen}
-              disabled={!canStream}
+              disabled={!canVideo}
               title={
-                !canStream
+                !canVideo
                   ? t("Permission denied")
                   : serverVoice.isScreenSharing
                     ? t("Stop Screen Share")
@@ -214,6 +331,7 @@ export default function ServerVoicePanel({
               stream={serverVoice.localStream}
               muted={serverVoice.muted}
               sharing={Boolean(serverVoice.isScreenSharing)}
+              cameraOn={Boolean(serverVoice.isCameraOn)}
             />
           )}
           {remoteMembers.map((m) => {
@@ -228,6 +346,7 @@ export default function ServerVoicePanel({
                 stream={stream}
                 muted={m.muted}
                 sharing={Boolean(m.isScreenSharing)}
+                cameraOn={Boolean(m.cameraOn)}
               />
             );
           })}

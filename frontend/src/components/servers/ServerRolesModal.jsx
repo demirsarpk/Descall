@@ -23,8 +23,12 @@ const PERM_LABELS = {
   MANAGE_CHANNELS: "Manage channels",
   MANAGE_GUILD: "Manage server",
   MANAGE_ROLES: "Manage roles",
+  USE_APPLICATION_COMMANDS: "Use app commands",
   KICK_MEMBERS: "Kick members",
   BAN_MEMBERS: "Ban members",
+  MODERATE_MEMBERS: "Timeout members",
+  CHANGE_NICKNAME: "Change own nickname",
+  MANAGE_NICKNAMES: "Manage nicknames",
   VIEW_AUDIT_LOG: "View audit log",
   CREATE_INSTANT_INVITE: "Create invite",
   MENTION_EVERYONE: "Mention @everyone",
@@ -34,6 +38,8 @@ const PERM_LABELS = {
   READ_MESSAGE_HISTORY: "Read message history",
   CONNECT: "Connect (voice)",
   SPEAK: "Speak",
+  REQUEST_TO_SPEAK: "Request to Speak",
+  PRIORITY_SPEAKER: "Priority speaker",
   STREAM: "Video / stream",
   MUTE_MEMBERS: "Mute members",
   DEAFEN_MEMBERS: "Deafen members",
@@ -75,17 +81,23 @@ const PERM_BITS = {
   MANAGE_CHANNELS: 1n << 4n,
   MANAGE_GUILD: 1n << 5n,
   MANAGE_ROLES: 1n << 28n,
+  USE_APPLICATION_COMMANDS: 1n << 31n,
   CREATE_INSTANT_INVITE: 1n << 0n,
   KICK_MEMBERS: 1n << 1n,
   BAN_MEMBERS: 1n << 2n,
+  MODERATE_MEMBERS: 1n << 40n,
+  CHANGE_NICKNAME: 1n << 26n,
+  MANAGE_NICKNAMES: 1n << 27n,
   VIEW_AUDIT_LOG: 1n << 7n,
   MENTION_EVERYONE: 1n << 17n,
   ATTACH_FILES: 1n << 15n,
   EMBED_LINKS: 1n << 14n,
   ADD_REACTIONS: 1n << 6n,
   READ_MESSAGE_HISTORY: 1n << 16n,
+  PRIORITY_SPEAKER: 1n << 8n,
   CONNECT: 1n << 20n,
   SPEAK: 1n << 21n,
+  REQUEST_TO_SPEAK: 1n << 32n,
   STREAM: 1n << 9n,
   MUTE_MEMBERS: 1n << 22n,
   DEAFEN_MEMBERS: 1n << 23n,
@@ -258,7 +270,12 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
     }
   };
 
-  const assignableRoles = roles.filter((r) => !r.isEveryone);
+  const actorHighestPosition = Number(server?.myPermissions?.highestPosition) || 0;
+  const assignableRoles = roles.filter(
+    (r) => !r.isEveryone && (server?.isOwner || (Number(r.position) || 0) < actorHighestPosition)
+  );
+  const canManageMember = (member) =>
+    Boolean(member && !member.isOwner && (server?.isOwner || actorHighestPosition > (Number(member.highestPosition) || 0)));
 
   return (
     <motion.div
@@ -451,13 +468,15 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
                     <div className="server-member-role-chips">
                       {assignableRoles.map((role) => {
                         const has = (member.roleIds || []).includes(role.id);
+                        const memberLocked = !canManageMember(member);
                         return (
                           <button
                             key={role.id}
                             type="button"
                             className={`server-role-chip ${has ? "active" : ""}`}
                             style={has ? { borderColor: colorToHex(role.color), color: colorToHex(role.color) } : undefined}
-                            disabled={busy}
+                            disabled={busy || memberLocked}
+                            title={memberLocked ? t("This member has an equal or higher role.") : undefined}
                             onClick={() => toggleMemberRole(member, role.id, has)}
                           >
                             {role.name}

@@ -5,12 +5,17 @@
 
 const { appendErrorLog, activeGroupCalls, screenShareSessions, presence, usernameById } = require("../runtime/sharedState");
 const supabase = require("../db/supabase");
-const { handleGameCommand, createGameMessage } = require("./gameHandlers");
 const { getCachedPublicUser, getAvatarUrl, pickChatCosmetics, ensureCosmeticsCached } = require("../lib/userProfile");
 const { sendGroupCallPush } = require("../lib/webPush");
 const descoin = require("../lib/descoin");
 const { shouldCreditMessage } = require("../lib/descoinMessageGuard");
 const { toUtcIso } = require("../lib/datetime");
+const {
+  executeSlashCommand,
+  emitAppMessage,
+  parseSlashCommand,
+  isCasinoCommand,
+} = require("../lib/slashCommands");
 const {
   broadcastToGroupMembers,
   buildBannerFromCall,
@@ -74,10 +79,6 @@ function resolveParticipantPublic(userId) {
 }
 
 const MENTION_PATTERN = /@(\w{1,32})/g;
-
-// Game commands that should be intercepted
-const GAME_COMMANDS = ['bj', 'blackjack', 'hit', 'stand', 'stay', 'double', 'credits', 'bakiye', 'balance', 'top', 'lider', 'help', 'yardım', 'commands', 'jb', 'daily'];
-const COMMAND_REGEX = /^\/(\w+)(?:\s+(\S+))?/;
 
 function extractMentionedUsernames(text) {
   if (!text) return [];
@@ -182,23 +183,38 @@ function registerGroupHandlers(io, socket, state) {
       }
     }
 
-    // Check if this is a game command (starts with /)
+    // Slash commands: casino delegates to gameHandlers; app commands use the registry.
     if (trimmedContent && trimmedContent.startsWith('/')) {
-      const match = trimmedContent.match(COMMAND_REGEX);
-      if (match) {
-        const [, cmd] = match;
-        const commandLower = cmd.toLowerCase();
-        if (GAME_COMMANDS.includes(commandLower)) {
-          // Game command — handle via casino bot; do NOT echo as a chat bubble
-          // (echoing /bj caused a flash then delete that also raced the board message).
-          console.log(`[Game] Intercepted command: ${trimmedContent} from ${socket.user.username}`);
-          await handleGameCommand(io, socket, myId, socket.user.username, groupId, trimmedContent);
-          // Ack only: clear optimistic "/bj …" bubble without inserting a real message
+      const parsed = parseSlashCommand(trimmedContent);
+      if (parsed) {
+        const result = await executeSlashCommand({
+          io,
+          socket,
+          context: "group",
+          userId: myId,
+          roomId: groupId,
+          groupId,
+          sender: resolveCallFromUser(socket),
+          content: trimmedContent,
+        });
+        if (result.handled) {
+          if (result.message) {
+            if (result.message.sender_id === myId) {
+              io.to(`group:${groupId}`).emit("group:message", {
+                groupId,
+                message: result.message,
+                tempId,
+              });
+            } else {
+              emitAppMessage({ io, socket, context: "group", roomId: groupId, message: result.message });
+            }
+          }
           socket.emit("group:message:ack", {
             groupId,
             tempId: tempId || null,
-            suppress: true,
-            isGameCommand: true,
+            suppress: result.message?.sender_id === myId ? false : true,
+            isGameCommand: isCasinoCommand(parsed.name),
+            isAppCommand: !isCasinoCommand(parsed.name),
           });
           return;
         }

@@ -23,6 +23,8 @@ const PERM_LABELS = {
   READ_MESSAGE_HISTORY: "Read message history",
   CONNECT: "Connect",
   SPEAK: "Speak",
+  REQUEST_TO_SPEAK: "Request to Speak",
+  PRIORITY_SPEAKER: "Priority speaker",
   STREAM: "Video / stream",
   MUTE_MEMBERS: "Mute members",
   MOVE_MEMBERS: "Move members",

@@ -179,7 +179,7 @@ export default function ChatPanel({
     if (activeDmUser) return resolveDisplayName(activeDmUser);
     if (activeGroup) return activeGroup.name;
     if (activeView === "servers" && activeChannel) {
-      return activeChannel.type === "voice" ? activeChannel.name : `#${activeChannel.name}`;
+      return activeChannel.type === "voice" || activeChannel.type === "stage" ? activeChannel.name : `#${activeChannel.name}`;
     }
     if (activeServer) return activeServer.name;
     if (activeView === "chat") return t("Chats");
@@ -203,6 +203,7 @@ export default function ChatPanel({
     if (activeView === "servers" && activeChannel) {
       if (activeChannel.topic) return activeChannel.topic;
       if (activeChannel.type === "voice") return t("Voice channel");
+      if (activeChannel.type === "stage") return t("Stage channel");
       return activeServer?.name || t("Text channel");
     }
     if (activeServer) {
@@ -500,7 +501,7 @@ export default function ChatPanel({
           : children}
       </div>
       ) : activeView === "servers" ? (
-        activeChannel?.type === "voice" && activeServer ? (
+        (activeChannel?.type === "voice" || activeChannel?.type === "stage") && activeServer ? (
           <ServerVoicePanel
             channel={activeChannel}
             server={activeServer}
@@ -509,14 +510,14 @@ export default function ChatPanel({
           />
         ) : (
         <div className="server-main-placeholder">
-          {activeChannel?.type === "voice" ? (
+          {activeChannel?.type === "voice" || activeChannel?.type === "stage" ? (
             <Phone size={40} strokeWidth={1.5} />
           ) : (
             <Hash size={40} strokeWidth={1.5} />
           )}
           <h2>
             {activeChannel
-              ? activeChannel.type === "voice"
+              ? activeChannel.type === "voice" || activeChannel.type === "stage"
                 ? activeChannel.name
                 : `#${activeChannel.name}`
               : activeServer
@@ -609,6 +610,7 @@ export default function ChatPanel({
               activeDmUser={activeDmUser}
               activeGroup={activeGroup}
               activeChannel={activeChannel}
+              activeServer={activeServer}
               onTypingDmStart={onTypingDmStart}
               onTypingDmStop={onTypingDmStop}
               onTypingGroupStart={onTypingGroupStart}

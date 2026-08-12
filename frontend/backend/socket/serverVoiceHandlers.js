@@ -36,6 +36,10 @@ function resolvePublicUser(socket) {
     avatar_url: avatar,
     muted: false,
     serverMuted: false,
+    cameraOn: false,
+    isScreenSharing: false,
+    requestedToSpeak: false,
+    stageRole: "speaker",
     ...pickChatCosmetics(cached),
   };
 }
@@ -71,7 +75,7 @@ async function assertVoiceAccess(userId, channelId) {
     err.code = "NOT_FOUND";
     throw err;
   }
-  if (channel.type !== "voice") {
+  if (!["voice", "stage"].includes(channel.type)) {
     const err = new Error("Not a voice channel.");
     err.code = "NOT_VOICE_CHANNEL";
     throw err;
@@ -95,6 +99,32 @@ async function assertVoiceAccess(userId, channelId) {
   if (!hasPermission(resolved.bits, Permissions.CONNECT)) {
     const err = new Error("Missing CONNECT permission.");
     err.code = "MISSING_PERMISSION";
+    throw err;
+  }
+  return { channel, resolved };
+}
+
+function canSpeakInChannel(channel, resolved, participant = null) {
+  if (!hasPermission(resolved.bits, Permissions.SPEAK)) return false;
+  if (channel.type !== "stage") return true;
+  return participant?.stageRole === "speaker";
+}
+
+function canStreamInChannel(channel, resolved, participant = null) {
+  if (!hasPermission(resolved.bits, Permissions.STREAM)) return false;
+  return canSpeakInChannel(channel, resolved, participant);
+}
+
+function participantCanStream(participant) {
+  if (!participant?.canStream || !participant?.canSpeakPermission) return false;
+  return participant.channelType !== "stage" || participant.stageRole === "speaker";
+}
+
+async function assertStageChannel(userId, channelId) {
+  const { channel, resolved } = await assertVoiceAccess(userId, channelId);
+  if (channel.type !== "stage") {
+    const err = new Error("Not a stage channel.");
+    err.code = "NOT_STAGE_CHANNEL";
     throw err;
   }
   return { channel, resolved };
@@ -228,10 +258,15 @@ function registerServerVoiceHandlers(io, socket) {
       }
 
       const mePublic = resolvePublicUser(socket);
-      const canSpeak = hasPermission(resolved.bits, Permissions.SPEAK);
+      mePublic.channelType = channel.type;
+      mePublic.stageRole = channel.type === "stage" ? "audience" : "speaker";
+      mePublic.canSpeakPermission = hasPermission(resolved.bits, Permissions.SPEAK);
+      mePublic.canStream = hasPermission(resolved.bits, Permissions.STREAM);
+      mePublic.canRequestToSpeak = hasPermission(resolved.bits, Permissions.REQUEST_TO_SPEAK);
+      const canSpeak = canSpeakInChannel(channel, resolved, mePublic);
       if (!canSpeak) {
         mePublic.muted = true;
-        mePublic.serverMuted = true;
+        mePublic.serverMuted = channel.type !== "stage";
       }
       call.participants.set(myId, mePublic);
 
@@ -243,9 +278,14 @@ function registerServerVoiceHandlers(io, socket) {
         serverId: channel.server_id,
         channelId,
         channelName: channel.name,
+        channelType: channel.type,
         participants: others,
         canSpeak,
-        serverMuted: !canSpeak,
+        canStream: canStreamInChannel(channel, resolved, mePublic),
+        canRequestToSpeak: mePublic.canRequestToSpeak,
+        stageRole: mePublic.stageRole,
+        requestedToSpeak: false,
+        serverMuted: Boolean(mePublic.serverMuted),
       });
 
       socket.to(`server-voice:${channelId}`).emit("server:voice:member-joined", {
@@ -341,6 +381,13 @@ function registerServerVoiceHandlers(io, socket) {
           };
           activeServerVoiceCalls.set(toChannelId, destCall);
         }
+        snapshot.channelType = dest.type;
+        snapshot.stageRole = dest.type === "stage" ? "audience" : "speaker";
+        snapshot.requestedToSpeak = false;
+        snapshot.muted = dest.type === "stage" ? true : Boolean(snapshot.muted);
+        snapshot.serverMuted = dest.type === "stage" ? false : Boolean(snapshot.serverMuted);
+        snapshot.cameraOn = false;
+        snapshot.isScreenSharing = false;
         destCall.participants.set(userId, snapshot);
         emitChannelState(io, serverId, toChannelId);
 
@@ -349,6 +396,7 @@ function registerServerVoiceHandlers(io, socket) {
           fromChannelId: found.channelId,
           toChannelId,
           channelName: dest.name,
+          channelType: dest.type,
           byUserId: myId,
         });
         socket.emit("server:voice:mod-ok", {
@@ -450,6 +498,14 @@ function registerServerVoiceHandlers(io, socket) {
     const call = activeServerVoiceCalls.get(channelId);
     if (!call?.participants.has(myId)) return;
     const me = call.participants.get(myId);
+    if (!participantCanStream(me)) {
+      socket.emit("server:voice:error", {
+        channelId,
+        message: "Missing STREAM permission.",
+        code: "MISSING_PERMISSION",
+      });
+      return;
+    }
     if (me) {
       me.isScreenSharing = true;
       call.participants.set(myId, me);
@@ -480,7 +536,146 @@ function registerServerVoiceHandlers(io, socket) {
     emitChannelState(io, call.serverId, channelId);
   });
 
-  socket.on("server:voice:media-state", ({ channelId, muted } = {}) => {
+  socket.on("server:voice:camera:start", ({ channelId } = {}) => {
+    if (!channelId) return;
+    const call = activeServerVoiceCalls.get(channelId);
+    if (!call?.participants.has(myId)) return;
+    const me = call.participants.get(myId);
+    if (!participantCanStream(me)) {
+      socket.emit("server:voice:error", {
+        channelId,
+        message: "Missing STREAM permission.",
+        code: "MISSING_PERMISSION",
+      });
+      return;
+    }
+    me.cameraOn = true;
+    call.participants.set(myId, me);
+    socket.to(`server-voice:${channelId}`).emit("server:voice:camera:started", {
+      serverId: call.serverId,
+      channelId,
+      fromUserId: myId,
+      fromUser: me,
+    });
+    emitChannelState(io, call.serverId, channelId);
+  });
+
+  socket.on("server:voice:camera:stop", ({ channelId } = {}) => {
+    if (!channelId) return;
+    const call = activeServerVoiceCalls.get(channelId);
+    if (!call?.participants.has(myId)) return;
+    const me = call.participants.get(myId);
+    if (me) {
+      me.cameraOn = false;
+      call.participants.set(myId, me);
+    }
+    socket.to(`server-voice:${channelId}`).emit("server:voice:camera:stopped", {
+      serverId: call.serverId,
+      channelId,
+      fromUserId: myId,
+    });
+    emitChannelState(io, call.serverId, channelId);
+  });
+
+  socket.on("server:voice:stage:request", async ({ channelId } = {}) => {
+    if (!channelId) return;
+    try {
+      const { resolved } = await assertStageChannel(myId, channelId);
+      if (!hasPermission(resolved.bits, Permissions.REQUEST_TO_SPEAK)) {
+        socket.emit("server:voice:error", {
+          channelId,
+          message: "Missing REQUEST_TO_SPEAK permission.",
+          code: "MISSING_PERMISSION",
+        });
+        return;
+      }
+      const call = activeServerVoiceCalls.get(channelId);
+      const me = call?.participants.get(myId);
+      if (!call || !me || me.stageRole === "speaker") return;
+      me.requestedToSpeak = true;
+      call.participants.set(myId, me);
+      io.to(`server-voice:${channelId}`).emit("server:voice:stage-state", {
+        serverId: call.serverId,
+        channelId,
+        userId: myId,
+        requestedToSpeak: true,
+        stageRole: me.stageRole,
+      });
+      emitChannelState(io, call.serverId, channelId);
+    } catch (err) {
+      socket.emit("server:voice:error", {
+        channelId,
+        message: err.message || "Request to speak failed.",
+        code: err.code || null,
+      });
+    }
+  });
+
+  socket.on("server:voice:stage:set-role", async ({ serverId, channelId, userId, stageRole } = {}) => {
+    if (!serverId || !channelId || !userId) return;
+    try {
+      await assertVoiceMod(myId, serverId, Permissions.MOVE_MEMBERS);
+      const { channel, resolved } = await assertStageChannel(userId, channelId);
+      if (channel.server_id !== serverId) {
+        socket.emit("server:voice:error", { channelId, message: "Server mismatch.", code: "SERVER_MISMATCH" });
+        return;
+      }
+      const call = activeServerVoiceCalls.get(channelId);
+      const member = call?.participants.get(userId);
+      if (!call || !member) {
+        socket.emit("server:voice:error", { channelId, message: "User is not in this stage." });
+        return;
+      }
+      const nextRole = stageRole === "speaker" ? "speaker" : "audience";
+      if (nextRole === "speaker" && !hasPermission(resolved.bits, Permissions.SPEAK)) {
+        socket.emit("server:voice:error", {
+          channelId,
+          message: "User is missing SPEAK permission.",
+          code: "MISSING_PERMISSION",
+        });
+        return;
+      }
+      member.stageRole = nextRole;
+      member.requestedToSpeak = false;
+      member.serverMuted = false;
+      if (nextRole === "audience") {
+        member.muted = true;
+        member.cameraOn = false;
+        member.isScreenSharing = false;
+      }
+      call.participants.set(userId, member);
+      io.to(`user:${userId}`).emit("server:voice:stage-role", {
+        serverId,
+        channelId,
+        stageRole: nextRole,
+        byUserId: myId,
+      });
+      io.to(`server-voice:${channelId}`).emit("server:voice:stage-state", {
+        serverId,
+        channelId,
+        userId,
+        requestedToSpeak: false,
+        stageRole: nextRole,
+      });
+      io.to(`server-voice:${channelId}`).emit("server:voice:media-state", {
+        channelId,
+        fromUserId: userId,
+        muted: Boolean(member.muted),
+        serverMuted: Boolean(member.serverMuted),
+        cameraOn: Boolean(member.cameraOn),
+      });
+      emitChannelState(io, serverId, channelId);
+      socket.emit("server:voice:mod-ok", { action: "stage-role", userId, channelId, stageRole: nextRole });
+    } catch (err) {
+      socket.emit("server:voice:error", {
+        channelId,
+        message: err.message || "Stage role update failed.",
+        code: err.code || null,
+      });
+    }
+  });
+
+  socket.on("server:voice:media-state", ({ channelId, muted, cameraOn } = {}) => {
     if (!channelId) return;
     const call = activeServerVoiceCalls.get(channelId);
     if (!call?.participants.has(myId)) return;
@@ -496,7 +691,17 @@ function registerServerVoiceHandlers(io, socket) {
         });
         return;
       }
+      if (me.channelType === "stage" && me.stageRole !== "speaker" && !muted) {
+        socket.emit("server:voice:force-mute", {
+          serverId: call.serverId,
+          channelId,
+          muted: true,
+          byUserId: null,
+        });
+        return;
+      }
       me.muted = Boolean(muted);
+      if (cameraOn !== undefined) me.cameraOn = Boolean(cameraOn);
       call.participants.set(myId, me);
     }
     socket.to(`server-voice:${channelId}`).emit("server:voice:media-state", {
@@ -504,6 +709,7 @@ function registerServerVoiceHandlers(io, socket) {
       fromUserId: myId,
       muted: Boolean(muted),
       serverMuted: Boolean(me?.serverMuted),
+      cameraOn: Boolean(me?.cameraOn),
     });
     emitChannelState(io, call.serverId, channelId);
   });

@@ -1077,6 +1077,7 @@
 .msg-text-chunk { white-space: pre-wrap; }
 
 /* ── Composer reply / attach / wave ── */
+.composer-slowmode-hint,
 .composer-reply-bar,
 .composer-attach-preview {
   display: flex;
@@ -1091,6 +1092,15 @@
   background: var(--surface-2);
   border: 1px solid var(--border-2);
   color: var(--text-2);
+}
+
+.composer-slowmode-hint {
+  flex: 1 0 100%;
+  order: -2;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--warning, #f0b232) 9%, var(--surface-2));
 }
 .composer-reply-meta,
 .composer-attach-meta {

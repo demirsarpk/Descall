@@ -513,6 +513,14 @@ export default function App() {
   const bumpChannelUnreadRef = useRef(bumpChannelUnread);
   bumpChannelUnreadRef.current = bumpChannelUnread;
 
+  /** Discord-like per-server notification level: all | mentions | muted */
+  const getServerNotificationLevel = useCallback((serverId) => {
+    if (!serverId) return "all";
+    const s = myServersRef.current?.find((x) => String(x.id) === String(serverId));
+    const level = String(s?.notificationLevel || "all").toLowerCase();
+    return ["all", "mentions", "muted"].includes(level) ? level : "all";
+  }, []);
+
   const commitSessionUser = useCallback((user) => {
     const normalized = normalizeUser(user);
     setMe(normalized);
@@ -1436,7 +1444,7 @@ export default function App() {
       if (message) toast(message, "error");
     });
 
-    socket.on("server:channel:message", ({ channelId, message, tempId } = {}) => {
+    socket.on("server:channel:message", ({ serverId, channelId, message, tempId } = {}) => {
       if (!channelId || !message) return;
       const sender = normalizeUser(message.sender || {
         id: message.sender_id,
@@ -1473,11 +1481,16 @@ export default function App() {
       });
       const isFromMe = normalized.from?.id === myIdRef.current;
       const isActive = activeChannelRef.current?.id === channelId;
-      if (!isFromMe && !isActive && !isChannelMuted(channelId)) {
+      const notifLevel = getServerNotificationLevel(serverId || message.server_id);
+      // all → unread+sound; mentions → mention handler only; muted → silence
+      if (
+        !isFromMe &&
+        !isActive &&
+        !isChannelMuted(channelId) &&
+        notifLevel === "all"
+      ) {
         bumpChannelUnreadRef.current?.(channelId, normalized.id);
         playUiSound("message");
-        // Desktop toasts for server chat are mention-driven (mention:received)
-        // to avoid spam once every text channel is joined for unread.
       }
     });
 
@@ -1492,7 +1505,7 @@ export default function App() {
       });
     });
 
-    socket.on("server:channel:message:error", ({ channelId, tempId, message } = {}) => {
+    socket.on("server:channel:message:error", ({ channelId, tempId, message, code, retryAfterSeconds } = {}) => {
       if (channelId && tempId) {
         setChannelMessagesById((prev) => {
           const cur = prev[channelId] ?? [];
@@ -1505,7 +1518,12 @@ export default function App() {
           };
         });
       }
-      if (message) toast(message, "error");
+      if (code === "SLOWMODE") {
+        const wait = Math.max(1, Math.ceil(Number(retryAfterSeconds) || 1));
+        toast(`Slowmode is on. Try again in ${wait}s.`, "warning");
+      } else if (message) {
+        toast(message, "error");
+      }
     });
 
     socket.on("mention:received", (payload = {}) => {
@@ -1523,6 +1541,7 @@ export default function App() {
       } = payload;
       if (channelId && isChannelMuted(channelId)) return;
       if (channelId && activeChannelRef.current?.id === channelId) return;
+      if (serverId && getServerNotificationLevel(serverId) === "muted") return;
       if (channelId && serverId) {
         bumpChannelUnreadRef.current?.(channelId, messageId || `mention:${channelId}:${text}`);
       }
@@ -2335,7 +2354,11 @@ export default function App() {
   }, [activeView, activeServer?.id, serverVoice.subscribeServer]);
 
   useEffect(() => {
-    if (activeView === "servers" && activeChannel?.type === "voice" && activeChannel?.id) {
+    if (
+      activeView === "servers" &&
+      (activeChannel?.type === "voice" || activeChannel?.type === "stage") &&
+      activeChannel?.id
+    ) {
       serverVoice.checkChannel?.(activeChannel.id);
     }
   }, [activeView, activeChannel?.id, activeChannel?.type, serverVoice.checkChannel]);

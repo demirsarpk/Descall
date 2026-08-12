@@ -68,9 +68,11 @@ const EVERYONE_DEFAULT =
   Permissions.USE_EXTERNAL_EMOJIS |
   Permissions.CONNECT |
   Permissions.SPEAK |
+  Permissions.REQUEST_TO_SPEAK |
   Permissions.USE_VAD |
   Permissions.STREAM |
   Permissions.CHANGE_NICKNAME |
+  Permissions.USE_APPLICATION_COMMANDS |
   Permissions.CREATE_INSTANT_INVITE |
   Permissions.SEND_VOICE_MESSAGES;
 
@@ -152,6 +154,92 @@ async function resolveMemberPermissions(supabase, serverId, userId) {
   }
 
   return { bits, isOwner: false, isMember: true };
+}
+
+async function getMemberHighestPosition(supabase, serverId, userId) {
+  if (!serverId || !userId) return 0;
+
+  const { data: roles, error } = await supabase
+    .from("server_member_roles")
+    .select("role:role_id (position)")
+    .eq("server_id", serverId)
+    .eq("user_id", userId);
+  if (error) throw error;
+
+  return (roles || []).reduce((top, row) => {
+    const pos = Number(row?.role?.position);
+    return Number.isFinite(pos) ? Math.max(top, pos) : top;
+  }, 0);
+}
+
+function canModerateTarget(
+  actorResolved,
+  targetResolved,
+  { actorPos = 0, targetPos = 0, actorIsOwner = false, targetIsOwner = false } = {}
+) {
+  if (!actorResolved?.isMember || !targetResolved?.isMember) return false;
+  if (targetIsOwner || targetResolved?.isOwner) return false;
+  if (actorIsOwner || actorResolved?.isOwner) return true;
+  return Number(actorPos) > Number(targetPos);
+}
+
+async function assertHierarchy(supabase, serverId, actorId, targetUserId) {
+  const [actorResolved, targetResolved, actorPos, targetPos] = await Promise.all([
+    resolveMemberPermissions(supabase, serverId, actorId),
+    resolveMemberPermissions(supabase, serverId, targetUserId),
+    getMemberHighestPosition(supabase, serverId, actorId),
+    getMemberHighestPosition(supabase, serverId, targetUserId),
+  ]);
+
+  if (!targetResolved.isMember) {
+    const err = new Error("Member not found in this server.");
+    err.status = 404;
+    err.code = "MEMBER_NOT_FOUND";
+    throw err;
+  }
+
+  if (
+    !canModerateTarget(actorResolved, targetResolved, {
+      actorPos,
+      targetPos,
+      actorIsOwner: actorResolved.isOwner,
+      targetIsOwner: targetResolved.isOwner,
+    })
+  ) {
+    const err = new Error("You cannot manage a member with an equal or higher role.");
+    err.status = 403;
+    err.code = "HIERARCHY";
+    throw err;
+  }
+
+  return { actorResolved, targetResolved, actorPos, targetPos };
+}
+
+async function assertCanManageRole(supabase, serverId, actorId, role) {
+  if (!role) {
+    const err = new Error("Role not found.");
+    err.status = 404;
+    err.code = "ROLE_NOT_FOUND";
+    throw err;
+  }
+
+  const actorResolved = await resolveMemberPermissions(supabase, serverId, actorId);
+  if (!actorResolved.isMember) {
+    const err = new Error("You are not a member of this server.");
+    err.status = 403;
+    throw err;
+  }
+  if (actorResolved.isOwner) return { actorResolved, actorPos: Number.MAX_SAFE_INTEGER };
+
+  const actorPos = await getMemberHighestPosition(supabase, serverId, actorId);
+  const rolePos = Number(role.position) || 0;
+  if (rolePos >= actorPos) {
+    const err = new Error("You cannot manage a role at or above your highest role.");
+    err.status = 403;
+    err.code = "HIERARCHY";
+    throw err;
+  }
+  return { actorResolved, actorPos };
 }
 
 /** Compact flags object for API clients. */
@@ -266,6 +354,10 @@ module.exports = {
   fromPgBigint,
   hasPermission,
   resolveMemberPermissions,
+  getMemberHighestPosition,
+  canModerateTarget,
+  assertHierarchy,
+  assertCanManageRole,
   resolveChannelPermissions,
   applyOverwrites,
   permissionsToFlags,

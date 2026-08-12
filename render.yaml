@@ -78,6 +78,12 @@ services:
         sync: false
       - key: VITE_WEB_PUSH_PUBLIC_KEY
         sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
       - key: GITHUB_RELEASE_TOKEN
         sync: false
 
@@ -128,6 +134,12 @@ services:
       - key: WEB_PUSH_SUBJECT
         sync: false
       - key: VITE_WEB_PUSH_PUBLIC_KEY
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
         sync: false
       - key: GITHUB_RELEASE_TOKEN
         sync: false

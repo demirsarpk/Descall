@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS public.server_channels (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   server_id UUID NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
   name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 100),
-  type TEXT NOT NULL CHECK (type IN ('text', 'voice', 'category')),
+  type TEXT NOT NULL CHECK (type IN ('text', 'voice', 'stage', 'category')),
   topic TEXT CHECK (topic IS NULL OR char_length(topic) <= 1024),
   position INTEGER NOT NULL DEFAULT 0,
   parent_id UUID REFERENCES public.server_channels(id) ON DELETE SET NULL,

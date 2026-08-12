@@ -156,20 +156,37 @@ export default function JoinServerModal({ onClose, onJoined }) {
                 />
               </label>
               {preview?.server && (
-                <div className="server-join-preview">
-                  {preview.server.iconUrl ? (
-                    <img src={preview.server.iconUrl} alt="" className="server-list-icon" />
-                  ) : (
-                    <div className="server-list-icon server-list-icon-fallback">
-                      {(preview.server.name || "?").charAt(0).toUpperCase()}
-                    </div>
+                <div className="server-join-preview-card">
+                  {(preview.server.splashUrl || preview.server.bannerUrl) && (
+                    <div
+                      className="server-join-splash"
+                      style={{
+                        backgroundImage: `url(${preview.server.splashUrl || preview.server.bannerUrl})`,
+                      }}
+                    />
                   )}
-                  <div>
-                    <strong>{preview.server.name}</strong>
-                    <span>
-                      {t("{count} members", { count: preview.server.memberCount || 1 })}
-                      {preview.server.isMember ? ` · ${t("Already a member")}` : ""}
-                    </span>
+                  <div className="server-join-preview">
+                    {preview.server.iconUrl ? (
+                      <img src={preview.server.iconUrl} alt="" className="server-list-icon" />
+                    ) : (
+                      <div className="server-list-icon server-list-icon-fallback">
+                        {(preview.server.name || "?").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <strong>{preview.server.name}</strong>
+                      <span>
+                        {t("{count} members", { count: preview.server.memberCount || 1 })}
+                        {preview.server.isMember ? ` · ${t("Already a member")}` : ""}
+                        {preview.server.communityEnabled ? ` · ${t("Community")}` : ""}
+                      </span>
+                      {preview.server.rulesText ? (
+                        <p className="server-join-rules-excerpt">
+                          {String(preview.server.rulesText).slice(0, 160)}
+                          {preview.server.rulesText.length > 160 ? "…" : ""}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               )}
@@ -230,7 +247,12 @@ export default function JoinServerModal({ onClose, onJoined }) {
                       </div>
                     )}
                     <div className="server-list-copy">
-                      <span className="server-list-name">{s.name}</span>
+                      <span className="server-list-name">
+                        {s.name}
+                        {s.communityEnabled ? (
+                          <em className="server-community-pill">{t("Community")}</em>
+                        ) : null}
+                      </span>
                       <span className="server-list-sub">
                         {t("{count} members", { count: s.memberCount || 1 })}
                         {s.description ? ` · ${s.description}` : ""}

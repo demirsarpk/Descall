@@ -148,6 +148,26 @@ export function removeMemberRole(serverId, userId, roleId) {
   });
 }
 
+export function updateMemberNickname(serverId, userId, nickname) {
+  return serversRequest(`/api/servers/${serverId}/members/${userId}/nickname`, {
+    method: "PATCH",
+    body: { nickname },
+  });
+}
+
+export function timeoutServerMember(serverId, userId, { until, durationSeconds, reason } = {}) {
+  return serversRequest(`/api/servers/${serverId}/members/${userId}/timeout`, {
+    method: "POST",
+    body: { until, durationSeconds, reason },
+  });
+}
+
+export function removeServerMemberTimeout(serverId, userId) {
+  return serversRequest(`/api/servers/${serverId}/members/${userId}/timeout`, {
+    method: "DELETE",
+  });
+}
+
 /** Kick a member (KICK_MEMBERS). Cannot kick owner or yourself. */
 export function kickServerMember(serverId, userId, reason) {
   return serversRequest(`/api/servers/${serverId}/members/${userId}`, {
@@ -229,5 +249,21 @@ export function updateServer(serverId, patch = {}) {
   return serversRequest(`/api/servers/${serverId}`, {
     method: "PATCH",
     body: patch,
+  });
+}
+
+/** Per-server notification level: all | mentions | muted (Nothing). */
+export function updateServerNotificationLevel(serverId, notificationLevel) {
+  return serversRequest(`/api/servers/${serverId}/me/settings`, {
+    method: "PATCH",
+    body: { notificationLevel },
+  });
+}
+
+/** Accept community rules / onboarding screen. */
+export function acceptServerRules(serverId) {
+  return serversRequest(`/api/servers/${serverId}/accept-rules`, {
+    method: "POST",
+    body: {},
   });
 }

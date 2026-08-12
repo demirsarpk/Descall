@@ -2,13 +2,15 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Mic, Smile,
-  Plus, Gift, Image, FileText, X, StopCircle, Loader2, Reply, Dice5, HelpCircle, Wallet, Trophy, CalendarDays
+  Plus, Gift, Image, FileText, X, StopCircle, Loader2, Reply, Dice5, HelpCircle, Wallet, Trophy, CalendarDays,
+  Info, UserRound, ImageIcon, Pencil, BarChart3, Timer
 } from "lucide-react";
 import GiphyPicker from "./GiphyPicker";
 import { getToken } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { encodeVoiceContent, pickRecorderMime, extensionForMime } from "../../lib/voiceMessage";
 import { useT } from "../../context/LocaleContext";
+import { getSlashCommandsForSurface } from "../../lib/slashCommands";
 
 const EMOJI_CATEGORIES = [
   { name: "Smileys", emojis: ["😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🤫","🤔","🤐","🤨","😐","😑","😶","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","😎","🤓","🧐","😕","😟","🙁","☹️","😮","😯","😲","😳","🥺","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖","😺","😸","😹","😻","😼","😽","🙀","😿","😾"] },
@@ -16,54 +18,27 @@ const EMOJI_CATEGORIES = [
   { name: "Hearts", emojis: ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","❣️","💕","💞","💓","💗","💖","💘","💝","💟"] },
 ];
 
-/** Group chat slash commands — shown when the user types `/` */
-const SLASH_COMMANDS = [
-  {
-    id: "bj",
-    command: "/bj",
-    insert: "/bj 100",
-    label: "Blackjack",
-    hint: "Start a hand — /bj 100",
-    Icon: Dice5,
-    chatOnly: true,
-  },
-  {
-    id: "daily",
-    command: "/daily",
-    insert: "/daily",
-    label: "Daily bonus",
-    hint: "Claim free credits once per day",
-    Icon: CalendarDays,
-    chatOnly: true,
-  },
-  {
-    id: "help",
-    command: "/help",
-    insert: "/help",
-    label: "Casino help",
-    hint: "Show blackjack commands",
-    Icon: HelpCircle,
-    chatOnly: true,
-  },
-  {
-    id: "credits",
-    command: "/credits",
-    insert: "/credits",
-    label: "Credits",
-    hint: "Check your balance",
-    Icon: Wallet,
-    chatOnly: true,
-  },
-  {
-    id: "top",
-    command: "/top",
-    insert: "/top",
-    label: "Leaderboard",
-    hint: "Top credit balances",
-    Icon: Trophy,
-    chatOnly: true,
-  },
-];
+const SLASH_ICONS = {
+  bj: Dice5,
+  daily: CalendarDays,
+  help: HelpCircle,
+  credits: Wallet,
+  top: Trophy,
+  server: Info,
+  user: UserRound,
+  avatar: ImageIcon,
+  nick: Pencil,
+  poll: BarChart3,
+  timeout: Timer,
+};
+
+function formatSlowmode(seconds) {
+  const n = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (!n) return "";
+  if (n >= 3600) return `${Math.round(n / 3600)}h`;
+  if (n >= 60) return `${Math.round(n / 60)}m`;
+  return `${n}s`;
+}
 
 export default function MessageComposer({
   onSend,
@@ -71,6 +46,7 @@ export default function MessageComposer({
   activeDmUser,
   activeGroup,
   activeChannel = null,
+  activeServer = null,
   onTypingDmStart,
   onTypingDmStop,
   onTypingGroupStart,
@@ -92,6 +68,7 @@ export default function MessageComposer({
   const [pendingAttach, setPendingAttach] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [sendFlash, setSendFlash] = useState(false);
+  const slowmodeLabel = formatSlowmode(activeChannel?.slowmodeSeconds);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -171,11 +148,22 @@ export default function MessageComposer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDmUser?.id, activeGroup?.id]);
 
-  const casinoChatOpen = Boolean(activeGroup || activeChannel?.type === "text");
+  const slashCommands = useMemo(
+    () =>
+      getSlashCommandsForSurface({
+        activeChannel,
+        activeGroup,
+        permissionFlags: activeServer?.myPermissions?.flags || {},
+        isOwner: Boolean(activeServer?.isOwner),
+      }).map((cmd) => ({
+        ...cmd,
+        Icon: SLASH_ICONS[cmd.name] || HelpCircle,
+      })),
+    [activeChannel, activeGroup, activeServer?.isOwner, activeServer?.myPermissions?.flags]
+  );
 
   const slashMatches = useMemo(() => {
-    // Slash menu for group + server text casino commands
-    if (!casinoChatOpen) return [];
+    if (!slashCommands.length) return [];
     const raw = message;
     // Only while composing a leading slash token (no spaces yet, or "/bj " still editing command)
     if (!raw.startsWith("/")) return [];
@@ -185,11 +173,10 @@ export default function MessageComposer({
       return [];
     }
     const q = firstToken.toLowerCase();
-    return SLASH_COMMANDS.filter((cmd) => {
-      if (cmd.chatOnly && !casinoChatOpen) return false;
+    return slashCommands.filter((cmd) => {
       return cmd.command.startsWith(q) || q === "/";
     });
-  }, [message, casinoChatOpen]);
+  }, [message, slashCommands]);
 
   useEffect(() => {
     setSlashIndex(0);
@@ -526,6 +513,20 @@ export default function MessageComposer({
         onSelectGif={handleGifSelect}
         anchorRef={attachBtnRef}
       />
+
+      <AnimatePresence>
+        {slowmodeLabel && !replyTo && (
+          <motion.div
+            className="composer-slowmode-hint"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <Timer size={13} />
+            <span>{t("Slowmode is on: {time} between messages", { time: slowmodeLabel })}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {replyTo && (

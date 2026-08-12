@@ -24,21 +24,35 @@ import {
   MicOff,
   BellOff,
   Bell,
+  BellRing,
   Lock,
   PhoneOff,
   ArrowRightLeft,
+  Radio,
+  ShieldCheck,
+  Check,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
+import { useToast } from "../../context/ToastContext";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { Avatar } from "../ui/Avatar";
 import useSpeaking from "../../hooks/useSpeaking";
 import { isChannelMuted, toggleChannelMute } from "../../lib/serverChannelMutes";
+import { updateServerNotificationLevel } from "../../api/servers";
 import ServerRolesModal from "./ServerRolesModal";
 import ServerInviteModal from "./ServerInviteModal";
 import JoinServerModal from "./JoinServerModal";
 import ServerModerationModal from "./ServerModerationModal";
 import ChannelPermissionsModal from "./ChannelPermissionsModal";
+import ServerCommunityModal from "./ServerCommunityModal";
+import ServerRulesModal from "./ServerRulesModal";
 import { ServerListSkeleton } from "../ui/Skeleton";
+
+const NOTIF_LEVELS = [
+  { value: "all", label: "All Messages", icon: BellRing },
+  { value: "mentions", label: "Only @mentions", icon: Bell },
+  { value: "muted", label: "Nothing", icon: BellOff },
+];
 
 /**
  * Servers list + in-server channel shell (Steps 2–3).
@@ -70,11 +84,14 @@ export default function ServersSidebar({
   isMobile = false,
 }) {
   const t = useT();
+  const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showCommunity, setShowCommunity] = useState(false);
   const [showModeration, setShowModeration] = useState(null); // 'bans' | 'audit' | null
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifBusy, setNotifBusy] = useState(false);
   const [confirm, setConfirm] = useState(null); // { mode: 'leave'|'delete', server }
   const [channelModal, setChannelModal] = useState(null); // { mode, channel?, defaultType?, parentId? }
   const [showRoles, setShowRoles] = useState(false);
@@ -85,9 +102,36 @@ export default function ServersSidebar({
 
   const canCreate = ownedCount < maxOwned;
   const permFlags = activeServer?.myPermissions?.flags || {};
+  const canManageGuild = Boolean(
+    activeServer?.isOwner || permFlags.MANAGE_GUILD || permFlags.ADMINISTRATOR
+  );
+  const notifLevel = ["all", "mentions", "muted"].includes(activeServer?.notificationLevel)
+    ? activeServer.notificationLevel
+    : "all";
+  const needsRulesAccept = Boolean(
+    activeServer?.communityEnabled &&
+      activeServer?.rulesText &&
+      !activeServer?.rulesAcceptedAt &&
+      !activeServer?.isOwner
+  );
   const canManageChannels = Boolean(
     activeServer?.isOwner || permFlags.MANAGE_CHANNELS || permFlags.ADMINISTRATOR
   );
+
+  const setNotificationLevel = async (level) => {
+    if (!activeServer?.id || level === notifLevel || notifBusy) return;
+    setNotifBusy(true);
+    try {
+      await updateServerNotificationLevel(activeServer.id, level);
+      onServerUpdated?.({ ...activeServer, notificationLevel: level });
+      toast(t("Notification settings updated"), "success");
+    } catch (err) {
+      toast(err?.message || t("Something went wrong."), "error");
+    } finally {
+      setNotifBusy(false);
+      setMenuOpen(false);
+    }
+  };
   const canManageRoles = Boolean(
     activeServer?.isOwner || permFlags.MANAGE_ROLES || permFlags.ADMINISTRATOR
   );
@@ -264,6 +308,39 @@ export default function ServersSidebar({
                     {t("Invite people")}
                   </button>
                 )}
+                {canManageGuild && (
+                  <button
+                    type="button"
+                    className="server-dropdown-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowCommunity(true);
+                    }}
+                  >
+                    <ShieldCheck size={15} />
+                    {t("Community & Discovery")}
+                  </button>
+                )}
+                <div className="server-dropdown-section">
+                  <span className="server-dropdown-section-label">{t("Notification Settings")}</span>
+                  {NOTIF_LEVELS.map((lvl) => {
+                    const Icon = lvl.icon;
+                    const active = notifLevel === lvl.value;
+                    return (
+                      <button
+                        key={lvl.value}
+                        type="button"
+                        className={`server-dropdown-item${active ? " is-active" : ""}`}
+                        disabled={notifBusy}
+                        onClick={() => setNotificationLevel(lvl.value)}
+                      >
+                        <Icon size={15} />
+                        <span>{t(lvl.label)}</span>
+                        {active ? <Check size={14} className="server-dropdown-check" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
                 {canBanMembers && (
                   <button
                     type="button"
@@ -372,7 +449,7 @@ export default function ServersSidebar({
                           canManageRoles={canManageRoles}
                           canMoveMembers={canMoveMembers}
                           canMuteMembers={canMuteMembers}
-                          voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice")}
+                          voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice" || c.type === "stage")}
                           serverVoice={serverVoice}
                           onToggleMute={() => handleToggleChannelMute(ch.id)}
                           onOpenAccess={() => {
@@ -426,7 +503,7 @@ export default function ServersSidebar({
                   canManageRoles={canManageRoles}
                   canMoveMembers={canMoveMembers}
                   canMuteMembers={canMuteMembers}
-                  voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice")}
+                  voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice" || c.type === "stage")}
                   serverVoice={serverVoice}
                   onToggleMute={() => handleToggleChannelMute(node.id)}
                   onOpenAccess={() => {
@@ -547,6 +624,21 @@ export default function ServersSidebar({
               onServerUpdated={(updated) => onServerUpdated?.(updated)}
             />
           )}
+          {showCommunity && (
+            <ServerCommunityModal
+              server={activeServer}
+              onClose={() => setShowCommunity(false)}
+              onServerUpdated={(updated) => onServerUpdated?.(updated)}
+            />
+          )}
+          {needsRulesAccept && (
+            <ServerRulesModal
+              server={activeServer}
+              onAccepted={(rulesAcceptedAt) =>
+                onServerUpdated?.({ ...activeServer, rulesAcceptedAt })
+              }
+            />
+          )}
           {showModeration && (
             <ServerModerationModal
               server={activeServer}
@@ -568,7 +660,7 @@ export default function ServersSidebar({
             menu={voiceMenu}
             canMove={canMoveMembers}
             canMute={canMuteMembers}
-            voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice")}
+            voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice" || c.type === "stage")}
             serverId={activeServer?.id}
             serverVoice={serverVoice}
             onClose={() => setVoiceMenu(null)}
@@ -732,6 +824,7 @@ function ServerUnreadBadge({ count }) {
 }
 
 function ServerVoiceUserRow({ member, stream = null, size = 20, onContextMenu }) {
+  const t = useT();
   const name = resolveDisplayName(member) || member?.username || "User";
   const speaking = useSpeaking(stream, {
     muted: Boolean(member?.muted || member?.serverMuted),
@@ -747,6 +840,12 @@ function ServerVoiceUserRow({ member, stream = null, size = 20, onContextMenu })
     >
       <Avatar name={name} size={size} user={member} animate="never" className="server-voice-user-avatar" />
       <span className="server-voice-user-name">{name}</span>
+      {member?.stageRole === "speaker" ? (
+        <span className="server-stage-speaker-badge">{t("Speaker")}</span>
+      ) : null}
+      {member?.requestedToSpeak ? (
+        <span className="server-stage-request-badge">{t("Requested")}</span>
+      ) : null}
       {member?.muted || member?.serverMuted ? (
         <MicOff size={12} className="server-voice-user-mic" aria-hidden />
       ) : null}
@@ -781,6 +880,8 @@ function VoiceMemberContextMenu({
   if (!menu?.user) return null;
   const user = menu.user;
   const channelId = menu.channelId;
+  const currentChannel = voiceChannels.find((c) => c.id === channelId);
+  const isStage = currentChannel?.type === "stage";
   const left = Math.min(menu.x || 12, (typeof window !== "undefined" ? window.innerWidth : 400) - 220);
   const top = Math.min(menu.y || 12, (typeof window !== "undefined" ? window.innerHeight : 400) - 220);
 
@@ -802,6 +903,24 @@ function VoiceMemberContextMenu({
           >
             <MicOff size={14} />
             {user.serverMuted ? t("Server unmute") : t("Server mute")}
+          </button>
+        )}
+        {canMove && isStage && (
+          <button
+            type="button"
+            className="server-dropdown-item"
+            onClick={() => {
+              serverVoice?.setStageParticipantRole?.(
+                serverId,
+                channelId,
+                user.id,
+                user.stageRole === "speaker" ? "audience" : "speaker"
+              );
+              onClose();
+            }}
+          >
+            <Radio size={14} />
+            {user.stageRole === "speaker" ? t("Move to Audience") : t("Invite to Speak")}
           </button>
         )}
         {canMove && (
@@ -875,8 +994,9 @@ function ChannelRow({
   onVoiceUserMenu,
 }) {
   const t = useT();
-  const Icon = channel.type === "voice" ? Volume2 : Hash;
-  const voiceMembers = channel.type === "voice" ? voiceState?.members || [] : [];
+  const isVoiceLike = channel.type === "voice" || channel.type === "stage";
+  const Icon = channel.type === "stage" ? Radio : channel.type === "voice" ? Volume2 : Hash;
+  const voiceMembers = isVoiceLike ? voiceState?.members || [] : [];
   const showMenu = canManage || canManageRoles || channel.type === "text";
   void muteTick;
   const unreadCount = Number(unread) || 0;
@@ -894,7 +1014,7 @@ function ChannelRow({
         <Icon size={16} />
         <span>{channel.name}</span>
         {muted ? <BellOff size={12} className="server-channel-mute-icon" aria-hidden /> : null}
-        {channel.type === "voice" && voiceMembers.length > 0 && (
+        {isVoiceLike && voiceMembers.length > 0 && (
           <span className="server-voice-count">{voiceMembers.length}</span>
         )}
         {channel.type === "text" && unreadCount > 0 ? (
@@ -952,7 +1072,7 @@ function ChannelRow({
           </AnimatePresence>
         </div>
       )}
-      {channel.type === "voice" && voiceMembers.length > 0 && (
+      {isVoiceLike && voiceMembers.length > 0 && (
         <ul className="server-voice-user-list" aria-label={t("In this channel")}>
           {voiceMembers.slice(0, 12).map((m) => {
             let stream = null;
@@ -1003,6 +1123,9 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
   const [type, setType] = useState(initialType);
   const [name, setName] = useState(isEdit ? channel.name : "");
   const [topic, setTopic] = useState(isEdit ? channel.topic || "" : "");
+  const [slowmodeSeconds, setSlowmodeSeconds] = useState(
+    isEdit ? Number(channel.slowmodeSeconds) || 0 : 0
+  );
   const [selectedParent, setSelectedParent] = useState(
     isEdit ? channel.parentId || "" : parentId || ""
   );
@@ -1029,11 +1152,13 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
         parentId: showParent && selectedParent ? selectedParent : null,
       };
       if (showTopic) payload.topic = topic.trim() || null;
+      if (showTopic) payload.slowmodeSeconds = Math.max(0, Math.min(21600, Math.floor(Number(slowmodeSeconds) || 0)));
       if (isEdit) {
         await onSubmit({
           name: payload.name,
           topic: showTopic ? payload.topic : undefined,
           parentId: showParent ? payload.parentId : undefined,
+          slowmodeSeconds: showTopic ? payload.slowmodeSeconds : undefined,
         });
       } else {
         await onSubmit(payload);
@@ -1074,7 +1199,9 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
         <p className="server-modal-lead">
           {type === "category"
             ? t("Categories group channels in the sidebar.")
-            : t("Text and voice channels only — more types later.")}
+            : type === "stage"
+              ? t("Stage channels are for one-to-many audio, video, and screenshare.")
+              : t("Create text, voice, or stage channels for your server.")}
         </p>
 
         {!typeLocked && (
@@ -1082,6 +1209,7 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
             {[
               { id: "text", label: t("Text"), Icon: Hash },
               { id: "voice", label: t("Voice"), Icon: Volume2 },
+              { id: "stage", label: t("Stage"), Icon: Radio },
               { id: "category", label: t("Category"), Icon: Folder },
             ].map(({ id, label, Icon }) => (
               <button
@@ -1103,7 +1231,15 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={100}
-            placeholder={type === "text" ? "general" : type === "voice" ? t("General") : t("Text Channels")}
+            placeholder={
+              type === "text"
+                ? "general"
+                : type === "stage"
+                  ? t("Town hall")
+                  : type === "voice"
+                    ? t("General")
+                    : t("Text Channels")
+            }
             autoFocus
             required
           />
@@ -1126,15 +1262,49 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
         )}
 
         {showTopic && (
-          <label className="server-field">
-            <span>{t("Topic (optional)")}</span>
-            <input
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              maxLength={1024}
-              placeholder={t("What's this channel about?")}
-            />
-          </label>
+          <>
+            <label className="server-field">
+              <span>{t("Topic (optional)")}</span>
+              <input
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                maxLength={1024}
+                placeholder={t("What's this channel about?")}
+              />
+            </label>
+
+            <label className="server-field">
+              <span>{t("Slowmode")}</span>
+              <input
+                type="number"
+                min="0"
+                max="21600"
+                value={slowmodeSeconds}
+                onChange={(e) => setSlowmodeSeconds(e.target.value)}
+                placeholder="0"
+              />
+            </label>
+            <div className="server-slowmode-presets" role="group" aria-label={t("Slowmode presets")}>
+              {[
+                [0, t("Off")],
+                [5, "5s"],
+                [10, "10s"],
+                [30, "30s"],
+                [60, "1m"],
+                [300, "5m"],
+                [3600, "1h"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={Number(slowmodeSeconds) === value ? "active" : ""}
+                  onClick={() => setSlowmodeSeconds(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
         )}
 
         {error && <p className="server-modal-error">{error}</p>}

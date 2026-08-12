@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crown, MoreHorizontal, MessageSquare, User, Copy, Shield, UserX, Ban, Search, X } from "lucide-react";
+import { Crown, MoreHorizontal, MessageSquare, User, Copy, Shield, UserX, Ban, Search, X, Pencil, Timer } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import AdminBadge from "../social/AdminBadge";
@@ -14,6 +14,9 @@ import {
   removeMemberRole,
   kickServerMember,
   banServerMember,
+  updateMemberNickname,
+  timeoutServerMember,
+  removeServerMemberTimeout,
 } from "../../api/servers";
 
 function colorToHex(color) {
@@ -50,6 +53,9 @@ export default function ServerMembersPanel({
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(null); // { member, x, y }
   const [roleSubmenu, setRoleSubmenu] = useState(false);
+  const [timeoutSubmenu, setTimeoutSubmenu] = useState(false);
+  const [nickTarget, setNickTarget] = useState(null);
+  const [nickDraft, setNickDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const menuRef = useRef(null);
 
@@ -57,7 +63,14 @@ export default function ServerMembersPanel({
   const canManageRoles = Boolean(server?.isOwner || flags.MANAGE_ROLES || flags.ADMINISTRATOR);
   const canKick = Boolean(server?.isOwner || flags.KICK_MEMBERS || flags.ADMINISTRATOR);
   const canBan = Boolean(server?.isOwner || flags.BAN_MEMBERS || flags.ADMINISTRATOR);
-  const assignableRoles = useMemo(() => roles.filter((r) => !r.isEveryone), [roles]);
+  const canTimeout = Boolean(server?.isOwner || flags.MODERATE_MEMBERS || flags.ADMINISTRATOR);
+  const canChangeOwnNick = Boolean(server?.isOwner || flags.CHANGE_NICKNAME || flags.ADMINISTRATOR);
+  const canManageNicknames = Boolean(server?.isOwner || flags.MANAGE_NICKNAMES || flags.ADMINISTRATOR);
+  const actorHighestPosition = Number(server?.myPermissions?.highestPosition) || 0;
+  const assignableRoles = useMemo(
+    () => roles.filter((r) => !r.isEveryone && (server?.isOwner || (Number(r.position) || 0) < actorHighestPosition)),
+    [roles, server?.isOwner, actorHighestPosition]
+  );
   const friendIds = useMemo(
     () => new Set((friends || []).map((f) => String(f.id))),
     [friends]
@@ -113,12 +126,14 @@ export default function ServerMembersPanel({
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setMenu(null);
         setRoleSubmenu(false);
+        setTimeoutSubmenu(false);
       }
     };
     const onKey = (e) => {
       if (e.key === "Escape") {
         setMenu(null);
         setRoleSubmenu(false);
+        setTimeoutSubmenu(false);
       }
     };
     document.addEventListener("mousedown", onDoc);
@@ -172,10 +187,11 @@ export default function ServerMembersPanel({
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
     setRoleSubmenu(false);
+    setTimeoutSubmenu(false);
     setMenu({
       member,
       x: Math.min(rect.left, window.innerWidth - 220),
-      y: Math.min(rect.bottom + 4, window.innerHeight - 280),
+      y: Math.min(rect.bottom + 4, window.innerHeight - 360),
     });
   };
 
@@ -202,9 +218,108 @@ export default function ServerMembersPanel({
           const roleIds = new Set((m.roleIds || []).map(String));
           if (hasRole) roleIds.delete(String(roleId));
           else roleIds.add(String(roleId));
-          return { ...m, roleIds: [...roleIds] };
+          const highestPosition = [...roleIds].reduce((top, id) => {
+            const role = roles.find((r) => String(r.id) === String(id));
+            return Math.max(top, Number(role?.position) || 0);
+          }, 0);
+          return { ...m, roleIds: [...roleIds], highestPosition };
         })
       );
+    } catch (err) {
+      toast(err?.message || t("Something went wrong."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const canActOn = (member) => {
+    if (!member || member.isOwner) return false;
+    if (server?.isOwner) return true;
+    return actorHighestPosition > (Number(member.highestPosition) || 0);
+  };
+
+  const openNicknameModal = (member) => {
+    setNickTarget(member);
+    setNickDraft(member.nickname || "");
+    setMenu(null);
+    setRoleSubmenu(false);
+    setTimeoutSubmenu(false);
+  };
+
+  const saveNickname = async (e) => {
+    e.preventDefault();
+    if (!server?.id || !nickTarget) return;
+    setBusy(true);
+    try {
+      const nickname = nickDraft.trim() || null;
+      await updateMemberNickname(server.id, nickTarget.userId, nickname);
+      setMembers((prev) =>
+        prev.map((m) =>
+          String(m.userId) === String(nickTarget.userId)
+            ? { ...m, nickname, _name: nickname || m.displayName || m.username || m.userId }
+            : m
+        )
+      );
+      toast(nickname ? t("Nickname updated") : t("Nickname cleared"), "success");
+      setNickTarget(null);
+    } catch (err) {
+      toast(err?.message || t("Something went wrong."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const timeoutMember = async (member, durationSeconds) => {
+    if (!server?.id) return;
+    const reason = window.prompt(t("Reason (optional)"), "");
+    if (reason === null) return;
+    setBusy(true);
+    try {
+      const { timeout } = await timeoutServerMember(server.id, member.userId, {
+        durationSeconds,
+        reason: reason.trim() || undefined,
+      });
+      setMembers((prev) =>
+        prev.map((m) =>
+          String(m.userId) === String(member.userId)
+            ? { ...m, timeoutUntil: timeout.until, timeoutReason: timeout.reason || null }
+            : m
+        )
+      );
+      toast(t("Member timed out"), "success");
+      setMenu(null);
+    } catch (err) {
+      toast(err?.message || t("Something went wrong."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const timeoutCustom = async (member) => {
+    const raw = window.prompt(t("Timeout duration in seconds (1–2419200)"), "300");
+    if (raw === null) return;
+    const seconds = Math.max(1, Math.min(2419200, Math.floor(Number(raw) || 0)));
+    if (!seconds) {
+      toast(t("Invalid duration"), "error");
+      return;
+    }
+    await timeoutMember(member, seconds);
+  };
+
+  const removeTimeout = async (member) => {
+    if (!server?.id) return;
+    setBusy(true);
+    try {
+      await removeServerMemberTimeout(server.id, member.userId);
+      setMembers((prev) =>
+        prev.map((m) =>
+          String(m.userId) === String(member.userId)
+            ? { ...m, timeoutUntil: null, timeoutReason: null }
+            : m
+        )
+      );
+      toast(t("Timeout removed"), "success");
+      setMenu(null);
     } catch (err) {
       toast(err?.message || t("Something went wrong."), "error");
     } finally {
@@ -274,6 +389,9 @@ export default function ServerMembersPanel({
           )}
         </div>
         <span className="member-status-label">{t(STATUS_META[m._status]?.label || "Offline")}</span>
+        {m.timeoutUntil && new Date(m.timeoutUntil) > new Date() && (
+          <span className="member-timeout-label">{t("Timed out")}</span>
+        )}
       </div>
       <MoreHorizontal size={16} className="server-member-row-more" aria-hidden />
     </button>
@@ -282,6 +400,8 @@ export default function ServerMembersPanel({
   const menuMember = menu?.member;
   const isSelf = menuMember && me?.id && String(menuMember.userId) === String(me.id);
   const isFriend = menuMember && friendIds.has(String(menuMember.userId));
+  const canModerateMenuMember = menuMember && !isSelf && canActOn(menuMember);
+  const canEditMenuNick = menuMember && ((isSelf && canChangeOwnNick) || (!isSelf && canManageNicknames && canActOn(menuMember)));
 
   return (
     <>
@@ -367,7 +487,13 @@ export default function ServerMembersPanel({
             <Copy size={14} />
             {t("Copy username")}
           </button>
-          {canManageRoles && assignableRoles.length > 0 && !menuMember.isOwner && (
+          {canEditMenuNick && (
+            <button type="button" className="server-dropdown-item" onClick={() => openNicknameModal(menuMember)}>
+              <Pencil size={14} />
+              {isSelf ? t("Change nickname") : t("Change member nickname")}
+            </button>
+          )}
+          {canManageRoles && assignableRoles.length > 0 && canModerateMenuMember && (
             <>
               <button
                 type="button"
@@ -401,7 +527,48 @@ export default function ServerMembersPanel({
               )}
             </>
           )}
-          {canKick && !isSelf && !menuMember.isOwner && (
+          {canTimeout && canModerateMenuMember && (
+            <>
+              <button
+                type="button"
+                className="server-dropdown-item"
+                onClick={() => setTimeoutSubmenu((v) => !v)}
+              >
+                <Timer size={14} />
+                {t("Timeout")}
+              </button>
+              {timeoutSubmenu && (
+                <div className="server-member-role-submenu">
+                  {[
+                    [60, "60s"],
+                    [300, "5m"],
+                    [3600, "1h"],
+                    [86400, "1d"],
+                    [604800, "1w"],
+                  ].map(([seconds, label]) => (
+                    <button
+                      key={seconds}
+                      type="button"
+                      className="server-dropdown-item"
+                      disabled={busy}
+                      onClick={() => timeoutMember(menuMember, seconds)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  <button type="button" className="server-dropdown-item" disabled={busy} onClick={() => timeoutCustom(menuMember)}>
+                    {t("Custom…")}
+                  </button>
+                  {menuMember.timeoutUntil && (
+                    <button type="button" className="server-dropdown-item" disabled={busy} onClick={() => removeTimeout(menuMember)}>
+                      {t("Remove timeout")}
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+          {canKick && canModerateMenuMember && (
             <button
               type="button"
               className="server-dropdown-item danger"
@@ -412,7 +579,7 @@ export default function ServerMembersPanel({
               {t("Kick")}
             </button>
           )}
-          {canBan && !isSelf && !menuMember.isOwner && (
+          {canBan && canModerateMenuMember && (
             <button
               type="button"
               className="server-dropdown-item danger"
@@ -423,6 +590,36 @@ export default function ServerMembersPanel({
               {t("Ban")}
             </button>
           )}
+        </div>
+      )}
+      {nickTarget && (
+        <div className="server-modal-overlay" onClick={() => setNickTarget(null)}>
+          <form className="server-modal server-nickname-modal" onSubmit={saveNickname} onClick={(e) => e.stopPropagation()}>
+            <h3>{t("Change nickname")}</h3>
+            <p className="server-modal-lead">
+              {t("Set a server-specific display name for {name}. Leave blank to clear.", {
+                name: nickTarget._name,
+              })}
+            </p>
+            <label className="server-field">
+              <span>{t("Nickname")}</span>
+              <input
+                value={nickDraft}
+                onChange={(e) => setNickDraft(e.target.value)}
+                maxLength={32}
+                autoFocus
+                placeholder={nickTarget.displayName || nickTarget.username || ""}
+              />
+            </label>
+            <div className="server-modal-actions">
+              <button type="button" className="server-ghost-btn" disabled={busy} onClick={() => setNickTarget(null)}>
+                {t("Cancel")}
+              </button>
+              <button type="submit" className="server-primary-btn" disabled={busy}>
+                {busy ? t("Please wait...") : t("Save")}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </>

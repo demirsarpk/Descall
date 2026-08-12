@@ -13,30 +13,20 @@ const { shouldCreditMessage } = require("../lib/descoinMessageGuard");
 const {
   Permissions,
   hasPermission,
-  resolveMemberPermissions,
   resolveChannelPermissions,
 } = require("../lib/serverPermissions");
-const { handleGameCommand } = require("./gameHandlers");
+const {
+  executeSlashCommand,
+  emitAppMessage,
+  parseSlashCommand,
+  isCasinoCommand,
+} = require("../lib/slashCommands");
 
-const GAME_COMMANDS = [
-  "bj",
-  "blackjack",
-  "hit",
-  "stand",
-  "stay",
-  "double",
-  "credits",
-  "bakiye",
-  "balance",
-  "top",
-  "lider",
-  "help",
-  "yardım",
-  "commands",
-  "jb",
-  "daily",
-];
-const COMMAND_REGEX = /^\/(\w+)(?:\s+(\S+))?/;
+const slowmodeLastSend = new Map();
+
+function slowmodeKey(channelId, userId) {
+  return `${channelId}:${userId}`;
+}
 
 function resolveSocketAvatar(socket) {
   const cached = getCachedPublicUser(socket.user?.id);
@@ -75,7 +65,7 @@ function buildSenderPayload(socket) {
 async function assertTextChannelAccess(userId, channelId, requiredFlag) {
   const { data: channel, error: cErr } = await supabase
     .from("server_channels")
-    .select("id, server_id, type, name")
+    .select("id, server_id, type, name, slowmode_seconds")
     .eq("id", channelId)
     .maybeSingle();
   if (cErr) throw cErr;
@@ -109,6 +99,75 @@ async function assertTextChannelAccess(userId, channelId, requiredFlag) {
     throw err;
   }
   return { channel, permissions: resolved.bits, resolved };
+}
+
+async function assertServerTimeout({ userId, serverId, channelId, tempId, socket }) {
+  const { data: membership, error } = await supabase
+    .from("server_members")
+    .select("timeout_until, timeout_reason")
+    .eq("server_id", serverId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!membership?.timeout_until) return false;
+
+  const until = new Date(membership.timeout_until);
+  if (!Number.isFinite(until.getTime()) || until <= new Date()) return false;
+
+  socket.emit("server:channel:message:error", {
+    channelId,
+    tempId: tempId || null,
+    message: `You are timed out until ${until.toLocaleString("en-US")}.`,
+    code: "TIMED_OUT",
+    timeout: {
+      until: until.toISOString(),
+      reason: membership.timeout_reason || null,
+    },
+  });
+  return true;
+}
+
+async function assertSlowmode({ userId, channel, channelId, channelBits, tempId, socket }) {
+  const slowmodeSeconds = Math.max(0, Math.floor(Number(channel?.slowmode_seconds) || 0));
+  if (!slowmodeSeconds) return false;
+  if (
+    hasPermission(channelBits, Permissions.ADMINISTRATOR) ||
+    hasPermission(channelBits, Permissions.MANAGE_MESSAGES)
+  ) {
+    return false;
+  }
+
+  const { data: lastMessage, error } = await supabase
+    .from("server_messages")
+    .select("created_at")
+    .eq("server_id", channel.server_id)
+    .eq("channel_id", channelId)
+    .eq("sender_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  const dbTime = lastMessage?.created_at ? new Date(lastMessage.created_at).getTime() : 0;
+  const memTime = slowmodeLastSend.get(slowmodeKey(channelId, userId)) || 0;
+  const lastTime = Math.max(dbTime, memTime);
+  if (!lastTime) return false;
+
+  const elapsedSeconds = Math.floor((Date.now() - lastTime) / 1000);
+  const retryAfterSeconds = slowmodeSeconds - elapsedSeconds;
+  if (retryAfterSeconds <= 0) return false;
+
+  socket.emit("server:channel:message:error", {
+    channelId,
+    tempId: tempId || null,
+    message: `Slowmode is on. Try again in ${retryAfterSeconds}s.`,
+    code: "SLOWMODE",
+    retryAfterSeconds,
+  });
+  return true;
+}
+
+function markSlowmodeSend(channelId, userId) {
+  slowmodeLastSend.set(slowmodeKey(channelId, userId), Date.now());
 }
 
 function registerServerChannelHandlers(io, socket) {
@@ -251,6 +310,31 @@ function registerServerChannelHandlers(io, socket) {
           return;
         }
 
+        if (
+          await assertServerTimeout({
+            userId: myId,
+            serverId: channel.server_id,
+            channelId,
+            tempId,
+            socket,
+          })
+        ) {
+          return;
+        }
+
+        if (
+          await assertSlowmode({
+            userId: myId,
+            channel,
+            channelId,
+            channelBits,
+            tempId,
+            socket,
+          })
+        ) {
+          return;
+        }
+
         if (serverId && serverId !== channel.server_id) {
           socket.emit("server:channel:message:error", {
             channelId,
@@ -284,23 +368,69 @@ function registerServerChannelHandlers(io, socket) {
           return;
         }
 
-        // Casino slash commands — same as groups (do not store as chat)
+        // Slash commands — casino stays delegated to gameHandlers; app commands use the registry.
         if (trimmedContent && trimmedContent.startsWith("/")) {
-          const match = trimmedContent.match(COMMAND_REGEX);
-          if (match && GAME_COMMANDS.includes(match[1].toLowerCase())) {
-            const username =
-              socket.user?.username || buildSenderPayload(socket).username || "Player";
-            await handleGameCommand(io, socket, myId, username, channelId, trimmedContent, {
-              channelId,
+          const parsed = parseSlashCommand(trimmedContent);
+          if (parsed && (isCasinoCommand(parsed.name) || parsed.name)) {
+            const sender = buildSenderPayload(socket);
+            const result = await executeSlashCommand({
+              io,
+              socket,
+              context: "server",
+              userId: myId,
+              roomId: channelId,
               serverId: channel.server_id,
-            });
-            socket.emit("server:channel:message:ack", {
               channelId,
-              tempId: tempId || null,
-              suppress: true,
-              isGameCommand: true,
+              channel,
+              permissions: channelBits,
+              sender,
+              content: trimmedContent,
+              gameOptions: {
+                channelId,
+                serverId: channel.server_id,
+              },
             });
-            return;
+            if (!result.handled) {
+              // Unknown slash command is treated like normal text for compatibility.
+            } else {
+              if (result.message && result.message.sender_id !== myId) {
+                emitAppMessage({
+                  io,
+                  socket,
+                  context: "server",
+                  roomId: channelId,
+                  message: result.message,
+                });
+              }
+              if (result.message?.id && result.message?.sender_id === myId) {
+                socket.to(`server-channel:${channelId}`).emit("server:channel:message", {
+                  serverId: channel.server_id,
+                  channelId,
+                  message: result.message,
+                });
+              }
+              if (result.message?.sender_id !== myId) {
+                socket.emit("server:channel:message:ack", {
+                  channelId,
+                  tempId: tempId || null,
+                  suppress: true,
+                  isGameCommand: isCasinoCommand(parsed.name),
+                  isAppCommand: !isCasinoCommand(parsed.name),
+                });
+              } else {
+                socket.emit("server:channel:message", {
+                  serverId: channel.server_id,
+                  channelId,
+                  message: result.message,
+                  tempId,
+                });
+              }
+              markSlowmodeSend(channelId, myId);
+              if (result.message?.sender_id === myId) {
+                return;
+              }
+              return;
+            }
           }
         }
 
@@ -337,6 +467,7 @@ function registerServerChannelHandlers(io, socket) {
           });
           return;
         }
+        markSlowmodeSend(channelId, myId);
 
         if (trimmedContent && shouldCreditMessage(myId, trimmedContent)) {
           descoin
