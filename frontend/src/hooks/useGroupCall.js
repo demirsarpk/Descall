@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
-import { patchUserAvatar } from "../lib/userProfile";
+import { patchUserAvatar, pickEquippedCosmetics } from "../lib/userProfile";
 import { getUser } from "../lib/storage";
 import {
   GROUP_SCREEN_DEFAULT_QUALITY,
@@ -27,6 +27,20 @@ import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
 import { acquireCallWakeLock, releaseCallWakeLock, pulseCallWakeLock } from "../lib/callWakeLock";
 import { startDesCoinHeartbeat } from "../lib/descoinHeartbeat";
+
+/** Build / merge a group-call participant row, keeping shop cosmetics. */
+function buildCallParticipant(user, extras = {}) {
+  const id = user?.id || extras.id;
+  if (!id) return null;
+  return {
+    id,
+    username: user?.username || user?.displayName || extras.username || "Member",
+    avatarUrl: user?.avatarUrl || user?.avatar_url || extras.avatarUrl || null,
+    ...pickEquippedCosmetics(user),
+    ...extras,
+    id,
+  };
+}
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
 function showElectronScreenPicker(sources) {
@@ -646,7 +660,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
               );
             }
             const storedUser = pcMapRef.current.get(userId)?.fromUser;
-            return [...prev, {
+            return [...prev, buildCallParticipant(storedUser, {
               id: userId,
               stream: null,
               screenStream: mergedScreenStream,
@@ -654,8 +668,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
               hasAudio: false,
               isScreenSharing: true,
               username: storedUser?.username || storedUser?.displayName || "Member",
-              avatarUrl: storedUser?.avatar_url || null,
-            }];
+              avatarUrl: storedUser?.avatar_url || storedUser?.avatarUrl || null,
+            })];
           });
         };
         applyScreenAudio();
@@ -704,7 +718,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
               );
             }
             const storedUser = pcMapRef.current.get(userId)?.fromUser;
-            return [...prev, {
+            return [...prev, buildCallParticipant(storedUser, {
               id: userId,
               stream: null,
               screenStream,
@@ -712,8 +726,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
               hasAudio: false,
               isScreenSharing: true,
               username: storedUser?.username || storedUser?.displayName || "Member",
-              avatarUrl: storedUser?.avatar_url || null,
-            }];
+              avatarUrl: storedUser?.avatar_url || storedUser?.avatarUrl || null,
+            })];
           });
         };
         applyScreenStream();
@@ -750,7 +764,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
               );
             }
             const storedUser = pcMapRef.current.get(userId)?.fromUser;
-            return [...prev, {
+            return [...prev, buildCallParticipant(storedUser, {
               id: userId,
               stream: nextStream,
               screenStream: null,
@@ -758,8 +772,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
               hasAudio: nextStream.getAudioTracks().length > 0,
               isScreenSharing: false,
               username: storedUser?.username || storedUser?.displayName || "Member",
-              avatarUrl: storedUser?.avatar_url || null,
-            }];
+              avatarUrl: storedUser?.avatar_url || storedUser?.avatarUrl || null,
+            })];
           });
         };
         applyCameraStream();
@@ -774,7 +788,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
             return prev.map((p) => p.id === userId ? { ...p, hasAudio: true } : p);
           }
           const storedUser = pcMapRef.current.get(userId)?.fromUser;
-          return [...prev, {
+          return [...prev, buildCallParticipant(storedUser, {
             id: userId,
             stream: incomingStream,
             screenStream: null,
@@ -782,8 +796,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
             hasAudio: true,
             isScreenSharing: false,
             username: storedUser?.username || storedUser?.displayName || "Member",
-            avatarUrl: storedUser?.avatar_url || null,
-          }];
+            avatarUrl: storedUser?.avatar_url || storedUser?.avatarUrl || null,
+          })];
         });
       }
     };
@@ -1038,13 +1052,10 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
 
       // Register the initiator in participants with correct username immediately
       // — before WebRTC ontrack fires (which would fall back to 'Member')
-      setParticipants([{
-        id: fromUser.id,
-        username: fromUser.username || fromUser.displayName || "Member",
-        avatarUrl: fromUser.avatar_url || fromUser.avatarUrl,
+      setParticipants([buildCallParticipant(fromUser, {
         hasVideo: type === "video",
         hasAudio: true,
-      }]);
+      })].filter(Boolean));
 
       // Join the group socket room so group:call:left/ended events are received
       if (!socketRef.current?.connected) {
@@ -1527,17 +1538,20 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         const exists = prev.find((p) => p.id === fromUserId);
         if (exists) {
           return prev.map((p) => p.id === fromUserId
-            ? { ...p, username: fromUser?.username || p.username, avatarUrl: fromUser?.avatar_url || p.avatarUrl }
+            ? {
+                ...p,
+                ...pickEquippedCosmetics(fromUser),
+                username: fromUser?.username || p.username,
+                avatarUrl: fromUser?.avatar_url || fromUser?.avatarUrl || p.avatarUrl,
+              }
             : p
           );
         }
-        return [...prev, {
+        return [...prev, buildCallParticipant(fromUser || { id: fromUserId }, {
           id: fromUserId,
-          username: fromUser?.username || fromUser?.displayName || "Member",
-          avatarUrl: fromUser?.avatar_url,
           hasVideo: callTypeRef.current === "video",
           hasAudio: true,
-        }];
+        })].filter(Boolean);
       });
 
       try {
@@ -1623,19 +1637,18 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
             p.id === fromUserId
               ? {
                   ...p,
+                  ...pickEquippedCosmetics(fromUser),
                   username: fromUser?.username || fromUser?.displayName || p.username,
                   avatarUrl: fromUser?.avatar_url || fromUser?.avatarUrl || p.avatarUrl,
                 }
               : p
           );
         }
-        return [...prev, {
+        return [...prev, buildCallParticipant(fromUser || { id: fromUserId }, {
           id: fromUserId,
-          username: fromUser?.username || fromUser?.displayName || "Member",
-          avatarUrl: fromUser?.avatar_url || fromUser?.avatarUrl,
           hasVideo: callTypeRef.current === "video",
           hasAudio: true,
-        }];
+        })].filter(Boolean);
       });
       
       const stream = localStreamRef.current;
@@ -2058,7 +2071,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
               const storedUser = peerData?.fromUser;
               return [
                 ...prev,
-                {
+                buildCallParticipant(storedUser, {
                   id: fromUserId,
                   stream: null,
                   screenStream: screenMs,
@@ -2066,9 +2079,9 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
                   hasAudio: false,
                   isScreenSharing: true,
                   username: storedUser?.username || storedUser?.displayName || "Member",
-                  avatarUrl: storedUser?.avatar_url || null,
-                },
-              ];
+                  avatarUrl: storedUser?.avatar_url || storedUser?.avatarUrl || null,
+                }),
+              ].filter(Boolean);
             });
           }
         }
@@ -2122,14 +2135,11 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         // Add any participants the server knows about that aren't in state yet
         enrichedList.forEach((e) => {
           if (!updated.find((p) => p.id === e.id) && e.id !== myId) {
-            updated.push({
-              id: e.id,
-              username: e.username || "Member",
-              avatarUrl: e.avatar_url || null,
+            updated.push(buildCallParticipant(e, {
               hasVideo: existingCallType === "video",
               hasAudio: true,
               isScreenSharing: e.isScreenSharing || false,
-            });
+            }));
           }
         });
         return updated;
@@ -2140,13 +2150,11 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       if (!fromUserId || fromUserId === myIdRef.current) return;
       setParticipants((prev) => {
         if (prev.find((p) => p.id === fromUserId)) return prev;
-        return [...prev, {
+        return [...prev, buildCallParticipant(fromUser || { id: fromUserId }, {
           id: fromUserId,
-          username: fromUser?.username || fromUser?.displayName || "Member",
-          avatarUrl: fromUser?.avatar_url,
           hasVideo: startedType === "video",
           hasAudio: true,
-        }];
+        })].filter(Boolean);
       });
     };
 

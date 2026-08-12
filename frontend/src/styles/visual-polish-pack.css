@@ -121,9 +121,16 @@
   color: var(--text-muted);
 }
 
-/* ── 6. Call join pop ────────────────────────────────────────── */
+/* ── 6. Call join pop + don't clip catalog frames ─────────────── */
 .participant-tile--avatar-only {
   animation: call-avatar-join 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.call-main-stage,
+.call-overlay-root .call-main-stage,
+.call-overlay-root .call-stage-scroll {
+  /* Avatar frames (~132%) and name effects must not be clipped */
+  overflow: visible;
 }
 
 @keyframes call-avatar-join {

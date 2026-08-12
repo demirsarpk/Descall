@@ -32,6 +32,47 @@ function resolveSocketAvatar(socket) {
   );
 }
 
+/** Call signaling payload with shop cosmetics for avatar frames / name effects. */
+function resolveCallFromUser(socket) {
+  const myId = socket.user?.id;
+  const cached = getCachedPublicUser(myId);
+  const avatar = resolveSocketAvatar(socket);
+  const username = cached?.username || socket.user?.username || "?";
+  const displayName = cached?.displayName || socket.user?.display_name || socket.user?.displayName || null;
+  const isAdmin =
+    Boolean(cached?.is_admin || cached?.isAdmin || socket.user?.is_admin) || username === "admin";
+  return {
+    id: myId,
+    username,
+    displayName,
+    display_name: displayName,
+    avatar_url: avatar,
+    avatarUrl: avatar,
+    avatarVersion: cached?.avatarVersion || cached?.updated_at || null,
+    updated_at: cached?.updated_at || null,
+    is_admin: isAdmin,
+    isAdmin,
+    ...pickChatCosmetics(cached),
+  };
+}
+
+function resolveParticipantPublic(userId) {
+  const cached = getCachedPublicUser(userId);
+  const presenceEntry = presence.get(userId);
+  const username = cached?.username || presenceEntry?.username || usernameById.get(userId) || "Member";
+  const avatar =
+    cached?.avatarUrl || cached?.avatar_url || presenceEntry?.avatar_url || getAvatarUrl(userId) || null;
+  return {
+    id: userId,
+    username,
+    displayName: cached?.displayName || null,
+    avatar_url: avatar,
+    avatarUrl: avatar,
+    isScreenSharing: false,
+    ...pickChatCosmetics(cached),
+  };
+}
+
 const MENTION_PATTERN = /@(\w{1,32})/g;
 
 // Game commands that should be intercepted
@@ -376,11 +417,7 @@ function registerGroupHandlers(io, socket, state) {
 
     const payload = {
       groupId,
-      fromUser: {
-        id: myId,
-        username: socket.user.username,
-        avatar_url: resolveSocketAvatar(socket),
-      },
+      fromUser: resolveCallFromUser(socket),
       callType,
       hangout: isHangout,
     };
@@ -413,11 +450,7 @@ function registerGroupHandlers(io, socket, state) {
     io.to(`group:${groupId}`).emit("group:call:started", {
       groupId,
       fromUserId: myId,
-      fromUser: {
-        id: myId,
-        username: socket.user.username,
-        avatar_url: resolveSocketAvatar(socket),
-      },
+      fromUser: resolveCallFromUser(socket),
       callType,
       hangout: isHangout,
     });
@@ -455,22 +488,14 @@ function registerGroupHandlers(io, socket, state) {
     io.to(`user:${toUserId}`).emit("group:call:accepted", {
       groupId,
       fromUserId: myId,
-      fromUser: {
-        id: myId,
-        username: socket.user.username,
-        avatar_url: resolveSocketAvatar(socket),
-      },
+      fromUser: resolveCallFromUser(socket),
     });
 
     // Also notify other participants in the group that a new person joined
     socket.to(`group:${groupId}`).emit("group:call:participant-joined", {
       groupId,
       fromUserId: myId,
-      fromUser: {
-        id: myId,
-        username: socket.user.username,
-        avatar_url: resolveSocketAvatar(socket),
-      },
+      fromUser: resolveCallFromUser(socket),
     });
     void emitBannerUpdate(io, groupId);
   });
@@ -507,28 +532,21 @@ function registerGroupHandlers(io, socket, state) {
     io.to(`group:${groupId}`).emit("group:call:participant-joined", {
       groupId,
       fromUserId: myId,
-      fromUser: {
-        id: myId,
-        username: socket.user.username,
-        avatar_url: resolveSocketAvatar(socket),
-      },
+      fromUser: resolveCallFromUser(socket),
     });
 
-    // Send enriched participant list to the joining user
+    // Send enriched participant list to the joining user (include cosmetics)
     const otherParticipantIds = Array.from(activeCall.participants).filter(id => id !== myId);
-    const enrichedParticipants = otherParticipantIds.map((id) => {
-      const presenceEntry = state.presence?.get(id);
-      return {
-        id,
-        username: presenceEntry?.username || "Member",
-        avatar_url: presenceEntry?.avatar_url || null,
+    void ensureCosmeticsCached(otherParticipantIds).finally(() => {
+      const enrichedParticipants = otherParticipantIds.map((id) => ({
+        ...resolveParticipantPublic(id),
         isScreenSharing: screenShareSessions.has(`${groupId}:${id}`),
-      };
-    });
-    socket.emit("group:call:participants", {
-      groupId,
-      participants: enrichedParticipants,
-      callType: activeCall.callType,
+      }));
+      socket.emit("group:call:participants", {
+        groupId,
+        participants: enrichedParticipants,
+        callType: activeCall.callType,
+      });
     });
     void emitBannerUpdate(io, groupId);
   });
@@ -562,11 +580,7 @@ function registerGroupHandlers(io, socket, state) {
     io.to(`user:${toUserId}`).emit("group:call:offer", {
       groupId,
       fromUserId: myId,
-      fromUser: {
-        id: myId,
-        username: socket.user.username,
-        avatar_url: resolveSocketAvatar(socket),
-      },
+      fromUser: resolveCallFromUser(socket),
       offer,
       callType,
     });
