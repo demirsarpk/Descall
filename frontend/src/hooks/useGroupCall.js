@@ -457,6 +457,10 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     remoteAudioRefs.current.clear();
 
     screenSenderRef.current = null;
+    if (screenAudioCtxRef.current) {
+      try { screenAudioCtxRef.current.close(); } catch { /* ignore */ }
+      screenAudioCtxRef.current = null;
+    }
 
     setIsInCall(false);
     setIsInitiator(false);

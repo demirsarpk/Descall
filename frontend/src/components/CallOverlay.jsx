@@ -205,12 +205,20 @@ export default function CallOverlay({ call, groupCall, me }) {
   // Screen-share audio must stay mounted even when the UI is minimized —
   // ScreenShareLayout unmounts and previously killed tab/system audio.
   const durableScreenAudioSources = isDm
-    ? ((call?.remoteScreenSharing || streamHasLiveVideo(call?.remoteScreenStream)) &&
-      call?.remoteScreenStream
+    ? (call?.remoteScreenStream &&
+      (call?.remoteScreenSharing ||
+        streamHasLiveVideo(call?.remoteScreenStream) ||
+        (call.remoteScreenStream.getAudioTracks?.() || []).some((t) => t && t.readyState !== "ended"))
         ? [{ id: call.peer?.id || "dm-screen", stream: call.remoteScreenStream }]
         : [])
     : (groupCall?.participants ?? [])
-        .filter((p) => p.id !== me?.id && p.screenStream && (p.isScreenSharing || streamHasLiveVideo(p.screenStream)))
+        .filter((p) => {
+          if (p.id === me?.id || !p.screenStream) return false;
+          const hasAudio = (p.screenStream.getAudioTracks?.() || []).some(
+            (t) => t && t.readyState !== "ended"
+          );
+          return p.isScreenSharing || streamHasLiveVideo(p.screenStream) || hasAudio;
+        })
         .map((p) => ({ id: p.id, stream: p.screenStream }));
 
   const durableScreenAudio = durableScreenAudioSources.map(({ id, stream }) => (
