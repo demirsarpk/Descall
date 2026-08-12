@@ -1731,14 +1731,6 @@ button.member-row.server-member-row {
   opacity: 0.7;
 }
 
-/* Speaking ring must target the circular .ui-avatar-inner — .ui-avatar is a
-   square stacking context (frames overflow), so box-shadow there looks square. */
-.server-voice-member.is-speaking .ui-avatar-inner {
-  box-shadow:
-    0 0 0 2px #23a559,
-    0 0 0 4px rgba(35, 165, 89, 0.28);
-}
-
 .server-voice-count {
   margin-left: auto;
   font-size: 11px;
@@ -1753,19 +1745,20 @@ button.member-row.server-member-row {
 .server-voice-user-list {
   list-style: none;
   margin: 0 0 4px;
-  padding: 0 4px 2px 34px;
+  padding: 2px 4px 4px 30px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .server-voice-user {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 28px;
-  padding: 2px 6px;
+  min-height: 30px;
+  padding: 3px 6px;
   border-radius: 4px;
   color: var(--text-muted, var(--text-2));
   transition: background 0.12s ease, color 0.12s ease;
@@ -1776,10 +1769,77 @@ button.member-row.server-member-row {
   color: var(--text-1);
 }
 
+.server-voice-user-avatar-shell,
+.server-voice-member-avatar-shell {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+}
+
+.server-voice-member-avatar-shell {
+  width: 32px;
+  height: 32px;
+}
+
+.server-voice-speak-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.92);
+  transition:
+    opacity 0.16s ease,
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.server-voice-speak-ring.ring-b {
+  inset: -6px;
+  border-width: 2px;
+}
+
+.server-voice-speak-ring.is-active {
+  opacity: 1;
+  transform: scale(1);
+  border-color: #23a559;
+  box-shadow:
+    0 0 0 1px rgba(35, 165, 89, 0.35),
+    0 0 10px rgba(35, 165, 89, 0.45);
+  animation: server-voice-speak-ring 0.85s ease-in-out infinite;
+}
+
+.server-voice-speak-ring.ring-b.is-active {
+  border-color: rgba(35, 165, 89, 0.45);
+  box-shadow: 0 0 14px rgba(35, 165, 89, 0.28);
+  animation-delay: 0.12s;
+}
+
+@keyframes server-voice-speak-ring {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.14);
+    opacity: 0.72;
+  }
+}
+
 .server-voice-user .ui-avatar,
-.server-voice-user-avatar {
+.server-voice-user-avatar,
+.server-voice-member-avatar {
   flex-shrink: 0;
   border-radius: 50%;
+  position: relative;
+  z-index: 1;
 }
 
 .server-voice-user-name {
@@ -1792,6 +1852,7 @@ button.member-row.server-member-row {
   font-weight: 500;
   line-height: 1.2;
   color: inherit;
+  transition: color 0.12s ease, font-weight 0.12s ease;
 }
 
 .server-voice-user.is-muted .server-voice-user-name {
@@ -1805,13 +1866,27 @@ button.member-row.server-member-row {
 }
 
 .server-voice-user.is-speaking {
-  color: var(--text-1);
+  color: #f2f3f5;
+  background: color-mix(in srgb, #23a559 10%, transparent);
 }
 
-.server-voice-user.is-speaking .ui-avatar-inner {
+.server-voice-user.is-speaking .server-voice-user-name {
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Speaking ring must target the circular .ui-avatar-inner — .ui-avatar is a
+   square stacking context (frames overflow), so box-shadow there looks square. */
+.server-voice-user.is-speaking .ui-avatar-inner,
+.server-voice-member.is-speaking .ui-avatar-inner {
   box-shadow:
     0 0 0 2px #23a559,
-    0 0 0 4px rgba(35, 165, 89, 0.28);
+    0 0 0 5px rgba(35, 165, 89, 0.28),
+    0 0 12px rgba(35, 165, 89, 0.5);
+}
+
+.server-voice-member.is-speaking {
+  color: #f2f3f5;
 }
 
 .server-channel-row-wrap.is-joined-voice > .server-channel-row {

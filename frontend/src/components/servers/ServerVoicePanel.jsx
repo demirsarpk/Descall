@@ -40,13 +40,29 @@ function VoiceMemberRow({
   sharing = false,
   cameraOn = false,
 }) {
-  const speaking = useSpeaking(stream, { muted: Boolean(muted) });
+  const speaking = useSpeaking(stream, {
+    muted: Boolean(muted),
+    threshold: 0.014,
+    attackMs: 55,
+    releaseMs: 260,
+  });
   const name = label || resolveDisplayName(member) || member?.username || "User";
   return (
     <div
       className={`server-voice-member${muted ? " is-muted" : ""}${speaking ? " is-speaking" : ""}`}
     >
-      <Avatar name={name} size={32} user={member} className="server-voice-member-avatar" />
+      <span className="server-voice-member-avatar-shell">
+        <span className={`server-voice-speak-ring ring-a${speaking ? " is-active" : ""}`} />
+        <span className={`server-voice-speak-ring ring-b${speaking ? " is-active" : ""}`} />
+        <Avatar
+          name={name}
+          size={32}
+          user={member}
+          animate="speaking"
+          isSpeaking={speaking}
+          className="server-voice-member-avatar"
+        />
+      </span>
       <span>{name}</span>
       {member?.stageRole === "speaker" ? <span className="server-stage-speaker-badge">Speaker</span> : null}
       {member?.requestedToSpeak ? <span className="server-stage-request-badge">Requested</span> : null}

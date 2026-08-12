@@ -807,11 +807,28 @@ function ServerUnreadBadge({ count }) {
   );
 }
 
-function ServerVoiceUserRow({ member, stream = null, size = 20, onContextMenu }) {
+function resolveMemberVoiceStream(member, { joinedHere, myUserId, localStream, participantStreams }) {
+  if (!joinedHere || !member?.id) return null;
+  const mid = String(member.id);
+  if (myUserId != null && String(myUserId) === mid) return localStream || null;
+  if (participantStreams?.get) {
+    if (participantStreams.has(member.id)) return participantStreams.get(member.id);
+    if (participantStreams.has(mid)) return participantStreams.get(mid);
+    for (const [key, value] of participantStreams.entries()) {
+      if (String(key) === mid) return value;
+    }
+  }
+  return member.stream || null;
+}
+
+function ServerVoiceUserRow({ member, stream = null, size = 22, onContextMenu }) {
   const t = useT();
   const name = resolveDisplayName(member) || member?.username || "User";
   const speaking = useSpeaking(stream, {
     muted: Boolean(member?.muted || member?.serverMuted),
+    threshold: 0.014,
+    attackMs: 55,
+    releaseMs: 260,
   });
   return (
     <li
@@ -822,7 +839,18 @@ function ServerVoiceUserRow({ member, stream = null, size = 20, onContextMenu })
         if (e.detail >= 2) onContextMenu?.(e);
       }}
     >
-      <Avatar name={name} size={size} user={member} animate="never" className="server-voice-user-avatar" />
+      <span className="server-voice-user-avatar-shell" aria-hidden={!speaking}>
+        <span className={`server-voice-speak-ring ring-a${speaking ? " is-active" : ""}`} />
+        <span className={`server-voice-speak-ring ring-b${speaking ? " is-active" : ""}`} />
+        <Avatar
+          name={name}
+          size={size}
+          user={member}
+          animate="speaking"
+          isSpeaking={speaking}
+          className="server-voice-user-avatar"
+        />
+      </span>
       <span className="server-voice-user-name">{name}</span>
       {member?.stageRole === "speaker" ? (
         <span className="server-stage-speaker-badge">{t("Speaker")}</span>
@@ -1071,12 +1099,12 @@ function ChannelRow({
       {isVoiceLike && voiceMembers.length > 0 && (
         <ul className="server-voice-user-list" aria-label={t("In this channel")}>
           {voiceMembers.slice(0, 12).map((m) => {
-            let stream = null;
-            if (joinedHere) {
-              if (myUserId && m.id === myUserId) stream = localStream;
-              else if (participantStreams?.has?.(m.id)) stream = participantStreams.get(m.id);
-              else if (m.stream) stream = m.stream;
-            }
+            const stream = resolveMemberVoiceStream(m, {
+              joinedHere,
+              myUserId,
+              localStream,
+              participantStreams,
+            });
             return (
               <ServerVoiceUserRow
                 key={m.id}
