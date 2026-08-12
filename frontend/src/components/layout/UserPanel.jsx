@@ -492,9 +492,21 @@ const UserPanel = forwardRef(function UserPanel({
   // picking Dark or Light explicitly clears it (see handlePickBaseTheme).
   const equippedThemeKey = me?.equippedTheme?.theme_key || null;
 
+  const applyThemeWithCrossfade = useCallback((nextTheme) => {
+    const root = document.documentElement;
+    const prev = root.getAttribute("data-theme");
+    if (prev !== nextTheme) {
+      root.classList.add("theme-crossfade");
+      root.setAttribute("data-theme", nextTheme);
+      window.setTimeout(() => root.classList.remove("theme-crossfade"), 320);
+    } else {
+      root.setAttribute("data-theme", nextTheme);
+    }
+  }, []);
+
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", equippedThemeKey || (darkMode ? "dark" : "light"));
-  }, [darkMode, equippedThemeKey]);
+    applyThemeWithCrossfade(equippedThemeKey || (darkMode ? "dark" : "light"));
+  }, [darkMode, equippedThemeKey, applyThemeWithCrossfade]);
 
   const handlePickBaseTheme = useCallback(
     async (wantDark) => {
@@ -515,13 +527,13 @@ const UserPanel = forwardRef(function UserPanel({
     async (themeItem) => {
       try {
         await equipShopItem("theme", themeItem.id);
-        document.documentElement.setAttribute("data-theme", themeItem.theme_key);
+        applyThemeWithCrossfade(themeItem.theme_key);
         await refreshMeFromServer();
       } catch {
         /* best-effort */
       }
     },
-    [refreshMeFromServer]
+    [refreshMeFromServer, applyThemeWithCrossfade]
   );
 
   useEffect(() => {

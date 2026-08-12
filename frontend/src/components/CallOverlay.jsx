@@ -6,6 +6,7 @@ import {
   Volume2, ChevronUp, Mic2, SlidersHorizontal,
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
+import { profileAuraClass } from "./ui/Cosmetics";
 import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
 import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
 import { resolveAvatarUrl } from "../lib/avatar";
@@ -261,7 +262,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             bottom: 20,
             right: 20,
             zIndex: 9999,
-            background: "#1e1f23",
+            ...(callOverlayKey ? {} : { background: "#1e1f23" }),
             borderRadius: 14,
             padding: 14,
             boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
@@ -419,7 +420,7 @@ export default function CallOverlay({ call, groupCall, me }) {
         position: "fixed",
         inset: 0,
         zIndex: 9998,
-        background: "#0f1115",
+        ...(callOverlayKey ? {} : { background: "#0f1115" }),
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -493,6 +494,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             cameraOn={cameraOn}
             localUsername={localUsername}
             localAvatarUrl={resolveAvatarUrl(me)}
+            localUser={me}
             narrow={narrowViewport}
             screenShareVolume={screenShareVolume}
             onScreenShareVolumeChange={setScreenShareVolume}
@@ -513,6 +515,7 @@ export default function CallOverlay({ call, groupCall, me }) {
             formattedDuration={formattedDuration}
             localUsername={localUsername}
             localAvatarUrl={resolveAvatarUrl(me)}
+            localUser={me}
           />
         )}
       </div>
@@ -1012,7 +1015,7 @@ function StatRow({ label, value }) {
   );
 }
 
-function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false, cameraOn = true, connectionQuality = null, handRaised = false }) {
+function ParticipantTile({ username, avatarUrl, user = null, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false, cameraOn = true, connectionQuality = null, handRaised = false }) {
   const t = useT();
   const elRef = useRef(null);
   const detected = useSpeaking(stream, {
@@ -1024,6 +1027,7 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
   const isSpeaking = Boolean(speakingProp || detected);
   // Cap ring motion so level jitter doesn't look like flicker
   const ringScale = 1 + (isSpeaking ? Math.max(0.06, Math.min(0.22, level * 0.28)) : 0);
+  const auraClass = profileAuraClass(user);
 
   const setVideoEl = useCallback((el) => {
     elRef.current = el;
@@ -1066,7 +1070,7 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
           }}
         />
       ) : (
-        <div className="participant-tile-avatar-stack">
+        <div className={`participant-tile-avatar-stack ${auraClass}`.trim()}>
           <span
             className={`speaking-ring ring-a${isSpeaking ? " active" : ""}`}
             style={{ transform: `scale(${ringScale})` }}
@@ -1078,6 +1082,7 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
           <Avatar
             name={username || "?"}
             size={small ? 36 : 72}
+            user={user}
             imageUrl={avatarUrl}
             animate="speaking"
             isSpeaking={isSpeaking}
@@ -1106,7 +1111,7 @@ function ParticipantTile({ username, avatarUrl, isSpeaking: speakingProp, videoR
 /* ─────────────────────────────────────────────────────────────────
    ParticipantGrid — adaptive grid layout when no screen share
    ───────────────────────────────────────────────────────────────── */
-function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }) {
+function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl, user = null }) {
   const localStream = isDm ? call?.localStream : groupCall?.localStream;
 
   const videoCallbackRef = useCallback((el) => {
@@ -1138,6 +1143,7 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }
     <ParticipantTile
       username={username}
       avatarUrl={avatarUrl}
+      user={user}
       isSpeaking={localSpeaking}
       videoRef={hasVideo ? videoCallbackRef : null}
       hasVideo={hasVideo}
@@ -1149,7 +1155,7 @@ function LocalVideoTile({ isDm, call, groupCall, hasVideo, username, avatarUrl }
   );
 }
 
-function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localAvatarUrl }) {
+function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, callType, peer, mode, title, subtitle, formattedDuration, localUsername, localAvatarUrl, localUser = null }) {
   const t = useT();
   const dmRemote = useDmRemoteParticipant({
     peer: isDm ? call?.peer : null,
@@ -1165,6 +1171,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
       id: p.id,
       username: p.username || t("Member"),
       avatarUrl: p.avatarUrl || resolveAvatarUrl(p),
+      user: p,
       stream: p.stream || null,
       hasVideo: p.isCameraOn !== false && live,
       muted: Boolean(p.isMuted),
@@ -1205,6 +1212,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
           hasVideo={hasLocalVideo}
           username={localUsername}
           avatarUrl={localAvatarUrl}
+          user={localUser}
         />
       </motion.div>
 
@@ -1233,6 +1241,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
           <ParticipantTile
             username={tile.username}
             avatarUrl={tile.avatarUrl}
+            user={tile.user}
             videoRef={null}
             stream={tile.stream}
             hasVideo={tile.hasVideo}
@@ -1251,7 +1260,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
 /* ─────────────────────────────────────────────────────────────────
    ScreenShareLayout — selected screen large on top, strip below
    ───────────────────────────────────────────────────────────────── */
-function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl, narrow = false, screenShareVolume = 100, onScreenShareVolumeChange }) {
+function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded, isDm, call, groupCall, remoteParticipants, hasLocalVideo, cameraOn, localUsername, localAvatarUrl, localUser = null, narrow = false, screenShareVolume = 100, onScreenShareVolumeChange }) {
   const t = useT();
   const [selectedSharerIndex, setSelectedSharerIndex] = useState(0);
   const [viewerCount] = useState(0);
@@ -1351,6 +1360,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
       isLocal: true,
       hasVideo: hasLocalVideo,
       avatarUrl: localAvatarUrl,
+      user: localUser,
       stream: isDm ? call?.localStream : groupCall?.localStream,
       muted: Boolean(isDm ? call?.muted : groupCall?.isMuted),
       cameraOn: Boolean(isDm ? call?.cameraOn : groupCall?.isCameraOn),
@@ -1359,6 +1369,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
       id: p.id,
       username: p.username,
       avatarUrl: p.avatarUrl,
+      user: p,
       isLocal: false,
       hasVideo: streamHasLiveVideo(p.stream) || Boolean(p.hasVideo) || Boolean(p.isCameraOn),
       stream: p.stream || null,
@@ -1600,6 +1611,7 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
               <ParticipantTile
                 username={tile.username}
                 avatarUrl={tile.avatarUrl}
+                user={tile.user}
                 isSpeaking={tile.isSpeaking}
                 videoRef={tile.hasVideo ? videoRef : null}
                 stream={tile.stream}

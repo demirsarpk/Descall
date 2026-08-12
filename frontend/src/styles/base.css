@@ -47,6 +47,19 @@ html, body {
   color: var(--text-1);
 }
 
+/* Soft crossfade when shop / appearance theme changes */
+html.theme-crossfade,
+html.theme-crossfade body,
+html.theme-crossfade #root,
+html.theme-crossfade .app-root,
+html.theme-crossfade .app-layout {
+  transition:
+    background-color 0.28s ease,
+    color 0.28s ease,
+    border-color 0.28s ease,
+    box-shadow 0.28s ease;
+}
+
 body {
   background:
     radial-gradient(1400px 600px at 15% -10%, rgba(88,101,242,0.08) 0%, transparent 60%),

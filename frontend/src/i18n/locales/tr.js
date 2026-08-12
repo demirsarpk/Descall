@@ -1486,6 +1486,8 @@ export const phrases = {
   "Sending...": "Gönderiliyor...",
   "Creating...": "Oluşturuluyor...",
   "No conversations yet": "Henüz sohbet yok",
+  "Add a friend to start chatting — messages, voice, and screen share in one place.": "Sohbet etmek için bir arkadaş ekle — mesajlar, ses ve ekran paylaşımı tek yerde.",
+  "Create a group for friends — chat, call, and share your screen together.": "Arkadaşların için bir grup oluştur — sohbet et, ara ve ekranını birlikte paylaşın.",
   "No friends to add": "Eklenecek arkadaş yok",
   "No friends to add. Add friends first.": "Eklenecek arkadaş yok. Önce arkadaş ekleyin.",
   "Sign in to use web app": "Web uygulamasını kullanmak için giriş yapın",

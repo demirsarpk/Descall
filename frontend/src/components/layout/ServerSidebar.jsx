@@ -486,6 +486,7 @@ export default function ServerSidebar({
               isMobile={isMobile}
               unreadById={dmUnread}
               loading={!friendsLoaded}
+              onAddFriend={() => { setAddTab("friend"); setShowAddModal(true); }}
             />
           )}
 
@@ -502,6 +503,7 @@ export default function ServerSidebar({
               isMobile={isMobile}
               unreadById={groupUnread}
               loading={!groupsLoaded}
+              onCreateGroup={() => { setAddTab("group"); setShowAddModal(true); }}
             />
           )}
 
@@ -872,7 +874,7 @@ const LIST_LAYOUT_TRANSITION = {
   opacity: { duration: 0.2 },
 };
 
-function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect, isMobile, unreadById = {}, loading = false }) {
+function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect, isMobile, unreadById = {}, loading = false, onAddFriend }) {
   const t = useT();
   const { locale } = useLocale();
   const safeDms = Array.isArray(dms) ? dms : [];
@@ -891,8 +893,20 @@ function DMList({ dms, activeDmUser, onlineUsers, expanded, onToggle, onDmSelect
         {loading && safeDms.length === 0 ? (
           <ConversationListSkeleton count={7} label={t("Loading conversations")} />
         ) : safeDms.length === 0 ? (
-          <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
-            {t("No conversations yet")}
+          <div className="sidebar-empty-friends">
+            <div className="empty-illustration empty-illu-chats compact" aria-hidden="true">
+              <div className="empty-illu-blob" />
+              <div className="empty-illu-blob secondary" />
+            </div>
+            <strong>{t("No conversations yet")}</strong>
+            <span>{t("Add a friend to start chatting — messages, voice, and screen share in one place.")}</span>
+            {onAddFriend && (
+              <div className="sidebar-empty-friends-actions">
+                <button type="button" className="mkt-btn mkt-btn-soft" onClick={onAddFriend}>
+                  {t("Add friend")}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="conv-list">
@@ -1395,7 +1409,7 @@ function RenameDialog({ group, onConfirm, onCancel }) {
   );
 }
 
-function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed, isMobile, unreadById = {}, loading = false }) {
+function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSelect, onGroupLeft, onGroupRenamed, isMobile, unreadById = {}, loading = false, onCreateGroup }) {
   const t = useT();
   const { locale } = useLocale();
   const safeGroups = Array.isArray(groups) ? groups : [];
@@ -1488,8 +1502,20 @@ function GroupList({ groups, friends, activeGroup, expanded, onToggle, onGroupSe
               {loading && safeGroups.length === 0 ? (
                 <ConversationListSkeleton count={6} label={t("Loading groups")} />
               ) : safeGroups.length === 0 ? (
-                <div style={{ padding: "12px 16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
-                  {t("No groups yet")}
+                <div className="sidebar-empty-friends">
+                  <div className="empty-illustration empty-illu-groups compact" aria-hidden="true">
+                    <div className="empty-illu-blob" />
+                    <div className="empty-illu-blob secondary" />
+                  </div>
+                  <strong>{t("No groups yet")}</strong>
+                  <span>{t("Create a group for friends — chat, call, and share your screen together.")}</span>
+                  {onCreateGroup && (
+                    <div className="sidebar-empty-friends-actions">
+                      <button type="button" className="mkt-btn mkt-btn-soft" onClick={onCreateGroup}>
+                        {t("Create group")}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 safeGroups.map((group) => {

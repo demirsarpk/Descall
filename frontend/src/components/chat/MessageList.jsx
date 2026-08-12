@@ -15,7 +15,7 @@ import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
 import UserHoverCard from "../social/UserHoverCard";
 import AdminBadge from "../social/AdminBadge";
-import { BadgeIcon, NameEffectText } from "../ui/Cosmetics";
+import { BadgeIcon, NameEffectText, profileAuraClass } from "../ui/Cosmetics";
 import { mergeUserProfiles, pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import { useT } from "../../context/LocaleContext";
 import { formatMessageClock, formatMessageDate, parseAppDate } from "../../lib/datetime";
@@ -283,6 +283,22 @@ export default function MessageList({
         const openProfile = () => {
           if (avatarUser?.id) setProfileTarget(avatarUser);
         };
+        const showHoverCard = (el) => {
+          if (!avatarUser?.id || !el) return;
+          const rect = el.getBoundingClientRect();
+          const friend = (friends || []).find((f) => f.id === avatarUser.id);
+          const online = (onlineUsers || []).find((u) => u.id === avatarUser.id);
+          setHoverUser(
+            mergeUserProfiles(avatarUser, friend, online, {
+              status: getPresenceStatus(onlineUsers, avatarUser.id),
+            })
+          );
+          setHoverPos(hoverAnchorFromRect(rect));
+        };
+        const hideHoverCard = () => {
+          setHoverUser(null);
+          setHoverPos(null);
+        };
 
         return (
           <div
@@ -295,22 +311,8 @@ export default function MessageList({
                   className="message-avatar"
                   onClick={openProfile}
                   style={{ cursor: avatarUser?.id ? "pointer" : "default" }}
-                  onMouseEnter={(e) => {
-                    if (!avatarUser?.id) return;
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const friend = (friends || []).find((f) => f.id === avatarUser.id);
-                    const online = (onlineUsers || []).find((u) => u.id === avatarUser.id);
-                    setHoverUser(
-                      mergeUserProfiles(avatarUser, friend, online, {
-                        status: getPresenceStatus(onlineUsers, avatarUser.id),
-                      })
-                    );
-                    setHoverPos(hoverAnchorFromRect(rect));
-                  }}
-                  onMouseLeave={() => {
-                    setHoverUser(null);
-                    setHoverPos(null);
-                  }}
+                  onMouseEnter={(e) => showHoverCard(e.currentTarget)}
+                  onMouseLeave={hideHoverCard}
                 >
                   <Avatar
                     name={resolveDisplayName(avatarUser)}
@@ -319,15 +321,25 @@ export default function MessageList({
                     imageUrl={pickAvatarUrl(avatarUser)}
                     animate="hover"
                   />
-                  <StatusBadge status={getPresenceStatus(onlineUsers, avatarUser?.id)} />
+                  <StatusBadge
+                    status={getPresenceStatus(onlineUsers, avatarUser?.id)}
+                    user={avatarUser}
+                  />
                 </div>
                 <div className="message-meta">
                   <span
                     className="message-author"
                     onClick={openProfile}
                     style={{ cursor: avatarUser?.id ? "pointer" : "default" }}
-                    onMouseEnter={(e) => { if (avatarUser?.id) e.currentTarget.style.textDecoration = "underline"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.textDecoration = ""; }}
+                    onMouseEnter={(e) => {
+                      if (!avatarUser?.id) return;
+                      e.currentTarget.style.textDecoration = "underline";
+                      showHoverCard(e.currentTarget);
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.textDecoration = "";
+                      hideHoverCard();
+                    }}
                   >
                     <NameEffectText user={avatarUser}>{resolveDisplayName(avatarUser)}</NameEffectText>
                     <BadgeIcon user={avatarUser} />
@@ -341,12 +353,18 @@ export default function MessageList({
             )}
 
             <div className="message-content-wrapper">
-              {group.messages.map((msg) => (
+              {group.messages.map((msg) => {
+                const ts = parseAppDate(msg.timestamp || msg.created_at)?.getTime?.() || 0;
+                const isFresh =
+                  String(msg.id || "").startsWith("temp-") ||
+                  (ts > 0 && Date.now() - ts < 2800);
+                return (
                 <MessageBubble
                   key={msg.id}
                   message={msg}
                   isOwn={isOwn}
                   isCompact={group.isCompact}
+                  isFresh={isFresh}
                   currentUserId={currentUser?.id || me?.id}
                   socket={socket}
                   conversationType={conversationType}
@@ -364,7 +382,8 @@ export default function MessageList({
                       : avatarUser?.equippedReactionBurst?.effect_key || null
                   }
                 />
-              ))}
+              );
+              })}
             </div>
           </div>
         );
@@ -394,6 +413,7 @@ function MessageBubble({
   message,
   isOwn,
   isCompact,
+  isFresh = false,
   currentUserId,
   socket,
   conversationType,
@@ -525,9 +545,16 @@ function MessageBubble({
       )}
 
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
+        initial={{
+          opacity: 0,
+          y: isOwn && isFresh ? 14 : 8,
+          scale: isOwn && isFresh ? 0.96 : 0.99,
+        }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{
+          duration: isOwn && isFresh ? 0.28 : 0.2,
+          ease: [0.16, 1, 0.3, 1],
+        }}
         style={{ x }}
         drag={mediaOnly ? false : "x"}
         dragDirectionLock

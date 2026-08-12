@@ -6,7 +6,7 @@ import { pickAvatarUrl, resolveDisplayName } from "../../lib/userProfile";
 import { cssUrl } from "../../lib/cssUrl";
 import ValorantBadge from "./ValorantBadge";
 import AdminBadge from "./AdminBadge";
-import { BadgeIcon, NameEffectText, TitleTag } from "../ui/Cosmetics";
+import { BadgeIcon, NameEffectText, TitleTag, profileAuraClass } from "../ui/Cosmetics";
 import { getUserValorant } from "../../api/riot";
 import { useT } from "../../context/LocaleContext";
 
@@ -98,7 +98,7 @@ export default function UserHoverCard({ user, anchor }) {
   const node = (
     <motion.div
       ref={ref}
-      className="user-hover-card glass"
+      className={`user-hover-card glass ${profileAuraClass(user)}`.trim()}
       style={{
         position: "fixed",
         left: pos.left,
@@ -109,10 +109,10 @@ export default function UserHoverCard({ user, anchor }) {
         maxHeight: `calc(100vh - ${PAD * 2}px)`,
         overflow: "auto",
       }}
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={{ opacity: 0, scale: 0.96, y: 4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ duration: 0.12, ease: "easeOut" }}
+      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
     >
       <div
         className="uhc-banner"

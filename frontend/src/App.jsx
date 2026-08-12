@@ -521,10 +521,16 @@ export default function App() {
       const json = JSON.stringify(nextSettings);
       localStorage.setItem("descall_user_settings", json);
       localStorage.setItem("descall_settings", json);
-      document.documentElement.setAttribute(
-        "data-theme",
-        themeKey || (settings.darkMode === false ? "light" : "dark")
-      );
+      const nextTheme = themeKey || (settings.darkMode === false ? "light" : "dark");
+      const root = document.documentElement;
+      const prev = root.getAttribute("data-theme");
+      if (prev !== nextTheme) {
+        root.classList.add("theme-crossfade");
+        root.setAttribute("data-theme", nextTheme);
+        window.setTimeout(() => root.classList.remove("theme-crossfade"), 320);
+      } else {
+        root.setAttribute("data-theme", nextTheme);
+      }
     } catch {
       if (themeKey) document.documentElement.setAttribute("data-theme", themeKey);
     }
