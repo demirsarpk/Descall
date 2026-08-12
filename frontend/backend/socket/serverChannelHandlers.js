@@ -280,6 +280,50 @@ function registerServerChannelHandlers(io, socket) {
           message,
           tempId,
         });
+
+        // Direct @mention alerts (works even if the target is not in the channel room)
+        if (trimmedContent) {
+          const mentionedUsernames = [
+            ...new Set(
+              [...trimmedContent.matchAll(/@(\w{1,32})/g)].map((m) => m[1].toLowerCase())
+            ),
+          ];
+          if (mentionedUsernames.length > 0) {
+            const [{ data: serverMeta }, { data: mentionedUsers }] = await Promise.all([
+              supabase.from("servers").select("name").eq("id", channel.server_id).maybeSingle(),
+              supabase
+                .from("users")
+                .select("id, username")
+                .or(mentionedUsernames.map((u) => `username.ilike.${u}`).join(",")),
+            ]);
+            const candidates = (mentionedUsers || []).filter((u) => {
+              if (!u?.id || u.id === myId) return false;
+              return mentionedUsernames.includes(String(u.username || "").toLowerCase());
+            });
+            const candidateIds = candidates.map((u) => u.id);
+            if (candidateIds.length > 0) {
+              const { data: memberRows } = await supabase
+                .from("server_members")
+                .select("user_id")
+                .eq("server_id", channel.server_id)
+                .in("user_id", candidateIds);
+              const memberSet = new Set((memberRows || []).map((r) => r.user_id));
+              const fromName =
+                message.sender?.username || socket.user?.username || "Someone";
+              for (const uid of candidateIds) {
+                if (!memberSet.has(uid)) continue;
+                io.to(`user:${uid}`).emit("mention:received", {
+                  serverId: channel.server_id,
+                  channelId,
+                  channelName: channel.name || null,
+                  serverName: serverMeta?.name || null,
+                  from: fromName,
+                  text: trimmedContent,
+                });
+              }
+            }
+          }
+        }
       } catch (err) {
         console.error("[ServerChannel] message error:", err);
         socket.emit("server:channel:message:error", {

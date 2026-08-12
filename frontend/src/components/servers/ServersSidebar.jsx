@@ -22,11 +22,14 @@ import {
   Ban,
   ScrollText,
   MicOff,
+  BellOff,
+  Bell,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { Avatar } from "../ui/Avatar";
 import useSpeaking from "../../hooks/useSpeaking";
+import { isChannelMuted, toggleChannelMute } from "../../lib/serverChannelMutes";
 import ServerRolesModal from "./ServerRolesModal";
 import ServerInviteModal from "./ServerInviteModal";
 import JoinServerModal from "./JoinServerModal";
@@ -73,6 +76,7 @@ export default function ServersSidebar({
   const [channelMenuId, setChannelMenuId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [collapsedCats, setCollapsedCats] = useState({});
+  const [mutedChannelTick, setMutedChannelTick] = useState(0);
 
   const canCreate = ownedCount < maxOwned;
   const permFlags = activeServer?.myPermissions?.flags || {};
@@ -111,6 +115,13 @@ export default function ServersSidebar({
     if (!activeServer) return;
     setMenuOpen(false);
     setConfirm({ mode, server: activeServer });
+  };
+
+  const handleToggleChannelMute = (channelId) => {
+    if (!channelId) return;
+    toggleChannelMute(channelId);
+    setMutedChannelTick((n) => n + 1);
+    setChannelMenuId(null);
   };
 
   const runLeaveOrDelete = async (mode, server, confirmName) => {
@@ -330,6 +341,9 @@ export default function ServersSidebar({
                           participantStreams={participantStreams}
                           localStream={localVoiceStream}
                           myUserId={myVoiceUserId}
+                          muted={ch.type === "text" ? isChannelMuted(ch.id) : false}
+                          muteTick={mutedChannelTick}
+                          onToggleMute={() => handleToggleChannelMute(ch.id)}
                           onOpenMenu={() => setChannelMenuId((id) => (id === ch.id ? null : ch.id))}
                           onCloseMenu={() => setChannelMenuId(null)}
                           onSelect={() => {
@@ -361,6 +375,9 @@ export default function ServersSidebar({
                   participantStreams={participantStreams}
                   localStream={localVoiceStream}
                   myUserId={myVoiceUserId}
+                  muted={node.type === "text" ? isChannelMuted(node.id) : false}
+                  muteTick={mutedChannelTick}
+                  onToggleMute={() => handleToggleChannelMute(node.id)}
                   onOpenMenu={() => setChannelMenuId((id) => (id === node.id ? null : node.id))}
                   onCloseMenu={() => setChannelMenuId(null)}
                   onSelect={() => {
@@ -642,6 +659,9 @@ function ChannelRow({
   participantStreams = null,
   localStream = null,
   myUserId = null,
+  muted = false,
+  muteTick = 0,
+  onToggleMute,
   onOpenMenu,
   onCloseMenu,
   onSelect,
@@ -651,8 +671,12 @@ function ChannelRow({
   const t = useT();
   const Icon = channel.type === "voice" ? Volume2 : Hash;
   const voiceMembers = channel.type === "voice" ? voiceState?.members || [] : [];
+  const showMenu = canManage || channel.type === "text";
+  void muteTick;
   return (
-    <div className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""}`}>
+    <div
+      className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""} ${muted ? "is-muted-channel" : ""}`}
+    >
       <button
         type="button"
         className={`server-channel-row ${active ? "active" : ""}`}
@@ -661,11 +685,12 @@ function ChannelRow({
       >
         <Icon size={16} />
         <span>{channel.name}</span>
+        {muted ? <BellOff size={12} className="server-channel-mute-icon" aria-hidden /> : null}
         {channel.type === "voice" && voiceMembers.length > 0 && (
           <span className="server-voice-count">{voiceMembers.length}</span>
         )}
       </button>
-      {canManage && (
+      {showMenu && (
         <div className="server-channel-row-actions">
           <button
             type="button"
@@ -687,14 +712,24 @@ function ChannelRow({
                 exit={{ opacity: 0, y: -4 }}
                 onMouseLeave={onCloseMenu}
               >
-                <button type="button" className="server-dropdown-item" onClick={onEdit}>
-                  <Pencil size={14} />
-                  {t("Edit channel")}
-                </button>
-                <button type="button" className="server-dropdown-item danger" onClick={onDelete}>
-                  <Trash2 size={14} />
-                  {t("Delete channel")}
-                </button>
+                {channel.type === "text" && (
+                  <button type="button" className="server-dropdown-item" onClick={onToggleMute}>
+                    {muted ? <Bell size={14} /> : <BellOff size={14} />}
+                    {muted ? t("Unmute channel") : t("Mute channel")}
+                  </button>
+                )}
+                {canManage && (
+                  <>
+                    <button type="button" className="server-dropdown-item" onClick={onEdit}>
+                      <Pencil size={14} />
+                      {t("Edit channel")}
+                    </button>
+                    <button type="button" className="server-dropdown-item danger" onClick={onDelete}>
+                      <Trash2 size={14} />
+                      {t("Delete channel")}
+                    </button>
+                  </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

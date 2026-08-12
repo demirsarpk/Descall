@@ -1407,6 +1407,20 @@ button.member-row.server-member-row {
   color: var(--success, #3ba55d);
 }
 
+.server-channel-row-wrap.is-muted-channel > .server-channel-row {
+  opacity: 0.72;
+}
+
+.server-channel-mute-icon {
+  flex-shrink: 0;
+  opacity: 0.75;
+  margin-left: 2px;
+}
+
+.server-channel-row .server-voice-count {
+  margin-left: auto;
+}
+
 @media (max-width: 720px) {
   .server-roles-layout {
     grid-template-columns: 1fr;

@@ -1264,6 +1264,8 @@ export const phrases = {
   "Delete channel": "Delete channel",
   "Delete category": "Delete category",
   "Channel settings": "Channel settings",
+  "Mute channel": "Mute channel",
+  "Unmute channel": "Unmute channel",
   "Channel name": "Channel name",
   "Category name": "Category name",
   "Channel name is required.": "Channel name is required.",

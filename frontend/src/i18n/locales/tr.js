@@ -1224,6 +1224,8 @@ export const phrases = {
   "Delete channel": "Kanalı sil",
   "Delete category": "Kategoriyi sil",
   "Channel settings": "Kanal ayarları",
+  "Mute channel": "Kanalı sessize al",
+  "Unmute channel": "Kanalın sesini aç",
   "Channel name": "Kanal adı",
   "Category name": "Kategori adı",
   "Channel name is required.": "Kanal adı gerekli.",

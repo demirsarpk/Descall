@@ -43,6 +43,7 @@ import {
 } from "./lib/userProfile";
 import audioManager, { initAudioManager, setEquippedSoundPack } from "./lib/audioManager";
 import notificationService from "./lib/notificationService";
+import { isChannelMuted } from "./lib/serverChannelMutes";
 import { subscribeWebPush } from "./lib/webPushSubscription";
 import { requestNativePushPermission, syncNativePushToken, isNativePushPlatform } from "./lib/nativePush";
 import { useToast } from "./context/ToastContext";
@@ -316,6 +317,7 @@ export default function App() {
   const activeChannelRef = useRef(null);
   const myIdRef = useRef(null);
   const myGroupsRef = useRef([]);
+  const myServersRef = useRef([]);
   const friendsRef = useRef([]);
   const friendsFromSocketRef = useRef(false);
   const myStatusRef = useRef(myStatus);
@@ -487,6 +489,10 @@ export default function App() {
   useEffect(() => {
     myGroupsRef.current = myGroups;
   }, [myGroups]);
+
+  useEffect(() => {
+    myServersRef.current = myServers;
+  }, [myServers]);
 
   const commitSessionUser = useCallback((user) => {
     const normalized = normalizeUser(user);
@@ -1440,7 +1446,7 @@ export default function App() {
       });
       const isFromMe = normalized.from?.id === myIdRef.current;
       const isActive = activeChannelRef.current?.id === channelId;
-      if (!isFromMe && !isActive) {
+      if (!isFromMe && !isActive && !isChannelMuted(channelId)) {
         playUiSound("message");
         notificationService.newMessage({
           from: normalized.from?.username || "Someone",
@@ -1467,8 +1473,31 @@ export default function App() {
       if (message) toast(message, "error");
     });
 
-    socket.on("mention:received", ({ groupId, dmConversationId, from, text, groupName }) => {
-      notificationService.mention({ groupId, dmConversationId, from, text, groupName });
+    socket.on("mention:received", (payload = {}) => {
+      const {
+        groupId,
+        dmConversationId,
+        from,
+        text,
+        groupName,
+        serverId,
+        channelId,
+        serverName,
+        channelName,
+      } = payload;
+      if (channelId && isChannelMuted(channelId)) return;
+      if (channelId && activeChannelRef.current?.id === channelId) return;
+      notificationService.mention({
+        groupId,
+        dmConversationId,
+        from,
+        text,
+        groupName,
+        serverId,
+        channelId,
+        serverName,
+        channelName,
+      });
     });
 
     // Casino: one bubble per player (session id). Board never downgrades to lobby on stray clicks.
@@ -2439,6 +2468,44 @@ export default function App() {
             }
           }, 400);
         }
+        return;
+      }
+
+      if (type === "mention" && data.serverId) {
+        const serverId = data.serverId;
+        const channelId = data.channelId || null;
+        setReplyTo(null);
+        setActiveDmUser(null);
+        setActiveGroup(null);
+        setActiveView("servers");
+        const server =
+          myServersRef.current?.find((s) => s.id === serverId) ||
+          { id: serverId, name: data.serverName || "Server" };
+        setActiveServer(server);
+        if (channelId) {
+          const channel =
+            (server.channels || []).find((c) => c.id === channelId) ||
+            { id: channelId, name: data.channelName || "channel", type: "text" };
+          setActiveChannel(channel);
+          navigate(serverPath(server, channel));
+          socketRef.current?.emit("server:channel:join", channelId);
+        } else {
+          setActiveChannel(null);
+          navigate(serverPath(server));
+        }
+        getServer(serverId)
+          .then((res) => {
+            if (!res?.server) return;
+            setActiveServer(res.server);
+            setMyServers((prev) =>
+              prev.map((s) => (s.id === res.server.id ? { ...s, ...res.server } : s))
+            );
+            if (channelId) {
+              const ch = (res.server.channels || []).find((c) => c.id === channelId);
+              if (ch) setActiveChannel(ch);
+            }
+          })
+          .catch(() => {});
         return;
       }
 

@@ -1,4 +1,5 @@
 import { t } from '../i18n/runtime';
+import { isChannelMuted } from './serverChannelMutes';
 
 const COOLDOWN_MS = 800;
 const CALL_TAG = 'descall-incoming-call';
@@ -199,15 +200,43 @@ class NotificationService {
     });
   }
 
-  async mention({ groupName, from, text, groupId, dmConversationId }) {
+  async mention({
+    groupName,
+    from,
+    text,
+    groupId,
+    dmConversationId,
+    serverId,
+    channelId,
+    serverName,
+    channelName,
+  }) {
     if (isDndMuted()) return;
-    if (readUserSettings().msgNotifications === false) return;
+    const settings = readUserSettings();
+    if (settings.msgNotifications === false) return;
+    if (settings.mentionNotifications === false) return;
+    if (channelId && isChannelMuted(channelId)) return;
+    const contextLabel =
+      serverName && channelName
+        ? `${serverName} #${channelName}`
+        : serverName || groupName || null;
     await this.show({
       title: `💬 ${t("{from} mentioned you", { from })}`,
-      body: groupName ? `${groupName}: ${(text || '').substring(0, 100)}` : (text || '').substring(0, 120),
-      tag: `mention-${groupId || dmConversationId}`,
+      body: contextLabel
+        ? `${contextLabel}: ${(text || '').substring(0, 100)}`
+        : (text || '').substring(0, 120),
+      tag: `mention-${groupId || dmConversationId || channelId || 'x'}`,
       requireInteraction: true,
-      data: { type: 'mention', groupId, dmConversationId, from },
+      data: {
+        type: 'mention',
+        groupId,
+        dmConversationId,
+        serverId,
+        channelId,
+        serverName,
+        channelName,
+        from,
+      },
     });
   }
 
