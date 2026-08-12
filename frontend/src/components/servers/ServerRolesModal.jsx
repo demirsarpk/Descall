@@ -376,23 +376,25 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
 
                   <div className="server-field">
                     <span>{t("Permissions")}</span>
-                    <div className="server-perm-grid">
+                    <ul className="server-perm-list">
                       {editableKeys.map((key) => (
-                        <label key={key} className="server-check">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(draft.flags?.[key])}
-                            onChange={(e) =>
-                              setDraft((d) => ({
-                                ...d,
-                                flags: { ...d.flags, [key]: e.target.checked },
-                              }))
-                            }
-                          />
-                          <span>{t(PERM_LABELS[key] || key)}</span>
-                        </label>
+                        <li key={key} className="server-perm-row">
+                          <label className="server-perm-label">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(draft.flags?.[key])}
+                              onChange={(e) =>
+                                setDraft((d) => ({
+                                  ...d,
+                                  flags: { ...d.flags, [key]: e.target.checked },
+                                }))
+                              }
+                            />
+                            <span className="server-perm-text">{t(PERM_LABELS[key] || key)}</span>
+                          </label>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
 
                   <div className="server-modal-actions">
