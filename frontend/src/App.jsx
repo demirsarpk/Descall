@@ -316,6 +316,8 @@ export default function App() {
   const activeDmRef = useRef(null);
   const activeGroupRef = useRef(null);
   const activeChannelRef = useRef(null);
+  const activeServerRef = useRef(null);
+  const activeViewRef = useRef("chat");
   const myIdRef = useRef(null);
   const myGroupsRef = useRef([]);
   const myServersRef = useRef([]);
@@ -487,6 +489,14 @@ export default function App() {
   useEffect(() => {
     activeChannelRef.current = activeChannel;
   }, [activeChannel]);
+
+  useEffect(() => {
+    activeServerRef.current = activeServer;
+  }, [activeServer]);
+
+  useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
 
   useEffect(() => {
     myGroupsRef.current = myGroups;
@@ -908,6 +918,25 @@ export default function App() {
       if (ids.length > 0) socket.emit("groups:rejoin", ids);
     };
 
+    const rejoinServers = () => {
+      const view = activeViewRef.current;
+      const server = activeServerRef.current;
+      if (view !== "servers" || !server?.id) return;
+      socket.emit("server:subscribe", { serverId: server.id });
+      socket.emit("server:voice:subscribe", { serverId: server.id });
+      const textIds = (server.channels || [])
+        .filter((c) => c.type === "text" && c.id)
+        .map((c) => c.id);
+      if (textIds.length) socket.emit("server:channels:rejoin", textIds);
+      const voiceLike = activeChannelRef.current;
+      if (
+        voiceLike?.id &&
+        (voiceLike.type === "voice" || voiceLike.type === "stage")
+      ) {
+        socket.emit("server:voice:check", { channelId: voiceLike.id });
+      }
+    };
+
     socket.on("connect", () => {
       setIsConnected(true);
       setReconnectState("connected");
@@ -915,6 +944,7 @@ export default function App() {
       setAuthError("");
       emitDmActive(socket, activeDmRef.current?.id ?? null);
       rejoinGroups();
+      rejoinServers();
     });
 
     socket.on("disconnect", (reason) => {
@@ -932,6 +962,7 @@ export default function App() {
       setAuthError("");
       emitDmActive(socket, activeDmRef.current?.id ?? null);
       rejoinGroups();
+      rejoinServers();
     });
 
     socket.io.on("reconnect_failed", () => {
@@ -1893,6 +1924,174 @@ export default function App() {
       }
     });
 
+    const upsertServerChannel = (serverId, channel) => {
+      if (!serverId || !channel?.id) return;
+      const merge = (channels = []) => {
+        const idx = channels.findIndex((c) => String(c.id) === String(channel.id));
+        if (idx === -1) return [...channels, channel];
+        const next = channels.slice();
+        next[idx] = { ...next[idx], ...channel };
+        return next;
+      };
+      setMyServers((prev) =>
+        prev.map((s) =>
+          String(s.id) === String(serverId) ? { ...s, channels: merge(s.channels || []) } : s
+        )
+      );
+      setActiveServer((prev) => {
+        if (!prev || String(prev.id) !== String(serverId)) return prev;
+        return { ...prev, channels: merge(prev.channels || []) };
+      });
+      setActiveChannel((prev) =>
+        prev && String(prev.id) === String(channel.id) ? { ...prev, ...channel } : prev
+      );
+    };
+
+    socket.on("server:channel:created", ({ serverId, channel } = {}) => {
+      if (!serverId || !channel?.id) return;
+      upsertServerChannel(serverId, channel);
+      if (
+        channel.type === "text" &&
+        activeViewRef.current === "servers" &&
+        activeServerRef.current &&
+        String(activeServerRef.current.id) === String(serverId)
+      ) {
+        socket.emit("server:channel:join", channel.id);
+      }
+    });
+
+    socket.on("server:channel:updated", ({ serverId, channel } = {}) => {
+      if (!serverId || !channel?.id) return;
+      upsertServerChannel(serverId, channel);
+    });
+
+    socket.on("server:channel:deleted", ({ serverId, channelId } = {}) => {
+      if (!serverId || !channelId) return;
+      const drop = (channels = []) =>
+        channels.filter((c) => String(c.id) !== String(channelId));
+      setMyServers((prev) =>
+        prev.map((s) =>
+          String(s.id) === String(serverId) ? { ...s, channels: drop(s.channels || []) } : s
+        )
+      );
+      setActiveServer((prev) => {
+        if (!prev || String(prev.id) !== String(serverId)) return prev;
+        return { ...prev, channels: drop(prev.channels || []) };
+      });
+      setActiveChannel((prev) =>
+        prev && String(prev.id) === String(channelId) ? null : prev
+      );
+      setChannelMessagesById((prev) => {
+        if (!prev[channelId]) return prev;
+        const next = { ...prev };
+        delete next[channelId];
+        return next;
+      });
+      socket.emit("server:channel:leave", channelId);
+    });
+
+    const upsertServerRole = (serverId, role) => {
+      if (!serverId || !role?.id) return;
+      const merge = (roles = []) => {
+        const idx = roles.findIndex((r) => String(r.id) === String(role.id));
+        if (idx === -1) return [...roles, role];
+        const next = roles.slice();
+        next[idx] = { ...next[idx], ...role };
+        return next;
+      };
+      setMyServers((prev) =>
+        prev.map((s) =>
+          String(s.id) === String(serverId) ? { ...s, roles: merge(s.roles || []) } : s
+        )
+      );
+      setActiveServer((prev) => {
+        if (!prev || String(prev.id) !== String(serverId)) return prev;
+        return { ...prev, roles: merge(prev.roles || []) };
+      });
+    };
+
+    socket.on("server:role:created", ({ serverId, role } = {}) => {
+      upsertServerRole(serverId, role);
+    });
+
+    socket.on("server:role:updated", ({ serverId, role } = {}) => {
+      upsertServerRole(serverId, role);
+    });
+
+    socket.on("server:role:deleted", ({ serverId, roleId } = {}) => {
+      if (!serverId || !roleId) return;
+      const drop = (roles = []) => roles.filter((r) => String(r.id) !== String(roleId));
+      setMyServers((prev) =>
+        prev.map((s) =>
+          String(s.id) === String(serverId) ? { ...s, roles: drop(s.roles || []) } : s
+        )
+      );
+      setActiveServer((prev) => {
+        if (!prev || String(prev.id) !== String(serverId)) return prev;
+        return { ...prev, roles: drop(prev.roles || []) };
+      });
+      try {
+        window.dispatchEvent(
+          new CustomEvent("descall:server-role-deleted", {
+            detail: { serverId, roleId },
+          })
+        );
+      } catch {
+        /* ignore */
+      }
+    });
+
+    socket.on("server:member:joined", ({ serverId, member, memberCount } = {}) => {
+      if (!serverId) return;
+      if (typeof memberCount === "number") {
+        setActiveServer((prev) =>
+          prev && String(prev.id) === String(serverId)
+            ? { ...prev, memberCount }
+            : prev
+        );
+        setMyServers((prev) =>
+          prev.map((s) =>
+            String(s.id) === String(serverId) ? { ...s, memberCount } : s
+          )
+        );
+      }
+      try {
+        window.dispatchEvent(
+          new CustomEvent("descall:server-member-joined", {
+            detail: { serverId, member, memberCount },
+          })
+        );
+      } catch {
+        /* ignore */
+      }
+    });
+
+    socket.on("server:member:updated", ({ serverId, member } = {}) => {
+      if (!serverId || !member?.userId) return;
+      try {
+        window.dispatchEvent(
+          new CustomEvent("descall:server-member-updated", {
+            detail: { serverId, member },
+          })
+        );
+      } catch {
+        /* ignore */
+      }
+    });
+
+    socket.on("server:member:roles-changed", ({ serverId, userId, roleId, action } = {}) => {
+      if (!serverId || !userId) return;
+      try {
+        window.dispatchEvent(
+          new CustomEvent("descall:server-member-roles-changed", {
+            detail: { serverId, userId, roleId, action },
+          })
+        );
+      } catch {
+        /* ignore */
+      }
+    });
+
     socket.on("system:kick", (payload = {}) => {
       const detail = [payload.message, payload.reason].filter(Boolean).join(" — ");
       const prefix = payload.action === "ban" ? t("You are banned") : t("Removed by moderator");
@@ -2282,6 +2481,8 @@ export default function App() {
   // without a DB unread sync. Leave rooms when leaving the server shell.
   useEffect(() => {
     if (activeView !== "servers" || !activeServer?.id) return undefined;
+    const serverId = activeServer.id;
+    socketRef.current?.emit("server:subscribe", { serverId });
     const textIds = (activeServer.channels || [])
       .filter((c) => c.type === "text" && c.id)
       .map((c) => c.id);
@@ -2292,6 +2493,7 @@ export default function App() {
       for (const id of textIds) {
         socketRef.current?.emit("server:channel:leave", id);
       }
+      socketRef.current?.emit("server:unsubscribe", { serverId });
     };
   }, [
     activeView,

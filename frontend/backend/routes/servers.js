@@ -479,6 +479,40 @@ async function deleteServerCascade(serverId) {
   if (error) throw error;
 }
 
+/** Broadcast a live server event to everyone currently in `server:${id}`. */
+function emitToServer(req, serverId, event, payload) {
+  const io = req.app?.get?.("io");
+  if (!io || !serverId || !event) return;
+  try {
+    io.to(`server:${serverId}`).emit(event, { serverId, ...payload });
+  } catch (err) {
+    console.warn("[SERVERS] emitToServer failed:", event, err?.message || err);
+  }
+}
+
+async function publicMemberBrief(serverId, userId, extras = {}) {
+  try {
+    const { data: user } = await supabase
+      .from("users")
+      .select("id, username, display_name, avatar_url")
+      .eq("id", userId)
+      .maybeSingle();
+    const membership = await getMembership(serverId, userId);
+    return {
+      userId,
+      username: user?.username || null,
+      displayName: user?.display_name || null,
+      avatarUrl: user?.avatar_url || null,
+      nickname: membership?.nickname || extras.nickname || null,
+      joinedAt: membership?.joined_at || extras.joinedAt || null,
+      roleIds: extras.roleIds || [],
+      isOwner: Boolean(extras.isOwner),
+    };
+  } catch {
+    return { userId, ...extras };
+  }
+}
+
 /**
  * Live-notify a kicked/banned user + other server members.
  * Also drops them from server voice rooms.
@@ -981,6 +1015,11 @@ router.post("/invites/:code/join", requireAuth, async (req, res) => {
 
     const bundle = await loadServerBundle(invite.server_id);
     const myPermissions = await buildMyPermissionsPayload(invite.server_id, userId);
+    const member = await publicMemberBrief(invite.server_id, userId);
+    emitToServer(req, invite.server_id, "server:member:joined", {
+      member,
+      memberCount: bundle.memberCount,
+    });
 
     return res.status(201).json({
       alreadyMember: false,
@@ -1070,6 +1109,11 @@ router.post("/discover/:id/join", requireAuth, async (req, res) => {
 
     const bundle = await loadServerBundle(serverId);
     const myPermissions = await buildMyPermissionsPayload(serverId, userId);
+    const member = await publicMemberBrief(serverId, userId);
+    emitToServer(req, serverId, "server:member:joined", {
+      member,
+      memberCount: bundle.memberCount,
+    });
     return res.status(201).json({
       alreadyMember: false,
       server: publicServer(bundle.server, {
@@ -1512,7 +1556,9 @@ router.post("/:id/roles", requireAuth, async (req, res) => {
       changes: { name, color, position },
     });
 
-    return res.status(201).json({ role: publicRole(role) });
+    const pub = publicRole(role);
+    emitToServer(req, serverId, "server:role:created", { role: pub });
+    return res.status(201).json({ role: pub });
   } catch (err) {
     const status = err.status || 500;
     if (status >= 500) console.error("[SERVERS] POST /:id/roles error:", err);
@@ -1590,7 +1636,9 @@ router.patch("/:id/roles/:roleId", requireAuth, async (req, res) => {
       changes: patch,
     });
 
-    return res.json({ role: publicRole(role) });
+    const pub = publicRole(role);
+    emitToServer(req, serverId, "server:role:updated", { role: pub });
+    return res.json({ role: pub });
   } catch (err) {
     const status = err.status || 500;
     if (status >= 500) console.error("[SERVERS] PATCH /:id/roles/:roleId error:", err);
@@ -1636,6 +1684,7 @@ router.delete("/:id/roles/:roleId", requireAuth, async (req, res) => {
       changes: { name: existing.name },
     });
 
+    emitToServer(req, serverId, "server:role:deleted", { roleId });
     return res.json({ message: "Role deleted.", roleId });
   } catch (err) {
     const status = err.status || 500;
@@ -1688,6 +1737,11 @@ router.put("/:id/members/:userId/roles/:roleId", requireAuth, async (req, res) =
       changes: { roleId, roleName: role.name },
     });
 
+    emitToServer(req, serverId, "server:member:roles-changed", {
+      userId,
+      roleId,
+      action: "add",
+    });
     return res.json({ message: "Role assigned.", userId, roleId });
   } catch (err) {
     const status = err.status || 500;
@@ -1736,6 +1790,11 @@ router.delete("/:id/members/:userId/roles/:roleId", requireAuth, async (req, res
       changes: { roleId, roleName: role.name },
     });
 
+    emitToServer(req, serverId, "server:member:roles-changed", {
+      userId,
+      roleId,
+      action: "remove",
+    });
     return res.json({ message: "Role removed.", userId, roleId });
   } catch (err) {
     const status = err.status || 500;
@@ -1849,13 +1908,13 @@ router.patch("/:id/members/:userId/nickname", requireAuth, async (req, res) => {
       changes: { nickname },
     });
 
-    return res.json({
-      member: {
-        serverId: member.server_id,
-        userId: member.user_id,
-        nickname: member.nickname || null,
-      },
-    });
+    const payload = {
+      serverId: member.server_id,
+      userId: member.user_id,
+      nickname: member.nickname || null,
+    };
+    emitToServer(req, serverId, "server:member:updated", { member: payload });
+    return res.json({ member: payload });
   } catch (err) {
     const status = err.status || 500;
     if (status >= 500) console.error("[SERVERS] PATCH nickname error:", err);
@@ -2319,7 +2378,9 @@ router.post("/:id/channels", requireAuth, async (req, res) => {
       changes: { name, type, parentId: channel.parent_id },
     });
 
-    return res.status(201).json({ channel: publicChannel(channel) });
+    const pub = publicChannel(channel);
+    emitToServer(req, serverId, "server:channel:created", { channel: pub });
+    return res.status(201).json({ channel: pub });
   } catch (err) {
     const status = err.status || 500;
     if (status >= 500) console.error("[SERVERS] POST /:id/channels error:", err);
@@ -2394,7 +2455,9 @@ router.patch("/:id/channels/:channelId", requireAuth, async (req, res) => {
       changes: patch,
     });
 
-    return res.json({ channel: publicChannel(channel) });
+    const pub = publicChannel(channel);
+    emitToServer(req, serverId, "server:channel:updated", { channel: pub });
+    return res.json({ channel: pub });
   } catch (err) {
     const status = err.status || 500;
     if (status >= 500) console.error("[SERVERS] PATCH /:id/channels/:channelId error:", err);
@@ -2445,6 +2508,10 @@ router.delete("/:id/channels/:channelId", requireAuth, async (req, res) => {
       changes: { name: existing.name, type: existing.type },
     });
 
+    emitToServer(req, serverId, "server:channel:deleted", {
+      channelId,
+      type: existing.type,
+    });
     return res.json({ message: "Channel deleted.", channelId, type: existing.type });
   } catch (err) {
     const status = err.status || 500;

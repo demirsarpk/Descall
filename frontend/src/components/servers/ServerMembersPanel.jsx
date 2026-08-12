@@ -112,8 +112,53 @@ export default function ServerMembersPanel({
         prev && String(prev.member?.userId) === String(userId) ? null : prev
       );
     };
+    const onJoined = (e) => {
+      const { serverId, member } = e?.detail || {};
+      if (!serverId || !member?.userId) return;
+      if (String(serverId) !== String(server.id)) return;
+      setMembers((prev) => {
+        if (prev.some((m) => String(m.userId) === String(member.userId))) return prev;
+        return [...prev, member];
+      });
+    };
+    const onUpdated = (e) => {
+      const { serverId, member } = e?.detail || {};
+      if (!serverId || !member?.userId) return;
+      if (String(serverId) !== String(server.id)) return;
+      setMembers((prev) =>
+        prev.map((m) =>
+          String(m.userId) === String(member.userId) ? { ...m, ...member } : m
+        )
+      );
+    };
+    const onRolesChanged = (e) => {
+      const { serverId, userId, roleId, action } = e?.detail || {};
+      if (!serverId || !userId || !roleId) return;
+      if (String(serverId) !== String(server.id)) return;
+      setMembers((prev) =>
+        prev.map((m) => {
+          if (String(m.userId) !== String(userId)) return m;
+          const roleIds = Array.isArray(m.roleIds) ? m.roleIds.slice() : [];
+          const rid = String(roleId);
+          const has = roleIds.some((id) => String(id) === rid);
+          if (action === "add" && !has) roleIds.push(roleId);
+          if (action === "remove" && has) {
+            return { ...m, roleIds: roleIds.filter((id) => String(id) !== rid) };
+          }
+          return { ...m, roleIds };
+        })
+      );
+    };
     window.addEventListener("descall:server-member-removed", onRemoved);
-    return () => window.removeEventListener("descall:server-member-removed", onRemoved);
+    window.addEventListener("descall:server-member-joined", onJoined);
+    window.addEventListener("descall:server-member-updated", onUpdated);
+    window.addEventListener("descall:server-member-roles-changed", onRolesChanged);
+    return () => {
+      window.removeEventListener("descall:server-member-removed", onRemoved);
+      window.removeEventListener("descall:server-member-joined", onJoined);
+      window.removeEventListener("descall:server-member-updated", onUpdated);
+      window.removeEventListener("descall:server-member-roles-changed", onRolesChanged);
+    };
   }, [server?.id]);
 
   useEffect(() => {

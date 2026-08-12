@@ -14,6 +14,7 @@ const {
   Permissions,
   hasPermission,
   resolveChannelPermissions,
+  resolveMemberPermissions,
 } = require("../lib/serverPermissions");
 const {
   executeSlashCommand,
@@ -173,6 +174,23 @@ function markSlowmodeSend(channelId, userId) {
 function registerServerChannelHandlers(io, socket) {
   const myId = socket.user?.id;
   if (!myId) return;
+
+  /** Join the server room for structure/member live updates (not voice-only). */
+  socket.on("server:subscribe", async ({ serverId } = {}) => {
+    if (!serverId) return;
+    try {
+      const resolved = await resolveMemberPermissions(supabase, serverId, myId);
+      if (!resolved.isMember) return;
+      socket.join(`server:${serverId}`);
+    } catch (err) {
+      console.error("[ServerChannel] subscribe error:", err.message || err);
+    }
+  });
+
+  socket.on("server:unsubscribe", ({ serverId } = {}) => {
+    if (!serverId) return;
+    socket.leave(`server:${serverId}`);
+  });
 
   socket.on("server:channel:join", async (channelId) => {
     if (!channelId) return;

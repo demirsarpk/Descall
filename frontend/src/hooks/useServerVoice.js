@@ -944,21 +944,40 @@ export function useServerVoice(socket) {
     else await startCamera();
   }, [isCameraOn, startCamera, stopCamera]);
 
+  const subscribedServerIdRef = useRef(null);
+
   const subscribeServer = useCallback(
     (serverId) => {
-      if (!socket?.connected || !serverId) return;
+      if (!socket || !serverId) return;
+      subscribedServerIdRef.current = serverId;
       socket.emit("server:voice:subscribe", { serverId });
+      socket.emit("server:subscribe", { serverId });
     },
     [socket]
   );
 
   const checkChannel = useCallback(
     (channelId) => {
-      if (!socket?.connected || !channelId) return;
+      if (!socket || !channelId) return;
       socket.emit("server:voice:check", { channelId });
     },
     [socket]
   );
+
+  // Re-subscribe after reconnect — rooms are cleared server-side on disconnect.
+  useEffect(() => {
+    if (!socket) return undefined;
+    const onConnect = () => {
+      const serverId = subscribedServerIdRef.current;
+      if (!serverId) return;
+      socket.emit("server:voice:subscribe", { serverId });
+      socket.emit("server:subscribe", { serverId });
+      const channelId = activeChannelIdRef.current;
+      if (channelId) socket.emit("server:voice:check", { channelId });
+    };
+    socket.on("connect", onConnect);
+    return () => socket.off("connect", onConnect);
+  }, [socket]);
 
   useEffect(() => {
     if (!socket) return undefined;
