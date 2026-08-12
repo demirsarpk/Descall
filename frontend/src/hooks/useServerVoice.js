@@ -53,6 +53,7 @@ export function useServerVoice(socket) {
   const remoteAudioRefs = useRef(new Map());
   const remoteStreamMapRef = useRef(new Map()); // userId -> MediaStream
   const activeChannelIdRef = useRef(null);
+  const activeServerIdRef = useRef(null);
   const myIdRef = useRef(getUser()?.id || null);
   const mutedRef = useRef(false);
   const [localStream, setLocalStream] = useState(null);
@@ -91,6 +92,10 @@ export function useServerVoice(socket) {
   useEffect(() => {
     activeChannelIdRef.current = activeChannelId;
   }, [activeChannelId]);
+
+  useEffect(() => {
+    activeServerIdRef.current = activeServerId;
+  }, [activeServerId]);
 
   useEffect(() => {
     mutedRef.current = muted;
@@ -271,7 +276,39 @@ export function useServerVoice(socket) {
     [attachRemoteAudio, canPublishVoice, cleanupPeer, updateRemoteParticipant]
   );
 
+  const removeUserFromVoiceStates = useCallback((channelId, userId, serverId = null) => {
+    if (!channelId || !userId) return;
+    const uid = String(userId);
+    setVoiceStatesByServer((prev) => {
+      const next = { ...prev };
+      const serverIds = serverId
+        ? [String(serverId)]
+        : Object.keys(next);
+      let changed = false;
+      for (const sid of serverIds) {
+        const channels = next[sid];
+        if (!channels?.[channelId]) continue;
+        const members = (channels[channelId].members || []).filter(
+          (m) => String(m?.id) !== uid
+        );
+        if (members.length === (channels[channelId].members || []).length) continue;
+        changed = true;
+        next[sid] = {
+          ...channels,
+          [channelId]: {
+            members,
+            memberCount: members.length,
+          },
+        };
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
   const cleanupAll = useCallback(() => {
+    const leavingChannelId = activeChannelIdRef.current;
+    const leavingServerId = activeServerIdRef.current;
+    const meId = myIdRef.current;
     disconnectLiveKit();
     for (const userId of [...pcMapRef.current.keys()]) cleanupPeer(userId);
     if (screenStreamRef.current) {
@@ -293,6 +330,10 @@ export function useServerVoice(socket) {
     remoteStreamMapRef.current = new Map();
     setLocalStream(null);
     setRemoteStreamsVersion((v) => v + 1);
+    // Drop own ghost from sidebar voice lists immediately
+    if (leavingChannelId && meId) {
+      removeUserFromVoiceStates(leavingChannelId, meId, leavingServerId);
+    }
     setActiveChannelId(null);
     setActiveServerId(null);
     setChannelName("");
@@ -307,7 +348,7 @@ export function useServerVoice(socket) {
     setCanSpeak(true);
     setCanStream(true);
     setConnecting(false);
-  }, [cleanupPeer, disconnectLiveKit]);
+  }, [cleanupPeer, disconnectLiveKit, removeUserFromVoiceStates]);
 
   const flushIce = async (pc, userId) => {
     const peer = pcMapRef.current.get(userId);
@@ -974,10 +1015,16 @@ export function useServerVoice(socket) {
       offerToPeer(user, channelId);
     };
 
-    const onMemberLeft = ({ channelId, userId } = {}) => {
-      if (!channelId || channelId !== activeChannelIdRef.current || !userId) return;
-      cleanupPeer(userId);
-      setParticipants((prev) => prev.filter((p) => p.id !== userId));
+    const onMemberLeft = ({ serverId, channelId, userId } = {}) => {
+      if (!channelId || !userId) return;
+      const uid = String(userId);
+      // Always clear sidebar / presence lists (viewers not in the call)
+      removeUserFromVoiceStates(channelId, uid, serverId || null);
+      // If we're in that channel, tear down the peer + in-call roster
+      if (channelId === activeChannelIdRef.current) {
+        cleanupPeer(uid);
+        setParticipants((prev) => prev.filter((p) => String(p.id) !== uid));
+      }
     };
 
     const onOffer = async ({ channelId, fromUserId, fromUser, offer } = {}) => {
@@ -1069,9 +1116,16 @@ export function useServerVoice(socket) {
       }
     };
 
-    const onForceDisconnected = ({ channelId } = {}) => {
-      if (!channelId || channelId !== activeChannelIdRef.current) return;
-      cleanupAll();
+    const onForceDisconnected = ({ serverId, channelId } = {}) => {
+      const ch = channelId || activeChannelIdRef.current;
+      const meId = myIdRef.current;
+      if (ch && meId) removeUserFromVoiceStates(ch, meId, serverId || activeServerIdRef.current);
+      if (ch && ch === activeChannelIdRef.current) {
+        cleanupAll();
+      } else if (ch) {
+        // Already cleaned locally but still clear any leftover roster
+        setParticipants((prev) => prev.filter((p) => String(p.id) !== String(meId)));
+      }
       setError("You were disconnected from the voice channel.");
     };
 
@@ -1097,13 +1151,25 @@ export function useServerVoice(socket) {
 
     const onChannelState = ({ serverId, channelId, members, memberCount } = {}) => {
       if (!serverId || !channelId) return;
+      const list = Array.isArray(members) ? members : [];
       setVoiceStatesByServer((prev) => ({
         ...prev,
         [serverId]: {
           ...(prev[serverId] || {}),
-          [channelId]: { members: members || [], memberCount: memberCount || 0 },
+          [channelId]: { members: list, memberCount: memberCount ?? list.length },
         },
       }));
+      // Keep in-call roster in sync when server authoritatively drops someone
+      if (channelId === activeChannelIdRef.current) {
+        const ids = new Set(list.map((m) => String(m?.id)));
+        setParticipants((prev) => {
+          const next = prev.filter((p) => ids.has(String(p.id)));
+          return next.length === prev.length ? prev : next;
+        });
+        for (const peerId of [...pcMapRef.current.keys()]) {
+          if (!ids.has(String(peerId))) cleanupPeer(peerId);
+        }
+      }
     };
 
     const onStates = ({ serverId, states } = {}) => {

@@ -133,12 +133,24 @@ async function assertStageChannel(userId, channelId) {
 function removeFromVoice(io, channelId, userId) {
   const call = activeServerVoiceCalls.get(channelId);
   if (!call) return null;
+  const uid = String(userId);
   call.participants.delete(userId);
-  io.to(`server-voice:${channelId}`).emit("server:voice:member-left", {
+  // Also drop string/uuid key variants if present
+  if (call.participants.has(uid)) call.participants.delete(uid);
+  const leavePayload = {
     serverId: call.serverId,
     channelId,
-    userId,
-  });
+    userId: uid,
+  };
+  // Voice room (peers) + server room (sidebar viewers who aren't connected)
+  io.to(`server-voice:${channelId}`).emit("server:voice:member-left", leavePayload);
+  io.to(`server:${call.serverId}`).emit("server:voice:member-left", leavePayload);
+  // Kick every socket for that user out of the voice room so they can't linger
+  try {
+    io.in(`user:${uid}`).socketsLeave(`server-voice:${channelId}`);
+  } catch {
+    /* ignore older socket.io */
+  }
   const state = emitChannelState(io, call.serverId, channelId);
   if (call.participants.size === 0) {
     activeServerVoiceCalls.delete(channelId);
