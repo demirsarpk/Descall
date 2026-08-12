@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "npm install --include=dev",
+  "installCommand": "ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm install --include=dev",
   "buildCommand": "npm run build:prod",
   "outputDirectory": "dist",
   "redirects": [

@@ -31,7 +31,7 @@
     "android:aab:release": "npm run android:sync && cd android && ./gradlew bundleRelease"
   },
   "engines": {
-    "node": ">=20"
+    "node": "20.x"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

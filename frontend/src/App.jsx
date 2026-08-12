@@ -2619,52 +2619,6 @@ export default function App() {
     );
   }
 
-  return (
-    <>
-    {/* Authenticated app shell — never index private UI */}
-    <SeoHead forceNoindex title="Descall" description="Descall app" path="/app" />
-    <TitleBar />
-    <div className="app-container">
-        {updateState && (
-          <div
-            className="electron-update-banner"
-            style={{
-            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
-            background: updateState === 'installing' ? '#23a55a' : '#5865f2',
-            color: '#fff', fontSize: '13px', fontWeight: 600,
-            textAlign: 'center', padding: '6px 16px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-          }}>
-            {updateState === 'installing'
-              ? `⚡ Descall ${updateVersion} yükleniyor, yeniden başlatılıyor…`
-              : `⬇️ Descall ${updateVersion} güncelleniyor, arka planda indiriliyor…`}
-          </div>
-        )}
-        {(me?.is_admin || me?.username === "admin") && adminOpen && (
-          <AdminPanel socket={socketApi} onClose={() => setAdminOpen(false)} onAdminChanged={() => setAdminChanged(true)} />
-        )}
-
-        {shopGift && (
-          <ShopGiftPopup
-            gift={shopGift}
-            onDismiss={() => setShopGift(null)}
-            onEquipped={async () => {
-              try {
-                const token = getToken();
-                const { user } = await getMe(token);
-                applyProfileUpdate(user);
-              } catch { /* best-effort */ }
-              setShopGift(null);
-            }}
-          />
-        )}
-
-        {descoinGift && (
-          <DesCoinGiftPopup gift={descoinGift} onDismiss={() => setDescoinGift(null)} />
-        )}
-        
-
   const handleRefreshServers = async () => {
     try {
       const data = await getMyServers();
@@ -2740,6 +2694,51 @@ export default function App() {
     setActiveServer(null);
     if (location.pathname.startsWith("/servers/")) navigate("/servers");
   };
+
+  return (
+    <>
+    {/* Authenticated app shell — never index private UI */}
+    <SeoHead forceNoindex title="Descall" description="Descall app" path="/app" />
+    <TitleBar />
+    <div className="app-container">
+        {updateState && (
+          <div
+            className="electron-update-banner"
+            style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
+            background: updateState === 'installing' ? '#23a55a' : '#5865f2',
+            color: '#fff', fontSize: '13px', fontWeight: 600,
+            textAlign: 'center', padding: '6px 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          }}>
+            {updateState === 'installing'
+              ? `⚡ Descall ${updateVersion} yükleniyor, yeniden başlatılıyor…`
+              : `⬇️ Descall ${updateVersion} güncelleniyor, arka planda indiriliyor…`}
+          </div>
+        )}
+        {(me?.is_admin || me?.username === "admin") && adminOpen && (
+          <AdminPanel socket={socketApi} onClose={() => setAdminOpen(false)} onAdminChanged={() => setAdminChanged(true)} />
+        )}
+
+        {shopGift && (
+          <ShopGiftPopup
+            gift={shopGift}
+            onDismiss={() => setShopGift(null)}
+            onEquipped={async () => {
+              try {
+                const token = getToken();
+                const { user } = await getMe(token);
+                applyProfileUpdate(user);
+              } catch { /* best-effort */ }
+              setShopGift(null);
+            }}
+          />
+        )}
+
+        {descoinGift && (
+          <DesCoinGiftPopup gift={descoinGift} onDismiss={() => setDescoinGift(null)} />
+        )}
 
         {/* NEW MODULAR LAYOUT SYSTEM */}
         <AppLayout
