@@ -24,7 +24,7 @@ import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 import { getUser } from "../lib/storage";
 import useConnectionStats from "./useConnectionStats";
 import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
-import { acquireCallWakeLock, releaseCallWakeLock } from "../lib/callWakeLock";
+import { acquireCallWakeLock, releaseCallWakeLock, pulseCallWakeLock } from "../lib/callWakeLock";
 import { startDesCoinHeartbeat } from "../lib/descoinHeartbeat";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
@@ -260,6 +260,8 @@ export function useCall(socket, callOccupancyRef = null) {
   const screenAudioSenderRef = useRef(null);
   const screenAudioCtxRef = useRef(null);
   const screenSharingRef = useRef(false);
+  const intentionalScreenStopRef = useRef(false);
+  const screenEndedInBackgroundRef = useRef(false);
   const stopScreenShareRef = useRef(null);
   const cleanupTimerRef = useRef(null);
   const socketRef = useRef(socket);
@@ -708,11 +710,22 @@ export function useCall(socket, callOccupancyRef = null) {
 
   // When returning from background (mobile home / app switcher), resume
   // remote audio and recover ICE — never hang up just because we left.
+  // Also surface screen-share death that Safari/Chrome caused while hidden.
   useEffect(() => {
     if (mode !== "active") return undefined;
 
     const resumeAfterBackground = () => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      pulseCallWakeLock();
+
+      if (screenEndedInBackgroundRef.current) {
+        screenEndedInBackgroundRef.current = false;
+        toast(
+          tRuntime("Screen share ended while Descall was in the background."),
+          "info"
+        );
+      }
+
       const audio = remoteAudioRef.current;
       if (audio) {
         try {
@@ -755,7 +768,12 @@ export function useCall(socket, callOccupancyRef = null) {
     };
 
     const onVisibility = () => {
-      if (document.visibilityState === "visible") resumeAfterBackground();
+      if (document.visibilityState === "hidden") {
+        // Keep media pipeline warm while user switches apps during screen share.
+        pulseCallWakeLock();
+        return;
+      }
+      resumeAfterBackground();
     };
 
     document.addEventListener("visibilitychange", onVisibility);
@@ -766,7 +784,7 @@ export function useCall(socket, callOccupancyRef = null) {
       window.removeEventListener("pageshow", resumeAfterBackground);
       window.removeEventListener("focus", resumeAfterBackground);
     };
-  }, [mode]);
+  }, [mode, toast]);
 
   useEffect(() => {
     if (!socket) return;
@@ -1179,7 +1197,14 @@ export function useCall(socket, callOccupancyRef = null) {
           return;
         }
         console.log('[ScreenShare] web path — getDisplayMedia');
-        screenStream = await getDisplayMediaStream({ width, height, fps });
+        // Mobile: entire screen (preferTab false) so switching to YouTube/Safari
+        // home does not end a Descall-tab-only capture.
+        screenStream = await getDisplayMediaStream({
+          width,
+          height,
+          fps,
+          preferTab: !isMobileScreenCapture(),
+        });
       }
 
       const screenTrack = screenStream.getVideoTracks()[0];
@@ -1192,6 +1217,13 @@ export function useCall(socket, callOccupancyRef = null) {
       if (screenTrack.readyState !== "live") {
         screenStream.getTracks().forEach((t) => t.stop());
         return;
+      }
+
+      if (isMobileScreenCapture()) {
+        toast(
+          tRuntime("Share your entire screen so switching apps keeps the broadcast alive."),
+          "info"
+        );
       }
 
       const {
@@ -1242,6 +1274,9 @@ export function useCall(socket, callOccupancyRef = null) {
       screenStreamRef.current = screenStream;
       setScreenStream(screenStream);
       screenSharingRef.current = true;
+      intentionalScreenStopRef.current = false;
+      screenEndedInBackgroundRef.current = false;
+      pulseCallWakeLock();
 
       // `addTrack` schedules the sole renegotiation through
       // `onnegotiationneeded`. A second delayed offer causes glare and was the
@@ -1253,7 +1288,17 @@ export function useCall(socket, callOccupancyRef = null) {
       }
 
       screenTrack.onended = () => {
-        if (stopScreenShareRef.current) stopScreenShareRef.current();
+        // Browser ends display tracks when the app backgrounds or the user
+        // leaves a tab-only capture. Don't treat that as a deliberate stop
+        // while hidden — clean up, then toast when they return.
+        if (intentionalScreenStopRef.current) {
+          intentionalScreenStopRef.current = false;
+          return;
+        }
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          screenEndedInBackgroundRef.current = true;
+        }
+        stopScreenShareRef.current?.();
       };
 
       setScreenSharing(true);
@@ -1264,6 +1309,7 @@ export function useCall(socket, callOccupancyRef = null) {
   const stopScreenShare = useCallback(() => {
     const pc = pcRef.current;
     if (!pc || !screenSharingRef.current) return;
+    intentionalScreenStopRef.current = true;
 
     if (screenSenderRef.current) {
       try { pc.removeTrack(screenSenderRef.current); } catch {}

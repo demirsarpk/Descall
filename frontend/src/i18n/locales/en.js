@@ -2123,6 +2123,8 @@ export const phrases = {
     "System/tab audio unavailable — your microphone is mixed into the screen share.",
   "Screen share ended while Descall was in the background.":
     "Screen share ended while Descall was in the background.",
+  "Share your entire screen so switching apps keeps the broadcast alive.":
+    "Share your entire screen so switching apps keeps the broadcast alive.",
 };
 
 const locale = { nested, phrases };

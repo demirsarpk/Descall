@@ -25,7 +25,7 @@ import { sampleConnectionStats } from "../lib/connectionStats";
 import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
 import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
-import { acquireCallWakeLock, releaseCallWakeLock } from "../lib/callWakeLock";
+import { acquireCallWakeLock, releaseCallWakeLock, pulseCallWakeLock } from "../lib/callWakeLock";
 import { startDesCoinHeartbeat } from "../lib/descoinHeartbeat";
 
 // Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
@@ -205,6 +205,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
   const timerRef = useRef(null);
   const screenSenderRef = useRef(null);
   const screenAudioCtxRef = useRef(null);
+  const intentionalScreenStopRef = useRef(false);
+  const screenEndedInBackgroundRef = useRef(false);
   const isInCallRef = useRef(false);
   const callTypeRef = useRef(null);
   const incomingDedupeRef = useRef(new Map()); // groupId -> ts
@@ -236,6 +238,57 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       releaseCallWakeLock();
     }
   }, [isInCall]);
+
+  // Resume media + ICE after background; explain screen-share death on return.
+  useEffect(() => {
+    if (!isInCall) return undefined;
+
+    const resumeAfterBackground = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      pulseCallWakeLock();
+      if (screenEndedInBackgroundRef.current) {
+        screenEndedInBackgroundRef.current = false;
+        toast(
+          tRuntime("Screen share ended while Descall was in the background."),
+          "info"
+        );
+      }
+      for (const peerData of pcMapRef.current.values()) {
+        const pc = peerData?.pc;
+        if (!pc) continue;
+        const ice = pc.iceConnectionState;
+        const conn = pc.connectionState;
+        const unhealthy =
+          ice === "disconnected" ||
+          ice === "failed" ||
+          conn === "disconnected" ||
+          conn === "failed";
+        if (!unhealthy) continue;
+        try {
+          pc.restartIce();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        pulseCallWakeLock();
+        return;
+      }
+      resumeAfterBackground();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pageshow", resumeAfterBackground);
+    window.addEventListener("focus", resumeAfterBackground);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pageshow", resumeAfterBackground);
+      window.removeEventListener("focus", resumeAfterBackground);
+    };
+  }, [isInCall, toast]);
 
   const isScreenSharingRef = useRef(false);
   useEffect(() => {
@@ -1230,7 +1283,12 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
           toast(tRuntime("Screen sharing is not available in this browser."), "error");
           return;
         }
-        stream = await getDisplayMediaStream({ width, height, fps: frameRate });
+        stream = await getDisplayMediaStream({
+          width,
+          height,
+          fps: frameRate,
+          preferTab: !isMobileScreenCapture(),
+        });
       }
       
       const screenTrack = stream.getVideoTracks()[0];
@@ -1243,6 +1301,13 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       if (screenTrack.readyState !== "live") {
         stream.getTracks().forEach((t) => t.stop());
         return;
+      }
+
+      if (isMobileScreenCapture()) {
+        toast(
+          tRuntime("Share your entire screen so switching apps keeps the broadcast alive."),
+          "info"
+        );
       }
 
       const {
@@ -1276,6 +1341,9 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
 
       screenStreamRef.current = stream;
       setScreenStream(stream);
+      intentionalScreenStopRef.current = false;
+      screenEndedInBackgroundRef.current = false;
+      pulseCallWakeLock();
 
       // Announce BEFORE renegotiation so remotes set expectScreenShare
       // before ontrack fires (avoids mis-classifying / missing the stream).
@@ -1313,6 +1381,13 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
 
       // Handle screen share end from the browser picker or source lifecycle.
       screenTrack.onended = () => {
+        if (intentionalScreenStopRef.current) {
+          intentionalScreenStopRef.current = false;
+          return;
+        }
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          screenEndedInBackgroundRef.current = true;
+        }
         stopScreenShareRef.current?.();
       };
 
@@ -1325,6 +1400,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
 
   const stopScreenShare = useCallback(async () => {
     if (!isScreenSharing) return;
+    intentionalScreenStopRef.current = true;
     
     // Remove the dedicated screen sender from every peer and renegotiate
     for (const [userId, peerData] of pcMapRef.current.entries()) {

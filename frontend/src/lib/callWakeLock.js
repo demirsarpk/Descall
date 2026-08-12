@@ -22,7 +22,12 @@ let reacquireOnVisible = null;
 let silentCtx = null;
 let silentGain = null;
 let silentOsc = null;
+let silentHtmlAudio = null;
 let nativeKeepAliveActive = false;
+
+/** Tiny WAV (near-silent) — HTMLAudioElement survives iOS Safari background better than AudioContext alone. */
+const SILENT_WAV_DATA_URI =
+  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAAAAA==";
 
 async function acquireScreenWakeLock() {
   if (!("wakeLock" in navigator)) return;
@@ -59,8 +64,52 @@ function clearMediaSessionActive() {
   }
 }
 
+function startSilentHtmlAudioKeepalive() {
+  if (silentHtmlAudio) {
+    try {
+      silentHtmlAudio.play().catch(() => {});
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  try {
+    const audio = new Audio(SILENT_WAV_DATA_URI);
+    audio.loop = true;
+    audio.volume = 0.01;
+    audio.setAttribute("playsinline", "true");
+    audio.setAttribute("webkit-playsinline", "true");
+    // Keep element in DOM — some mobile browsers pause detached media.
+    audio.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px;";
+    document.body?.appendChild(audio);
+    silentHtmlAudio = audio;
+    audio.play().catch(() => {});
+  } catch {
+    silentHtmlAudio = null;
+  }
+}
+
+function stopSilentHtmlAudioKeepalive() {
+  if (!silentHtmlAudio) return;
+  try {
+    silentHtmlAudio.pause();
+    silentHtmlAudio.removeAttribute("src");
+    silentHtmlAudio.load?.();
+    silentHtmlAudio.remove();
+  } catch {
+    /* ignore */
+  }
+  silentHtmlAudio = null;
+}
+
 function startSilentAudioKeepalive() {
-  if (silentCtx) return;
+  startSilentHtmlAudioKeepalive();
+  if (silentCtx) {
+    if (silentCtx.state === "suspended") {
+      silentCtx.resume().catch(() => {});
+    }
+    return;
+  }
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
@@ -84,6 +133,7 @@ function startSilentAudioKeepalive() {
 }
 
 function stopSilentAudioKeepalive() {
+  stopSilentHtmlAudioKeepalive();
   try {
     if (silentOsc) silentOsc.stop();
   } catch {
@@ -97,6 +147,29 @@ function stopSilentAudioKeepalive() {
   silentOsc = null;
   silentGain = null;
   silentCtx = null;
+}
+
+/** Re-pulse media pipeline after backgrounding (screen share / call resume). */
+export function pulseCallWakeLock() {
+  setMediaSessionActive(
+    navigator.mediaSession?.metadata?.title || "Descall call",
+    navigator.mediaSession?.metadata?.artist || "In call"
+  );
+  if (silentCtx?.state === "suspended") {
+    silentCtx.resume().catch(() => {});
+  }
+  if (silentHtmlAudio) {
+    try {
+      silentHtmlAudio.play().catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  } else {
+    startSilentHtmlAudioKeepalive();
+  }
+  if (!wakeLockSentinel && document.visibilityState === "visible") {
+    void acquireScreenWakeLock();
+  }
 }
 
 async function startNativeCallKeepAlive({ title, artist } = {}) {
@@ -140,6 +213,22 @@ export function acquireCallWakeLock({ title, artist } = {}) {
         if (!wakeLockSentinel) void acquireScreenWakeLock();
         if (silentCtx?.state === "suspended") {
           silentCtx.resume().catch(() => {});
+        }
+        if (silentHtmlAudio) {
+          silentHtmlAudio.play().catch(() => {});
+        }
+      } else {
+        // Stay marked "playing" while hidden so Safari/Chrome are less eager
+        // to suspend WebRTC during screen share app-switching.
+        try {
+          if ("mediaSession" in navigator) {
+            navigator.mediaSession.playbackState = "playing";
+          }
+        } catch {
+          /* ignore */
+        }
+        if (silentHtmlAudio) {
+          silentHtmlAudio.play().catch(() => {});
         }
       }
     };

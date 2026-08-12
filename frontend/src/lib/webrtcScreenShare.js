@@ -69,12 +69,18 @@ export function isMobileScreenCapture() {
 
 /**
  * Build getDisplayMedia constraints.
- * On desktop prefer a browser tab so Chromium can include tab audio
- * (“Share audio”). Full-monitor system audio is Windows/ChromeOS-only.
- * On mobile, omit hard size ideals so portrait→landscape updates freely.
+ *
+ * Mobile: prefer the entire screen (`monitor`). Sharing only the Descall tab
+ * (or preferCurrentTab) ends the moment the user switches to YouTube/Safari
+ * home — the common “arka plana alınca ekran yansıması koptu” failure.
+ *
+ * Desktop: optionally prefer a browser tab so Chromium shows “Share audio”.
+ * Never lock preferCurrentTab — that also dies on background/tab switch.
  */
-export function buildDisplayMediaConstraints({ width, height, fps, preferTab = true } = {}) {
+export function buildDisplayMediaConstraints({ width, height, fps, preferTab } = {}) {
   const mobile = isMobileCapture();
+  // Mobile always wants whole-screen capture so leaving Descall keeps sharing.
+  const useTab = mobile ? false : preferTab !== false;
   const video = {
     cursor: "motion",
     frameRate: { ideal: fps, max: Math.max(fps, 30) },
@@ -83,10 +89,10 @@ export function buildDisplayMediaConstraints({ width, height, fps, preferTab = t
     video.width = { ideal: width };
     video.height = { ideal: height };
   }
-  // Desktop: prefer tab/browser so “Share audio” is available.
-  // Mobile: leave surface open — most mobile browsers cannot capture system audio.
-  if (!mobile) {
-    video.displaySurface = preferTab ? "browser" : "monitor";
+  if (mobile) {
+    video.displaySurface = "monitor";
+  } else {
+    video.displaySurface = useTab ? "browser" : "monitor";
   }
 
   return {
@@ -99,8 +105,6 @@ export function buildDisplayMediaConstraints({ width, height, fps, preferTab = t
       autoGainControl: false,
       suppressLocalAudioPlayback: false,
     },
-    // Prefer tab picker UI without locking capture to the Descall tab itself
-    // (preferCurrentTab:true dies when the app backgrounds).
     preferCurrentTab: false,
     selfBrowserSurface: "include",
     surfaceSwitching: "include",

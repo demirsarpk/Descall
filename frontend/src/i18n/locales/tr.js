@@ -2408,6 +2408,8 @@ export const phrases = {
     "Sistem/sekme sesi yok — mikrofonun ekran paylaşımına karıştırıldı.",
   "Screen share ended while Descall was in the background.":
     "Descall arka plandayken ekran paylaşımı sonlandı.",
+  "Share your entire screen so switching apps keeps the broadcast alive.":
+    "Uygulama değiştirince yayın kopmasın diye tüm ekranı paylaş.",
 };
 
 const locale = { nested, phrases };
