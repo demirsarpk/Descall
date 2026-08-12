@@ -31,6 +31,13 @@ import {
   Radio,
   ShieldCheck,
   Check,
+  Gamepad2,
+  Crosshair,
+  Users,
+  Megaphone,
+  GraduationCap,
+  Sparkles,
+  Layers,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { useToast } from "../../context/ToastContext";
@@ -40,6 +47,7 @@ import useSpeaking from "../../hooks/useSpeaking";
 import { isChannelMuted, toggleChannelMute } from "../../lib/serverChannelMutes";
 import { serverHasPermission } from "../../lib/serverPermissions";
 import { updateServerNotificationLevel } from "../../api/servers";
+import { BLANK_TEMPLATE, SERVER_TEMPLATES, getTemplateCard } from "../../lib/serverTemplatesCatalog";
 import ServerRolesModal from "./ServerRolesModal";
 import ServerInviteModal from "./ServerInviteModal";
 import JoinServerModal from "./JoinServerModal";
@@ -48,6 +56,17 @@ import ChannelPermissionsModal from "./ChannelPermissionsModal";
 import ServerCommunityModal from "./ServerCommunityModal";
 import ServerRulesModal from "./ServerRulesModal";
 import { ServerListSkeleton } from "../ui/Skeleton";
+
+const TEMPLATE_ICONS = {
+  Gamepad2,
+  Crosshair,
+  Users,
+  Megaphone,
+  GraduationCap,
+  Radio,
+  Sparkles,
+  Server,
+};
 
 const NOTIF_LEVELS = [
   { value: "all", label: "All Messages", icon: BellRing },
@@ -1415,12 +1434,28 @@ function ConfirmDeleteChannelDialog({ channel, onConfirm, onCancel }) {
   );
 }
 
+function TemplateIcon({ name, size = 22 }) {
+  const Icon = TEMPLATE_ICONS[name] || Server;
+  return <Icon size={size} strokeWidth={2.1} aria-hidden />;
+}
+
 function CreateServerModal({ onClose, onCreate, canCreate, maxOwned }) {
   const t = useT();
+  /** path: choose → templates → details */
+  const [step, setStep] = useState("choose");
+  const [templateId, setTemplateId] = useState(null);
   const [name, setName] = useState("");
   const [iconUrl, setIconUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const selected = getTemplateCard(templateId);
+
+  const goDetails = (id) => {
+    setTemplateId(id);
+    setError("");
+    setStep("details");
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -1433,12 +1468,17 @@ function CreateServerModal({ onClose, onCreate, canCreate, maxOwned }) {
       setError(t("Server name must be at least 2 characters."));
       return;
     }
+    if (!templateId) {
+      setError(t("Pick a template or start from scratch."));
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       await onCreate({
         name: trimmed,
         iconUrl: iconUrl.trim() || undefined,
+        templateId,
       });
     } catch (err) {
       setError(err?.message || t("Failed to create server."));
@@ -1456,48 +1496,187 @@ function CreateServerModal({ onClose, onCreate, canCreate, maxOwned }) {
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
-      <motion.form
-        className="server-modal"
+      <motion.div
+        className={`server-modal server-create-wizard${step === "templates" ? " is-wide" : ""}`}
         initial={{ scale: 0.94, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.94, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        onSubmit={submit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-server-title"
       >
-        <h3>{t("Create a server")}</h3>
-        <p className="server-modal-lead">
-          {t("Your server is where you and your friends hang out. Make yours and start talking.")}
-        </p>
-        <label className="server-field">
-          <span>{t("Server name")}</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={100}
-            placeholder={t("My server")}
-            autoFocus
-            required
-          />
-        </label>
-        <label className="server-field">
-          <span>{t("Icon URL (optional)")}</span>
-          <input
-            value={iconUrl}
-            onChange={(e) => setIconUrl(e.target.value)}
-            maxLength={500}
-            placeholder="https://"
-          />
-        </label>
-        {error && <p className="server-modal-error">{error}</p>}
-        <div className="server-modal-actions">
-          <button type="button" className="server-ghost-btn" onClick={onClose} disabled={busy}>
-            {t("Cancel")}
-          </button>
-          <button type="submit" className="server-primary-btn" disabled={busy || name.trim().length < 2}>
-            {busy ? t("Please wait...") : t("Create")}
-          </button>
-        </div>
-      </motion.form>
+        {step === "choose" && (
+          <>
+            <h3 id="create-server-title">{t("Create a server")}</h3>
+            <p className="server-modal-lead">
+              {t("Choose a ready-made advanced template, or start from scratch and build everything yourself.")}
+            </p>
+            <div className="server-create-path-grid">
+              <button
+                type="button"
+                className="server-create-path"
+                onClick={() => {
+                  setError("");
+                  setStep("templates");
+                }}
+              >
+                <span className="server-create-path-icon" style={{ "--tpl-accent": "#38bdf8" }}>
+                  <Layers size={22} />
+                </span>
+                <span className="server-create-path-body">
+                  <strong>{t("Use a template")}</strong>
+                  <span>
+                    {t("Roles, text & voice channels, topics, slowmode, and permission overrides — fully prepared.")}
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="server-create-path"
+                onClick={() => goDetails("blank")}
+              >
+                <span className="server-create-path-icon" style={{ "--tpl-accent": BLANK_TEMPLATE.accent }}>
+                  <Sparkles size={22} />
+                </span>
+                <span className="server-create-path-body">
+                  <strong>{t("Start from scratch")}</strong>
+                  <span>{t("Empty server with only @everyone. Add channels and roles yourself.")}</span>
+                </span>
+              </button>
+            </div>
+            <div className="server-modal-actions">
+              <button type="button" className="server-ghost-btn" onClick={onClose}>
+                {t("Cancel")}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "templates" && (
+          <>
+            <div className="server-modal-head">
+              <div>
+                <h3 id="create-server-title">{t("Pick a template")}</h3>
+                <p className="server-modal-sub">
+                  {t("Each template includes roles, categories, text/voice channels, and staff permissions.")}
+                </p>
+              </div>
+              <button type="button" className="server-icon-btn" onClick={onClose} aria-label={t("Close")}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="server-template-grid">
+              {SERVER_TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.id}
+                  type="button"
+                  className="server-template-card"
+                  style={{ "--tpl-accent": tpl.accent }}
+                  onClick={() => goDetails(tpl.id)}
+                >
+                  <span className="server-template-card-icon">
+                    <TemplateIcon name={tpl.icon} />
+                  </span>
+                  <span className="server-template-card-title">{t(tpl.name)}</span>
+                  <span className="server-template-card-desc">{t(tpl.description)}</span>
+                  <span className="server-template-card-meta">
+                    <span>
+                      <Shield size={12} /> {tpl.roleCount} {t("roles")}
+                    </span>
+                    <span>
+                      <Hash size={12} /> {tpl.channelCount} {t("channels")}
+                    </span>
+                  </span>
+                  <span className="server-template-card-tags">
+                    {tpl.highlights.map((h) => (
+                      <span key={h}>{t(h)}</span>
+                    ))}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="server-modal-actions server-modal-actions-spread">
+              <button type="button" className="server-ghost-btn" onClick={() => setStep("choose")}>
+                {t("Back")}
+              </button>
+              <button type="button" className="server-ghost-btn" onClick={() => goDetails("blank")}>
+                {t("Start from scratch")}
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "details" && (
+          <form onSubmit={submit}>
+            <div className="server-modal-head">
+              <div>
+                <h3 id="create-server-title">{t("Customize your server")}</h3>
+                <p className="server-modal-sub">
+                  {selected
+                    ? t("Template: {name}", { name: t(selected.name) })
+                    : t("Start from scratch")}
+                </p>
+              </div>
+              <button type="button" className="server-icon-btn" onClick={onClose} aria-label={t("Close")}>
+                <X size={18} />
+              </button>
+            </div>
+            {selected && selected.id !== "blank" && (
+              <div className="server-template-selected" style={{ "--tpl-accent": selected.accent }}>
+                <span className="server-template-card-icon">
+                  <TemplateIcon name={selected.icon} />
+                </span>
+                <div>
+                  <strong>{t(selected.name)}</strong>
+                  <p>
+                    {selected.roleCount} {t("roles")} · {selected.channelCount} {t("channels")} ·{" "}
+                    {selected.categoryCount} {t("categories")}
+                  </p>
+                </div>
+              </div>
+            )}
+            <label className="server-field">
+              <span>{t("Server name")}</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={100}
+                placeholder={t("My server")}
+                autoFocus
+                required
+              />
+            </label>
+            <label className="server-field">
+              <span>{t("Icon URL (optional)")}</span>
+              <input
+                value={iconUrl}
+                onChange={(e) => setIconUrl(e.target.value)}
+                maxLength={500}
+                placeholder="https://"
+              />
+            </label>
+            {error && <p className="server-modal-error">{error}</p>}
+            <div className="server-modal-actions server-modal-actions-spread">
+              <button
+                type="button"
+                className="server-ghost-btn"
+                onClick={() => setStep(templateId === "blank" ? "choose" : "templates")}
+                disabled={busy}
+              >
+                {t("Back")}
+              </button>
+              <button
+                type="submit"
+                className="server-primary-btn"
+                disabled={busy || name.trim().length < 2}
+              >
+                {busy ? t("Please wait...") : t("Create")}
+              </button>
+            </div>
+          </form>
+        )}
+      </motion.div>
     </motion.div>
   );
 }

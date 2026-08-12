@@ -27,12 +27,22 @@ export function getMyServers() {
   return serversRequest("/api/servers/my");
 }
 
-/** Create a server (max 10 owned). */
-export function createServer({ name, iconUrl, description } = {}) {
+/** Create a server (max 10 owned). Optional templateId: blank | gaming | valorant | … */
+export function createServer({ name, iconUrl, description, templateId } = {}) {
   return serversRequest("/api/servers", {
     method: "POST",
-    body: { name, iconUrl, description },
+    body: {
+      name,
+      iconUrl,
+      description,
+      ...(templateId ? { templateId } : {}),
+    },
   });
+}
+
+/** Advanced create-server templates metadata. */
+export function getServerTemplates() {
+  return serversRequest("/api/servers/templates");
 }
 
 export function getServer(serverId) {

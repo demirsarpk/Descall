@@ -28,6 +28,12 @@ const {
   clearServerTimeout,
   updateMemberNickname,
 } = require("../lib/slashCommands");
+const {
+  BLANK_ID,
+  listTemplateSummaries,
+  getTemplate,
+  seedServerFromTemplate,
+} = require("../lib/serverTemplates");
 
 const router = express.Router();
 
@@ -679,21 +685,65 @@ router.get("/my", requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /servers/templates — advanced create-server templates (public metadata).
+ */
+router.get("/templates", requireAuth, (_req, res) => {
+  return res.json({
+    blank: {
+      id: BLANK_ID,
+      name: "Start from scratch",
+      description: "Empty server with only @everyone — build channels and roles yourself.",
+      accent: "#94a3b8",
+      icon: "Sparkles",
+      highlights: ["No channels", "@everyone only", "Full control"],
+      roleCount: 1,
+      channelCount: 0,
+      categoryCount: 0,
+    },
+    templates: listTemplateSummaries(),
+  });
+});
+
+/**
  * POST /servers
  * Create a server. Enforces max 10 owned servers.
- * Seeds @everyone role + #general text + General voice channel.
+ * Optional templateId seeds advanced roles/channels/overrides (or blank = from scratch).
+ * Legacy: omitted / "default" keeps a simple Discord-like starter layout.
  */
 router.post("/", requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const name = cleanName(req.body?.name);
     const iconUrl = req.body?.iconUrl ? String(req.body.iconUrl).trim().slice(0, 500) : null;
-    const description = req.body?.description
+    let description = req.body?.description
       ? String(req.body.description).trim().slice(0, 500)
       : null;
+    const rawTemplate = req.body?.templateId ?? req.body?.template ?? "default";
+    const templateKey = String(rawTemplate || "default").trim().toLowerCase();
 
     if (name.length < NAME_MIN || name.length > NAME_MAX) {
       return res.status(400).json({ error: `Server name must be ${NAME_MIN}–${NAME_MAX} characters.` });
+    }
+
+    let templateMode = "default";
+    let template = null;
+    if (templateKey === BLANK_ID || templateKey === "scratch" || templateKey === "from_scratch") {
+      templateMode = "blank";
+    } else if (templateKey === "default" || templateKey === "") {
+      templateMode = "default";
+    } else {
+      template = getTemplate(templateKey);
+      if (template === undefined) {
+        return res.status(400).json({
+          error: "Unknown server template.",
+          code: "UNKNOWN_TEMPLATE",
+          templates: listTemplateSummaries().map((t) => t.id),
+        });
+      }
+      templateMode = "template";
+      if (!description && template.descriptionSeed) {
+        description = template.descriptionSeed.slice(0, 500);
+      }
     }
 
     const owned = await countOwnedServers(userId);
@@ -736,88 +786,110 @@ router.post("/", requireAuth, async (req, res) => {
       throw mErr;
     }
 
-    // @everyone role (position 0)
-    const { data: everyoneRole, error: rErr } = await supabase
-      .from("server_roles")
-      .insert({
-        server_id: server.id,
-        name: "@everyone",
-        color: 0,
-        position: 0,
-        permissions: toPgBigint(EVERYONE_DEFAULT),
-        hoist: false,
-        mentionable: false,
-        is_everyone: true,
-      })
-      .select("*")
-      .single();
-    if (rErr) {
-      await deleteServerCascade(server.id);
-      throw rErr;
+    let seededRoles = [];
+    let seededChannels = [];
+
+    if (templateMode === "blank" || templateMode === "template") {
+      const seeded = await seedServerFromTemplate(supabase, {
+        serverId: server.id,
+        template: templateMode === "blank" ? null : template,
+        deleteServerCascade,
+      });
+      seededRoles = seeded.roles || [];
+      seededChannels = seeded.channels || [];
+    } else {
+      // Legacy simple starter (compat)
+      const { data: everyoneRole, error: rErr } = await supabase
+        .from("server_roles")
+        .insert({
+          server_id: server.id,
+          name: "@everyone",
+          color: 0,
+          position: 0,
+          permissions: toPgBigint(EVERYONE_DEFAULT),
+          hoist: false,
+          mentionable: false,
+          is_everyone: true,
+        })
+        .select("*")
+        .single();
+      if (rErr) {
+        await deleteServerCascade(server.id);
+        throw rErr;
+      }
+
+      const { data: category, error: catErr } = await supabase
+        .from("server_channels")
+        .insert({
+          server_id: server.id,
+          name: "Text Channels",
+          type: "category",
+          position: 0,
+        })
+        .select("*")
+        .single();
+      if (catErr) {
+        await deleteServerCascade(server.id);
+        throw catErr;
+      }
+
+      const { data: general, error: gErr } = await supabase
+        .from("server_channels")
+        .insert({
+          server_id: server.id,
+          name: "general",
+          type: "text",
+          position: 1,
+          parent_id: category.id,
+        })
+        .select("*")
+        .single();
+      if (gErr) {
+        await deleteServerCascade(server.id);
+        throw gErr;
+      }
+
+      const { data: voiceCat, error: vCatErr } = await supabase
+        .from("server_channels")
+        .insert({
+          server_id: server.id,
+          name: "Voice Channels",
+          type: "category",
+          position: 2,
+        })
+        .select("*")
+        .single();
+      if (vCatErr) {
+        await deleteServerCascade(server.id);
+        throw vCatErr;
+      }
+
+      const { data: generalVoice, error: vErr } = await supabase
+        .from("server_channels")
+        .insert({
+          server_id: server.id,
+          name: "General",
+          type: "voice",
+          position: 3,
+          parent_id: voiceCat.id,
+        })
+        .select("*")
+        .single();
+      if (vErr) {
+        await deleteServerCascade(server.id);
+        throw vErr;
+      }
+
+      seededRoles = [everyoneRole];
+      seededChannels = [category, general, voiceCat, generalVoice];
     }
 
-    // Default channels: category + text + voice (Discord-like starter)
-    const { data: category, error: catErr } = await supabase
-      .from("server_channels")
-      .insert({
-        server_id: server.id,
-        name: "Text Channels",
-        type: "category",
-        position: 0,
-      })
+    // Refresh server row (template may have patched description/rules)
+    const { data: freshServer } = await supabase
+      .from("servers")
       .select("*")
-      .single();
-    if (catErr) {
-      await deleteServerCascade(server.id);
-      throw catErr;
-    }
-
-    const { data: general, error: gErr } = await supabase
-      .from("server_channels")
-      .insert({
-        server_id: server.id,
-        name: "general",
-        type: "text",
-        position: 1,
-        parent_id: category.id,
-      })
-      .select("*")
-      .single();
-    if (gErr) {
-      await deleteServerCascade(server.id);
-      throw gErr;
-    }
-
-    const { data: voiceCat, error: vCatErr } = await supabase
-      .from("server_channels")
-      .insert({
-        server_id: server.id,
-        name: "Voice Channels",
-        type: "category",
-        position: 2,
-      })
-      .select("*")
-      .single();
-    if (vCatErr) {
-      await deleteServerCascade(server.id);
-      throw vCatErr;
-    }
-
-    const { data: generalVoice, error: vErr } = await supabase
-      .from("server_channels")
-      .insert({
-        server_id: server.id,
-        name: "General",
-        type: "voice",
-        position: 3,
-        parent_id: voiceCat.id,
-      })
-      .select("*")
-      .single();
-    if (vErr) {
-      await deleteServerCascade(server.id);
-      throw vErr;
-    }
+      .eq("id", server.id)
+      .maybeSingle();
 
     await writeAudit({
       serverId: server.id,
@@ -825,18 +897,19 @@ router.post("/", requireAuth, async (req, res) => {
       action: "SERVER_CREATE",
       targetType: "server",
       targetId: server.id,
-      changes: { name },
+      changes: { name, templateId: templateMode === "template" ? template.id : templateMode },
     });
 
     return res.status(201).json({
-      server: publicServer(server, {
+      server: publicServer(freshServer || server, {
         isOwner: true,
         memberCount: 1,
         nickname: null,
         listPosition,
-        channels: [category, general, voiceCat, generalVoice].map(publicChannel),
-        roles: [publicRole(everyoneRole)],
+        channels: seededChannels.map(publicChannel),
+        roles: seededRoles.map(publicRole),
         myPermissions: await buildMyPermissionsPayload(server.id, userId),
+        templateId: templateMode === "template" ? template.id : templateMode,
       }),
       ownedCount: owned + 1,
       maxOwned: MAX_OWNED_SERVERS,
