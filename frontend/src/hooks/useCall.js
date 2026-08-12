@@ -3,7 +3,6 @@ import { patchUserAvatar } from "../lib/userProfile";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
 import {
-  buildDisplayMediaConstraints,
   buildElectronDesktopConstraints,
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
@@ -11,6 +10,9 @@ import {
   screenBitrateForPeerCount,
   DM_SCREEN_DEFAULT_QUALITY,
   isRemoteScreenVideoTrack,
+  ensureScreenShareAudioTrack,
+  isMobileScreenCapture,
+  getDisplayMediaStream,
 } from "../lib/webrtcScreenShare";
 import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
@@ -256,6 +258,7 @@ export function useCall(socket, callOccupancyRef = null) {
   const timerRef = useRef(null);
   const screenSenderRef = useRef(null);
   const screenAudioSenderRef = useRef(null);
+  const screenAudioCtxRef = useRef(null);
   const screenSharingRef = useRef(false);
   const stopScreenShareRef = useRef(null);
   const cleanupTimerRef = useRef(null);
@@ -325,6 +328,10 @@ export function useCall(socket, callOccupancyRef = null) {
     pendingIceRef.current = [];
     screenSenderRef.current = null;
     screenAudioSenderRef.current = null;
+    if (screenAudioCtxRef.current) {
+      try { screenAudioCtxRef.current.close(); } catch { /* ignore */ }
+      screenAudioCtxRef.current = null;
+    }
     screenSharingRef.current = false;
     makingOfferRef.current = false;
     negotiationQueuedRef.current = false;
@@ -478,20 +485,23 @@ export function useCall(socket, callOccupancyRef = null) {
 
       // A display stream can carry both its video and approved tab/system
       // audio. Keep that audio with the screen stream (attached to the
-      // un-muted screen-share <video> element) instead of mixing it into
+      // durable screen-share <audio> sink) instead of mixing it into
       // the participant microphone audio element.
       //
-      // The screen-audio and screen-video tracks can arrive in either
-      // order, so this can't only compare against an already-known
-      // `remoteScreenStreamRef` (that's still null the first time the audio
-      // track shows up before the video track). Fall back to the same
-      // "peer told us a screen share is starting, and this stream isn't the
-      // long-lived mic stream" signal `isRemoteScreenVideoTrack` already
-      // uses for video.
+      // MediaStream identity is unreliable after we clone into a fresh
+      // remoteScreenStream for React rebinds — also match by shared video
+      // tracks, or the expect-screen signal vs the long-lived mic stream.
+      const sharesScreenVideo =
+        Boolean(raw) &&
+        Boolean(remoteScreenStreamRef.current) &&
+        raw.getVideoTracks?.().some((vt) =>
+          remoteScreenStreamRef.current.getVideoTracks().includes(vt)
+        );
       const isScreenAudioTrack =
         track?.kind === "audio" &&
         Boolean(raw) &&
         (
+          sharesScreenVideo ||
           (remoteScreenStreamRef.current && raw.id === remoteScreenStreamRef.current.id) ||
           (remoteScreenSharingRef.current &&
             (!remoteStreamRef.current || raw.id !== remoteStreamRef.current.id))
@@ -1169,9 +1179,7 @@ export function useCall(socket, callOccupancyRef = null) {
           return;
         }
         console.log('[ScreenShare] web path — getDisplayMedia');
-        screenStream = await navigator.mediaDevices.getDisplayMedia(
-          buildDisplayMediaConstraints({ width, height, fps })
-        );
+        screenStream = await getDisplayMediaStream({ width, height, fps });
       }
 
       const screenTrack = screenStream.getVideoTracks()[0];
@@ -1186,6 +1194,35 @@ export function useCall(socket, callOccupancyRef = null) {
         return;
       }
 
+      const {
+        track: screenAudioTrack,
+        source: screenAudioSource,
+        audioCtx: screenAudioCtx,
+      } = await ensureScreenShareAudioTrack(
+        screenStream,
+        localStreamRef.current
+      );
+      if (screenAudioCtxRef.current) {
+        try { screenAudioCtxRef.current.close(); } catch { /* ignore */ }
+        screenAudioCtxRef.current = null;
+      }
+      if (screenAudioCtx) screenAudioCtxRef.current = screenAudioCtx;
+      if (!screenAudioTrack) {
+        toast(
+          tRuntime(
+            isMobileScreenCapture()
+              ? "This device can’t share system/tab audio with screen share."
+              : "No system/tab audio selected — enable “Share audio” in the picker for sound."
+          ),
+          "info"
+        );
+      } else if (screenAudioSource === "mic-fallback") {
+        toast(
+          tRuntime("System/tab audio unavailable — your microphone is mixed into the screen share."),
+          "info"
+        );
+      }
+
       // Tell the peer to reserve the next video track for the screen layout
       // before WebRTC can deliver that track.
       if (peerRef.current?.id && socketRef.current?.connected) {
@@ -1194,7 +1231,6 @@ export function useCall(socket, callOccupancyRef = null) {
 
       // Add screen track - this triggers onnegotiationneeded
       const screenSender = pc.addTrack(screenTrack, screenStream);
-      const screenAudioTrack = screenStream.getAudioTracks()[0];
       if (screenAudioTrack) {
         screenAudioSenderRef.current = pc.addTrack(screenAudioTrack, screenStream);
       }
@@ -1236,6 +1272,10 @@ export function useCall(socket, callOccupancyRef = null) {
     if (screenAudioSenderRef.current) {
       try { pc.removeTrack(screenAudioSenderRef.current); } catch {}
       screenAudioSenderRef.current = null;
+    }
+    if (screenAudioCtxRef.current) {
+      try { screenAudioCtxRef.current.close(); } catch { /* ignore */ }
+      screenAudioCtxRef.current = null;
     }
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((t) => t.stop());

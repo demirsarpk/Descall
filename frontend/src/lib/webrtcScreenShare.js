@@ -63,6 +63,174 @@ function isMobileCapture() {
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
 }
 
+export function isMobileScreenCapture() {
+  return isMobileCapture();
+}
+
+/**
+ * Build getDisplayMedia constraints.
+ * On desktop prefer a browser tab so Chromium can include tab audio
+ * (“Share audio”). Full-monitor system audio is Windows/ChromeOS-only.
+ * On mobile, omit hard size ideals so portrait→landscape updates freely.
+ */
+export function buildDisplayMediaConstraints({ width, height, fps, preferTab = true } = {}) {
+  const mobile = isMobileCapture();
+  const video = {
+    cursor: "motion",
+    frameRate: { ideal: fps, max: Math.max(fps, 30) },
+  };
+  if (!mobile && width && height) {
+    video.width = { ideal: width };
+    video.height = { ideal: height };
+  }
+  // Desktop: prefer tab/browser so “Share audio” is available.
+  // Mobile: leave surface open — most mobile browsers cannot capture system audio.
+  if (!mobile) {
+    video.displaySurface = preferTab ? "browser" : "monitor";
+  }
+
+  return {
+    video,
+    // Chromium still requires the user to tick “Share audio”. Detailed
+    // constraints preserve tab loudness; some engines only accept `true`.
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      suppressLocalAudioPlayback: false,
+    },
+    // Prefer tab picker UI without locking capture to the Descall tab itself
+    // (preferCurrentTab:true dies when the app backgrounds).
+    preferCurrentTab: false,
+    selfBrowserSurface: "include",
+    surfaceSwitching: "include",
+    systemAudio: "include",
+    monitorTypeSurfaces: "include",
+  };
+}
+
+/**
+ * getDisplayMedia with progressive audio fallbacks.
+ * Some mobile/WebView builds reject audio constraints entirely — retry so
+ * video share still starts, then callers can attach mic-fallback audio.
+ */
+export async function getDisplayMediaStream(opts = {}) {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    throw new Error("getDisplayMedia unsupported");
+  }
+  const primary = buildDisplayMediaConstraints(opts);
+  try {
+    return await navigator.mediaDevices.getDisplayMedia(primary);
+  } catch (err) {
+    if (err?.name === "NotAllowedError" || err?.name === "AbortError") throw err;
+  }
+  try {
+    return await navigator.mediaDevices.getDisplayMedia({ ...primary, audio: true });
+  } catch (err) {
+    if (err?.name === "NotAllowedError" || err?.name === "AbortError") throw err;
+  }
+  return navigator.mediaDevices.getDisplayMedia({ ...primary, audio: false });
+}
+
+/**
+ * Electron desktopCapture constraints.
+ * Windows loopback audio must NOT reuse the video sourceId.
+ */
+export function buildElectronDesktopConstraints(sourceId, { width, height, fps }) {
+  const isWin =
+    typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent || "");
+  const audio = isWin
+    ? {
+        mandatory: {
+          chromeMediaSource: "desktop",
+        },
+      }
+    : {
+        mandatory: {
+          chromeMediaSource: "desktop",
+          chromeMediaSourceId: sourceId,
+        },
+      };
+  return {
+    audio,
+    video: {
+      mandatory: {
+        chromeMediaSource: "desktop",
+        chromeMediaSourceId: sourceId,
+        maxWidth: width,
+        maxHeight: height,
+        maxFrameRate: fps,
+      },
+    },
+  };
+}
+
+/**
+ * If display capture has no audio track (common on mobile / when the user
+ * skips “Share audio”), optionally tee the local mic into the screen stream
+ * so remotes still hear *something* alongside the video.
+ *
+ * @returns {{ track: MediaStreamTrack|null, source: 'display'|'mic-fallback'|null, audioCtx?: AudioContext }}
+ */
+export async function ensureScreenShareAudioTrack(screenStream, localMicStream) {
+  if (!screenStream) return { track: null, source: null };
+  const existing = screenStream.getAudioTracks().find((t) => t && t.readyState !== "ended");
+  if (existing) {
+    try {
+      if ("contentHint" in existing) existing.contentHint = "music";
+    } catch {
+      /* ignore */
+    }
+    return { track: existing, source: "display" };
+  }
+
+  const mic = localMicStream?.getAudioTracks?.().find((t) => t && t.readyState === "live");
+  if (!mic) return { track: null, source: null };
+
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) {
+      const clone = mic.clone();
+      try {
+        if ("contentHint" in clone) clone.contentHint = "speech";
+      } catch {
+        /* ignore */
+      }
+      screenStream.addTrack(clone);
+      return { track: clone, source: "mic-fallback" };
+    }
+    const audioCtx = new AC();
+    if (audioCtx.state === "suspended") {
+      try {
+        await audioCtx.resume();
+      } catch {
+        /* ignore */
+      }
+    }
+    const src = audioCtx.createMediaStreamSource(new MediaStream([mic]));
+    const dest = audioCtx.createMediaStreamDestination();
+    src.connect(dest);
+    const out = dest.stream.getAudioTracks()[0];
+    if (!out) {
+      try {
+        audioCtx.close();
+      } catch {
+        /* ignore */
+      }
+      return { track: null, source: null };
+    }
+    try {
+      if ("contentHint" in out) out.contentHint = "speech";
+    } catch {
+      /* ignore */
+    }
+    screenStream.addTrack(out);
+    return { track: out, source: "mic-fallback", audioCtx };
+  } catch {
+    return { track: null, source: null };
+  }
+}
+
 /**
  * @param {object} quality
  * @param {{ maxFps?: number, peerCount?: number }} [opts]
@@ -206,69 +374,6 @@ export function preferScreenCodecs(pc, sender) {
   } catch (err) {
     console.warn("[ScreenShare] setCodecPreferences failed:", err?.message || err);
   }
-}
-
-/**
- * Build getDisplayMedia constraints.
- * On mobile, omit width/height ideals so portrait→landscape rotation updates freely.
- * Do not preferCurrentTab — that dies when the app backgrounds / leaves the tab.
- */
-export function buildDisplayMediaConstraints({ width, height, fps, preferTab = false } = {}) {
-  const mobile = isMobileCapture();
-  const video = {
-    cursor: "motion",
-    frameRate: { ideal: fps, max: Math.max(fps, 30) },
-  };
-  if (!mobile && width && height) {
-    video.width = { ideal: width };
-    video.height = { ideal: height };
-  }
-  // Prefer monitor/window on mobile so YouTube fullscreen rotation is captured
-  if (!preferTab) {
-    video.displaySurface = mobile ? "monitor" : "monitor";
-  } else {
-    video.displaySurface = "browser";
-  }
-
-  return {
-    video,
-    // Request audio aggressively — Chromium still requires the user to tick
-    // “Share audio” / “Share tab audio”. Mobile Chrome can deliver tab audio
-    // when sharing a browser tab; iOS Safari typically cannot.
-    audio: {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-      // Keep original tab loudness (don't duck for mic)
-      suppressLocalAudioPlayback: false,
-    },
-    preferCurrentTab: Boolean(preferTab),
-    selfBrowserSurface: "include",
-    surfaceSwitching: "include",
-    systemAudio: "include",
-    // Hint Chromium to surface the audio checkbox in the picker
-    monitorTypeSurfaces: "include",
-  };
-}
-
-export function buildElectronDesktopConstraints(sourceId, { width, height, fps }) {
-  return {
-    audio: {
-      mandatory: {
-        chromeMediaSource: "desktop",
-        chromeMediaSourceId: sourceId,
-      },
-    },
-    video: {
-      mandatory: {
-        chromeMediaSource: "desktop",
-        chromeMediaSourceId: sourceId,
-        maxWidth: width,
-        maxHeight: height,
-        maxFrameRate: fps,
-      },
-    },
-  };
 }
 
 /**

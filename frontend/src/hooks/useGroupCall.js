@@ -5,13 +5,15 @@ import { patchUserAvatar } from "../lib/userProfile";
 import { getUser } from "../lib/storage";
 import {
   GROUP_SCREEN_DEFAULT_QUALITY,
-  buildDisplayMediaConstraints,
   buildElectronDesktopConstraints,
   isRemoteScreenVideoTrack,
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
   resolveScreenCaptureSize,
   screenBitrateForPeerCount,
+  ensureScreenShareAudioTrack,
+  isMobileScreenCapture,
+  getDisplayMediaStream,
 } from "../lib/webrtcScreenShare";
 import {
   applyRemoteOffer,
@@ -202,6 +204,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
   const myIdRef = useRef(null);
   const timerRef = useRef(null);
   const screenSenderRef = useRef(null);
+  const screenAudioCtxRef = useRef(null);
   const isInCallRef = useRef(false);
   const callTypeRef = useRef(null);
   const incomingDedupeRef = useRef(new Map()); // groupId -> ts
@@ -513,10 +516,17 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       // the video track. Fall back to the same "peer told us a screen share
       // is starting, and this isn't the peer's long-lived mic stream" signal
       // `isRemoteScreenVideoTrack` already uses for video.
+      const sharesScreenVideo =
+        Boolean(rawStream) &&
+        Boolean(peerData?.screenStream) &&
+        rawStream.getVideoTracks?.().some((vt) =>
+          peerData.screenStream.getVideoTracks().includes(vt)
+        );
       const isScreenAudioTrack = Boolean(
         track.kind === "audio" &&
         rawStream &&
         (
+          sharesScreenVideo ||
           peerData?.screenStream?.id === rawStream.id ||
           (peerExpectsScreen && (!mainRemoteStream || rawStream.id !== mainRemoteStream.id))
         )
@@ -1216,13 +1226,10 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
           toast(tRuntime("Screen sharing is not available in this browser."), "error");
           return;
         }
-        stream = await navigator.mediaDevices.getDisplayMedia(
-          buildDisplayMediaConstraints({ width, height, fps: frameRate })
-        );
+        stream = await getDisplayMediaStream({ width, height, fps: frameRate });
       }
       
       const screenTrack = stream.getVideoTracks()[0];
-      const screenAudioTrack = stream.getAudioTracks()[0];
       await optimizeScreenShareTrack(screenTrack, {
         width,
         height,
@@ -1232,6 +1239,35 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       if (screenTrack.readyState !== "live") {
         stream.getTracks().forEach((t) => t.stop());
         return;
+      }
+
+      const {
+        track: screenAudioTrack,
+        source: screenAudioSource,
+        audioCtx: screenAudioCtx,
+      } = await ensureScreenShareAudioTrack(
+        stream,
+        localStreamRef.current
+      );
+      if (screenAudioCtxRef.current) {
+        try { screenAudioCtxRef.current.close(); } catch { /* ignore */ }
+        screenAudioCtxRef.current = null;
+      }
+      if (screenAudioCtx) screenAudioCtxRef.current = screenAudioCtx;
+      if (!screenAudioTrack) {
+        toast(
+          tRuntime(
+            isMobileScreenCapture()
+              ? "This device can’t share system/tab audio with screen share."
+              : "No system/tab audio selected — enable “Share audio” in the picker for sound."
+          ),
+          "info"
+        );
+      } else if (screenAudioSource === "mic-fallback") {
+        toast(
+          tRuntime("System/tab audio unavailable — your microphone is mixed into the screen share."),
+          "info"
+        );
       }
 
       screenStreamRef.current = stream;
@@ -1306,6 +1342,11 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     
     // Clean up references and state
     screenSenderRef.current = null;
+
+    if (screenAudioCtxRef.current) {
+      try { screenAudioCtxRef.current.close(); } catch { /* ignore */ }
+      screenAudioCtxRef.current = null;
+    }
     
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((t) => t.stop());

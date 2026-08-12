@@ -49,9 +49,9 @@ assert(isPolitePeer("b", "a") === false, "impolite higher id");
 
 const constraints = buildDisplayMediaConstraints({ width: 1280, height: 720, fps: 20 });
 assert(constraints.video.displaySurface === "browser", "prefer browser tab");
-assert(constraints.preferCurrentTab === true, "preferCurrentTab");
+assert(constraints.preferCurrentTab === false, "preferCurrentTab false (survives background)");
 assert(!("max" in (constraints.video.width || {})), "no hard max width");
-assert(constraints.audio === true, "request user-approved display audio");
+assert(constraints.audio && typeof constraints.audio === "object", "request display audio constraints");
 assert(constraints.systemAudio === "include", "allow system audio selection");
 
 console.log("webrtcScreenShare.selftest.mjs: ok");

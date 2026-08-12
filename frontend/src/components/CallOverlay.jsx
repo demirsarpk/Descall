@@ -32,6 +32,47 @@ function streamHasLiveVideo(stream) {
   return stream.getVideoTracks().some((t) => t && t.readyState !== "ended");
 }
 
+/**
+ * Always-mounted sink for remote screen/tab audio.
+ * Lives outside ScreenShareLayout so minimize / layout swaps don't mute yayin sesi.
+ */
+function RemoteScreenAudioSink({ stream, volume = 100 }) {
+  const audioRef = useRef(null);
+  const trackCount =
+    stream?.getAudioTracks?.()?.filter((t) => t && t.readyState !== "ended").length || 0;
+
+  useEffect(() => {
+    const audioEl = audioRef.current;
+    if (!audioEl) return;
+    const vol = Math.max(0, Math.min(1, Number(volume) / 100));
+    audioEl.volume = vol;
+    if (!stream || trackCount === 0) {
+      audioEl.muted = true;
+      if (audioEl.srcObject) audioEl.srcObject = null;
+      return;
+    }
+    audioEl.muted = false;
+    // Force rebind so late-arriving audio tracks are picked up (mobile).
+    audioEl.srcObject = null;
+    audioEl.srcObject = stream;
+    const play = () => audioEl.play().catch(() => {});
+    play();
+    stream.getAudioTracks().forEach((t) => {
+      const prev = t.onunmute;
+      t.onunmute = (ev) => {
+        try {
+          if (typeof prev === "function") prev.call(t, ev);
+        } catch {
+          /* ignore */
+        }
+        play();
+      };
+    });
+  }, [stream, trackCount, volume]);
+
+  return <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} aria-hidden="true" />;
+}
+
 export default function CallOverlay({ call, groupCall, me }) {
   const t = useT();
   const callOverlayKey = me?.equippedCallOverlay?.effect_key || null;
@@ -161,11 +202,27 @@ export default function CallOverlay({ call, groupCall, me }) {
     />
   ) : null;
 
+  // Screen-share audio must stay mounted even when the UI is minimized —
+  // ScreenShareLayout unmounts and previously killed tab/system audio.
+  const durableScreenAudioSources = isDm
+    ? ((call?.remoteScreenSharing || streamHasLiveVideo(call?.remoteScreenStream)) &&
+      call?.remoteScreenStream
+        ? [{ id: call.peer?.id || "dm-screen", stream: call.remoteScreenStream }]
+        : [])
+    : (groupCall?.participants ?? [])
+        .filter((p) => p.id !== me?.id && p.screenStream && (p.isScreenSharing || streamHasLiveVideo(p.screenStream)))
+        .map((p) => ({ id: p.id, stream: p.screenStream }));
+
+  const durableScreenAudio = durableScreenAudioSources.map(({ id, stream }) => (
+    <RemoteScreenAudioSink key={`screen-audio-${id}`} stream={stream} volume={screenShareVolume} />
+  ));
+
   /* ---------- Incoming DM: FaceTime-style avatar rings ---------- */
   if (isDm && mode === "incoming") {
     return (
       <>
         {remoteAudio}
+        {durableScreenAudio}
         <AnimatePresence>
           <IncomingCallCard
             key="dm-incoming-call"
@@ -184,6 +241,8 @@ export default function CallOverlay({ call, groupCall, me }) {
   if (minimized) {
     return (
       <>
+        {remoteAudio}
+        {durableScreenAudio}
         <motion.div
           className={`call-overlay-minimized ${callOverlayClass}`.trim()}
           initial={{ opacity: 0, y: 60, scale: 0.9 }}
@@ -341,6 +400,7 @@ export default function CallOverlay({ call, groupCall, me }) {
   return (
     <>
     {remoteAudio}
+    {durableScreenAudio}
     <motion.div
       data-call-overlay="true"
       className={`call-overlay-root ${callOverlayClass}`.trim()}
@@ -1190,7 +1250,6 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
   // Keep refs to both the normal and expanded video elements so we can set srcObject on each
   const normalVideoRef = useRef(null);
   const expandedVideoRef = useRef(null);
-  const screenAudioRef = useRef(null);
   const prevSharerCountRef = useRef(0);
   const [aspectKey, setAspectKey] = useState("0x0");
 
@@ -1257,38 +1316,8 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
     playWhenReady();
   }, []);
 
-  const screenAudioTrackCount = screenStream?.getAudioTracks?.()?.filter((t) => t.readyState !== "ended").length || 0;
-
-  // Dedicated screen-share audio element (remote only). Rebind when audio
-  // tracks appear later on the same capture stream — common on mobile.
-  useEffect(() => {
-    const audioEl = screenAudioRef.current;
-    if (!audioEl) return;
-    const isLocal = Boolean(activeSharer?.isLocal);
-    const volume = Math.max(0, Math.min(1, Number(screenShareVolume) / 100));
-    audioEl.volume = volume;
-    audioEl.muted = isLocal || !screenStream || screenAudioTrackCount === 0;
-    if (isLocal || !screenStream || screenAudioTrackCount === 0) {
-      if (audioEl.srcObject) audioEl.srcObject = null;
-      return;
-    }
-    // Force re-assign so browsers pick up newly added audio tracks.
-    audioEl.srcObject = null;
-    audioEl.srcObject = screenStream;
-    const play = () => audioEl.play().catch(() => {});
-    play();
-    screenStream.getAudioTracks().forEach((t) => {
-      const prev = t.onunmute;
-      t.onunmute = (ev) => {
-        try {
-          if (typeof prev === "function") prev.call(t, ev);
-        } catch {
-          /* ignore */
-        }
-        play();
-      };
-    });
-  }, [screenStream, screenAudioTrackCount, screenShareVolume, activeSharer?.isLocal, activeSharer?.id]);
+  // Screen/tab audio plays via CallOverlay's always-mounted RemoteScreenAudioSink
+  // (survives minimize). Video stays muted here.
 
   // Re-attach via callback ref so remounts from key=sharerId always bind the stream
   const normalVideoCallbackRef = useCallback((el) => {
@@ -1360,9 +1389,6 @@ function ScreenShareLayout({ allScreenSharers, screenExpanded, setScreenExpanded
         }}
         onClick={() => setScreenExpanded((v) => !v)}
       >
-        {/* Hidden audio carries remote screen/tab sound with adjustable volume */}
-        <audio ref={screenAudioRef} autoPlay playsInline style={{ display: "none" }} />
-
         {/* key remounts on sharer change OR orientation flip (portrait↔landscape) */}
         <video
           key={`${activeSharer?.id || "none"}-${aspectKey}`}
