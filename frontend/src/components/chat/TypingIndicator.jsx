@@ -65,7 +65,12 @@ export default function TypingIndicator({ names = [], flareKey = null }) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 8, scale: 0.96 }}
         transition={{ type: "spring", stiffness: 380, damping: 28 }}
-        className={flareKey ? `typing-indicator-shell typing-shell-${flareKey}` : undefined}
+        className={[
+          flareKey ? `typing-indicator-shell typing-shell-${flareKey}` : "typing-indicator-shell",
+          flareKey ? "has-flare" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         style={{
           display: "inline-flex",
           alignItems: "center",

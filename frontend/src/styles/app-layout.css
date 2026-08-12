@@ -850,6 +850,7 @@
 
 /* ─── DM Items ─── */
 .dm-item {
+  position: relative;
   width: 100%;
   display: flex;
   align-items: center;
@@ -1072,6 +1073,7 @@
 
 /* ─── Group Items ─── */
 .group-item {
+  position: relative;
   width: 100%;
   display: flex;
   align-items: center;

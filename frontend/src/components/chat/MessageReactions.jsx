@@ -5,11 +5,19 @@ import { useT } from "../../context/LocaleContext";
 
 const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👏", "🤔", "👎"];
 
-export default function MessageReactions({ 
-  messageId, 
-  conversationType, 
-  conversationId, 
-  reactions = [], 
+const BURST_PARTICLES = [
+  { x: -22, y: -28, r: -18, d: 0 },
+  { x: 18, y: -30, r: 14, d: 0.04 },
+  { x: -28, y: 6, r: -28, d: 0.08 },
+  { x: 26, y: 4, r: 22, d: 0.06 },
+  { x: 4, y: -36, r: 6, d: 0.02 },
+];
+
+export default function MessageReactions({
+  messageId,
+  conversationType,
+  conversationId,
+  reactions = [],
   currentUserId,
   socket,
   onReact,
@@ -18,13 +26,12 @@ export default function MessageReactions({
   const t = useT();
   const [showPicker, setShowPicker] = useState(false);
   const [localReactions, setLocalReactions] = useState(reactions);
+  const [burst, setBurst] = useState(null);
 
-  // Update local state when props change
   useEffect(() => {
     setLocalReactions(reactions);
   }, [reactions]);
 
-  // Group reactions by emoji
   const groupedReactions = (Array.isArray(localReactions) ? localReactions : []).reduce((acc, reaction) => {
     const emoji = reaction?.emoji;
     const userId = reaction?.userId;
@@ -40,41 +47,54 @@ export default function MessageReactions({
     return acc;
   }, {});
 
-  const handleAddReaction = useCallback((emoji) => {
-    const reactionData = {
-      messageId,
-      conversationType,
-      conversationId,
-      emoji,
-    };
-    // Optimistic update
-    setLocalReactions(prev => {
-      const exists = prev.find(r => r.emoji === emoji && r.userId === currentUserId);
-      if (exists) return prev;
-      return [...prev, { emoji, userId: currentUserId, messageId }];
-    });
+  const triggerBurst = useCallback((emoji) => {
+    const id = `${Date.now()}-${emoji}`;
+    setBurst({ id, emoji });
+    window.setTimeout(() => {
+      setBurst((prev) => (prev?.id === id ? null : prev));
+    }, 520);
+  }, []);
 
-    if (socket) {
-      socket.emit("reaction:add", reactionData);
-    }
-    onReact?.(reactionData);
-    setShowPicker(false);
-  }, [messageId, conversationType, conversationId, currentUserId, socket, onReact]);
+  const handleAddReaction = useCallback(
+    (emoji) => {
+      const reactionData = {
+        messageId,
+        conversationType,
+        conversationId,
+        emoji,
+      };
+      setLocalReactions((prev) => {
+        const exists = prev.find((r) => r.emoji === emoji && r.userId === currentUserId);
+        if (exists) return prev;
+        return [...prev, { emoji, userId: currentUserId, messageId }];
+      });
+      triggerBurst(emoji);
 
-  const handleRemoveReaction = useCallback((emoji) => {
-    const reactionData = {
-      messageId,
-      conversationType,
-      conversationId,
-      emoji,
-    };
+      if (socket) {
+        socket.emit("reaction:add", reactionData);
+      }
+      onReact?.(reactionData);
+      setShowPicker(false);
+    },
+    [messageId, conversationType, conversationId, currentUserId, socket, onReact, triggerBurst]
+  );
 
-    // Optimistic update
-    setLocalReactions(prev => prev.filter(r => !(r.emoji === emoji && r.userId === currentUserId)));
+  const handleRemoveReaction = useCallback(
+    (emoji) => {
+      const reactionData = {
+        messageId,
+        conversationType,
+        conversationId,
+        emoji,
+      };
 
-    socket?.emit("reaction:remove", reactionData);
-    onReact?.(reactionData);
-  }, [messageId, conversationType, conversationId, currentUserId, socket, onReact]);
+      setLocalReactions((prev) => prev.filter((r) => !(r.emoji === emoji && r.userId === currentUserId)));
+
+      socket?.emit("reaction:remove", reactionData);
+      onReact?.(reactionData);
+    },
+    [messageId, conversationType, conversationId, currentUserId, socket, onReact]
+  );
 
   const handleReactionClick = (emoji) => {
     const hasReacted = groupedReactions[emoji]?.hasMine;
@@ -87,7 +107,37 @@ export default function MessageReactions({
 
   return (
     <div className={`message-reactions${burstKey ? ` cosmetic-reaction-burst burst-${burstKey}` : ""}`}>
-      {/* Existing reactions */}
+      <AnimatePresence>
+        {burst && (
+          <motion.div
+            key={burst.id}
+            className="reaction-burst-pop"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            aria-hidden
+          >
+            {BURST_PARTICLES.map((p, i) => (
+              <motion.span
+                key={i}
+                className="reaction-burst-pop-emoji"
+                initial={{ opacity: 0, x: 0, y: 0, scale: 0.4, rotate: 0 }}
+                animate={{
+                  opacity: [0, 1, 0],
+                  x: p.x,
+                  y: p.y,
+                  scale: [0.4, 1.15, 0.7],
+                  rotate: p.r,
+                }}
+                transition={{ duration: 0.48, delay: p.d, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {burst.emoji}
+              </motion.span>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="reactions-list">
         {Object.entries(groupedReactions).map(([emoji, data]) => (
           <motion.button
@@ -106,7 +156,6 @@ export default function MessageReactions({
         ))}
       </div>
 
-      {/* Add reaction button */}
       <div className="reaction-add-wrapper">
         <motion.button
           className="reaction-add-btn"
@@ -141,7 +190,7 @@ export default function MessageReactions({
                   </button>
                 </div>
                 <div className="reaction-picker-grid">
-                  {COMMON_EMOJIS.map(emoji => (
+                  {COMMON_EMOJIS.map((emoji) => (
                     <motion.button
                       key={emoji}
                       className="reaction-picker-emoji"

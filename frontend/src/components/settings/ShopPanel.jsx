@@ -151,6 +151,7 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0, me 
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyItemId, setBusyItemId] = useState(null);
+  const [celebrateItemId, setCelebrateItemId] = useState(null);
   const [notice, setNotice] = useState("");
   const [activeCategory, setActiveCategory] = useState(null);
   const [daily, setDaily] = useState(null);
@@ -258,6 +259,10 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0, me 
             ? prev
             : [...prev, { itemId: item.id, item }]
         );
+        setCelebrateItemId(item.id);
+        window.setTimeout(() => {
+          setCelebrateItemId((id) => (id === item.id ? null : id));
+        }, 1200);
         await load({ silent: true });
         await onEquippedChange?.(null, null);
       });
@@ -393,7 +398,14 @@ export default function ShopPanel({ equipped, onEquippedChange, balance = 0, me 
                 const busy = busyItemId === item.id;
                 const affordable = balance >= (item.price_descoin || 0);
                 return (
-                  <div className="shop-item-card" data-category={category} key={item.id}>
+                  <div
+                    className={`shop-item-card${celebrateItemId === item.id ? " is-celebrating" : ""}`}
+                    data-category={category}
+                    key={item.id}
+                  >
+                    {celebrateItemId === item.id && (
+                      <div className="shop-celebrate-banner">{t("Purchased — equip it anytime")}</div>
+                    )}
                     <div
                       className="shop-item-preview"
                       data-theme-preview={category === "theme" ? item.theme_key : undefined}

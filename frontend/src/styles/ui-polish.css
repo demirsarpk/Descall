@@ -80,11 +80,13 @@
 /* ─── Reactions ─── */
 .message-reactions,
 .msg-reactions {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   margin-top: 4px;
+  overflow: visible;
 }
 
 .reactions-list {

@@ -9,6 +9,7 @@ import AdminBadge from "./AdminBadge";
 import { BadgeIcon, NameEffectText, TitleTag, profileAuraClass } from "../ui/Cosmetics";
 import { getUserValorant } from "../../api/riot";
 import { useT } from "../../context/LocaleContext";
+import ParallaxBanner from "../ui/ParallaxBanner";
 
 const STATUS_CLASS = {
   online: "st-online",
@@ -114,9 +115,12 @@ export default function UserHoverCard({ user, anchor }) {
       exit={{ opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div
+      <ParallaxBanner
         className="uhc-banner"
-        style={banner ? { backgroundImage: cssUrl(banner) } : undefined}
+        height={72}
+        imageUrl={banner ? cssUrl(banner) : null}
+        fallbackStyle={undefined}
+        strength={8}
       />
       <div className="uhc-body">
         <div className="uhc-avatar-wrap">

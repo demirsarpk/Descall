@@ -1,0 +1,301 @@
+/* ═══════════════════════════════════════════════════════════════
+   Visual polish pack 2 — intentional motion (reactions, send,
+   presence toast, rail, shop celebrate, unread, banner parallax)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. Reaction burst pop ───────────────────────────────────── */
+.reaction-burst-pop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  overflow: visible;
+}
+
+.reaction-burst-pop-emoji {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  font-size: 18px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+  will-change: transform, opacity;
+}
+
+/* ── 2. Typing flare shell pulse ─────────────────────────────── */
+.typing-indicator-shell.has-flare {
+  animation: typing-shell-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes typing-shell-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+}
+
+/* ── 4. Composer send flash ──────────────────────────────────── */
+.composer-send-flash {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.55), transparent 68%);
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.composer-send-btn {
+  position: relative;
+  overflow: visible;
+}
+
+.composer-send-btn.is-flashing .composer-send-flash {
+  animation: composer-send-ripple 0.45s ease-out forwards;
+}
+
+.composer-root.is-sending {
+  animation: composer-send-glow 0.5s ease-out;
+}
+
+.message-composer.is-sending {
+  animation: composer-send-glow 0.5s ease-out;
+}
+
+@keyframes composer-send-ripple {
+  0% { opacity: 0.85; transform: scale(0.35); }
+  100% { opacity: 0; transform: scale(1.85); }
+}
+
+@keyframes composer-send-glow {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 0%, transparent); }
+  35% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 28%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* ── 5. Friend online toast ──────────────────────────────────── */
+.toast-item.toast-presence {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 10px;
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border-2));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--success) 14%, var(--surface-1)),
+    var(--surface-1)
+  );
+}
+
+.toast-presence-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+}
+
+.toast-presence-avatar .status-badge {
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+  border-width: 2px;
+  right: -1px;
+  bottom: -1px;
+}
+
+.toast-presence-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.toast-presence-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-0);
+  line-height: 1.2;
+}
+
+.toast-presence-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── 6. Call join pop ────────────────────────────────────────── */
+.participant-tile--avatar-only {
+  animation: call-avatar-join 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes call-avatar-join {
+  0% { opacity: 0; transform: scale(0.92) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.participant-tile.is-leaving {
+  animation: call-avatar-leave 0.28s ease-in forwards;
+}
+
+@keyframes call-avatar-leave {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.94) translateY(8px); }
+}
+
+/* ── 7. Nav rail active glow ─────────────────────────────────── */
+.rail-btn.active {
+  position: relative;
+}
+
+.rail-btn.active::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #9db0ff, #6b84f7);
+  box-shadow: 0 0 10px rgba(120, 145, 255, 0.7);
+  transform: translateY(-50%);
+  animation: rail-active-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rail-btn.active .rail-btn-inner {
+  animation: rail-active-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes rail-active-in {
+  0% { opacity: 0; transform: translateY(-50%) scaleY(0.4); }
+  100% { opacity: 1; transform: translateY(-50%) scaleY(1); }
+}
+
+@keyframes rail-active-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-btn.active .rail-btn-inner,
+  .typing-indicator-shell.has-flare,
+  .conv-unread-badge.has-unread-pulse {
+    animation: none !important;
+  }
+}
+
+/* ── 8. Shop purchase celebrate ──────────────────────────────── */
+.shop-item-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.shop-item-card.is-celebrating::after {
+  content: "";
+  position: absolute;
+  inset: -40% -60%;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(250, 204, 21, 0.22) 48%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(250, 204, 21, 0.18) 52%,
+    transparent 65%
+  );
+  animation: shop-celebrate-shimmer 0.85s ease-out forwards;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.shop-celebrate-banner {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 4;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, #1a1b1f 82%, #facc15);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  color: #fde68a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+  animation: shop-celebrate-banner-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+@keyframes shop-celebrate-shimmer {
+  0% { transform: translateX(-30%) rotate(8deg); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateX(30%) rotate(8deg); opacity: 0; }
+}
+
+@keyframes shop-celebrate-banner-in {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 9. Profile banner parallax ──────────────────────────────── */
+.profile-banner-parallax,
+.uhc-banner.profile-banner-parallax {
+  position: relative;
+  overflow: hidden;
+  transform: translateZ(0);
+  flex-shrink: 0;
+  background: var(--surface-2, #2b2d31);
+}
+
+.uhc-banner.profile-banner-parallax {
+  border-radius: 12px 12px 0 0;
+}
+
+.profile-banner-parallax-layer {
+  position: absolute;
+  inset: -12%;
+  background-size: cover;
+  background-position: center;
+  will-change: transform;
+  transition: transform 0.2s ease-out;
+}
+
+.profile-banner-parallax-fallback {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── 10. DM / group unread pulse ─────────────────────────────── */
+.dm-item.has-unread .conv-unread-badge,
+.group-item.has-unread .conv-unread-badge,
+.conv-unread-badge.has-unread-pulse {
+  animation: unread-badge-pulse 2s ease-in-out infinite;
+}
+
+.dm-item.has-unread .dm-name.unread,
+.group-item.has-unread .group-name.unread {
+  position: relative;
+}
+
+.dm-item.has-unread::before,
+.group-item.has-unread::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  border-radius: 999px;
+  background: #ed4245;
+  box-shadow: 0 0 8px rgba(237, 66, 69, 0.45);
+  transform: translateY(-50%);
+  opacity: 0.9;
+}
+
+@keyframes unread-badge-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 1px 4px rgba(237, 66, 69, 0.35);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 3px rgba(237, 66, 69, 0.22), 0 2px 8px rgba(237, 66, 69, 0.45);
+  }
+}

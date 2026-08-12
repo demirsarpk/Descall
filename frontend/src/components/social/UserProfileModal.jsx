@@ -14,6 +14,7 @@ import { useT } from "../../context/LocaleContext";
 import { isUserAdmin } from "../../lib/userProfile";
 import { cssUrl } from "../../lib/cssUrl";
 import { useLocale } from "../../context/LocaleContext";
+import ParallaxBanner from "../ui/ParallaxBanner";
 
 function formatMemberSince(iso, t, locale) {
   if (!iso) return t("Unknown");
@@ -239,14 +240,11 @@ export default function UserProfileModal({
             </button>
 
             {/* Banner */}
-            <div
-              style={{
-                height: 80,
-                background: equippedBannerUrl
-                  ? `${cssUrl(equippedBannerUrl)} center/cover no-repeat`
-                  : bannerGradient,
-                flexShrink: 0,
-              }}
+            <ParallaxBanner
+              height={80}
+              imageUrl={equippedBannerUrl ? cssUrl(equippedBannerUrl) : null}
+              fallbackStyle={{ background: bannerGradient }}
+              strength={12}
             />
 
             {/* Avatar overlapping banner */}

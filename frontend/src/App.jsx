@@ -1044,8 +1044,15 @@ export default function App() {
 
       if (newOnlineFriends.length > 0) {
         playUiSound("notification");
-        if (newOnlineFriends[0]) {
-          notificationService.friendOnline({ username: resolveDisplayName(newOnlineFriends[0]) });
+        const first = newOnlineFriends[0];
+        if (first) {
+          const name = resolveDisplayName(first);
+          notificationService.friendOnline({ username: name });
+          toast(name, "presence", {
+            user: first,
+            name,
+            subtitle: t("is now online"),
+          });
         }
       }
 

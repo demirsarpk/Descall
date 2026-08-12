@@ -90,6 +90,7 @@ export default function MessageComposer({
   const [uploadError, setUploadError] = useState("");
   const [pendingAttach, setPendingAttach] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  const [sendFlash, setSendFlash] = useState(false);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -223,11 +224,17 @@ export default function MessageComposer({
     clearTimeout(typingTimerRef.current);
     emitTypingStop();
 
+    const flash = () => {
+      setSendFlash(true);
+      window.setTimeout(() => setSendFlash(false), 480);
+    };
+
     if (pendingAttach) {
       onSend?.(withReply({ ...pendingAttach }));
       setPendingAttach(null);
       if (pendingAttach.previewUrl) URL.revokeObjectURL(pendingAttach.previewUrl);
       onClearReply?.();
+      flash();
       return;
     }
 
@@ -235,6 +242,7 @@ export default function MessageComposer({
     onSend?.(withReply(message.trim()));
     setMessage("");
     onClearReply?.();
+    flash();
   };
 
   const handleKeyDown = (e) => {
@@ -504,7 +512,7 @@ export default function MessageComposer({
 
   return (
     <div
-      className={`message-composer${dragOver ? " is-dragover" : ""}`}
+      className={`message-composer${dragOver ? " is-dragover" : ""}${sendFlash ? " is-sending" : ""}`}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
@@ -732,7 +740,15 @@ export default function MessageComposer({
           </motion.button>
         )}
 
-        <motion.button className={`composer-send-btn ${canSend ? "active" : ""}`} onClick={handleSend} disabled={!canSend || disabled} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} title={t("Send Message")}>
+        <motion.button
+          className={`composer-send-btn ${canSend ? "active" : ""}${sendFlash ? " is-flashing" : ""}`}
+          onClick={handleSend}
+          disabled={!canSend || disabled}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title={t("Send Message")}
+        >
+          <span className="composer-send-flash" aria-hidden />
           <Send size={20} />
         </motion.button>
       </div>
