@@ -16,8 +16,10 @@ import {
   X,
   Pencil,
   Settings2,
+  Shield,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
+import ServerRolesModal from "./ServerRolesModal";
 
 /**
  * Servers list + in-server channel shell (Steps 2–3).
@@ -39,6 +41,7 @@ export default function ServersSidebar({
   onCreateChannel,
   onUpdateChannel,
   onDeleteChannel,
+  onRolesChanged,
   onRefresh,
   onMobileClose,
   isMobile = false,
@@ -48,6 +51,7 @@ export default function ServersSidebar({
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // { mode: 'leave'|'delete', server }
   const [channelModal, setChannelModal] = useState(null); // { mode, channel?, defaultType?, parentId? }
+  const [showRoles, setShowRoles] = useState(false);
   const [channelMenuId, setChannelMenuId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [collapsedCats, setCollapsedCats] = useState({});
@@ -158,6 +162,17 @@ export default function ServersSidebar({
                     >
                       <Folder size={15} />
                       {t("Create category")}
+                    </button>
+                    <button
+                      type="button"
+                      className="server-dropdown-item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setShowRoles(true);
+                      }}
+                    >
+                      <Shield size={15} />
+                      {t("Roles")}
                     </button>
                   </>
                 )}
@@ -346,6 +361,13 @@ export default function ServersSidebar({
                 await onDeleteChannel?.(channelModal.channel.id);
                 setChannelModal(null);
               }}
+            />
+          )}
+          {showRoles && (
+            <ServerRolesModal
+              server={activeServer}
+              onClose={() => setShowRoles(false)}
+              onRolesChanged={(roles) => onRolesChanged?.(roles)}
             />
           )}
         </AnimatePresence>

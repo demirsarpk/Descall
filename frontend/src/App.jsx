@@ -2901,6 +2901,14 @@ export default function App() {
     }
   };
 
+  const handleRolesChanged = (roles) => {
+    if (!activeServer?.id) return;
+    setActiveServer((prev) => (prev ? { ...prev, roles: roles || [] } : prev));
+    setMyServers((prev) =>
+      prev.map((s) => (s.id === activeServer.id ? { ...s, roles: roles || [] } : s))
+    );
+  };
+
   const handleServerBack = () => {
     setActiveServer(null);
     setActiveChannel(null);
@@ -3010,6 +3018,7 @@ export default function App() {
           onCreateChannel={handleCreateChannel}
           onUpdateChannel={handleUpdateChannel}
           onDeleteChannel={handleDeleteChannel}
+          onRolesChanged={handleRolesChanged}
           onRefreshServers={handleRefreshServers}
           onlineUsers={onlineUsers}
           myStatus={myStatus}

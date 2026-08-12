@@ -92,3 +92,39 @@ export function getChannelMessages(serverId, channelId, { before, limit = 50 } =
     `/api/servers/${serverId}/channels/${channelId}/messages${qs ? `?${qs}` : ""}`
   );
 }
+
+export function getServerRoles(serverId) {
+  return serversRequest(`/api/servers/${serverId}/roles`);
+}
+
+export function createServerRole(serverId, payload = {}) {
+  return serversRequest(`/api/servers/${serverId}/roles`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export function updateServerRole(serverId, roleId, patch = {}) {
+  return serversRequest(`/api/servers/${serverId}/roles/${roleId}`, {
+    method: "PATCH",
+    body: patch,
+  });
+}
+
+export function deleteServerRole(serverId, roleId) {
+  return serversRequest(`/api/servers/${serverId}/roles/${roleId}`, {
+    method: "DELETE",
+  });
+}
+
+export function assignMemberRole(serverId, userId, roleId) {
+  return serversRequest(`/api/servers/${serverId}/members/${userId}/roles/${roleId}`, {
+    method: "PUT",
+  });
+}
+
+export function removeMemberRole(serverId, userId, roleId) {
+  return serversRequest(`/api/servers/${serverId}/members/${userId}/roles/${roleId}`, {
+    method: "DELETE",
+  });
+}

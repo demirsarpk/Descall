@@ -1,26 +1,69 @@
 "use strict";
 
 /**
- * Descall Servers API — Steps 1–3
- * Create / list / get / delete / leave + channel CRUD (text / voice / category)
+ * Descall Servers API — Steps 1–5
+ * Create / list / get / delete / leave + channel CRUD + text chat history + roles
  * Ownership limit: max 10 servers owned per user (membership unlimited).
- * Channel manage: owner only until roles/permissions land in later steps.
+ * Channel/role manage: owner only until permission engine lands in Step 6.
  */
 
 const express = require("express");
 const supabase = require("../db/supabase");
 const { requireAuth } = require("../middleware/auth");
-const { EVERYONE_DEFAULT, toPgBigint } = require("../lib/serverPermissions");
+const { EVERYONE_DEFAULT, toPgBigint, fromPgBigint, Permissions } = require("../lib/serverPermissions");
 
 const router = express.Router();
 
 const MAX_OWNED_SERVERS = 10;
 const MAX_CHANNELS_PER_SERVER = 500;
+const MAX_ROLES_PER_SERVER = 50;
 const NAME_MIN = 2;
 const NAME_MAX = 100;
 const CHANNEL_NAME_MIN = 1;
 const CHANNEL_NAME_MAX = 100;
 const CHANNEL_TYPES = new Set(["text", "voice", "category"]);
+const ROLE_NAME_MIN = 1;
+const ROLE_NAME_MAX = 100;
+
+/** Permission keys editable in Step 5 role UI (full engine in Step 6). */
+const EDITABLE_PERMISSION_KEYS = [
+  "VIEW_CHANNEL",
+  "SEND_MESSAGES",
+  "MANAGE_MESSAGES",
+  "MANAGE_CHANNELS",
+  "MANAGE_ROLES",
+  "KICK_MEMBERS",
+  "BAN_MEMBERS",
+  "MENTION_EVERYONE",
+  "CONNECT",
+  "SPEAK",
+  "MUTE_MEMBERS",
+  "MOVE_MEMBERS",
+  "ADMINISTRATOR",
+];
+
+function parsePermissionsInput(raw) {
+  if (raw == null) return null;
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    // { VIEW_CHANNEL: true, ... }
+    let bits = 0n;
+    for (const key of EDITABLE_PERMISSION_KEYS) {
+      if (raw[key] && Permissions[key] != null) bits |= Permissions[key];
+    }
+    return bits;
+  }
+  try {
+    return fromPgBigint(raw);
+  } catch {
+    return null;
+  }
+}
+
+function clampColor(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(0xffffff, Math.floor(n)));
+}
 
 function cleanName(raw) {
   return String(raw || "").trim().replace(/\s+/g, " ");
@@ -729,6 +772,17 @@ router.get("/:id/members", requireAuth, async (req, res) => {
       .eq("id", serverId)
       .maybeSingle();
 
+    const { data: memberRoles } = await supabase
+      .from("server_member_roles")
+      .select("user_id, role_id")
+      .eq("server_id", serverId);
+
+    const rolesByUser = new Map();
+    for (const row of memberRoles || []) {
+      if (!rolesByUser.has(row.user_id)) rolesByUser.set(row.user_id, []);
+      rolesByUser.get(row.user_id).push(row.role_id);
+    }
+
     const byId = new Map((users || []).map((u) => [u.id, u]));
     const list = (members || []).map((m) => {
       const u = byId.get(m.user_id) || {};
@@ -740,6 +794,7 @@ router.get("/:id/members", requireAuth, async (req, res) => {
         nickname: m.nickname || null,
         joinedAt: m.joined_at,
         isOwner: server?.owner_id === m.user_id,
+        roleIds: rolesByUser.get(m.user_id) || [],
       };
     });
 
@@ -747,6 +802,320 @@ router.get("/:id/members", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[SERVERS] GET /:id/members error:", err);
     return res.status(500).json({ error: "Failed to load members." });
+  }
+});
+
+/**
+ * GET /servers/:id/roles
+ */
+router.get("/:id/roles", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const membership = await getMembership(serverId, req.user.id);
+    if (!membership) {
+      return res.status(403).json({ error: "You are not a member of this server." });
+    }
+    const { data: roles, error } = await supabase
+      .from("server_roles")
+      .select("*")
+      .eq("server_id", serverId)
+      .order("position", { ascending: false });
+    if (error) throw error;
+    return res.json({
+      roles: (roles || []).map(publicRole),
+      editablePermissions: EDITABLE_PERMISSION_KEYS,
+    });
+  } catch (err) {
+    console.error("[SERVERS] GET /:id/roles error:", err);
+    return res.status(500).json({ error: "Failed to load roles." });
+  }
+});
+
+/**
+ * POST /servers/:id/roles — create role (owner only)
+ */
+router.post("/:id/roles", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    await requireServerOwner(serverId, req.user.id);
+
+    const name = cleanName(req.body?.name);
+    if (name.length < ROLE_NAME_MIN || name.length > ROLE_NAME_MAX) {
+      return res.status(400).json({ error: `Role name must be ${ROLE_NAME_MIN}–${ROLE_NAME_MAX} characters.` });
+    }
+    if (name.toLowerCase() === "@everyone") {
+      return res.status(400).json({ error: "Cannot create another @everyone role." });
+    }
+
+    const { count, error: countErr } = await supabase
+      .from("server_roles")
+      .select("id", { count: "exact", head: true })
+      .eq("server_id", serverId);
+    if (countErr) throw countErr;
+    if ((count || 0) >= MAX_ROLES_PER_SERVER) {
+      return res.status(400).json({
+        error: `Servers can have at most ${MAX_ROLES_PER_SERVER} roles.`,
+        code: "MAX_ROLES",
+      });
+    }
+
+    const { data: top } = await supabase
+      .from("server_roles")
+      .select("position")
+      .eq("server_id", serverId)
+      .order("position", { ascending: false })
+      .limit(1);
+    const position =
+      typeof req.body?.position === "number" && Number.isFinite(req.body.position)
+        ? Math.max(0, Math.floor(req.body.position))
+        : (top?.[0]?.position ?? 0) + 1;
+
+    const color = clampColor(req.body?.color ?? 0x5865f2);
+    const perms = parsePermissionsInput(req.body?.permissions);
+    const permissions = toPgBigint(perms != null ? perms : EVERYONE_DEFAULT);
+
+    const { data: role, error } = await supabase
+      .from("server_roles")
+      .insert({
+        server_id: serverId,
+        name,
+        color,
+        position,
+        permissions,
+        hoist: Boolean(req.body?.hoist),
+        mentionable: Boolean(req.body?.mentionable),
+        is_everyone: false,
+      })
+      .select("*")
+      .single();
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "ROLE_CREATE",
+      targetType: "role",
+      targetId: role.id,
+      changes: { name, color, position },
+    });
+
+    return res.status(201).json({ role: publicRole(role) });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] POST /:id/roles error:", err);
+    return res.status(status).json({ error: err.message || "Failed to create role.", code: err.code });
+  }
+});
+
+/**
+ * PATCH /servers/:id/roles/:roleId
+ */
+router.patch("/:id/roles/:roleId", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const roleId = req.params.roleId;
+    await requireServerOwner(serverId, req.user.id);
+
+    const { data: existing, error: findErr } = await supabase
+      .from("server_roles")
+      .select("*")
+      .eq("id", roleId)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (!existing) return res.status(404).json({ error: "Role not found." });
+
+    const patch = {};
+    if (req.body?.name != null) {
+      if (existing.is_everyone) {
+        return res.status(400).json({ error: "@everyone cannot be renamed.", code: "EVERYONE_LOCKED" });
+      }
+      const name = cleanName(req.body.name);
+      if (name.length < ROLE_NAME_MIN || name.length > ROLE_NAME_MAX) {
+        return res.status(400).json({ error: "Invalid role name." });
+      }
+      patch.name = name;
+    }
+    if (req.body?.color !== undefined) patch.color = clampColor(req.body.color);
+    if (typeof req.body?.position === "number" && Number.isFinite(req.body.position)) {
+      patch.position = Math.max(0, Math.floor(req.body.position));
+    }
+    if (req.body?.hoist !== undefined) patch.hoist = Boolean(req.body.hoist);
+    if (req.body?.mentionable !== undefined) patch.mentionable = Boolean(req.body.mentionable);
+    if (req.body?.permissions !== undefined) {
+      const perms = parsePermissionsInput(req.body.permissions);
+      if (perms == null) return res.status(400).json({ error: "Invalid permissions." });
+      patch.permissions = toPgBigint(perms);
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update." });
+    }
+
+    const { data: role, error } = await supabase
+      .from("server_roles")
+      .update(patch)
+      .eq("id", roleId)
+      .eq("server_id", serverId)
+      .select("*")
+      .single();
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "ROLE_UPDATE",
+      targetType: "role",
+      targetId: roleId,
+      changes: patch,
+    });
+
+    return res.json({ role: publicRole(role) });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] PATCH /:id/roles/:roleId error:", err);
+    return res.status(status).json({ error: err.message || "Failed to update role.", code: err.code });
+  }
+});
+
+/**
+ * DELETE /servers/:id/roles/:roleId — @everyone protected
+ */
+router.delete("/:id/roles/:roleId", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const roleId = req.params.roleId;
+    await requireServerOwner(serverId, req.user.id);
+
+    const { data: existing, error: findErr } = await supabase
+      .from("server_roles")
+      .select("*")
+      .eq("id", roleId)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (!existing) return res.status(404).json({ error: "Role not found." });
+    if (existing.is_everyone) {
+      return res.status(400).json({ error: "@everyone cannot be deleted.", code: "EVERYONE_LOCKED" });
+    }
+
+    const { error } = await supabase
+      .from("server_roles")
+      .delete()
+      .eq("id", roleId)
+      .eq("server_id", serverId);
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "ROLE_DELETE",
+      targetType: "role",
+      targetId: roleId,
+      changes: { name: existing.name },
+    });
+
+    return res.json({ message: "Role deleted.", roleId });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] DELETE /:id/roles/:roleId error:", err);
+    return res.status(status).json({ error: err.message || "Failed to delete role.", code: err.code });
+  }
+});
+
+/**
+ * PUT /servers/:id/members/:userId/roles/:roleId — assign role
+ */
+router.put("/:id/members/:userId/roles/:roleId", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const userId = req.params.userId;
+    const roleId = req.params.roleId;
+    await requireServerOwner(serverId, req.user.id);
+
+    const targetMembership = await getMembership(serverId, userId);
+    if (!targetMembership) {
+      return res.status(404).json({ error: "Member not found in this server." });
+    }
+
+    const { data: role, error: rErr } = await supabase
+      .from("server_roles")
+      .select("*")
+      .eq("id", roleId)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (rErr) throw rErr;
+    if (!role) return res.status(404).json({ error: "Role not found." });
+    if (role.is_everyone) {
+      return res.status(400).json({ error: "@everyone is automatic and cannot be assigned." });
+    }
+
+    const { error } = await supabase.from("server_member_roles").upsert(
+      { server_id: serverId, user_id: userId, role_id: roleId },
+      { onConflict: "server_id,user_id,role_id" }
+    );
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "MEMBER_ROLE_ADD",
+      targetType: "member",
+      targetId: userId,
+      changes: { roleId, roleName: role.name },
+    });
+
+    return res.json({ message: "Role assigned.", userId, roleId });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] PUT member role error:", err);
+    return res.status(status).json({ error: err.message || "Failed to assign role.", code: err.code });
+  }
+});
+
+/**
+ * DELETE /servers/:id/members/:userId/roles/:roleId — remove role
+ */
+router.delete("/:id/members/:userId/roles/:roleId", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const userId = req.params.userId;
+    const roleId = req.params.roleId;
+    await requireServerOwner(serverId, req.user.id);
+
+    const { data: role } = await supabase
+      .from("server_roles")
+      .select("id, name, is_everyone")
+      .eq("id", roleId)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (!role) return res.status(404).json({ error: "Role not found." });
+    if (role.is_everyone) {
+      return res.status(400).json({ error: "@everyone cannot be removed." });
+    }
+
+    const { error } = await supabase
+      .from("server_member_roles")
+      .delete()
+      .eq("server_id", serverId)
+      .eq("user_id", userId)
+      .eq("role_id", roleId);
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "MEMBER_ROLE_REMOVE",
+      targetType: "member",
+      targetId: userId,
+      changes: { roleId, roleName: role.name },
+    });
+
+    return res.json({ message: "Role removed.", userId, roleId });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] DELETE member role error:", err);
+    return res.status(status).json({ error: err.message || "Failed to remove role.", code: err.code });
   }
 });
 
