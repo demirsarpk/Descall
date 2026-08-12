@@ -1342,6 +1342,7 @@ export function useServerVoice(socket) {
     disconnectLiveKit,
     getLiveKitToken,
     offerToPeer,
+    removeUserFromVoiceStates,
     setupPc,
     socket,
   ]);
