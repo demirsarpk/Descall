@@ -141,7 +141,15 @@ export default function AppLayout({
 
   const closeUserPanel = useCallback(() => {
     setUserPanelOpen(false);
-    if (isMobile && !activeDmUser && !activeGroup && !(activeView === "servers" && activeChannel)) {
+    // Play / Activity are full-page surfaces — never reopen the chat drawer over them.
+    if (
+      isMobile &&
+      activeView !== "play" &&
+      activeView !== "activity" &&
+      !activeDmUser &&
+      !activeGroup &&
+      !(activeView === "servers" && activeChannel)
+    ) {
       setMobileDrawerOpen(true);
     }
   }, [isMobile, activeDmUser, activeGroup, activeServer, activeChannel, activeView, setUserPanelOpen]);
@@ -152,8 +160,14 @@ export default function AppLayout({
 
   // Mobile: keep the sidebar open for server list + channel list.
   // Only treat an opened channel as "in conversation" (main pane).
+  // Play / Activity own the viewport (rail is inside their page or unused) —
+  // forcing the drawer open here left a rail-only shell over LFG and broke layout.
   useEffect(() => {
     if (!isMobile) return;
+    if (activeView === "play" || activeView === "activity") {
+      setMobileDrawerOpen(false);
+      return;
+    }
     const inServersChannel = activeView === "servers" && !!activeChannel;
     if (!activeDmUser && !activeGroup && !inServersChannel) {
       setMobileDrawerOpen(true);

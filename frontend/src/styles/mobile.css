@@ -202,6 +202,34 @@
     display: none !important;
   }
 
+  /*
+   * Play / LFG (mobile): full-bleed workspace. Keep the nav drawer fully off-screen
+   * so a rail-only shell cannot cover or squeeze the LFG list after view switches.
+   */
+  .app-root.is-mobile[data-view="play"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .app-root.is-mobile[data-view="play"] .app-sidebar-shell,
+  .app-root.is-mobile[data-view="play"].mobile-drawer-open .app-sidebar-shell {
+    transform: translateX(-100%) !important;
+    pointer-events: none;
+    box-shadow: none;
+  }
+
+  .app-root.is-mobile[data-view="play"] .mobile-drawer-backdrop {
+    display: none !important;
+  }
+
+  .app-root.is-mobile[data-view="play"] .lfg-workspace {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    max-height: var(--vv-height, 100dvh);
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+  }
+
   /* Keep overflow hidden so expand/collapse height animation clips cleanly.
      The parent .sidebar-content remains the scroll container. */
   .app-sidebar-shell .section-content {
