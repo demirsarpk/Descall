@@ -839,9 +839,9 @@ function ServerVoiceUserRow({ member, stream = null, size = 22, onContextMenu })
         if (e.detail >= 2) onContextMenu?.(e);
       }}
     >
-      <span className="server-voice-user-avatar-shell" aria-hidden={!speaking}>
-        <span className={`server-voice-speak-ring ring-a${speaking ? " is-active" : ""}`} />
-        <span className={`server-voice-speak-ring ring-b${speaking ? " is-active" : ""}`} />
+      <div className="server-voice-user-avatar-shell" aria-hidden={!speaking}>
+        <div className={`server-voice-speak-ring ring-a${speaking ? " is-active" : ""}`} />
+        <div className={`server-voice-speak-ring ring-b${speaking ? " is-active" : ""}`} />
         <Avatar
           name={name}
           size={size}
@@ -850,7 +850,7 @@ function ServerVoiceUserRow({ member, stream = null, size = 22, onContextMenu })
           isSpeaking={speaking}
           className="server-voice-user-avatar"
         />
-      </span>
+      </div>
       <span className="server-voice-user-name">{name}</span>
       {member?.stageRole === "speaker" ? (
         <span className="server-stage-speaker-badge">{t("Speaker")}</span>

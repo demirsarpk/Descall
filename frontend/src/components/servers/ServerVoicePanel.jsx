@@ -51,9 +51,9 @@ function VoiceMemberRow({
     <div
       className={`server-voice-member${muted ? " is-muted" : ""}${speaking ? " is-speaking" : ""}`}
     >
-      <span className="server-voice-member-avatar-shell" aria-hidden>
-        <span className={`server-voice-speak-ring ring-a${speaking ? " is-active" : ""}`} />
-        <span className={`server-voice-speak-ring ring-b${speaking ? " is-active" : ""}`} />
+      <div className="server-voice-member-avatar-shell" aria-hidden>
+        <div className={`server-voice-speak-ring ring-a${speaking ? " is-active" : ""}`} />
+        <div className={`server-voice-speak-ring ring-b${speaking ? " is-active" : ""}`} />
         <Avatar
           name={name}
           size={32}
@@ -62,7 +62,7 @@ function VoiceMemberRow({
           isSpeaking={speaking}
           className="server-voice-member-avatar"
         />
-      </span>
+      </div>
       <span className="server-voice-member-name">{name}</span>
       {member?.stageRole === "speaker" ? <span className="server-stage-speaker-badge">Speaker</span> : null}
       {member?.requestedToSpeak ? <span className="server-stage-request-badge">Requested</span> : null}

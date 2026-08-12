@@ -1704,7 +1704,9 @@ button.member-row.server-member-row {
 .server-voice-members-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  overflow: visible;
+  padding: 2px 0;
 }
 
 .server-voice-member {
