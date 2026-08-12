@@ -1,23 +1,31 @@
 export const FAQ_ITEMS = [
   {
     q: "Is Descall a Discord alternative?",
-    a: "Yes. Descall is a free Discord alternative for real-time chat, group voice/video, screen share, and Valorant LFG — without Nitro paywalls for core communication.",
+    a: "Yes. Descall is a free Discord alternative for real-time chat, servers (roles, channels, voice), group video, screen share, and Valorant LFG — without Nitro paywalls for core communication.",
   },
   {
     q: "What is Descall?",
-    a: "Descall is a modern messaging and calling app with DMs, groups, WebRTC voice/video, screen share quality controls, a Windows desktop client, Android builds, and a browser app.",
+    a: "Descall is a modern messaging and calling app with DMs, Discord-style servers, WebRTC voice/video, screen share quality controls, a Windows desktop client, Android builds, and a browser app.",
+  },
+  {
+    q: "Does Descall have servers like Discord?",
+    a: "Yes. Create a server from scratch or pick an advanced template. You get categories, text/voice/stage channels, roles, permission overrides, invites, moderation tools, and optional community rules.",
+  },
+  {
+    q: "Do server templates include roles?",
+    a: "Yes. Templates like Gaming, Valorant, Community, Study, Friends, and Streaming ship with ready-made roles (Admin, Moderator, VIP, and more) plus channel permission overrides for staff rooms and announcements.",
   },
   {
     q: "Is Descall free?",
-    a: "Yes. Chat, voice, video, and screen share are free. Optional cosmetics use DesCoin and never gate core messaging or calls.",
+    a: "Yes. Chat, servers, voice, video, and screen share are free. Optional cosmetics use DesCoin and never gate core messaging or calls.",
   },
   {
     q: "Descall vs Discord — who should switch?",
-    a: "Friend groups and gaming squads that mainly need DMs, voice, screen share, and LFG often prefer Descall as a lighter Discord alternative. Keep Discord if you still rely on huge public servers and bot ecosystems.",
+    a: "Friend groups, gaming squads, and small-to-mid communities that need servers, roles, voice, screen share, and LFG often prefer Descall as a lighter Discord alternative. Keep Discord if you still rely on huge bot ecosystems.",
   },
   {
     q: "Does Descall have screen sharing?",
-    a: "Yes. Screen share works in DM and group calls with quality presets designed for smooth sharing while gaming or reviewing VODs.",
+    a: "Yes. Screen share works in DM and group/server calls with quality presets designed for smooth sharing while gaming or reviewing VODs.",
   },
   {
     q: "Does Descall support Valorant LFG?",
@@ -29,11 +37,11 @@ export const FAQ_ITEMS = [
   },
   {
     q: "Do I need an account?",
-    a: "Yes. Create a free account (or sign in with Google) to chat, join groups, start calls, and use LFG.",
+    a: "Yes. Create a free account (or sign in with Google) to chat, create servers, start calls, and use LFG.",
   },
   {
-    q: "How do group invites work?",
-    a: "Group owners can create invite links. Opening an invite lets you preview the group and join after signing in.",
+    q: "How do server invites work?",
+    a: "Server members with invite permission can create invite links. Opening an invite lets you preview the server and join after signing in.",
   },
   {
     q: "Where can I get support?",

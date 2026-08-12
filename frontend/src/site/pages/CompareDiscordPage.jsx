@@ -21,7 +21,7 @@ export default function CompareDiscordPage({ onSignIn }) {
       kicker="Descall vs Discord"
       title={t("Descall vs Discord — which Discord alternative fits your group?")}
       lead={t(
-        "An honest Descall vs Discord comparison for chat, voice, video, screen share, LFG, desktop apps, and pricing. Use this when evaluating Descall as a Discord alternative in 2026."
+        "An honest Descall vs Discord comparison for servers, roles, channels, chat, voice, video, screen share, LFG, desktop apps, and pricing. Use this when evaluating Descall as a Discord alternative in 2026."
       )}
       faq={COMPARE_FAQ}
       jsonLd={[
@@ -47,13 +47,13 @@ export default function CompareDiscordPage({ onSignIn }) {
           <p>
             <strong>Descall</strong>{" "}
             {t(
-              "wins if you want a lighter Discord alternative for friends, group voice, screen share, and Valorant LFG — with free core features."
+              "wins if you want a lighter Discord alternative with real servers (roles, channels, templates), friends voice, screen share, and Valorant LFG — with free core features."
             )}
           </p>
           <p>
             <strong>Discord</strong>{" "}
             {t(
-              "still wins for massive community servers, bots, and the widest platform matrix. Many groups run both: Discord for public communities, Descall for the squad."
+              "still wins for massive bot ecosystems and the widest platform matrix. Many groups run both: Discord for huge public communities with bots, Descall for the squad server and nightly calls."
             )}
           </p>
         </div>
@@ -86,18 +86,19 @@ export default function CompareDiscordPage({ onSignIn }) {
       <section className="seo-section">
         <h2>{t("Where Descall is the better Discord alternative")}</h2>
         <ul className="seo-bullets">
+          <li>{t("Real servers with roles, channels, and ready-made templates")}</li>
           <li>{t("Friend-group chat and voice without Nitro friction")}</li>
           <li>{t("Built-in Valorant LFG instead of fragile bot setups")}</li>
           <li>{t("Screen-share quality controls tuned for calls")}</li>
-          <li>{t("Modern UI focused on speed, not endless server chrome")}</li>
+          <li>{t("Modern UI focused on speed — servers without endless chrome")}</li>
         </ul>
       </section>
 
       <section className="seo-section">
         <h2>{t("Where Discord still leads")}</h2>
         <ul className="seo-bullets">
-          <li>{t("Huge public communities and stage-style events")}</li>
-          <li>{t("Mature bot / integration ecosystem")}</li>
+          <li>{t("Massive bot / integration ecosystem")}</li>
+          <li>{t("Huge public communities with decades of ecosystem tooling")}</li>
           <li>{t("Broader native client coverage historically")}</li>
         </ul>
       </section>
@@ -105,10 +106,11 @@ export default function CompareDiscordPage({ onSignIn }) {
       <section className="seo-section">
         <h2>{t("How to migrate a friend group")}</h2>
         <ol className="seo-steps">
-          <li>{t("Create a Descall group and invite your core squad.")}</li>
+          <li>{t("Create a Descall server from a template (or start from scratch) and invite your core squad.")}</li>
+          <li>{t("Assign roles and tune channel permissions for staff / announcements.")}</li>
           <li>{t("Pin the Download link for Windows / Android users.")}</li>
           <li>{t("Move nightly voice + LFG to Descall for two weeks.")}</li>
-          <li>{t("Keep Discord only for communities you still need.")}</li>
+          <li>{t("Keep Discord only for bot-heavy communities you still need.")}</li>
         </ol>
         <p className="seo-note">
           <Link to="/blog/leave-nitro-keep-voice-chat">{t("Read the full migration guide")}</Link>

@@ -1,4 +1,17 @@
-import { MessageCircle, Mic, Video, Users, MonitorUp, Shield, Gamepad2, Sparkles } from "lucide-react";
+import {
+  MessageCircle,
+  Mic,
+  Video,
+  Users,
+  MonitorUp,
+  Shield,
+  Gamepad2,
+  Sparkles,
+  Server,
+  Layers,
+  Hash,
+  ScrollText,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useT } from "../../context/LocaleContext";
@@ -7,14 +20,34 @@ import SeoRelatedLinks from "../components/SeoRelatedLinks";
 
 const FEATURES = [
   {
+    icon: Server,
+    title: "Servers & channels",
+    desc: "Full server structure with categories, text, voice, and stage channels — topics, slowmode, and NSFW flags included.",
+  },
+  {
+    icon: Shield,
+    title: "Roles & permissions",
+    desc: "Role hierarchy with hoist/mention, plus per-channel allow/deny overrides for staff rooms, announcements, and VIP spaces.",
+  },
+  {
+    icon: Layers,
+    title: "Advanced server templates",
+    desc: "Gaming, Valorant, friends, community, study, and streaming templates — roles and channels ready the moment you create.",
+  },
+  {
+    icon: ScrollText,
+    title: "Moderation & invites",
+    desc: "Kick, ban, timeout, audit logs, community rules, and invite links so servers stay organized as they grow.",
+  },
+  {
     icon: MessageCircle,
     title: "Real-time Chat",
-    desc: "DMs and groups with typing indicators — a Discord alternative that stays focused on people you know.",
+    desc: "DMs and server chat with typing indicators — a Discord alternative that stays focused on people you know.",
   },
   {
     icon: Mic,
     title: "Voice & video calls",
-    desc: "Crystal-clear WebRTC voice and HD video for squads, without Nitro-gated quality of life.",
+    desc: "Crystal-clear WebRTC voice and HD video for squads and server lobbies, without Nitro-gated quality of life.",
   },
   {
     icon: MonitorUp,
@@ -23,8 +56,8 @@ const FEATURES = [
   },
   {
     icon: Users,
-    title: "Groups & presence",
-    desc: "Create groups, invite friends, and see who’s online — less server sprawl, more conversation.",
+    title: "Friends & presence",
+    desc: "Friend list, online status, and invites — jump from DMs into a server voice channel in one flow.",
   },
   {
     icon: Gamepad2,
@@ -32,19 +65,19 @@ const FEATURES = [
     desc: "Play tab lobbies, party codes, and Riot Name#TAG linking so rank can show on your profile.",
   },
   {
+    icon: Hash,
+    title: "Channel controls",
+    desc: "Slowmode, topics, permission overrides, and staff-only channels — the day-to-day tools communities actually use.",
+  },
+  {
     icon: Sparkles,
     title: "DesCoin cosmetics",
-    desc: "Themes, frames, and effects via DesCoin. Core chat and calls stay free forever.",
+    desc: "Themes, frames, and effects via DesCoin. Core chat, servers, and calls stay free forever.",
   },
   {
     icon: Video,
     title: "Desktop + web + Android",
     desc: "Windows installer, full browser app, and Android builds — use Descall where you game.",
-  },
-  {
-    icon: Shield,
-    title: "Account security",
-    desc: "Encryption in transit (TLS / secure WebRTC), optional 2FA, and Google sign-in.",
   },
 ];
 
@@ -63,7 +96,7 @@ export default function FeaturesPage() {
         <h1 className="seo-page-h1">{t("Features of a modern Discord alternative")}</h1>
         <p className="lead">
           {t(
-            "Everything friend groups and gamers need day to day — messaging, calls, screen share, LFG — without turning your PC into a second operating system."
+            "Servers with roles and channels, messaging, calls, screen share, and LFG — everything friend groups and communities need, without turning your PC into a second operating system."
           )}
         </p>
         <div className="mkt-feature-grid">
@@ -98,9 +131,9 @@ export default function FeaturesPage() {
         <SeoRelatedLinks
           title="Explore by use case"
           links={[
+            { to: "/discord-alternative-for-communities", label: "Communities & servers" },
             { to: "/discord-alternative-for-voice-chat", label: "Voice chat alternative" },
             { to: "/discord-alternative-for-lfg", label: "LFG platform" },
-            { to: "/discord-alternative-for-communities", label: "Communities" },
             { to: "/compare/discord", label: "Descall vs Discord" },
           ]}
         />

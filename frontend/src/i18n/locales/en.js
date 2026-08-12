@@ -2462,6 +2462,155 @@ export const phrases = {
   "Medium": "Medium",
   "High": "High",
   "Highest": "Highest",
+
+  // Marketing — servers system
+  "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and Valorant LFG.":
+    "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and Valorant LFG.",
+  "Servers, chat, and calls in one lighter Discord alternative — built for friends, gamers, and communities.":
+    "Servers, chat, and calls in one lighter Discord alternative — built for friends, gamers, and communities.",
+  "Text, voice, and stage channels with categories — Discord-style structure, lighter feel":
+    "Text, voice, and stage channels with categories — Discord-style structure, lighter feel",
+  "Role hierarchy, staff rooms, and per-channel overrides ready for real communities":
+    "Role hierarchy, staff rooms, and per-channel overrides ready for real communities",
+  "Gaming, Valorant, friends, community, study & streaming — roles and channels pre-built":
+    "Gaming, Valorant, friends, community, study & streaming — roles and channels pre-built",
+  "Instant DMs and server chat with typing indicators": "Instant DMs and server chat with typing indicators",
+  "Crystal-clear group and server calls": "Crystal-clear group and server calls",
+  "Share your screen in calls with quality presets": "Share your screen in calls with quality presets",
+  "Discord-style servers, ready to run": "Discord-style servers, ready to run",
+  "Create a server from scratch or pick an advanced template. Roles, text & voice channels, and permission overrides come fully prepared.":
+    "Create a server from scratch or pick an advanced template. Roles, text & voice channels, and permission overrides come fully prepared.",
+  "Channels that match the job": "Channels that match the job",
+  "Announcements, LFG, clips, VIP lounges, staff ops — topics and slowmode included in templates.":
+    "Announcements, LFG, clips, VIP lounges, staff ops — topics and slowmode included in templates.",
+  "Roles that actually work": "Roles that actually work",
+  "Admin, Moderator, Helper, VIP and more — with kick, ban, timeout, and audit logs.":
+    "Admin, Moderator, Helper, VIP and more — with kick, ban, timeout, and audit logs.",
+  "Voice built into the server": "Voice built into the server",
+  "Lobby, scrim, focus, and stage rooms so your crew can hop in without leaving the app.":
+    "Lobby, scrim, focus, and stage rooms so your crew can hop in without leaving the app.",
+  "See all features": "See all features",
+  "Explore server features": "Explore server features",
+  "For communities": "For communities",
+  "Roles & permissions": "Roles & permissions",
+  "Advanced templates": "Advanced templates",
+  "Advanced server templates": "Advanced server templates",
+  "Moderation & invites": "Moderation & invites",
+  "Channel controls": "Channel controls",
+  "Friends & presence": "Friends & presence",
+  "Full server structure with categories, text, voice, and stage channels — topics, slowmode, and NSFW flags included.":
+    "Full server structure with categories, text, voice, and stage channels — topics, slowmode, and NSFW flags included.",
+  "Role hierarchy with hoist/mention, plus per-channel allow/deny overrides for staff rooms, announcements, and VIP spaces.":
+    "Role hierarchy with hoist/mention, plus per-channel allow/deny overrides for staff rooms, announcements, and VIP spaces.",
+  "Gaming, Valorant, friends, community, study, and streaming templates — roles and channels ready the moment you create.":
+    "Gaming, Valorant, friends, community, study, and streaming templates — roles and channels ready the moment you create.",
+  "Kick, ban, timeout, audit logs, community rules, and invite links so servers stay organized as they grow.":
+    "Kick, ban, timeout, audit logs, community rules, and invite links so servers stay organized as they grow.",
+  "DMs and server chat with typing indicators — a Discord alternative that stays focused on people you know.":
+    "DMs and server chat with typing indicators — a Discord alternative that stays focused on people you know.",
+  "Crystal-clear WebRTC voice and HD video for squads and server lobbies, without Nitro-gated quality of life.":
+    "Crystal-clear WebRTC voice and HD video for squads and server lobbies, without Nitro-gated quality of life.",
+  "Friend list, online status, and invites — jump from DMs into a server voice channel in one flow.":
+    "Friend list, online status, and invites — jump from DMs into a server voice channel in one flow.",
+  "Slowmode, topics, permission overrides, and staff-only channels — the day-to-day tools communities actually use.":
+    "Slowmode, topics, permission overrides, and staff-only channels — the day-to-day tools communities actually use.",
+  "Themes, frames, and effects via DesCoin. Core chat, servers, and calls stay free forever.":
+    "Themes, frames, and effects via DesCoin. Core chat, servers, and calls stay free forever.",
+  "Servers with roles and channels, messaging, calls, screen share, and LFG — everything friend groups and communities need, without turning your PC into a second operating system.":
+    "Servers with roles and channels, messaging, calls, screen share, and LFG — everything friend groups and communities need, without turning your PC into a second operating system.",
+  "Descall is a free Discord alternative with real servers (roles, channels, templates), real-time chat, crystal-clear voice/video, screen share, and built-in Valorant LFG — without Nitro paywalls for the features you actually use.":
+    "Descall is a free Discord alternative with real servers (roles, channels, templates), real-time chat, crystal-clear voice/video, screen share, and built-in Valorant LFG — without Nitro paywalls for the features you actually use.",
+  "Descall UI — servers, chat, voice, and LFG in one app": "Descall UI — servers, chat, voice, and LFG in one app",
+  "Discord is powerful — and heavy. Friend groups and communities often want a lighter Discord alternative: real servers with roles and channels, fewer Nitro prompts, faster calls, and gaming LFG without installing a dozen bots. Descall is built for that.":
+    "Discord is powerful — and heavy. Friend groups and communities often want a lighter Discord alternative: real servers with roles and channels, fewer Nitro prompts, faster calls, and gaming LFG without installing a dozen bots. Descall is built for that.",
+  "Servers with roles, text & voice channels": "Servers with roles, text & voice channels",
+  "Advanced templates (gaming, Valorant, community…)": "Advanced templates (gaming, Valorant, community…)",
+  "DMs plus a ready-made friends server — lounge chat, plans, and always-on voice.":
+    "DMs plus a ready-made friends server — lounge chat, plans, and always-on voice.",
+  "Gaming / Valorant server templates, ranked LFG channels, and the Play tab in one app.":
+    "Gaming / Valorant server templates, ranked LFG channels, and the Play tab in one app.",
+  "Communities & creators": "Communities & creators",
+  "Announcements, support, events, stage, and a full staff ladder — without Nitro pressure.":
+    "Announcements, support, events, stage, and a full staff ladder — without Nitro pressure.",
+  "Keep premium cosmetics optional. Servers, chat, and calls stay free.":
+    "Keep premium cosmetics optional. Servers, chat, and calls stay free.",
+  "An honest Descall vs Discord comparison for servers, roles, channels, chat, voice, video, screen share, LFG, desktop apps, and pricing. Use this when evaluating Descall as a Discord alternative in 2026.":
+    "An honest Descall vs Discord comparison for servers, roles, channels, chat, voice, video, screen share, LFG, desktop apps, and pricing. Use this when evaluating Descall as a Discord alternative in 2026.",
+  "wins if you want a lighter Discord alternative with real servers (roles, channels, templates), friends voice, screen share, and Valorant LFG — with free core features.":
+    "wins if you want a lighter Discord alternative with real servers (roles, channels, templates), friends voice, screen share, and Valorant LFG — with free core features.",
+  "still wins for massive bot ecosystems and the widest platform matrix. Many groups run both: Discord for huge public communities with bots, Descall for the squad server and nightly calls.":
+    "still wins for massive bot ecosystems and the widest platform matrix. Many groups run both: Discord for huge public communities with bots, Descall for the squad server and nightly calls.",
+  "Real servers with roles, channels, and ready-made templates": "Real servers with roles, channels, and ready-made templates",
+  "Modern UI focused on speed — servers without endless chrome": "Modern UI focused on speed — servers without endless chrome",
+  "Massive bot / integration ecosystem": "Massive bot / integration ecosystem",
+  "Huge public communities with decades of ecosystem tooling": "Huge public communities with decades of ecosystem tooling",
+  "Create a Descall server from a template (or start from scratch) and invite your core squad.":
+    "Create a Descall server from a template (or start from scratch) and invite your core squad.",
+  "Assign roles and tune channel permissions for staff / announcements.":
+    "Assign roles and tune channel permissions for staff / announcements.",
+  "Keep Discord only for bot-heavy communities you still need.":
+    "Keep Discord only for bot-heavy communities you still need.",
+  "Real-time chat & DMs": "Real-time chat & DMs",
+  "Yes — fast, modern UI": "Yes — fast, modern UI",
+  "Servers with channels": "Servers with channels",
+  "Yes — text, voice, stage + categories": "Yes — text, voice, stage + categories",
+  "Yes — mature tree model": "Yes — mature tree model",
+  "Yes — role hierarchy + channel overrides": "Yes — role hierarchy + channel overrides",
+  "Yes — deep matrix": "Yes — deep matrix",
+  "Server templates": "Server templates",
+  "Yes — gaming, Valorant, community, study & more": "Yes — gaming, Valorant, community, study & more",
+  "Limited community templates": "Limited community templates",
+  "Yes — WebRTC + TURN": "Yes — WebRTC + TURN",
+  "Screen share quality control": "Screen share quality control",
+  "Yes — presets & restart-safe": "Yes — presets & restart-safe",
+  "Valorant LFG / party finder": "Valorant LFG / party finder",
+  "Built-in Play tab + Riot link": "Built-in Play tab + Riot link",
+  "Bots / external tools": "Bots / external tools",
+  "Friends, presence & status": "Friends, presence & status",
+  "Push notifications": "Push notifications",
+  "Web / desktop / mobile FCM": "Web / desktop / mobile FCM",
+  "Windows installer + web + Android": "Windows installer + web + Android",
+  "Mobile": "Mobile",
+  "Android APK + mobile web (+ iOS PWA)": "Android APK + mobile web (+ iOS PWA)",
+  "Native iOS/Android": "Native iOS/Android",
+  "Encryption": "Encryption",
+  "TLS + secure WebRTC in transit": "TLS + secure WebRTC in transit",
+  "TLS + secure voice": "TLS + secure voice",
+  "Account security": "Account security",
+  "Password, Google, optional 2FA": "Password, Google, optional 2FA",
+  "Password, OAuth, 2FA": "Password, OAuth, 2FA",
+  "Moderation": "Moderation",
+  "Kick, ban, timeout, audit log, invites": "Kick, ban, timeout, audit log, invites",
+  "Deep tools + bots": "Deep tools + bots",
+  "Cosmetic shop (core free)": "Cosmetic shop (core free)",
+  "DesCoin cosmetics; core free": "DesCoin cosmetics; core free",
+  "Nitro unlocks extras": "Nitro unlocks extras",
+  "Bots & integrations": "Bots & integrations",
+  "Not a bot marketplace (yet)": "Not a bot marketplace (yet)",
+  "Huge ecosystem": "Huge ecosystem",
+  "Price for chat + calls": "Price for chat + calls",
+  "Free + Nitro upsell": "Free + Nitro upsell",
+  "Focus": "Focus",
+  "Friends, servers, LFG, lightweight calls": "Friends, servers, LFG, lightweight calls",
+  "Huge communities + ecosystem": "Huge communities + ecosystem",
+  "Servers ready in minutes": "Servers ready in minutes",
+  "Start from scratch or pick a template packed with roles, text & voice channels, topics, slowmode, and staff permission overrides — gaming, Valorant, community, study, friends, or streaming.":
+    "Start from scratch or pick a template packed with roles, text & voice channels, topics, slowmode, and staff permission overrides — gaming, Valorant, community, study, friends, or streaming.",
+  "Roles, channels & moderation": "Roles, channels & moderation",
+  "Discord-style roles and channel overrides, plus kick, ban, timeout, audit logs, and invites. Run a private hangout or a public-ready community without bot hell for the basics.":
+    "Discord-style roles and channel overrides, plus kick, ban, timeout, audit logs, and invites. Run a private hangout or a public-ready community without bot hell for the basics.",
+  "Built for friends & LFG": "Built for friends & LFG",
+  "Descall still prioritizes DMs, presence, and a dedicated Play tab for Valorant LFG — so squads can queue and hop into server voice in one app.":
+    "Descall still prioritizes DMs, presence, and a dedicated Play tab for Valorant LFG — so squads can queue and hop into server voice in one app.",
+  "Calls without the bloat": "Calls without the bloat",
+  "WebRTC voice/video with TURN support, incoming call UX, PiP, and screen-share quality controls. A lighter Discord alternative when you want clean calls inside servers or DMs.":
+    "WebRTC voice/video with TURN support, incoming call UX, PiP, and screen-share quality controls. A lighter Discord alternative when you want clean calls inside servers or DMs.",
+  "Free core, optional cosmetics": "Free core, optional cosmetics",
+  "Chat, servers, and calls are free. The shop is cosmetic (themes, frames, effects) via DesCoin — not a Nitro-style lock on talking to friends.":
+    "Chat, servers, and calls are free. The shop is cosmetic (themes, frames, effects) via DesCoin — not a Nitro-style lock on talking to friends.",
+  "Desktop + web + Android": "Desktop + web + Android",
+  "Install on Windows, open the web app anywhere, or use Android. A practical Discord alternative if your group mixes desktop gaming with mobile chat.":
+    "Install on Windows, open the web app anywhere, or use Android. A practical Discord alternative if your group mixes desktop gaming with mobile chat.",
 };
 
 const locale = { nested, phrases };

@@ -11,7 +11,8 @@ export function buildOrganizationLd() {
     url: absoluteUrl("/"),
     logo: absoluteUrl("/og-default.svg"),
     sameAs: ["https://github.com/demirsarpk/Descall"],
-    description: "Free Discord alternative for chat, voice, screen share, and Valorant LFG.",
+    description:
+      "Free Discord alternative for servers, roles, channels, chat, voice, screen share, and Valorant LFG.",
   };
 }
 
@@ -38,12 +39,21 @@ export function buildSoftwareApplicationLd() {
     url: absoluteUrl("/"),
     downloadUrl: absoluteUrl("/download"),
     description:
-      "Descall is a free Discord alternative with messaging, group calls, screen share, and Valorant LFG.",
+      "Descall is a free Discord alternative with servers, roles, channels, messaging, group calls, screen share, and Valorant LFG.",
     offers: {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
     },
+    featureList: [
+      "Discord-style servers",
+      "Roles and channel permissions",
+      "Server templates",
+      "Real-time messaging",
+      "Group voice and video calls",
+      "Screen share",
+      "Valorant LFG",
+    ],
     aggregateRating: undefined,
   };
 }
@@ -113,13 +123,16 @@ export function buildDiscordAlternativeAppLd(path = "/discord-alternative") {
     url: absoluteUrl(path),
     downloadUrl: absoluteUrl("/download"),
     description:
-      "Free Discord alternative for real-time chat, group voice/video, screen share, and Valorant LFG.",
+      "Free Discord alternative with servers, roles, channels, real-time chat, group voice/video, screen share, and Valorant LFG.",
     offers: {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
     },
     featureList: [
+      "Discord-style servers with channels",
+      "Roles and permission overrides",
+      "Advanced server templates",
       "Real-time messaging",
       "Group voice and video calls",
       "Screen share",

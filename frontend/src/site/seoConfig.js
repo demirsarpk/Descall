@@ -37,26 +37,26 @@ export function absoluteUrl(path = "/") {
 export const PUBLIC_ROUTES = [
   {
     path: "/",
-    title: "Descall — Free Discord Alternative for Chat, Voice & LFG",
+    title: "Descall — Free Discord Alternative with Servers, Chat & Voice",
     description:
-      "Descall is a free Discord alternative with real-time chat, group voice/video, screen share, Valorant LFG, and Windows/Android apps — built for friends and gamers.",
+      "Descall is a free Discord alternative with real servers (roles, channels, templates), chat, group voice/video, screen share, Valorant LFG, and Windows/Android apps.",
     changefreq: "daily",
     priority: "1.0",
-    keywords: "discord alternative, descall, free voice chat, valorant lfg",
+    keywords: "discord alternative, descall, discord servers alternative, free voice chat, valorant lfg",
   },
   {
     path: "/download",
     title: "Download Descall — Discord alternative for Windows & Android",
     description:
-      "Download the Descall desktop app for Windows or use Android/web. A free Discord alternative for chat, voice, video, and screen share.",
+      "Download the Descall desktop app for Windows or use Android/web. A free Discord alternative for servers, chat, voice, video, and screen share.",
     changefreq: "weekly",
     priority: "0.9",
   },
   {
     path: "/features",
-    title: "Descall Features — Chat, calls, screen share & LFG",
+    title: "Descall Features — Servers, roles, chat, calls & LFG",
     description:
-      "Explore Descall features: Discord-alternative messaging, group voice/video, screen share quality controls, Valorant LFG, cosmetics, and more.",
+      "Explore Descall features: Discord-style servers with roles & channels, templates, messaging, group voice/video, screen share, Valorant LFG, and more.",
     changefreq: "weekly",
     priority: "0.85",
   },
@@ -64,17 +64,17 @@ export const PUBLIC_ROUTES = [
     path: "/discord-alternative",
     title: "Best Free Discord Alternative for Friends & Gamers | Descall",
     description:
-      "Descall is a free Discord alternative with real-time chat, HD voice/video, screen share, and Valorant LFG — no Nitro paywall on core features. Start free.",
+      "Descall is a free Discord alternative with real servers, roles, channels, HD voice/video, screen share, and Valorant LFG — no Nitro paywall on core features.",
     h1: "The best free Discord alternative for friends & gamers",
     changefreq: "weekly",
     priority: "0.95",
-    keywords: "discord alternative, best discord alternative, free discord alternative",
+    keywords: "discord alternative, best discord alternative, free discord alternative, discord server alternative",
   },
   {
     path: "/alternatives",
     title: "Best Discord Alternatives in 2026 — Compare Apps Like Discord",
     description:
-      "Compare Discord alternatives and apps like Discord for chat, voice, and LFG. See why friend groups pick Descall as a lighter free option.",
+      "Compare Discord alternatives and apps like Discord for servers, chat, voice, and LFG. See why friend groups pick Descall as a lighter free option.",
     h1: "Discord alternatives worth switching to",
     changefreq: "weekly",
     priority: "0.9",
@@ -84,7 +84,7 @@ export const PUBLIC_ROUTES = [
     path: "/compare/discord",
     title: "Descall vs Discord (2026) — Feature Comparison & Verdict",
     description:
-      "Side-by-side Descall vs Discord: voice, messaging, LFG, screen share, privacy, mobile, desktop, and pricing. Honest verdict for friend groups.",
+      "Side-by-side Descall vs Discord: servers, roles, channels, templates, voice, messaging, LFG, screen share, mobile, desktop, and pricing.",
     h1: "Descall vs Discord — which Discord alternative fits your group?",
     changefreq: "weekly",
     priority: "0.95",
@@ -101,12 +101,12 @@ export const PUBLIC_ROUTES = [
   },
   {
     path: "/discord-alternative-for-communities",
-    title: "Discord Alternative for Communities | Descall Groups",
+    title: "Discord Alternative for Communities | Descall Servers",
     description:
-      "Community chat platform without server sprawl. Descall is a Discord alternative for private communities — groups, presence, voice, and free core chat.",
+      "Community chat platform with real servers: roles, channels, templates, invites, and voice. Descall is a Discord alternative for private and growing communities.",
     changefreq: "weekly",
     priority: "0.88",
-    keywords: "discord alternative for communities, community chat platform",
+    keywords: "discord alternative for communities, community chat platform, discord server alternative",
   },
   {
     path: "/discord-alternative-for-lfg",

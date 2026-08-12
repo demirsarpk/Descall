@@ -27,7 +27,7 @@ export default function DiscordAlternativePage({ onSignIn, onSignUp }) {
       kicker={t("Discord alternative · 2026")}
       title={t("The best free Discord alternative for friends & gamers")}
       lead={t(
-        "Descall is a free Discord alternative with real-time chat, crystal-clear voice/video, screen share, and built-in Valorant LFG — without Nitro paywalls for the features you actually use."
+        "Descall is a free Discord alternative with real servers (roles, channels, templates), real-time chat, crystal-clear voice/video, screen share, and built-in Valorant LFG — without Nitro paywalls for the features you actually use."
       )}
       faq={faq}
       jsonLd={[
@@ -46,20 +46,21 @@ export default function DiscordAlternativePage({ onSignIn, onSignUp }) {
         </Link>
       }
       heroExtra={
-        <SeoProductPreview caption={t("Descall UI — chat, voice calls, and LFG in one app")} />
+        <SeoProductPreview caption={t("Descall UI — servers, chat, voice, and LFG in one app")} />
       }
     >
       <section className="seo-section">
         <h2>{t("Why people search for a Discord alternative")}</h2>
         <p>
           {t(
-            "Discord is powerful — and heavy. Friend groups often want a lighter Discord alternative: fewer Nitro prompts, faster calls with people they know, and tools for gaming LFG without installing a dozen bots. Descall is built for that niche."
+            "Discord is powerful — and heavy. Friend groups and communities often want a lighter Discord alternative: real servers with roles and channels, fewer Nitro prompts, faster calls, and gaming LFG without installing a dozen bots. Descall is built for that."
           )}
         </p>
         <ul className="seo-checklist">
           {[
+            "Servers with roles, text & voice channels",
+            "Advanced templates (gaming, Valorant, community…)",
             "Free chat, voice, video, and screen share",
-            "Groups & presence without server sprawl",
             "Valorant LFG in a dedicated Play tab",
             "Windows desktop + web + Android",
             "Cosmetics via DesCoin — core stays free",
@@ -117,22 +118,22 @@ export default function DiscordAlternativePage({ onSignIn, onSignUp }) {
           <article>
             <Users size={20} />
             <h3>{t("Friend groups")}</h3>
-            <p>{t("DMs, group chat, and voice without maintaining a giant server tree.")}</p>
+            <p>{t("DMs plus a ready-made friends server — lounge chat, plans, and always-on voice.")}</p>
           </article>
           <article>
             <Gamepad2 size={20} />
             <h3>{t("Gamers & LFG")}</h3>
-            <p>{t("Queue with rank-aware Valorant LFG and jump into voice in one app.")}</p>
+            <p>{t("Gaming / Valorant server templates, ranked LFG channels, and the Play tab in one app.")}</p>
           </article>
           <article>
             <Monitor size={20} />
-            <h3>{t("Desktop-first users")}</h3>
-            <p>{t("Windows installer, screen share quality presets, and a fast web fallback.")}</p>
+            <h3>{t("Communities & creators")}</h3>
+            <p>{t("Announcements, support, events, stage, and a full staff ladder — without Nitro pressure.")}</p>
           </article>
           <article>
             <Zap size={20} />
             <h3>{t("Anyone tired of Nitro pressure")}</h3>
-            <p>{t("Keep premium cosmetics optional. Communication stays free.")}</p>
+            <p>{t("Keep premium cosmetics optional. Servers, chat, and calls stay free.")}</p>
           </article>
         </div>
       </section>

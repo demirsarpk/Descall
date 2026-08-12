@@ -7,15 +7,16 @@ export const NICHE_LANDINGS = {
   "/discord-alternative-for-communities": {
     path: "/discord-alternative-for-communities",
     kicker: "Communities · Discord alternative",
-    h1: "Discord alternative for communities — without server sprawl",
+    h1: "Discord alternative for communities — with real servers",
     lead:
-      "Need a community chat platform that stays focused on people talking — not channel archaeology? Descall is a Discord alternative for small communities and friend circles: groups, presence, voice, and invites without Nitro-gated basics.",
+      "Need a community chat platform with roles, channels, and voice — without Nitro-gated basics? Descall is a Discord alternative for private and growing communities: full servers, staff permissions, invites, and free core chat.",
     answerTitle: "What community builders actually need",
     answer:
-      "Most “community platforms” optimize for mega-servers. Descall optimizes for groups that chat daily: DMs, group rooms, online presence, voice/video, and invite links. Guilds are expanding, but you don’t need a 40-channel tree to keep a private community alive.",
+      "Most community platforms either drown you in mega-server chrome or skip structure entirely. Descall gives you real servers with categories, text/voice/stage channels, roles, channel overrides, and ready-made community templates — so a clan, class, or creator circle can launch organized in minutes.",
     bullets: [
-      "Group chat + invites for private communities",
-      "Presence so members know who’s around",
+      "Servers with roles, channels, and permission overrides",
+      "Community template: announcements, support, events, stage, staff ladder",
+      "Invites, kick/ban/timeout, audit logs, and optional rules",
       "Voice/video and screen share for hangouts",
       "Free core messaging — cosmetics optional via DesCoin",
       "Web + Windows + Android so members can join anywhere",
@@ -23,29 +24,29 @@ export const NICHE_LANDINGS = {
     sections: [
       {
         h: "Community chat platform vs Discord servers",
-        p: "Discord wins when you need public discovery, bots, and stage-scale events. Descall wins when your community is a known circle — a clan, a class, a creator’s inner circle — and you want a lighter community communication platform for daily voice and chat.",
+        p: "Discord still wins for huge bot ecosystems and public discovery at massive scale. Descall wins when your community needs a real server structure — roles, staff rooms, announcements — without Nitro pressure or bot hell for the basics.",
       },
       {
-        h: "Moderation & trust signals that exist today",
-        p: "Descall supports blocking, friend requests, group ownership, and invite controls. It is not a full Discord-parity permissions matrix yet — we won’t pretend otherwise. For private communities that mainly need clean chat and calls, that tradeoff is often the point.",
+        h: "Moderation & permissions that exist today",
+        p: "Descall servers support role hierarchy, per-channel allow/deny overrides, kick, ban, timeout, audit logs, and invite controls. Templates pre-wire Admin / Moderator / Event Host style ladders so you’re not starting from a blank permission matrix.",
       },
       {
         h: "When to pick Descall for communities",
-        p: "Choose Descall if your members already know each other, you care about free voice, and you want less UI noise. Keep Discord for large public servers; run Descall as the private community voice room.",
+        p: "Choose Descall if you want organized servers, free voice, and less UI noise for members who already know each other — or creators growing a focused community. Keep Discord for bot-heavy mega-servers; run Descall as the community home that actually gets used daily.",
       },
     ],
     faq: [
       {
         q: "Is Descall a Discord alternative for communities?",
-        a: "Yes for small and private communities that need chat, presence, and voice. Large public server ecosystems still favor Discord.",
+        a: "Yes. Descall has real servers with roles, channels, templates, invites, and moderation — a strong fit for private and mid-size communities. Huge bot ecosystems still favor Discord.",
       },
       {
-        q: "Can I invite people to a private group?",
-        a: "Yes. Group owners can create invite links so people can preview and join after signing in.",
+        q: "Can I invite people to a private server?",
+        a: "Yes. Members with invite permission can create invite links so people can preview and join after signing in.",
       },
       {
-        q: "Does community voice chat cost money?",
-        a: "No. Core chat and calls are free. DesCoin only buys cosmetics.",
+        q: "Do community servers cost money?",
+        a: "No. Core chat, servers, and calls are free. DesCoin only buys cosmetics.",
       },
     ],
     related: [
