@@ -137,36 +137,71 @@ async function applyCreditDelta(userId, delta, meta = {}) {
 
 async function saveGameHistory(userId, groupId, instance) {
   try {
+    const opts = currentEmitRoom();
     const payload = instance.toHistoryPayload();
-    const { error } = await supabase.from("game_history").insert({
+    // Server text channels reuse roomId as channelId — omit FK group_id there
+    const row = {
       user_id: userId,
       game_type: "blackjack",
-      group_id: groupId,
       bet_amount: payload.bet,
       result: payload.result,
       win_amount: payload.winAmount,
       player_hand: payload.player_hand,
       dealer_hand: payload.dealer_hand,
-    });
+    };
+    if (!opts.channelId && groupId) {
+      row.group_id = groupId;
+    }
+    const { error } = await supabase.from("game_history").insert(row);
     if (error) console.error("[Game] saveGameHistory:", error.message || error);
   } catch (err) {
     console.error("[Game] saveGameHistory exception:", err.message || err);
   }
 }
 
+/** Stack so server-channel games can reuse group emit helpers. */
+const emitRoomStack = [];
+function pushEmitRoom(opts) {
+  emitRoomStack.push(opts || {});
+}
+function popEmitRoom() {
+  emitRoomStack.pop();
+}
+function currentEmitRoom() {
+  return emitRoomStack[emitRoomStack.length - 1] || {};
+}
+
 function emitToGroup(io, socket, groupId, message) {
-  const payload = { groupId, message };
+  const opts = currentEmitRoom();
+  const channelId = opts.channelId || null;
+  const roomId = channelId || groupId;
+  const payload = {
+    groupId: roomId,
+    channelId: channelId || null,
+    serverId: opts.serverId || null,
+    message,
+  };
+  const room = channelId ? `server-channel:${channelId}` : `group:${groupId}`;
   socket.emit("game:message", payload);
-  socket.to(`group:${groupId}`).emit("game:message", payload);
+  socket.to(room).emit("game:message", payload);
 }
 
 function emitGameUpdate(io, socket, groupId, message) {
-  const payload = { groupId, message };
+  const opts = currentEmitRoom();
+  const channelId = opts.channelId || null;
+  const roomId = channelId || groupId;
+  const payload = {
+    groupId: roomId,
+    channelId: channelId || null,
+    serverId: opts.serverId || null,
+    message,
+  };
+  const room = channelId ? `server-channel:${channelId}` : `group:${groupId}`;
   // Emit both: game:update (in-place) + game:message (first paint / older clients)
   socket.emit("game:update", payload);
-  socket.to(`group:${groupId}`).emit("game:update", payload);
+  socket.to(room).emit("game:update", payload);
   socket.emit("game:message", payload);
-  socket.to(`group:${groupId}`).emit("game:message", payload);
+  socket.to(room).emit("game:message", payload);
 }
 
 function registerGameHandlers(io, socket) {
@@ -174,24 +209,40 @@ function registerGameHandlers(io, socket) {
   const myUsername = socket.user?.username;
   if (!myId) return;
 
-  socket.on("game:command", async ({ groupId, command, args } = {}) => {
-    if (!groupId || !command) return;
+  socket.on("game:command", async ({ groupId, channelId, command, args } = {}) => {
+    const roomId = channelId || groupId;
+    if (!roomId || !command) return;
     const full = `/${command}${args != null && args !== "" ? ` ${args}` : ""}`.trim();
-    await handleGameCommand(io, socket, myId, myUsername, groupId, full);
+    await handleGameCommand(
+      io,
+      socket,
+      myId,
+      myUsername,
+      roomId,
+      full,
+      channelId ? { channelId } : {}
+    );
   });
 
-  socket.on("game:action", async ({ groupId, action } = {}) => {
-    if (!groupId || !action) return;
+  socket.on("game:action", async ({ groupId, channelId, action } = {}) => {
+    const roomId = channelId || groupId;
+    if (!roomId || !action) return;
     const a = String(action).toLowerCase();
-    if (a === "help") {
-      await handleHelp(io, socket, myId, groupId);
-      return;
+    const opts = channelId ? { channelId } : {};
+    pushEmitRoom(opts);
+    try {
+      if (a === "help") {
+        await handleHelp(io, socket, myId, roomId);
+        return;
+      }
+      if (a === "credits" || a === "balance") {
+        await handleCreditsCheck(io, socket, myId, roomId);
+        return;
+      }
+      await handleBlackjackAction(io, socket, myId, myUsername, roomId, a);
+    } finally {
+      popEmitRoom();
     }
-    if (a === "credits" || a === "balance") {
-      await handleCreditsCheck(io, socket, myId, groupId);
-      return;
-    }
-    await handleBlackjackAction(io, socket, myId, myUsername, groupId, a);
   });
 
   socket.on("game:credits", async (callback) => {
@@ -217,13 +268,14 @@ function registerGameHandlers(io, socket) {
   });
 }
 
-async function handleGameCommand(io, socket, userId, username, groupId, fullCommand) {
+async function handleGameCommand(io, socket, userId, username, groupId, fullCommand, opts = {}) {
   const match = String(fullCommand || "").trim().match(COMMAND_REGEX);
   if (!match) return;
 
   const command = match[1].toLowerCase();
   const arg = match[2];
-
+  pushEmitRoom(opts);
+  try {
   switch (command) {
     case "bj":
     case "blackjack":
@@ -272,6 +324,9 @@ async function handleGameCommand(io, socket, userId, username, groupId, fullComm
     default:
       if (VALID_COMMANDS.has(command)) break;
       await handleHelp(io, socket, userId, groupId, command);
+  }
+  } finally {
+    popEmitRoom();
   }
 }
 

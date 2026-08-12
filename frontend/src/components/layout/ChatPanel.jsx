@@ -608,6 +608,7 @@ export default function ChatPanel({
               }
               activeDmUser={activeDmUser}
               activeGroup={activeGroup}
+              activeChannel={activeChannel}
               onTypingDmStart={onTypingDmStart}
               onTypingDmStop={onTypingDmStop}
               onTypingGroupStart={onTypingGroupStart}

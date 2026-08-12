@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getIceServers, preloadIceServers } from "../lib/iceConfig";
 import { getUser } from "../lib/storage";
+import {
+  GROUP_SCREEN_DEFAULT_QUALITY,
+  getDisplayMediaStream,
+  optimizeScreenShareTrack,
+  optimizeScreenShareSender,
+  ensureScreenShareAudioTrack,
+  resolveScreenCaptureSize,
+  screenBitrateForPeerCount,
+  isMobileScreenCapture,
+  isRemoteScreenVideoTrack,
+} from "../lib/webrtcScreenShare";
 
 const AUDIO_CONSTRAINTS = {
   audio: {
@@ -38,6 +49,11 @@ export function useServerVoice(socket) {
   const [serverMuted, setServerMuted] = useState(false);
   const serverMutedRef = useRef(false);
   const joinRef = useRef(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [screenStream, setScreenStream] = useState(null);
+  const screenStreamRef = useRef(null);
+  const stopScreenShareRef = useRef(null);
+  const screenQuality = GROUP_SCREEN_DEFAULT_QUALITY;
 
   useEffect(() => {
     preloadIceServers().catch(() => {});
@@ -101,6 +117,12 @@ export function useServerVoice(socket) {
 
   const cleanupAll = useCallback(() => {
     for (const userId of [...pcMapRef.current.keys()]) cleanupPeer(userId);
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
+    setScreenStream(null);
+    setIsScreenSharing(false);
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
@@ -134,8 +156,66 @@ export function useServerVoice(socket) {
   const setupPc = useCallback(
     (pc, stream, userId, channelId) => {
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      // If we are already screen sharing, attach those tracks to new peers
+      if (screenStreamRef.current) {
+        const peer = pcMapRef.current.get(userId);
+        const ss = screenStreamRef.current;
+        const v = ss.getVideoTracks()[0];
+        const a = ss.getAudioTracks()[0];
+        if (v && peer) {
+          peer.screenSender = pc.addTrack(v, ss);
+          if (a) peer.screenAudioSender = pc.addTrack(a, ss);
+        }
+      }
       pc.ontrack = (e) => {
-        const remote = e.streams?.[0] || new MediaStream([e.track]);
+        const track = e.track;
+        const peer = pcMapRef.current.get(userId);
+        const remote = e.streams?.[0] || new MediaStream([track]);
+        const isScreenVideo =
+          track.kind === "video" &&
+          (Boolean(peer?.expectScreenShare) ||
+            isRemoteScreenVideoTrack(track, {
+              peerExpectsScreen: Boolean(peer?.expectScreenShare),
+            }));
+        const isScreenAudio = track.kind === "audio" && Boolean(peer?.expectScreenShare);
+        if (isScreenVideo || isScreenAudio) {
+          if (isScreenVideo && peer) peer.expectScreenShare = false;
+          setParticipants((prev) => {
+            const exists = prev.find((p) => p.id === userId);
+            const existingScreen = exists?.screenStream || null;
+            let screenStream = remote;
+            if (existingScreen) {
+              const kept = existingScreen
+                .getTracks()
+                .filter((t) => t.readyState !== "ended" && t.kind !== track.kind);
+              const incoming = remote
+                .getTracks()
+                .filter((t) => t.readyState !== "ended");
+              const merged = new MediaStream([...kept, ...incoming]);
+              if (!merged.getTracks().includes(track) && track.readyState !== "ended") {
+                merged.addTrack(track);
+              }
+              screenStream = merged;
+            }
+            if (exists) {
+              return prev.map((p) =>
+                p.id === userId
+                  ? { ...p, screenStream, isScreenSharing: true, hasAudio: true }
+                  : p
+              );
+            }
+            return [
+              ...prev,
+              {
+                id: userId,
+                username: "Member",
+                screenStream,
+                isScreenSharing: true,
+              },
+            ];
+          });
+          return;
+        }
         attachRemoteAudio(userId, remote);
       };
       pc.onicecandidate = (e) => {
@@ -155,6 +235,34 @@ export function useServerVoice(socket) {
       };
     },
     [attachRemoteAudio, cleanupPeer, socket]
+  );
+
+  const renegotiateWithPeer = useCallback(
+    async (userId, peerData) => {
+      if (!peerData?.pc || !socket?.connected) return;
+      if (peerData.pc.connectionState === "closed" || peerData.pc.signalingState === "closed") {
+        return;
+      }
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        if (peerData.pc.signalingState === "stable") break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      if (peerData.pc.signalingState !== "stable") return;
+      const channelId = activeChannelIdRef.current;
+      if (!channelId) return;
+      try {
+        const offer = await peerData.pc.createOffer();
+        await peerData.pc.setLocalDescription(offer);
+        socket.emit("server:voice:offer", {
+          channelId,
+          toUserId: userId,
+          offer: peerData.pc.localDescription,
+        });
+      } catch (err) {
+        console.warn("[ServerVoice] renegotiate failed:", err);
+      }
+    },
+    [socket]
   );
 
   const offerToPeer = useCallback(
@@ -189,11 +297,14 @@ export function useServerVoice(socket) {
 
   const leave = useCallback(() => {
     const channelId = activeChannelIdRef.current;
+    if (isScreenSharing) {
+      stopScreenShareRef.current?.();
+    }
     if (channelId && socket?.connected) {
       socket.emit("server:voice:leave", { channelId });
     }
     cleanupAll();
-  }, [cleanupAll, socket]);
+  }, [cleanupAll, isScreenSharing, socket]);
 
   const join = useCallback(
     async (serverId, channel) => {
@@ -281,6 +392,114 @@ export function useServerVoice(socket) {
     },
     [socket]
   );
+
+  const stopScreenShare = useCallback(async () => {
+    if (!isScreenSharing && !screenStreamRef.current) return;
+    for (const [userId, peerData] of pcMapRef.current.entries()) {
+      try {
+        if (peerData.screenSender) {
+          peerData.pc.removeTrack(peerData.screenSender);
+          delete peerData.screenSender;
+        }
+        if (peerData.screenAudioSender) {
+          peerData.pc.removeTrack(peerData.screenAudioSender);
+          delete peerData.screenAudioSender;
+        }
+        await renegotiateWithPeer(userId, peerData);
+      } catch (err) {
+        console.warn("[ServerVoice] screen removeTrack failed:", err);
+      }
+    }
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
+    setScreenStream(null);
+    setIsScreenSharing(false);
+    const channelId = activeChannelIdRef.current;
+    if (channelId && socket?.connected) {
+      socket.emit("server:voice:screen:stop", { channelId });
+    }
+  }, [isScreenSharing, renegotiateWithPeer, socket]);
+
+  const startScreenShare = useCallback(async () => {
+    if (isScreenSharing || !activeChannelIdRef.current) return;
+    try {
+      if (!navigator.mediaDevices?.getDisplayMedia && !window.electronAPI?.isElectron) {
+        setError("Screen sharing is not available in this browser.");
+        return;
+      }
+      const { width, height, fps: frameRate } = resolveScreenCaptureSize(screenQuality);
+      const peerCount = Math.max(1, pcMapRef.current.size);
+      const maxBitrate = screenBitrateForPeerCount(peerCount, screenQuality.resolution || "720p");
+      let stream;
+      if (window.electronAPI?.isElectron) {
+        const sources = await window.electronAPI.getScreenSources();
+        if (!sources?.length) return;
+        // Prefer entire screen source
+        const source = sources.find((s) => s.id?.startsWith("screen:")) || sources[0];
+        const { buildElectronDesktopConstraints } = await import("../lib/webrtcScreenShare");
+        stream = await navigator.mediaDevices.getUserMedia(
+          buildElectronDesktopConstraints(source.id, { width, height, fps: frameRate })
+        );
+      } else {
+        stream = await getDisplayMediaStream({
+          width,
+          height,
+          fps: frameRate,
+          preferTab: !isMobileScreenCapture(),
+        });
+      }
+      const screenTrack = stream.getVideoTracks()[0];
+      await optimizeScreenShareTrack(screenTrack, {
+        width,
+        height,
+        fps: frameRate,
+        contentHint: screenQuality.contentHint || "motion",
+      });
+      if (screenTrack.readyState !== "live") {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      const { track: screenAudioTrack } = await ensureScreenShareAudioTrack(stream);
+      screenStreamRef.current = stream;
+      setScreenStream(stream);
+
+      const channelId = activeChannelIdRef.current;
+      if (socket?.connected && channelId) {
+        socket.emit("server:voice:screen:start", { channelId });
+      }
+
+      for (const [userId, peerData] of pcMapRef.current.entries()) {
+        try {
+          peerData.screenSender = peerData.pc.addTrack(screenTrack, stream);
+          if (screenAudioTrack) {
+            peerData.screenAudioSender = peerData.pc.addTrack(screenAudioTrack, stream);
+          }
+          await optimizeScreenShareSender(peerData.screenSender, {
+            maxBitrate,
+            maxFramerate: frameRate,
+          });
+          await renegotiateWithPeer(userId, peerData);
+        } catch (err) {
+          console.warn("[ServerVoice] screen addTrack failed:", err);
+        }
+      }
+
+      screenTrack.onended = () => {
+        stopScreenShareRef.current?.();
+      };
+      setIsScreenSharing(true);
+    } catch (err) {
+      if (err?.name !== "NotAllowedError") {
+        setError(err?.message || "Could not start screen share.");
+      }
+    }
+  }, [isScreenSharing, renegotiateWithPeer, screenQuality, socket]);
+
+  useEffect(() => {
+    stopScreenShareRef.current = stopScreenShare;
+  }, [stopScreenShare]);
 
   const subscribeServer = useCallback(
     (serverId) => {
@@ -472,6 +691,32 @@ export function useServerVoice(socket) {
       if (channelId && channelId === activeChannelIdRef.current) cleanupAll();
     };
 
+    const onScreenStarted = ({ channelId, fromUserId, fromUser } = {}) => {
+      if (!channelId || channelId !== activeChannelIdRef.current || !fromUserId) return;
+      if (fromUserId === myIdRef.current) return;
+      const peer = pcMapRef.current.get(fromUserId);
+      if (peer) peer.expectScreenShare = true;
+      setParticipants((prev) => {
+        if (prev.find((p) => p.id === fromUserId)) {
+          return prev.map((p) =>
+            p.id === fromUserId ? { ...p, ...fromUser, isScreenSharing: true } : p
+          );
+        }
+        return [...prev, { ...(fromUser || { id: fromUserId }), isScreenSharing: true }];
+      });
+    };
+
+    const onScreenStopped = ({ channelId, fromUserId } = {}) => {
+      if (!channelId || channelId !== activeChannelIdRef.current || !fromUserId) return;
+      const peer = pcMapRef.current.get(fromUserId);
+      if (peer) peer.expectScreenShare = false;
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.id === fromUserId ? { ...p, isScreenSharing: false, screenStream: null } : p
+        )
+      );
+    };
+
     socket.on("server:voice:joined", onJoined);
     socket.on("server:voice:member-joined", onMemberJoined);
     socket.on("server:voice:member-left", onMemberLeft);
@@ -486,6 +731,8 @@ export function useServerVoice(socket) {
     socket.on("server:voice:force-disconnected", onForceDisconnected);
     socket.on("server:voice:force-moved", onForceMoved);
     socket.on("server:voice:force-mute", onForceMute);
+    socket.on("server:voice:screen:started", onScreenStarted);
+    socket.on("server:voice:screen:stopped", onScreenStopped);
 
     return () => {
       socket.off("server:voice:joined", onJoined);
@@ -502,6 +749,8 @@ export function useServerVoice(socket) {
       socket.off("server:voice:force-disconnected", onForceDisconnected);
       socket.off("server:voice:force-moved", onForceMoved);
       socket.off("server:voice:force-mute", onForceMute);
+      socket.off("server:voice:screen:started", onScreenStarted);
+      socket.off("server:voice:screen:stopped", onScreenStopped);
     };
   }, [applyLocalMute, cleanupAll, cleanupPeer, offerToPeer, setupPc, socket]);
 
@@ -529,10 +778,14 @@ export function useServerVoice(socket) {
     voiceStatesByServer,
     localStream,
     remoteStreams,
+    isScreenSharing,
+    screenStream,
     myUserId: myIdRef.current,
     join,
     leave,
     toggleMute,
+    startScreenShare,
+    stopScreenShare,
     subscribeServer,
     checkChannel,
     disconnectMember,

@@ -16,6 +16,27 @@ const {
   resolveMemberPermissions,
   resolveChannelPermissions,
 } = require("../lib/serverPermissions");
+const { handleGameCommand } = require("./gameHandlers");
+
+const GAME_COMMANDS = [
+  "bj",
+  "blackjack",
+  "hit",
+  "stand",
+  "stay",
+  "double",
+  "credits",
+  "bakiye",
+  "balance",
+  "top",
+  "lider",
+  "help",
+  "yardım",
+  "commands",
+  "jb",
+  "daily",
+];
+const COMMAND_REGEX = /^\/(\w+)(?:\s+(\S+))?/;
 
 function resolveSocketAvatar(socket) {
   const cached = getCachedPublicUser(socket.user?.id);
@@ -261,6 +282,26 @@ function registerServerChannelHandlers(io, socket) {
             code: "MISSING_PERMISSION",
           });
           return;
+        }
+
+        // Casino slash commands — same as groups (do not store as chat)
+        if (trimmedContent && trimmedContent.startsWith("/")) {
+          const match = trimmedContent.match(COMMAND_REGEX);
+          if (match && GAME_COMMANDS.includes(match[1].toLowerCase())) {
+            const username =
+              socket.user?.username || buildSenderPayload(socket).username || "Player";
+            await handleGameCommand(io, socket, myId, username, channelId, trimmedContent, {
+              channelId,
+              serverId: channel.server_id,
+            });
+            socket.emit("server:channel:message:ack", {
+              channelId,
+              tempId: tempId || null,
+              suppress: true,
+              isGameCommand: true,
+            });
+            return;
+          }
         }
 
         const replyMeta =

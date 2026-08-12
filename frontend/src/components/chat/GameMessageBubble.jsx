@@ -431,19 +431,30 @@ export default function GameMessageBubble({
     });
   }, [socket, gameData?.id, gameData?.status]);
 
-  const targetGroupId = groupId || message.groupId;
+  const targetChannelId = message.channelId || null;
+  const targetGroupId = groupId || message.groupId || targetChannelId;
 
   const emitCommand = (command, args) => {
     if (!socket?.connected || !targetGroupId) return;
     setBusy(true);
-    socket.emit("game:command", { groupId: targetGroupId, command, args });
+    socket.emit("game:command", {
+      groupId: targetChannelId ? undefined : targetGroupId,
+      channelId: targetChannelId || undefined,
+      command,
+      args,
+    });
     setTimeout(() => setBusy(false), 400);
   };
 
   const emitAction = (action) => {
     if (!socket?.connected || !targetGroupId) return;
     setBusy(true);
-    socket.emit("game:action", { groupId: targetGroupId, action, gameId: gameData?.id });
+    socket.emit("game:action", {
+      groupId: targetChannelId ? undefined : targetGroupId,
+      channelId: targetChannelId || undefined,
+      action,
+      gameId: gameData?.id,
+    });
     setTimeout(() => setBusy(false), 400);
   };
 

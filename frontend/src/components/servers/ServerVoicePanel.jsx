@@ -1,10 +1,11 @@
-import { Headphones, LogIn, LogOut, Mic, MicOff, Users } from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
+import { Headphones, LogIn, LogOut, Mic, MicOff, Monitor, MonitorOff, Users } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
 import useSpeaking from "../../hooks/useSpeaking";
 
-function VoiceMemberRow({ member, label, stream = null, muted = false, micIcon = true }) {
+function VoiceMemberRow({ member, label, stream = null, muted = false, micIcon = true, sharing = false }) {
   const speaking = useSpeaking(stream, { muted: Boolean(muted) });
   const name = label || resolveDisplayName(member) || member?.username || "User";
   return (
@@ -13,13 +14,48 @@ function VoiceMemberRow({ member, label, stream = null, muted = false, micIcon =
     >
       <Avatar name={name} size={32} user={member} className="server-voice-member-avatar" />
       <span>{name}</span>
+      {sharing ? <Monitor size={12} className="server-voice-member-screen" /> : null}
       {micIcon ? muted ? <MicOff size={12} /> : <Mic size={12} /> : null}
+    </div>
+  );
+}
+
+function ScreenStage({ stream, label }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream || null;
+    }
+    if (stream) {
+      el.play?.().catch(() => {});
+    }
+  }, [stream]);
+
+  if (!stream) return null;
+
+  return (
+    <div className="server-voice-screen">
+      <div className="server-voice-screen-badge">
+        <Monitor size={12} />
+        <span>{label}</span>
+      </div>
+      <video
+        ref={videoRef}
+        className="server-voice-screen-video"
+        autoPlay
+        playsInline
+        muted
+      />
     </div>
   );
 }
 
 /**
  * Discord-like voice channel hangout panel (Step 10).
+ * Screen share uses the same WebRTC mesh path as group/DM voicechat.
  */
 export default function ServerVoicePanel({
   channel,
@@ -46,6 +82,52 @@ export default function ServerVoicePanel({
       server?.myPermissions?.flags?.ADMINISTRATOR
   );
 
+  const canStream = Boolean(
+    server?.isOwner ||
+      server?.myPermissions?.flags?.STREAM ||
+      server?.myPermissions?.flags?.ADMINISTRATOR ||
+      server?.myPermissions?.flags?.VIDEO
+  );
+
+  const activeScreen = useMemo(() => {
+    if (!inThis) return null;
+    if (serverVoice?.isScreenSharing && serverVoice?.screenStream) {
+      return {
+        stream: serverVoice.screenStream,
+        label: t("Your Screen"),
+        local: true,
+      };
+    }
+    const remote = (serverVoice?.participants || []).find(
+      (p) => p.isScreenSharing && p.screenStream
+    );
+    if (remote?.screenStream) {
+      return {
+        stream: remote.screenStream,
+        label: t("{name}'s Screen", {
+          name: resolveDisplayName(remote) || remote.username || "Member",
+        }),
+        local: false,
+      };
+    }
+    return null;
+  }, [
+    inThis,
+    serverVoice?.isScreenSharing,
+    serverVoice?.screenStream,
+    serverVoice?.participants,
+    t,
+  ]);
+
+  const onToggleScreen = async () => {
+    if (!canStream) return;
+    if (serverVoice?.isScreenSharing) {
+      await serverVoice.stopScreenShare?.();
+    } else {
+      await serverVoice.startScreenShare?.();
+    }
+  };
+
   return (
     <div className="server-voice-panel">
       <div className="server-voice-hero">
@@ -62,6 +144,10 @@ export default function ServerVoicePanel({
         {serverVoice?.error ? <p className="server-modal-error">{serverVoice.error}</p> : null}
       </div>
 
+      {activeScreen ? (
+        <ScreenStage stream={activeScreen.stream} label={activeScreen.label} />
+      ) : null}
+
       <div className="server-voice-controls">
         {inThis ? (
           <>
@@ -72,6 +158,22 @@ export default function ServerVoicePanel({
             >
               {serverVoice.muted ? <MicOff size={16} /> : <Mic size={16} />}
               {serverVoice.muted ? t("Unmute") : t("Mute")}
+            </button>
+            <button
+              type="button"
+              className={`server-voice-btn ${serverVoice.isScreenSharing ? "is-screen-on" : ""}`}
+              onClick={onToggleScreen}
+              disabled={!canStream}
+              title={
+                !canStream
+                  ? t("Permission denied")
+                  : serverVoice.isScreenSharing
+                    ? t("Stop Screen Share")
+                    : t("Share Screen")
+              }
+            >
+              {serverVoice.isScreenSharing ? <MonitorOff size={16} /> : <Monitor size={16} />}
+              {serverVoice.isScreenSharing ? t("Stop Screen Share") : t("Share Screen")}
             </button>
             <button
               type="button"
@@ -111,6 +213,7 @@ export default function ServerVoicePanel({
               label={`${resolveDisplayName(me)} (${t("You")})`}
               stream={serverVoice.localStream}
               muted={serverVoice.muted}
+              sharing={Boolean(serverVoice.isScreenSharing)}
             />
           )}
           {remoteMembers.map((m) => {
@@ -124,6 +227,7 @@ export default function ServerVoicePanel({
                 member={m}
                 stream={stream}
                 muted={m.muted}
+                sharing={Boolean(m.isScreenSharing)}
               />
             );
           })}

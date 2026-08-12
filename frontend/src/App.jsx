@@ -1412,6 +1412,14 @@ export default function App() {
       });
     });
 
+    socket.on("server:channel:message:ack", ({ channelId, tempId, suppress } = {}) => {
+      if (!channelId || !tempId || !suppress) return;
+      setChannelMessagesById((prev) => {
+        const cur = prev[channelId] ?? [];
+        return { ...prev, [channelId]: cur.filter((m) => m.id !== tempId) };
+      });
+    });
+
     socket.on("group:message:error", ({ groupId, tempId, message } = {}) => {
       if (groupId && tempId) {
         setGroupMessagesById((prev) => {
@@ -1540,8 +1548,8 @@ export default function App() {
       isCasinoBoard(message) ||
       ["game_start", "game_update", "game_end"].includes(message?.type);
 
-    const upsertGameMessage = (groupId, message) => {
-      if (!groupId || !message) return;
+    const upsertGameMessage = (roomId, message, { channelId = null } = {}) => {
+      if (!roomId || !message) return;
       const handId = message.gameData?.id;
       const ownerId =
         message.sessionOwnerId ||
@@ -1562,11 +1570,12 @@ export default function App() {
         sessionOwnerId: ownerId,
         timestamp: message.timestamp || new Date().toISOString(),
         isGameMessage: true,
-        groupId,
+        groupId: channelId ? null : roomId,
+        channelId: channelId || null,
       };
 
-      setGroupMessagesById((prev) => {
-        const cur = prev[groupId] ?? [];
+      const mergeInto = (prev, bagKey) => {
+        const cur = prev[bagKey] ?? [];
         const idx = cur.findIndex((m) => {
           if (m.id === stableId || m.id === message.id) return true;
           if (handId && m.gameData?.id === handId) return true;
@@ -1585,7 +1594,6 @@ export default function App() {
         });
         if (idx >= 0) {
           const prevMsg = cur[idx];
-          // Never interrupt a live or finished hand with lobby/help (Again must survive)
           const prevLive = ["playing", "dealer", "dealing", "finished"].includes(
             prevMsg?.gameData?.status
           );
@@ -1596,24 +1604,31 @@ export default function App() {
           next[idx] = {
             ...prevMsg,
             ...gameMessage,
-            // Keep a single stable session id so Deal / Again never stacks menus
             id: ownerId ? `casino-session-${ownerId}` : prevMsg.id || stableId,
             gameData: message.gameData != null ? message.gameData : prevMsg.gameData,
             sessionOwnerId: ownerId || prevMsg.sessionOwnerId,
             isGameMessage: true,
           };
-          return { ...prev, [groupId]: next };
+          return { ...prev, [bagKey]: next };
         }
-        return { ...prev, [groupId]: [...cur, gameMessage] };
-      });
+        return { ...prev, [bagKey]: [...cur, gameMessage] };
+      };
+
+      if (channelId) {
+        setChannelMessagesById((prev) => mergeInto(prev, channelId));
+      } else {
+        setGroupMessagesById((prev) => mergeInto(prev, roomId));
+      }
     };
 
-    socket.on("game:message", ({ groupId, message }) => {
-      upsertGameMessage(groupId, message);
+    socket.on("game:message", ({ groupId, channelId, message } = {}) => {
+      const roomId = channelId || groupId;
+      upsertGameMessage(roomId, message, { channelId: channelId || null });
     });
 
-    socket.on("game:update", ({ groupId, message }) => {
-      upsertGameMessage(groupId, message);
+    socket.on("game:update", ({ groupId, channelId, message } = {}) => {
+      const roomId = channelId || groupId;
+      upsertGameMessage(roomId, message, { channelId: channelId || null });
     });
 
     socket.on("game:notice", ({ text } = {}) => {
@@ -3485,29 +3500,53 @@ export default function App() {
             } else if (activeView === "servers" && activeChannel?.type === "text" && activeServer?.id) {
               const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
               const textStr = isMediaObject ? "" : String(textPayload || "");
-              const optimistic = {
-                id: tempId,
-                from: normalizeUser({
-                  id: me?.id,
-                  username: me?.username,
-                  displayName: me?.displayName || me?.display_name,
-                  avatarUrl: me?.avatarUrl || me?.avatar_url,
-                  updated_at: me?.updated_at || me?.avatarVersion,
-                }),
-                text: isMediaObject ? "" : textStr,
-                mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
-                mediaType: isMediaObject ? msg.mediaType : undefined,
-                originalName: isMediaObject ? msg.originalName : undefined,
-                size: isMediaObject ? msg.size : undefined,
-                duration: isMediaObject ? msg.duration : undefined,
-                replyTo: replyMeta || undefined,
-                timestamp: new Date().toISOString(),
-                sending: true,
-              };
-              setChannelMessagesById((prev) => ({
-                ...prev,
-                [activeChannel.id]: [...(prev[activeChannel.id] ?? []), optimistic],
-              }));
+              const casinoCmds = [
+                "/bj",
+                "/blackjack",
+                "/hit",
+                "/stand",
+                "/stay",
+                "/double",
+                "/credits",
+                "/bakiye",
+                "/balance",
+                "/top",
+                "/lider",
+                "/help",
+                "/yardım",
+                "/commands",
+                "/jb",
+                "/daily",
+              ];
+              const isCasinoCmd =
+                !isMediaObject &&
+                textStr.startsWith("/") &&
+                casinoCmds.some((cmd) => textStr.toLowerCase().startsWith(cmd));
+              if (!isCasinoCmd) {
+                const optimistic = {
+                  id: tempId,
+                  from: normalizeUser({
+                    id: me?.id,
+                    username: me?.username,
+                    displayName: me?.displayName || me?.display_name,
+                    avatarUrl: me?.avatarUrl || me?.avatar_url,
+                    updated_at: me?.updated_at || me?.avatarVersion,
+                  }),
+                  text: isMediaObject ? "" : textStr,
+                  mediaUrl: isMediaObject ? msg.mediaUrl : undefined,
+                  mediaType: isMediaObject ? msg.mediaType : undefined,
+                  originalName: isMediaObject ? msg.originalName : undefined,
+                  size: isMediaObject ? msg.size : undefined,
+                  duration: isMediaObject ? msg.duration : undefined,
+                  replyTo: replyMeta || undefined,
+                  timestamp: new Date().toISOString(),
+                  sending: true,
+                };
+                setChannelMessagesById((prev) => ({
+                  ...prev,
+                  [activeChannel.id]: [...(prev[activeChannel.id] ?? []), optimistic],
+                }));
+              }
               if (isMediaObject) {
                 const isVoice = msg.mediaType === "voice" || msg.mediaType === "audio";
                 socketRef.current?.emit("server:channel:message", {

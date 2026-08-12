@@ -25,7 +25,7 @@ const SLASH_COMMANDS = [
     label: "Blackjack",
     hint: "Start a hand — /bj 100",
     Icon: Dice5,
-    groupOnly: true,
+    chatOnly: true,
   },
   {
     id: "daily",
@@ -34,7 +34,7 @@ const SLASH_COMMANDS = [
     label: "Daily bonus",
     hint: "Claim free credits once per day",
     Icon: CalendarDays,
-    groupOnly: true,
+    chatOnly: true,
   },
   {
     id: "help",
@@ -43,7 +43,7 @@ const SLASH_COMMANDS = [
     label: "Casino help",
     hint: "Show blackjack commands",
     Icon: HelpCircle,
-    groupOnly: true,
+    chatOnly: true,
   },
   {
     id: "credits",
@@ -52,7 +52,7 @@ const SLASH_COMMANDS = [
     label: "Credits",
     hint: "Check your balance",
     Icon: Wallet,
-    groupOnly: true,
+    chatOnly: true,
   },
   {
     id: "top",
@@ -61,7 +61,7 @@ const SLASH_COMMANDS = [
     label: "Leaderboard",
     hint: "Top credit balances",
     Icon: Trophy,
-    groupOnly: true,
+    chatOnly: true,
   },
 ];
 
@@ -70,6 +70,7 @@ export default function MessageComposer({
   disabled = false,
   activeDmUser,
   activeGroup,
+  activeChannel = null,
   onTypingDmStart,
   onTypingDmStop,
   onTypingGroupStart,
@@ -170,9 +171,11 @@ export default function MessageComposer({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDmUser?.id, activeGroup?.id]);
 
+  const casinoChatOpen = Boolean(activeGroup || activeChannel?.type === "text");
+
   const slashMatches = useMemo(() => {
-    // Slash menu is for group casino commands
-    if (!activeGroup) return [];
+    // Slash menu for group + server text casino commands
+    if (!casinoChatOpen) return [];
     const raw = message;
     // Only while composing a leading slash token (no spaces yet, or "/bj " still editing command)
     if (!raw.startsWith("/")) return [];
@@ -183,10 +186,10 @@ export default function MessageComposer({
     }
     const q = firstToken.toLowerCase();
     return SLASH_COMMANDS.filter((cmd) => {
-      if (cmd.groupOnly && !activeGroup) return false;
+      if (cmd.chatOnly && !casinoChatOpen) return false;
       return cmd.command.startsWith(q) || q === "/";
     });
-  }, [message, activeGroup]);
+  }, [message, casinoChatOpen]);
 
   useEffect(() => {
     setSlashIndex(0);

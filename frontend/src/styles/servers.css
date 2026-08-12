@@ -1300,10 +1300,56 @@ button.member-row.server-member-row {
   color: #fff;
 }
 
+.server-voice-btn.is-screen-on {
+  background: color-mix(in srgb, #3ba55d 22%, var(--surface-2));
+  color: #3ba55d;
+}
+
 .server-voice-btn.leave,
 .server-voice-btn.is-off {
   background: color-mix(in srgb, var(--danger, #ed4245) 18%, var(--surface-2));
   color: var(--danger, #ed4245);
+}
+
+.server-voice-screen {
+  position: relative;
+  width: min(720px, 100%);
+  margin: 0 auto 18px;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0b0d10;
+  border: 1px solid var(--border-2, rgba(255, 255, 255, 0.08));
+}
+
+.server-voice-screen-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #0b0d10;
+}
+
+.server-voice-screen-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.server-voice-member-screen {
+  color: #3ba55d;
+  flex-shrink: 0;
 }
 
 .server-voice-btn:disabled {

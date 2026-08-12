@@ -445,6 +445,41 @@ function registerServerVoiceHandlers(io, socket) {
     });
   });
 
+  socket.on("server:voice:screen:start", ({ channelId } = {}) => {
+    if (!channelId) return;
+    const call = activeServerVoiceCalls.get(channelId);
+    if (!call?.participants.has(myId)) return;
+    const me = call.participants.get(myId);
+    if (me) {
+      me.isScreenSharing = true;
+      call.participants.set(myId, me);
+    }
+    socket.to(`server-voice:${channelId}`).emit("server:voice:screen:started", {
+      serverId: call.serverId,
+      channelId,
+      fromUserId: myId,
+      fromUser: me || { id: myId },
+    });
+    emitChannelState(io, call.serverId, channelId);
+  });
+
+  socket.on("server:voice:screen:stop", ({ channelId } = {}) => {
+    if (!channelId) return;
+    const call = activeServerVoiceCalls.get(channelId);
+    if (!call?.participants.has(myId)) return;
+    const me = call.participants.get(myId);
+    if (me) {
+      me.isScreenSharing = false;
+      call.participants.set(myId, me);
+    }
+    socket.to(`server-voice:${channelId}`).emit("server:voice:screen:stopped", {
+      serverId: call.serverId,
+      channelId,
+      fromUserId: myId,
+    });
+    emitChannelState(io, call.serverId, channelId);
+  });
+
   socket.on("server:voice:media-state", ({ channelId, muted } = {}) => {
     if (!channelId) return;
     const call = activeServerVoiceCalls.get(channelId);
