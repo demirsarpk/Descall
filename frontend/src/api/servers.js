@@ -137,6 +137,31 @@ export function kickServerMember(serverId, userId, reason) {
   });
 }
 
+/** Ban a member (BAN_MEMBERS). Removes membership and blocks rejoin. */
+export function banServerMember(serverId, userId, reason) {
+  return serversRequest(`/api/servers/${serverId}/bans/${userId}`, {
+    method: "PUT",
+    body: reason ? { reason } : {},
+  });
+}
+
+export function unbanServerMember(serverId, userId) {
+  return serversRequest(`/api/servers/${serverId}/bans/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+export function listServerBans(serverId) {
+  return serversRequest(`/api/servers/${serverId}/bans`);
+}
+
+export function getServerAuditLogs(serverId, { limit = 40 } = {}) {
+  const q = new URLSearchParams();
+  if (limit) q.set("limit", String(limit));
+  const qs = q.toString();
+  return serversRequest(`/api/servers/${serverId}/audit-logs${qs ? `?${qs}` : ""}`);
+}
+
 /** Create a shareable server invite (CREATE_INSTANT_INVITE). */
 export function createServerInvite(serverId, { maxUses, maxAgeSeconds, channelId } = {}) {
   return serversRequest(`/api/servers/${serverId}/invites`, {

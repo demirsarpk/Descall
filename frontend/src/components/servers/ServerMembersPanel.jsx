@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crown, MoreHorizontal, MessageSquare, User, Copy, Shield, UserX, Search, X } from "lucide-react";
+import { Crown, MoreHorizontal, MessageSquare, User, Copy, Shield, UserX, Ban, Search, X } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import AdminBadge from "../social/AdminBadge";
@@ -13,6 +13,7 @@ import {
   assignMemberRole,
   removeMemberRole,
   kickServerMember,
+  banServerMember,
 } from "../../api/servers";
 
 function colorToHex(color) {
@@ -55,6 +56,7 @@ export default function ServerMembersPanel({
   const flags = server?.myPermissions?.flags || {};
   const canManageRoles = Boolean(server?.isOwner || flags.MANAGE_ROLES || flags.ADMINISTRATOR);
   const canKick = Boolean(server?.isOwner || flags.KICK_MEMBERS || flags.ADMINISTRATOR);
+  const canBan = Boolean(server?.isOwner || flags.BAN_MEMBERS || flags.ADMINISTRATOR);
   const assignableRoles = useMemo(() => roles.filter((r) => !r.isEveryone), [roles]);
   const friendIds = useMemo(
     () => new Set((friends || []).map((f) => String(f.id))),
@@ -203,6 +205,26 @@ export default function ServerMembersPanel({
       await kickServerMember(server.id, member.userId);
       setMembers((prev) => prev.filter((m) => String(m.userId) !== String(member.userId)));
       toast(t("Member kicked"), "success");
+      setMenu(null);
+    } catch (err) {
+      toast(err?.message || t("Something went wrong."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ban = async (member) => {
+    if (!server?.id) return;
+    const reason = window.prompt(
+      t("Ban {name} from this server? Optional reason:", { name: member._name }),
+      ""
+    );
+    if (reason === null) return;
+    setBusy(true);
+    try {
+      await banServerMember(server.id, member.userId, reason.trim() || undefined);
+      setMembers((prev) => prev.filter((m) => String(m.userId) !== String(member.userId)));
+      toast(t("Member banned"), "success");
       setMenu(null);
     } catch (err) {
       toast(err?.message || t("Something went wrong."), "error");
@@ -373,6 +395,17 @@ export default function ServerMembersPanel({
             >
               <UserX size={14} />
               {t("Kick")}
+            </button>
+          )}
+          {canBan && !isSelf && !menuMember.isOwner && (
+            <button
+              type="button"
+              className="server-dropdown-item danger"
+              disabled={busy}
+              onClick={() => ban(menuMember)}
+            >
+              <Ban size={14} />
+              {t("Ban")}
             </button>
           )}
         </div>

@@ -1,11 +1,10 @@
 "use strict";
 
 /**
- * Descall Servers API — Steps 1–8
+ * Descall Servers API — Steps 1–9
  * Create / list / get / delete / leave + channel CRUD + text chat + roles +
- * permission gates + member kick + invites / public discovery.
+ * permission gates + member kick + invites / public discovery + bans / audit log.
  * Ownership limit: max 10 servers owned per user (membership unlimited).
- * Channel/role manage gated by MANAGE_CHANNELS / MANAGE_ROLES (owner always has all).
  */
 
 const express = require("express");
@@ -46,6 +45,7 @@ const EDITABLE_PERMISSION_KEYS = [
   "CREATE_INSTANT_INVITE",
   "KICK_MEMBERS",
   "BAN_MEMBERS",
+  "VIEW_AUDIT_LOG",
   "MENTION_EVERYONE",
   "CONNECT",
   "SPEAK",
@@ -1560,6 +1560,201 @@ router.delete("/:id/members/:userId", requireAuth, async (req, res) => {
     const status = err.status || 500;
     if (status >= 500) console.error("[SERVERS] DELETE member kick error:", err);
     return res.status(status).json({ error: err.message || "Failed to kick member.", code: err.code });
+  }
+});
+
+/**
+ * GET /servers/:id/bans — list bans (BAN_MEMBERS)
+ */
+router.get("/:id/bans", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    await requireServerPermission(serverId, req.user.id, Permissions.BAN_MEMBERS);
+
+    const { data: bans, error } = await supabase
+      .from("server_bans")
+      .select("server_id, user_id, moderator_id, reason, created_at")
+      .eq("server_id", serverId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+
+    const userIds = [
+      ...new Set(
+        (bans || []).flatMap((b) => [b.user_id, b.moderator_id].filter(Boolean))
+      ),
+    ];
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, username, display_name, avatar_url")
+      .in("id", userIds.length ? userIds : ["00000000-0000-0000-0000-000000000000"]);
+    const byId = new Map((users || []).map((u) => [u.id, u]));
+
+    return res.json({
+      bans: (bans || []).map((b) => {
+        const user = byId.get(b.user_id) || {};
+        const mod = byId.get(b.moderator_id) || {};
+        return {
+          userId: b.user_id,
+          username: user.username || null,
+          displayName: user.display_name || null,
+          avatarUrl: user.avatar_url || null,
+          reason: b.reason || null,
+          createdAt: b.created_at,
+          moderatorId: b.moderator_id || null,
+          moderatorUsername: mod.username || null,
+          moderatorDisplayName: mod.display_name || null,
+        };
+      }),
+    });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] GET /:id/bans error:", err);
+    return res.status(status).json({ error: err.message || "Failed to list bans.", code: err.code });
+  }
+});
+
+/**
+ * PUT /servers/:id/bans/:userId — ban member (BAN_MEMBERS)
+ * Removes membership + roles and blocks rejoin.
+ */
+router.put("/:id/bans/:userId", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const targetUserId = req.params.userId;
+    const { server } = await requireServerPermission(serverId, req.user.id, Permissions.BAN_MEMBERS);
+    const reason = req.body?.reason ? String(req.body.reason).trim().slice(0, 200) : null;
+
+    if (targetUserId === req.user.id) {
+      return res.status(400).json({ error: "You cannot ban yourself.", code: "CANNOT_BAN_SELF" });
+    }
+    if (server.owner_id === targetUserId) {
+      return res.status(403).json({ error: "Cannot ban the server owner.", code: "CANNOT_BAN_OWNER" });
+    }
+
+    const { error: banErr } = await supabase.from("server_bans").upsert(
+      {
+        server_id: serverId,
+        user_id: targetUserId,
+        moderator_id: req.user.id,
+        reason,
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: "server_id,user_id" }
+    );
+    if (banErr) throw banErr;
+
+    await supabase.from("server_members").delete().eq("server_id", serverId).eq("user_id", targetUserId);
+    await supabase
+      .from("server_member_roles")
+      .delete()
+      .eq("server_id", serverId)
+      .eq("user_id", targetUserId);
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "MEMBER_BAN",
+      targetType: "member",
+      targetId: targetUserId,
+      reason,
+    });
+
+    return res.json({ message: "Member banned.", userId: targetUserId, serverId, reason });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] PUT ban error:", err);
+    return res.status(status).json({ error: err.message || "Failed to ban member.", code: err.code });
+  }
+});
+
+/**
+ * DELETE /servers/:id/bans/:userId — unban (BAN_MEMBERS)
+ */
+router.delete("/:id/bans/:userId", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const targetUserId = req.params.userId;
+    await requireServerPermission(serverId, req.user.id, Permissions.BAN_MEMBERS);
+
+    const { data: existing } = await supabase
+      .from("server_bans")
+      .select("user_id")
+      .eq("server_id", serverId)
+      .eq("user_id", targetUserId)
+      .maybeSingle();
+    if (!existing) {
+      return res.status(404).json({ error: "Ban not found." });
+    }
+
+    const { error } = await supabase
+      .from("server_bans")
+      .delete()
+      .eq("server_id", serverId)
+      .eq("user_id", targetUserId);
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "MEMBER_UNBAN",
+      targetType: "member",
+      targetId: targetUserId,
+    });
+
+    return res.json({ message: "Member unbanned.", userId: targetUserId, serverId });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] DELETE ban error:", err);
+    return res.status(status).json({ error: err.message || "Failed to unban member.", code: err.code });
+  }
+});
+
+/**
+ * GET /servers/:id/audit-logs — recent audit entries (VIEW_AUDIT_LOG)
+ */
+router.get("/:id/audit-logs", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    await requireServerPermission(serverId, req.user.id, Permissions.VIEW_AUDIT_LOG);
+
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
+    const { data: rows, error } = await supabase
+      .from("server_audit_logs")
+      .select("id, server_id, actor_id, action, target_type, target_id, changes, reason, created_at")
+      .eq("server_id", serverId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+
+    const actorIds = [...new Set((rows || []).map((r) => r.actor_id).filter(Boolean))];
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, username, display_name, avatar_url")
+      .in("id", actorIds.length ? actorIds : ["00000000-0000-0000-0000-000000000000"]);
+    const byId = new Map((users || []).map((u) => [u.id, u]));
+
+    return res.json({
+      logs: (rows || []).map((r) => {
+        const actor = byId.get(r.actor_id) || {};
+        return {
+          id: r.id,
+          action: r.action,
+          targetType: r.target_type,
+          targetId: r.target_id,
+          changes: r.changes,
+          reason: r.reason,
+          createdAt: r.created_at,
+          actorId: r.actor_id,
+          actorUsername: actor.username || null,
+          actorDisplayName: actor.display_name || null,
+          actorAvatarUrl: actor.avatar_url || null,
+        };
+      }),
+    });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] GET audit-logs error:", err);
+    return res.status(status).json({ error: err.message || "Failed to load audit log.", code: err.code });
   }
 });
 

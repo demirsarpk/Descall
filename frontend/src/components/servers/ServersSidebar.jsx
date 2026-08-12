@@ -19,11 +19,14 @@ import {
   Shield,
   Link2,
   LogIn,
+  Ban,
+  ScrollText,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import ServerRolesModal from "./ServerRolesModal";
 import ServerInviteModal from "./ServerInviteModal";
 import JoinServerModal from "./JoinServerModal";
+import ServerModerationModal from "./ServerModerationModal";
 import { ServerListSkeleton } from "../ui/Skeleton";
 
 /**
@@ -57,6 +60,7 @@ export default function ServersSidebar({
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showModeration, setShowModeration] = useState(null); // 'bans' | 'audit' | null
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // { mode: 'leave'|'delete', server }
   const [channelModal, setChannelModal] = useState(null); // { mode, channel?, defaultType?, parentId? }
@@ -75,6 +79,12 @@ export default function ServersSidebar({
   );
   const canCreateInvite = Boolean(
     activeServer?.isOwner || permFlags.CREATE_INSTANT_INVITE || permFlags.ADMINISTRATOR
+  );
+  const canBanMembers = Boolean(
+    activeServer?.isOwner || permFlags.BAN_MEMBERS || permFlags.ADMINISTRATOR
+  );
+  const canViewAudit = Boolean(
+    activeServer?.isOwner || permFlags.VIEW_AUDIT_LOG || permFlags.ADMINISTRATOR
   );
   const categories = useMemo(
     () => (activeServer?.channels || []).filter((c) => c.type === "category").sort((a, b) => a.position - b.position),
@@ -207,6 +217,32 @@ export default function ServersSidebar({
                   >
                     <Link2 size={15} />
                     {t("Invite people")}
+                  </button>
+                )}
+                {canBanMembers && (
+                  <button
+                    type="button"
+                    className="server-dropdown-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowModeration("bans");
+                    }}
+                  >
+                    <Ban size={15} />
+                    {t("Bans")}
+                  </button>
+                )}
+                {canViewAudit && (
+                  <button
+                    type="button"
+                    className="server-dropdown-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowModeration("audit");
+                    }}
+                  >
+                    <ScrollText size={15} />
+                    {t("Audit log")}
                   </button>
                 )}
                 {activeServer.isOwner ? (
@@ -408,6 +444,13 @@ export default function ServersSidebar({
               server={activeServer}
               onClose={() => setShowInvite(false)}
               onServerUpdated={(updated) => onServerUpdated?.(updated)}
+            />
+          )}
+          {showModeration && (
+            <ServerModerationModal
+              server={activeServer}
+              initialTab={showModeration}
+              onClose={() => setShowModeration(null)}
             />
           )}
         </AnimatePresence>
