@@ -860,14 +860,26 @@ function VoiceMemberContextMenu({
   onClose,
 }) {
   const t = useT();
+  const { toast } = useToast();
   const [moveOpen, setMoveOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menu?.user) return undefined;
+    const onModError = (event) => {
+      const message = event?.detail?.message;
+      if (message) toast(message, "error");
+    };
+    window.addEventListener("descall:server-voice-mod-error", onModError);
+    return () => window.removeEventListener("descall:server-voice-mod-error", onModError);
+  }, [menu?.user, toast]);
+
   if (!menu?.user) return null;
   const user = menu.user;
   const channelId = menu.channelId;
   const currentChannel = voiceChannels.find((c) => c.id === channelId);
   const isStage = currentChannel?.type === "stage";
   const left = Math.min(menu.x || 12, (typeof window !== "undefined" ? window.innerWidth : 400) - 220);
-  const top = Math.min(menu.y || 12, (typeof window !== "undefined" ? window.innerHeight : 400) - 220);
+  const top = Math.min(menu.y || 12, (typeof window !== "undefined" ? window.innerHeight : 400) - 280);
 
   return (
     <>

@@ -334,6 +334,9 @@ export function useServerVoice(socket) {
     if (leavingChannelId && meId) {
       removeUserFromVoiceStates(leavingChannelId, meId, leavingServerId);
     }
+    // Sync refs immediately so follow-up join/leave races don't use stale channel ids.
+    activeChannelIdRef.current = null;
+    activeServerIdRef.current = null;
     setActiveChannelId(null);
     setActiveServerId(null);
     setChannelName("");
@@ -1148,14 +1151,26 @@ export function useServerVoice(socket) {
       setError("You were disconnected from the voice channel.");
     };
 
-    const onForceMoved = ({ fromChannelId, toChannelId, channelName: name, channelType: type, serverId } = {}) => {
-      if (!toChannelId) return;
-      if (fromChannelId && fromChannelId !== activeChannelIdRef.current) return;
+    const onForceMoved = ({
+      toChannelId,
+      channelName: name,
+      channelType: type,
+      serverId,
+    } = {}) => {
+      if (!toChannelId || !serverId) return;
+      const activeId = activeChannelIdRef.current;
+      // Event is only emitted to the moved user. Always rejoin destination unless
+      // this client is already connected there (avoids sticky early-return bugs).
+      if (activeId && String(activeId) === String(toChannelId)) return;
       cleanupAll();
-      // Rejoin destination after brief cleanup
+      // Rejoin destination after brief cleanup so tracks/LiveKit fully release.
       window.setTimeout(() => {
-        joinRef.current?.(serverId, { id: toChannelId, name: name || "Voice", type: type || "voice" });
-      }, 80);
+        joinRef.current?.(serverId, {
+          id: toChannelId,
+          name: name || "Voice",
+          type: type || "voice",
+        });
+      }, 120);
     };
 
     const onForceMute = ({ channelId, muted: isMuted } = {}) => {
@@ -1200,15 +1215,31 @@ export function useServerVoice(socket) {
       setVoiceStatesByServer((prev) => ({ ...prev, [serverId]: map }));
     };
 
-    const onError = ({ message, code } = {}) => {
+    const onError = ({ message, code, channelId } = {}) => {
       if (message) setError(message);
+      // Moderation failures (move/disconnect/mute) are emitted without a channelId
+      // and must not kick the moderator out of their own voice session.
+      const isJoinContext =
+        Boolean(channelId) &&
+        (!activeChannelIdRef.current || String(channelId) === String(activeChannelIdRef.current));
+      if (!isJoinContext && message) {
+        window.dispatchEvent(
+          new CustomEvent("descall:server-voice-mod-error", {
+            detail: { message, code: code || null },
+          })
+        );
+      }
       // Join-time permission failures happen after optimistic local join — always
       // roll back so the UI doesn't look "in voice" while the server rejected us.
-      if (code === "MISSING_PERMISSION" || code === "NOT_MEMBER") {
+      if (isJoinContext && (code === "MISSING_PERMISSION" || code === "NOT_MEMBER")) {
         cleanupAll();
         return;
       }
-      if (activeChannelIdRef.current && /join|microphone|connect/i.test(message || "")) {
+      if (
+        isJoinContext &&
+        activeChannelIdRef.current &&
+        /failed to join|microphone|could not join/i.test(message || "")
+      ) {
         cleanupAll();
       }
     };

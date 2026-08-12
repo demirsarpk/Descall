@@ -95,7 +95,17 @@ async function resolveVoiceChannelAccess(userId, channelId) {
 
 function stageRoleFor(channelId, userId) {
   const call = activeServerVoiceCalls.get(channelId);
-  const participant = call?.participants?.get?.(userId);
+  if (!call?.participants) return "audience";
+  const uid = String(userId);
+  let participant = call.participants.get(userId) || call.participants.get(uid);
+  if (!participant) {
+    for (const [key, member] of call.participants.entries()) {
+      if (String(key) === uid || String(member?.id) === uid) {
+        participant = member;
+        break;
+      }
+    }
+  }
   return participant?.stageRole === "speaker" ? "speaker" : "audience";
 }
 

@@ -28,7 +28,7 @@ function resolvePublicUser(socket) {
     cached?.displayName || socket.user?.display_name || socket.user?.displayName || null;
   const username = cached?.username || socket.user?.username;
   return {
-    id: myId,
+    id: myId != null ? String(myId) : myId,
     username,
     displayName,
     display_name: displayName,
@@ -130,13 +130,48 @@ async function assertStageChannel(userId, channelId) {
   return { channel, resolved };
 }
 
+function sameUserId(a, b) {
+  return a != null && b != null && String(a) === String(b);
+}
+
+/** Resolve a participant map entry even when key/id types differ (uuid string vs raw). */
+function getParticipantEntry(call, userId) {
+  if (!call?.participants || userId == null) return null;
+  if (call.participants.has(userId)) {
+    return { key: userId, member: call.participants.get(userId) };
+  }
+  const uid = String(userId);
+  if (call.participants.has(uid)) {
+    return { key: uid, member: call.participants.get(uid) };
+  }
+  for (const [key, member] of call.participants.entries()) {
+    if (sameUserId(key, uid) || sameUserId(member?.id, uid)) {
+      return { key, member };
+    }
+  }
+  return null;
+}
+
+function setParticipant(call, userId, member) {
+  const uid = String(userId);
+  const existing = getParticipantEntry(call, uid);
+  if (existing && existing.key !== uid) {
+    call.participants.delete(existing.key);
+  }
+  const next = { ...(member || {}), id: uid };
+  call.participants.set(uid, next);
+  return next;
+}
+
 function removeFromVoice(io, channelId, userId) {
   const call = activeServerVoiceCalls.get(channelId);
   if (!call) return null;
   const uid = String(userId);
-  call.participants.delete(userId);
+  const entry = getParticipantEntry(call, uid);
+  if (entry) call.participants.delete(entry.key);
   // Also drop string/uuid key variants if present
   if (call.participants.has(uid)) call.participants.delete(uid);
+  if (call.participants.has(userId)) call.participants.delete(userId);
   const leavePayload = {
     serverId: call.serverId,
     channelId,
@@ -159,20 +194,32 @@ function removeFromVoice(io, channelId, userId) {
 }
 
 function removeUserFromAllServerVoice(io, userId) {
+  const uid = String(userId);
   for (const [channelId, call] of activeServerVoiceCalls.entries()) {
-    if (call.participants.has(userId)) {
-      removeFromVoice(io, channelId, userId);
+    if (getParticipantEntry(call, uid)) {
+      removeFromVoice(io, channelId, uid);
     }
   }
 }
 
 function findUserVoiceChannel(userId) {
+  const uid = String(userId);
   for (const [channelId, call] of activeServerVoiceCalls.entries()) {
-    if (call.participants.has(userId)) {
-      return { channelId, call };
+    const entry = getParticipantEntry(call, uid);
+    if (entry) {
+      return { channelId, call, entry };
     }
   }
   return null;
+}
+
+function findUserInChannel(channelId, userId) {
+  if (!channelId || userId == null) return null;
+  const call = activeServerVoiceCalls.get(channelId);
+  if (!call) return null;
+  const entry = getParticipantEntry(call, userId);
+  if (!entry) return null;
+  return { channelId, call, entry };
 }
 
 async function assertVoiceMod(actorId, serverId, flag) {
@@ -251,9 +298,10 @@ function registerServerVoiceHandlers(io, socket) {
         return;
       }
 
+      const myUid = String(myId);
       for (const [otherId, call] of activeServerVoiceCalls.entries()) {
-        if (otherId !== channelId && call.participants.has(myId)) {
-          removeFromVoice(io, otherId, myId);
+        if (otherId !== channelId && getParticipantEntry(call, myUid)) {
+          removeFromVoice(io, otherId, myUid);
           socket.leave(`server-voice:${otherId}`);
         }
       }
@@ -280,12 +328,12 @@ function registerServerVoiceHandlers(io, socket) {
         mePublic.muted = true;
         mePublic.serverMuted = channel.type !== "stage";
       }
-      call.participants.set(myId, mePublic);
+      setParticipant(call, myUid, mePublic);
 
       socket.join(`server:${channel.server_id}`);
       socket.join(`server-voice:${channelId}`);
 
-      const others = Array.from(call.participants.values()).filter((p) => p.id !== myId);
+      const others = Array.from(call.participants.values()).filter((p) => !sameUserId(p.id, myUid));
       socket.emit("server:voice:joined", {
         serverId: channel.server_id,
         channelId,
@@ -327,28 +375,30 @@ function registerServerVoiceHandlers(io, socket) {
   /** Force-disconnect a member from voice (MOVE_MEMBERS). */
   socket.on("server:voice:disconnect", async ({ serverId, channelId, userId } = {}) => {
     if (!serverId || !userId) return;
+    const targetId = String(userId);
     try {
       await assertVoiceMod(myId, serverId, Permissions.MOVE_MEMBERS);
-      if (userId === myId) {
+      if (sameUserId(targetId, myId)) {
         socket.emit("server:voice:error", { message: "Cannot disconnect yourself this way." });
         return;
       }
-      const found = channelId
-        ? activeServerVoiceCalls.get(channelId)?.participants.has(userId)
-          ? { channelId, call: activeServerVoiceCalls.get(channelId) }
-          : null
-        : findUserVoiceChannel(userId);
+      const found =
+        (channelId && findUserInChannel(channelId, targetId)) || findUserVoiceChannel(targetId);
       if (!found || found.call.serverId !== serverId) {
         socket.emit("server:voice:error", { message: "User is not in a voice channel." });
         return;
       }
-      removeFromVoice(io, found.channelId, userId);
-      io.to(`user:${userId}`).emit("server:voice:force-disconnected", {
+      removeFromVoice(io, found.channelId, targetId);
+      io.to(`user:${targetId}`).emit("server:voice:force-disconnected", {
         serverId,
         channelId: found.channelId,
         byUserId: myId,
       });
-      socket.emit("server:voice:mod-ok", { action: "disconnect", userId, channelId: found.channelId });
+      socket.emit("server:voice:mod-ok", {
+        action: "disconnect",
+        userId: targetId,
+        channelId: found.channelId,
+      });
     } catch (err) {
       socket.emit("server:voice:error", {
         message: err.message || "Disconnect failed.",
@@ -362,28 +412,32 @@ function registerServerVoiceHandlers(io, socket) {
     "server:voice:move",
     async ({ serverId, userId, fromChannelId, toChannelId } = {}) => {
       if (!serverId || !userId || !toChannelId) return;
+      const targetId = String(userId);
+      const destId = String(toChannelId);
       try {
         await assertVoiceMod(myId, serverId, Permissions.MOVE_MEMBERS);
-        const { channel: dest } = await assertVoiceAccess(userId, toChannelId);
+        const { channel: dest, resolved: destPerms } = await assertVoiceAccess(targetId, destId);
         if (dest.server_id !== serverId) {
           socket.emit("server:voice:error", { message: "Target channel is on another server." });
           return;
         }
-        const found = fromChannelId
-          ? activeServerVoiceCalls.get(fromChannelId)?.participants.has(userId)
-            ? { channelId: fromChannelId, call: activeServerVoiceCalls.get(fromChannelId) }
-            : null
-          : findUserVoiceChannel(userId);
+        // Prefer the stated source channel, but fall back if the client id is stale.
+        const found =
+          (fromChannelId && findUserInChannel(fromChannelId, targetId)) ||
+          findUserVoiceChannel(targetId);
         if (!found || found.call.serverId !== serverId) {
           socket.emit("server:voice:error", { message: "User is not in a voice channel." });
           return;
         }
-        if (found.channelId === toChannelId) return;
+        if (String(found.channelId) === destId) return;
 
-        const snapshot = { ...(found.call.participants.get(userId) || { id: userId }) };
-        removeFromVoice(io, found.channelId, userId);
+        const snapshot = {
+          ...(found.entry?.member || { id: targetId }),
+          id: targetId,
+        };
+        removeFromVoice(io, found.channelId, targetId);
 
-        let destCall = activeServerVoiceCalls.get(toChannelId);
+        let destCall = activeServerVoiceCalls.get(destId);
         if (!destCall) {
           destCall = {
             serverId,
@@ -391,31 +445,54 @@ function registerServerVoiceHandlers(io, socket) {
             participants: new Map(),
             startTime: Date.now(),
           };
-          activeServerVoiceCalls.set(toChannelId, destCall);
+          activeServerVoiceCalls.set(destId, destCall);
         }
         snapshot.channelType = dest.type;
         snapshot.stageRole = dest.type === "stage" ? "audience" : "speaker";
         snapshot.requestedToSpeak = false;
+        snapshot.canSpeakPermission = hasPermission(destPerms.bits, Permissions.SPEAK);
+        snapshot.canStream = hasPermission(destPerms.bits, Permissions.STREAM);
+        snapshot.canRequestToSpeak = hasPermission(destPerms.bits, Permissions.REQUEST_TO_SPEAK);
         snapshot.muted = dest.type === "stage" ? true : Boolean(snapshot.muted);
         snapshot.serverMuted = dest.type === "stage" ? false : Boolean(snapshot.serverMuted);
         snapshot.cameraOn = false;
         snapshot.isScreenSharing = false;
-        destCall.participants.set(userId, snapshot);
-        emitChannelState(io, serverId, toChannelId);
+        setParticipant(destCall, targetId, snapshot);
 
-        io.to(`user:${userId}`).emit("server:voice:force-moved", {
+        // Put every socket for the user into the destination voice room immediately
+        // so signaling works even before the client finishes media rejoin.
+        try {
+          io.in(`user:${targetId}`).socketsJoin(`server-voice:${destId}`);
+          io.in(`user:${targetId}`).socketsJoin(`server:${serverId}`);
+        } catch {
+          /* ignore older socket.io */
+        }
+
+        emitChannelState(io, serverId, destId);
+        io.to(`server-voice:${destId}`).emit("server:voice:member-joined", {
+          serverId,
+          channelId: destId,
+          user: destCall.participants.get(targetId),
+        });
+        io.to(`server:${serverId}`).emit("server:voice:member-joined", {
+          serverId,
+          channelId: destId,
+          user: destCall.participants.get(targetId),
+        });
+
+        io.to(`user:${targetId}`).emit("server:voice:force-moved", {
           serverId,
           fromChannelId: found.channelId,
-          toChannelId,
+          toChannelId: destId,
           channelName: dest.name,
           channelType: dest.type,
           byUserId: myId,
         });
         socket.emit("server:voice:mod-ok", {
           action: "move",
-          userId,
+          userId: targetId,
           fromChannelId: found.channelId,
-          toChannelId,
+          toChannelId: destId,
         });
       } catch (err) {
         socket.emit("server:voice:error", {
@@ -429,24 +506,21 @@ function registerServerVoiceHandlers(io, socket) {
   /** Server-mute / unmute a member (MUTE_MEMBERS). */
   socket.on("server:voice:server-mute", async ({ serverId, channelId, userId, muted } = {}) => {
     if (!serverId || !userId) return;
+    const targetId = String(userId);
     try {
       await assertVoiceMod(myId, serverId, Permissions.MUTE_MEMBERS);
-      const found = channelId
-        ? activeServerVoiceCalls.get(channelId)?.participants.has(userId)
-          ? { channelId, call: activeServerVoiceCalls.get(channelId) }
-          : null
-        : findUserVoiceChannel(userId);
+      const found =
+        (channelId && findUserInChannel(channelId, targetId)) || findUserVoiceChannel(targetId);
       if (!found || found.call.serverId !== serverId) {
         socket.emit("server:voice:error", { message: "User is not in a voice channel." });
         return;
       }
-      const member = found.call.participants.get(userId);
-      if (!member) return;
+      const member = { ...(found.entry?.member || { id: targetId }) };
       member.serverMuted = Boolean(muted);
       if (muted) member.muted = true;
-      found.call.participants.set(userId, member);
+      setParticipant(found.call, targetId, member);
       emitChannelState(io, serverId, found.channelId);
-      io.to(`user:${userId}`).emit("server:voice:force-mute", {
+      io.to(`user:${targetId}`).emit("server:voice:force-mute", {
         serverId,
         channelId: found.channelId,
         muted: Boolean(muted),
@@ -454,13 +528,13 @@ function registerServerVoiceHandlers(io, socket) {
       });
       io.to(`server-voice:${found.channelId}`).emit("server:voice:media-state", {
         channelId: found.channelId,
-        fromUserId: userId,
+        fromUserId: targetId,
         muted: Boolean(member.muted),
         serverMuted: Boolean(member.serverMuted),
       });
       socket.emit("server:voice:mod-ok", {
         action: muted ? "server-mute" : "server-unmute",
-        userId,
+        userId: targetId,
         channelId: found.channelId,
       });
     } catch (err) {
@@ -474,11 +548,12 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:offer", ({ channelId, toUserId, offer } = {}) => {
     if (!channelId || !toUserId || !offer) return;
     const call = activeServerVoiceCalls.get(channelId);
-    if (!call?.participants.has(myId)) return;
-    io.to(`user:${toUserId}`).emit("server:voice:offer", {
+    const self = getParticipantEntry(call, myId);
+    if (!self) return;
+    io.to(`user:${String(toUserId)}`).emit("server:voice:offer", {
       channelId,
-      fromUserId: myId,
-      fromUser: call.participants.get(myId) || resolvePublicUser(socket),
+      fromUserId: String(myId),
+      fromUser: self.member || resolvePublicUser(socket),
       offer,
     });
   });
@@ -486,10 +561,10 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:answer", ({ channelId, toUserId, answer } = {}) => {
     if (!channelId || !toUserId || !answer) return;
     const call = activeServerVoiceCalls.get(channelId);
-    if (!call?.participants.has(myId)) return;
-    io.to(`user:${toUserId}`).emit("server:voice:answer", {
+    if (!getParticipantEntry(call, myId)) return;
+    io.to(`user:${String(toUserId)}`).emit("server:voice:answer", {
       channelId,
-      fromUserId: myId,
+      fromUserId: String(myId),
       answer,
     });
   });
@@ -497,10 +572,10 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:ice", ({ channelId, toUserId, candidate } = {}) => {
     if (!channelId || !toUserId || !candidate) return;
     const call = activeServerVoiceCalls.get(channelId);
-    if (!call?.participants.has(myId)) return;
-    io.to(`user:${toUserId}`).emit("server:voice:ice", {
+    if (!getParticipantEntry(call, myId)) return;
+    io.to(`user:${String(toUserId)}`).emit("server:voice:ice", {
       channelId,
-      fromUserId: myId,
+      fromUserId: String(myId),
       candidate,
     });
   });
@@ -508,8 +583,9 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:screen:start", ({ channelId } = {}) => {
     if (!channelId) return;
     const call = activeServerVoiceCalls.get(channelId);
-    if (!call?.participants.has(myId)) return;
-    const me = call.participants.get(myId);
+    const self = getParticipantEntry(call, myId);
+    if (!self) return;
+    const me = self.member;
     if (!participantCanStream(me)) {
       socket.emit("server:voice:error", {
         channelId,
@@ -520,13 +596,13 @@ function registerServerVoiceHandlers(io, socket) {
     }
     if (me) {
       me.isScreenSharing = true;
-      call.participants.set(myId, me);
+      setParticipant(call, myId, me);
     }
     socket.to(`server-voice:${channelId}`).emit("server:voice:screen:started", {
       serverId: call.serverId,
       channelId,
-      fromUserId: myId,
-      fromUser: me || { id: myId },
+      fromUserId: String(myId),
+      fromUser: me || { id: String(myId) },
     });
     emitChannelState(io, call.serverId, channelId);
   });
@@ -534,16 +610,17 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:screen:stop", ({ channelId } = {}) => {
     if (!channelId) return;
     const call = activeServerVoiceCalls.get(channelId);
-    if (!call?.participants.has(myId)) return;
-    const me = call.participants.get(myId);
+    const self = getParticipantEntry(call, myId);
+    if (!self) return;
+    const me = self.member;
     if (me) {
       me.isScreenSharing = false;
-      call.participants.set(myId, me);
+      setParticipant(call, myId, me);
     }
     socket.to(`server-voice:${channelId}`).emit("server:voice:screen:stopped", {
       serverId: call.serverId,
       channelId,
-      fromUserId: myId,
+      fromUserId: String(myId),
     });
     emitChannelState(io, call.serverId, channelId);
   });
@@ -551,8 +628,9 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:camera:start", ({ channelId } = {}) => {
     if (!channelId) return;
     const call = activeServerVoiceCalls.get(channelId);
-    if (!call?.participants.has(myId)) return;
-    const me = call.participants.get(myId);
+    const self = getParticipantEntry(call, myId);
+    if (!self?.member) return;
+    const me = self.member;
     if (!participantCanStream(me)) {
       socket.emit("server:voice:error", {
         channelId,
@@ -562,11 +640,11 @@ function registerServerVoiceHandlers(io, socket) {
       return;
     }
     me.cameraOn = true;
-    call.participants.set(myId, me);
+    setParticipant(call, myId, me);
     socket.to(`server-voice:${channelId}`).emit("server:voice:camera:started", {
       serverId: call.serverId,
       channelId,
-      fromUserId: myId,
+      fromUserId: String(myId),
       fromUser: me,
     });
     emitChannelState(io, call.serverId, channelId);
@@ -575,16 +653,17 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:camera:stop", ({ channelId } = {}) => {
     if (!channelId) return;
     const call = activeServerVoiceCalls.get(channelId);
-    if (!call?.participants.has(myId)) return;
-    const me = call.participants.get(myId);
+    const self = getParticipantEntry(call, myId);
+    if (!self) return;
+    const me = self.member;
     if (me) {
       me.cameraOn = false;
-      call.participants.set(myId, me);
+      setParticipant(call, myId, me);
     }
     socket.to(`server-voice:${channelId}`).emit("server:voice:camera:stopped", {
       serverId: call.serverId,
       channelId,
-      fromUserId: myId,
+      fromUserId: String(myId),
     });
     emitChannelState(io, call.serverId, channelId);
   });
@@ -602,14 +681,15 @@ function registerServerVoiceHandlers(io, socket) {
         return;
       }
       const call = activeServerVoiceCalls.get(channelId);
-      const me = call?.participants.get(myId);
+      const self = getParticipantEntry(call, myId);
+      const me = self?.member;
       if (!call || !me || me.stageRole === "speaker") return;
       me.requestedToSpeak = true;
-      call.participants.set(myId, me);
+      setParticipant(call, myId, me);
       io.to(`server-voice:${channelId}`).emit("server:voice:stage-state", {
         serverId: call.serverId,
         channelId,
-        userId: myId,
+        userId: String(myId),
         requestedToSpeak: true,
         stageRole: me.stageRole,
       });
@@ -625,16 +705,17 @@ function registerServerVoiceHandlers(io, socket) {
 
   socket.on("server:voice:stage:set-role", async ({ serverId, channelId, userId, stageRole } = {}) => {
     if (!serverId || !channelId || !userId) return;
+    const targetId = String(userId);
     try {
       await assertVoiceMod(myId, serverId, Permissions.MOVE_MEMBERS);
-      const { channel, resolved } = await assertStageChannel(userId, channelId);
+      const { channel, resolved } = await assertStageChannel(targetId, channelId);
       if (channel.server_id !== serverId) {
         socket.emit("server:voice:error", { channelId, message: "Server mismatch.", code: "SERVER_MISMATCH" });
         return;
       }
-      const call = activeServerVoiceCalls.get(channelId);
-      const member = call?.participants.get(userId);
-      if (!call || !member) {
+      const found = findUserInChannel(channelId, targetId);
+      const member = found?.entry?.member;
+      if (!found || !member) {
         socket.emit("server:voice:error", { channelId, message: "User is not in this stage." });
         return;
       }
@@ -655,8 +736,8 @@ function registerServerVoiceHandlers(io, socket) {
         member.cameraOn = false;
         member.isScreenSharing = false;
       }
-      call.participants.set(userId, member);
-      io.to(`user:${userId}`).emit("server:voice:stage-role", {
+      setParticipant(found.call, targetId, member);
+      io.to(`user:${targetId}`).emit("server:voice:stage-role", {
         serverId,
         channelId,
         stageRole: nextRole,
@@ -665,19 +746,24 @@ function registerServerVoiceHandlers(io, socket) {
       io.to(`server-voice:${channelId}`).emit("server:voice:stage-state", {
         serverId,
         channelId,
-        userId,
+        userId: targetId,
         requestedToSpeak: false,
         stageRole: nextRole,
       });
       io.to(`server-voice:${channelId}`).emit("server:voice:media-state", {
         channelId,
-        fromUserId: userId,
+        fromUserId: targetId,
         muted: Boolean(member.muted),
         serverMuted: Boolean(member.serverMuted),
         cameraOn: Boolean(member.cameraOn),
       });
       emitChannelState(io, serverId, channelId);
-      socket.emit("server:voice:mod-ok", { action: "stage-role", userId, channelId, stageRole: nextRole });
+      socket.emit("server:voice:mod-ok", {
+        action: "stage-role",
+        userId: targetId,
+        channelId,
+        stageRole: nextRole,
+      });
     } catch (err) {
       socket.emit("server:voice:error", {
         channelId,
@@ -690,8 +776,9 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:media-state", ({ channelId, muted, cameraOn } = {}) => {
     if (!channelId) return;
     const call = activeServerVoiceCalls.get(channelId);
-    if (!call?.participants.has(myId)) return;
-    const me = call.participants.get(myId);
+    const self = getParticipantEntry(call, myId);
+    if (!self) return;
+    const me = self.member;
     if (me) {
       // Server mute locks self-unmute
       if (me.serverMuted && !muted) {
@@ -714,11 +801,11 @@ function registerServerVoiceHandlers(io, socket) {
       }
       me.muted = Boolean(muted);
       if (cameraOn !== undefined) me.cameraOn = Boolean(cameraOn);
-      call.participants.set(myId, me);
+      setParticipant(call, myId, me);
     }
     socket.to(`server-voice:${channelId}`).emit("server:voice:media-state", {
       channelId,
-      fromUserId: myId,
+      fromUserId: String(myId),
       muted: Boolean(muted),
       serverMuted: Boolean(me?.serverMuted),
       cameraOn: Boolean(me?.cameraOn),
