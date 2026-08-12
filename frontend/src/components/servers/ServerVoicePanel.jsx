@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Headphones,
   LogIn,
@@ -11,11 +11,24 @@ import {
   Users,
   Video,
   VideoOff,
+  Volume2,
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
 import useSpeaking from "../../hooks/useSpeaking";
+
+function streamHasLiveVideo(stream) {
+  return Boolean(
+    stream?.getVideoTracks?.()?.some((t) => t && t.readyState === "live" && !t.muted)
+  );
+}
+
+function streamHasLiveAudio(stream) {
+  return Boolean(
+    stream?.getAudioTracks?.()?.some((t) => t && t.readyState !== "ended")
+  );
+}
 
 function VoiceMemberRow({
   member,
@@ -43,35 +56,262 @@ function VoiceMemberRow({
   );
 }
 
-function ScreenStage({ stream, label }) {
-  const videoRef = useRef(null);
+/** Dedicated audio element for remote screen/tab audio (video stays muted). */
+function RemoteScreenAudioSink({ stream, volume = 100, enabled = true }) {
+  const audioRef = useRef(null);
+  const trackCount =
+    stream?.getAudioTracks?.()?.filter((t) => t && t.readyState !== "ended").length || 0;
 
   useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    if (el.srcObject !== stream) {
-      el.srcObject = stream || null;
+    const audioEl = audioRef.current;
+    if (!audioEl) return;
+    const vol = enabled ? Math.max(0, Math.min(1, Number(volume) / 100)) : 0;
+    audioEl.volume = vol;
+    if (!enabled || !stream || trackCount === 0) {
+      audioEl.muted = true;
+      if (audioEl.srcObject) audioEl.srcObject = null;
+      return;
     }
-    if (stream) {
-      el.play?.().catch(() => {});
-    }
-  }, [stream]);
+    audioEl.muted = false;
+    audioEl.srcObject = null;
+    audioEl.srcObject = stream;
+    const play = () => audioEl.play().catch(() => {});
+    play();
+    stream.getAudioTracks().forEach((t) => {
+      const prev = t.onunmute;
+      t.onunmute = (ev) => {
+        try {
+          if (typeof prev === "function") prev.call(t, ev);
+        } catch {
+          /* ignore */
+        }
+        play();
+      };
+    });
+  }, [stream, trackCount, volume, enabled]);
 
-  if (!stream) return null;
+  return <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} aria-hidden="true" />;
+}
+
+/**
+ * Multi-sharer screen stage — same UX as group/DM CallOverlay:
+ * switch screens, volume, click-to-fullscreen.
+ */
+function ServerScreenShareStage({ sharers }) {
+  const t = useT();
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const [volume, setVolume] = useState(100);
+  const [aspectKey, setAspectKey] = useState("0x0");
+  const prevCountRef = useRef(0);
+  const normalVideoRef = useRef(null);
+  const expandedVideoRef = useRef(null);
+
+  useEffect(() => {
+    const n = sharers.length;
+    if (n > prevCountRef.current) {
+      setSelectedIndex(n - 1);
+    } else if (n > 0 && selectedIndex > n - 1) {
+      setSelectedIndex(n - 1);
+    }
+    if (n === 0) setExpanded(false);
+    prevCountRef.current = n;
+  }, [sharers.length, selectedIndex]);
+
+  const safeIndex = sharers.length ? Math.min(Math.max(selectedIndex, 0), sharers.length - 1) : 0;
+  const active = sharers[safeIndex] || null;
+  const screenStream = active?.stream || null;
+
+  useEffect(() => {
+    const track = screenStream?.getVideoTracks?.()[0];
+    const settings = track?.getSettings?.() || {};
+    const w = settings.width || 0;
+    const h = settings.height || 0;
+    if (w && h) setAspectKey(`${w}x${h}`);
+  }, [screenStream]);
+
+  const attachStream = useCallback((el, stream) => {
+    if (!el) return;
+    el.muted = true;
+    if (!stream) {
+      if (el.srcObject) el.srcObject = null;
+      return;
+    }
+    if (el.srcObject !== stream) el.srcObject = stream;
+    const playWhenReady = () => el.play().catch(() => {});
+    const videoTracks = stream.getVideoTracks?.() || [];
+    if (videoTracks.some((tr) => tr.muted || tr.readyState !== "live")) {
+      videoTracks.forEach((tr) => {
+        const prev = tr.onunmute;
+        tr.onunmute = (ev) => {
+          try {
+            if (typeof prev === "function") prev.call(tr, ev);
+          } catch {
+            /* ignore */
+          }
+          playWhenReady();
+        };
+      });
+    }
+    playWhenReady();
+  }, []);
+
+  const normalVideoCallbackRef = useCallback(
+    (el) => {
+      normalVideoRef.current = el;
+      if (el) attachStream(el, screenStream);
+    },
+    [screenStream, attachStream]
+  );
+
+  const expandedVideoCallbackRef = useCallback(
+    (el) => {
+      expandedVideoRef.current = el;
+      if (el) attachStream(el, screenStream);
+    },
+    [screenStream, attachStream]
+  );
+
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
+
+  if (!sharers.length || !active) return null;
+
+  const label = active.isLocal
+    ? t("Your Screen")
+    : t("{name}'s Screen", { name: active.username || "Member" });
 
   return (
-    <div className="server-voice-screen">
-      <div className="server-voice-screen-badge">
-        <Monitor size={12} />
-        <span>{label}</span>
+    <div className="server-voice-screen-stage">
+      {/* Durable remote screen audio — only active sharer is audible */}
+      {sharers
+        .filter((s) => !s.isLocal && s.stream)
+        .map((s) => (
+          <RemoteScreenAudioSink
+            key={`screen-audio-${s.id}`}
+            stream={s.stream}
+            volume={volume}
+            enabled={String(s.id) === String(active.id)}
+          />
+        ))}
+
+      <div
+        className="server-voice-screen"
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((v) => !v);
+          }
+        }}
+      >
+        <video
+          key={`${active.id}-${aspectKey}`}
+          ref={normalVideoCallbackRef}
+          className="server-voice-screen-video"
+          autoPlay
+          playsInline
+          muted
+        />
+
+        {!streamHasLiveVideo(screenStream) && (
+          <div className="server-voice-screen-waiting">{t("Waiting for screen…")}</div>
+        )}
+
+        <div className="server-voice-screen-badge" onClick={(e) => e.stopPropagation()}>
+          <Monitor size={12} />
+          <span>{label}</span>
+        </div>
+
+        {!active.isLocal && (
+          <label className="server-voice-screen-volume" onClick={(e) => e.stopPropagation()}>
+            <Volume2 size={14} aria-hidden="true" />
+            <input
+              aria-label={t("Screen share volume")}
+              type="range"
+              min="0"
+              max="100"
+              value={volume}
+              onChange={(e) => setVolume(Number(e.target.value))}
+            />
+            <span>{volume}%</span>
+          </label>
+        )}
+
+        <div className="server-voice-screen-hint">
+          {expanded ? t("Click to shrink") : t("Click to expand")}
+        </div>
+
+        {expanded && (
+          <div
+            className="server-voice-screen-expanded"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded(false);
+            }}
+          >
+            <video
+              key={`exp-${active.id}-${aspectKey}`}
+              ref={expandedVideoCallbackRef}
+              className="server-voice-screen-video"
+              autoPlay
+              playsInline
+              muted
+            />
+            <div className="server-voice-screen-badge">
+              <Monitor size={14} />
+              <span>{label}</span>
+            </div>
+            {!active.isLocal && (
+              <label
+                className="server-voice-screen-volume is-expanded"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Volume2 size={14} aria-hidden="true" />
+                <input
+                  aria-label={t("Screen share volume")}
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={volume}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                />
+                <span>{volume}%</span>
+              </label>
+            )}
+            <div className="server-voice-screen-hint is-expanded">
+              {t("Click anywhere to exit fullscreen")}
+            </div>
+          </div>
+        )}
       </div>
-      <video
-        ref={videoRef}
-        className="server-voice-screen-video"
-        autoPlay
-        playsInline
-        muted
-      />
+
+      {sharers.length > 1 && (
+        <div className="server-voice-screen-switcher">
+          <span>{t("Screens:")}</span>
+          {sharers.map((sharer, idx) => (
+            <button
+              key={sharer.id}
+              type="button"
+              className={`server-voice-screen-chip${idx === safeIndex ? " is-active" : ""}`}
+              onClick={() => setSelectedIndex(idx)}
+            >
+              <Monitor size={12} />
+              {sharer.isLocal
+                ? t("Your Screen")
+                : t("{name}'s Screen", { name: sharer.username || "Member" })}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -103,8 +343,8 @@ function CameraTile({ stream, label, muted = false }) {
 }
 
 /**
- * Discord-like voice channel hangout panel (Step 10).
- * Screen share uses the same WebRTC mesh path as group/DM voicechat.
+ * Discord-like voice channel hangout panel.
+ * Screen share matches group/DM voicechat: multi-sharer switch, volume, fullscreen.
  */
 export default function ServerVoicePanel({
   channel,
@@ -141,30 +381,38 @@ export default function ServerVoicePanel({
   const canPublishMedia = Boolean(serverVoice?.canSpeak && isStageSpeaker);
   const canVideo = Boolean(canStream && serverVoice?.canStream && canPublishMedia);
 
-  const activeScreen = useMemo(() => {
-    if (!inThis) return null;
-    if (serverVoice?.isScreenSharing && serverVoice?.screenStream) {
-      return {
+  const screenSharers = useMemo(() => {
+    if (!inThis) return [];
+    const list = [];
+    if (
+      serverVoice?.isScreenSharing &&
+      (streamHasLiveVideo(serverVoice.screenStream) || streamHasLiveAudio(serverVoice.screenStream))
+    ) {
+      list.push({
+        id: "local",
+        username: resolveDisplayName(me) || me?.username || t("You"),
         stream: serverVoice.screenStream,
-        label: t("Your Screen"),
-        local: true,
-      };
+        isLocal: true,
+      });
     }
-    const remote = (serverVoice?.participants || []).find(
-      (p) => p.isScreenSharing && p.screenStream
-    );
-    if (remote?.screenStream) {
-      return {
-        stream: remote.screenStream,
-        label: t("{name}'s Screen", {
-          name: resolveDisplayName(remote) || remote.username || "Member",
-        }),
-        local: false,
-      };
+    for (const p of serverVoice?.participants || []) {
+      if (!p?.screenStream) continue;
+      const live =
+        p.isScreenSharing ||
+        streamHasLiveVideo(p.screenStream) ||
+        streamHasLiveAudio(p.screenStream);
+      if (!live) continue;
+      list.push({
+        id: p.id,
+        username: resolveDisplayName(p) || p.username || "Member",
+        stream: p.screenStream,
+        isLocal: false,
+      });
     }
-    return null;
+    return list;
   }, [
     inThis,
+    me,
     serverVoice?.isScreenSharing,
     serverVoice?.screenStream,
     serverVoice?.participants,
@@ -229,9 +477,7 @@ export default function ServerVoicePanel({
         {serverVoice?.error ? <p className="server-modal-error">{serverVoice.error}</p> : null}
       </div>
 
-      {activeScreen ? (
-        <ScreenStage stream={activeScreen.stream} label={activeScreen.label} />
-      ) : null}
+      {screenSharers.length > 0 ? <ServerScreenShareStage sharers={screenSharers} /> : null}
 
       {cameraTiles.length > 0 ? (
         <div className="server-voice-camera-grid">
