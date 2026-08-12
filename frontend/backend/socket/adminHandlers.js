@@ -33,14 +33,32 @@ function notifyAdminRoom(io, payload) {
   io.to("admin").emit("admin:update", payload);
 }
 
-function kickUser(io, { actorId, actorUsername, targetUserId, reason }) {
+function kickUser(io, { actorId, actorUsername, targetUserId, reason, action, category, message, expiresAt }) {
   const sock = getSocketForUser(io, targetUserId);
   if (sock) {
-    sock.emit("system:kick", { reason: reason || "Removed by moderator" });
+    sock.emit("system:kick", {
+      reason: reason || "Removed by moderator",
+      action: action || "kick",
+      category: category || null,
+      message: message || null,
+      expiresAt: expiresAt || null,
+    });
     sock.disconnect(true);
   }
-  state.appendAudit(actorId, actorUsername, "kick", targetUserId, { reason });
-  notifyAdminRoom(io, { type: "kick", targetUserId, reason });
+  // Also notify via durable room in case of multi-tab
+  try {
+    io.to(`user:${targetUserId}`).emit("system:kick", {
+      reason: reason || "Removed by moderator",
+      action: action || "kick",
+      category: category || null,
+      message: message || null,
+      expiresAt: expiresAt || null,
+    });
+  } catch {
+    /* ignore */
+  }
+  state.appendAudit(actorId, actorUsername, action || "kick", targetUserId, { reason, category, message, expiresAt });
+  notifyAdminRoom(io, { type: action || "kick", targetUserId, reason, category, message, expiresAt });
 }
 
 function disconnectAll(io, actorId, actorUsername) {

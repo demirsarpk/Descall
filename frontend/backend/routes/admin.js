@@ -12,6 +12,7 @@ const {
   notifyAdminRoom,
   buildSnapshot,
 } = require("../socket/adminHandlers");
+const moderation = require("../lib/moderation");
 
 const router = express.Router();
 const BCRYPT_ROUNDS = 12;
@@ -365,40 +366,160 @@ router.delete("/users/:id", async (req, res) => {
   }
 });
 
+router.get("/moderation/meta", (_req, res) => {
+  res.json({
+    categories: moderation.MOD_CATEGORIES,
+    timeoutPresets: moderation.TIMEOUT_PRESETS,
+    banPresets: moderation.BAN_PRESETS,
+  });
+});
+
+router.get("/moderation/active", async (_req, res) => {
+  try {
+    res.json(await moderation.listActiveSanctions());
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to load sanctions." });
+  }
+});
+
+router.get("/moderation/history", async (req, res) => {
+  try {
+    const history = await moderation.listHistory({
+      limit: parseInt(req.query.limit || "80", 10) || 80,
+      targetUserId: req.query.userId || undefined,
+    });
+    res.json({ history });
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to load history." });
+  }
+});
+
 router.post("/users/:id/ban", async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (id === req.user.id) return res.status(400).json({ error: "Cannot ban yourself." });
+    const body = req.body || {};
+    const result = await moderation.applyBan({
+      targetUserId: id,
+      actorUserId: req.user.id,
+      category: body.category,
+      otherText: body.otherText || body.reason,
+      message: body.message,
+      presetId: body.presetId || "permanent",
+      durationSeconds: body.durationSeconds,
+    });
+    kickUser(getIo(req), {
+      actorId: req.user.id,
+      actorUsername: req.user.username,
+      targetUserId: id,
+      reason: result.message || result.reason || "Banned",
+      action: "ban",
+      category: result.category,
+      message: result.message,
+      expiresAt: result.expiresAt,
+    });
+    audit(req.user, "ban", id, {
+      category: result.category,
+      reason: result.reason,
+      message: result.message,
+      expiresAt: result.expiresAt,
+    });
+    notifyAdminRoom(getIo(req), { type: "ban", userId: id, ...result });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    console.error("[ban]", e);
+    res.status(500).json({ error: e.message || "Ban failed." });
+  }
+});
+
+router.post("/users/:id/unban", async (req, res) => {
+  try {
+    const id = req.params.id;
+    await moderation.revokeBan({
+      targetUserId: id,
+      actorUserId: req.user.id,
+      note: req.body?.note,
+    });
+    audit(req.user, "unban", id, {});
+    notifyAdminRoom(getIo(req), { type: "unban", userId: id });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Unban failed." });
+  }
+});
+
+router.post("/users/:id/timeout", async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (id === req.user.id) return res.status(400).json({ error: "Cannot timeout yourself." });
+    const body = req.body || {};
+    const result = await moderation.applyTimeout({
+      targetUserId: id,
+      actorUserId: req.user.id,
+      category: body.category,
+      otherText: body.otherText || body.reason,
+      message: body.message,
+      presetId: body.presetId,
+      durationSeconds: body.durationSeconds,
+    });
+    const io = getIo(req);
+    io.to(`user:${id}`).emit("system:timeout", result);
+    audit(req.user, "timeout", id, {
+      category: result.category,
+      reason: result.reason,
+      message: result.message,
+      until: result.until,
+    });
+    notifyAdminRoom(io, { type: "timeout", userId: id, ...result });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    console.error("[timeout]", e);
+    res.status(400).json({ error: e.message || "Timeout failed." });
+  }
+});
+
+router.post("/users/:id/untimeout", async (req, res) => {
+  try {
+    const id = req.params.id;
+    await moderation.revokeTimeout({
+      targetUserId: id,
+      actorUserId: req.user.id,
+      note: req.body?.note,
+    });
+    const io = getIo(req);
+    io.to(`user:${id}`).emit("system:timeout:cleared", { ok: true });
+    audit(req.user, "untimeout", id, {});
+    notifyAdminRoom(io, { type: "untimeout", userId: id });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Remove timeout failed." });
+  }
+});
+
+router.post("/users/:id/kick", (req, res) => {
   const id = req.params.id;
-  if (id === req.user.id) return res.status(400).json({ error: "Cannot ban yourself." });
-  const { error } = await supabase.from("users").update({ is_banned: true }).eq("id", id);
-  if (error) console.warn("[ban] DB update failed (is_banned column may be missing):", error.message);
-  state.bannedUserIds.add(id);
+  const body = req.body || {};
+  const { category: cat, reason } = moderation.normalizeCategory(body.category, body.otherText || body.reason);
+  const message = String(body.message || "").trim() || null;
   kickUser(getIo(req), {
     actorId: req.user.id,
     actorUsername: req.user.username,
     targetUserId: id,
-    reason: req.body?.reason || "Banned",
+    reason: message || reason || "Kicked",
+    action: "kick",
+    category: cat,
+    message,
   });
-  audit(req.user, "ban", id, { reason: req.body?.reason });
-  notifyAdminRoom(getIo(req), { type: "ban", userId: id });
-  res.json({ ok: true });
-});
-
-router.post("/users/:id/unban", async (req, res) => {
-  const id = req.params.id;
-  const { error } = await supabase.from("users").update({ is_banned: false }).eq("id", id);
-  if (error) console.warn("[unban] DB update failed:", error.message);
-  state.bannedUserIds.delete(id);
-  audit(req.user, "unban", id, {});
-  notifyAdminRoom(getIo(req), { type: "unban", userId: req.params.id });
-  res.json({ ok: true });
-});
-
-router.post("/users/:id/kick", (req, res) => {
-  kickUser(getIo(req), {
-    actorId: req.user.id,
-    actorUsername: req.user.username,
-    targetUserId: req.params.id,
-    reason: req.body?.reason || "Kicked",
-  });
+  moderation
+    .recordAction({
+      actionType: "kick",
+      targetUserId: id,
+      actorUserId: req.user.id,
+      category: cat,
+      reason,
+      message,
+    })
+    .catch(() => {});
   res.json({ ok: true });
 });
 
@@ -424,16 +545,34 @@ router.post("/users/bulk", async (req, res) => {
   for (const id of userIds) {
     if (typeof id !== "string" || id === req.user.id) continue;
     if (action === "ban") {
-      await supabase.from("users").update({ is_banned: true }).eq("id", id);
-      state.bannedUserIds.add(id);
-      kickUser(io, { actorId: req.user.id, actorUsername: req.user.username, targetUserId: id, reason: "Bulk ban" });
+      const result = await moderation.applyBan({
+        targetUserId: id,
+        actorUserId: req.user.id,
+        category: "other",
+        otherText: "Bulk ban",
+        message: "Bulk ban",
+        presetId: "permanent",
+      });
+      kickUser(io, {
+        actorId: req.user.id,
+        actorUsername: req.user.username,
+        targetUserId: id,
+        reason: result.message || result.reason || "Bulk ban",
+        action: "ban",
+        category: result.category,
+        message: result.message,
+        expiresAt: result.expiresAt,
+      });
       n++;
     } else if (action === "unban") {
-      await supabase.from("users").update({ is_banned: false }).eq("id", id);
-      state.bannedUserIds.delete(id);
+      await moderation.revokeBan({
+        targetUserId: id,
+        actorUserId: req.user.id,
+        note: "Bulk unban",
+      });
       n++;
     } else if (action === "kick") {
-      kickUser(io, { actorId: req.user.id, actorUsername: req.user.username, targetUserId: id, reason: "Bulk kick" });
+      kickUser(io, { actorId: req.user.id, actorUsername: req.user.username, targetUserId: id, reason: "Bulk kick", action: "kick" });
       n++;
     }
   }

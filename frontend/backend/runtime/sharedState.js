@@ -14,6 +14,10 @@ const MAX_DM_PER_CONV = 500;
 const MAX_NOTIFICATIONS = 100;
 
 const bannedUserIds = new Set();
+/** userId -> { category, reason, message, bannedAt, expiresAt } */
+const banDetailsByUser = new Map();
+/** userId -> { until, category, reason, message, timedOutAt, actorId } */
+const timedOutUsers = new Map();
 const userRoles = new Map();
 const auditLog = [];
 const MAX_AUDIT = 5000;
@@ -139,6 +143,8 @@ module.exports = {
   MAX_DM_PER_CONV,
   MAX_NOTIFICATIONS,
   bannedUserIds,
+  banDetailsByUser,
+  timedOutUsers,
   userRoles,
   auditLog,
   appendAudit,

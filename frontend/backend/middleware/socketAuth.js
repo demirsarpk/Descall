@@ -1,5 +1,5 @@
 const { verifyToken } = require("../config/jwt");
-const { bannedUserIds, revokedSessionIds } = require("../runtime/sharedState");
+const { bannedUserIds, banDetailsByUser, revokedSessionIds } = require("../runtime/sharedState");
 
 function socketAuthMiddleware(socket, next) {
   const token = socket.handshake.auth?.token;
@@ -14,7 +14,14 @@ function socketAuthMiddleware(socket, next) {
       return next(new Error("Authentication failed: two-factor verification required."));
     }
     if (bannedUserIds.has(decoded.sub)) {
-      return next(new Error("Authentication failed: account is banned."));
+      const detail = banDetailsByUser.get(decoded.sub);
+      if (detail?.expiresAt && new Date(detail.expiresAt).getTime() <= Date.now()) {
+        bannedUserIds.delete(decoded.sub);
+        banDetailsByUser.delete(decoded.sub);
+      } else {
+        const msg = detail?.message || detail?.reason || "account is banned";
+        return next(new Error(`Authentication failed: banned — ${msg}`));
+      }
     }
     if (decoded.sid && revokedSessionIds.has(decoded.sid)) {
       return next(new Error("Authentication failed: session has been signed out."));

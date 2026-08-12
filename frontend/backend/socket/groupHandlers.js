@@ -105,6 +105,23 @@ function registerGroupHandlers(io, socket, state) {
 
   // Group message — persist to DB then broadcast
   socket.on("group:message", async ({ groupId, tempId, content, mediaUrl, mediaType, duration, replyTo }) => {
+    try {
+      const { getActiveTimeout } = require("../lib/moderation");
+      const to = getActiveTimeout(myId);
+      if (to) {
+        socket.emit("group:message:error", {
+          groupId,
+          tempId: tempId || null,
+          message: to.message || "You are timed out and cannot send messages.",
+          code: "TIMED_OUT",
+          timeout: to,
+        });
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+
     if (!groupId || (!content?.trim() && !mediaUrl)) {
       appendErrorLog("group:message", "Missing required parameters", { groupId, hasContent: !!content, hasMedia: !!mediaUrl }, myId, socket.user?.username);
       if (tempId) {

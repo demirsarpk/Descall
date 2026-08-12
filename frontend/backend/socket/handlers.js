@@ -730,6 +730,14 @@ function registerSocketHandlers(io) {
       emitSyncState(io, myId, socket);
       broadcastUsers(io);
 
+      try {
+        const { getActiveTimeout } = require("../lib/moderation");
+        const activeTimeout = getActiveTimeout(myId);
+        if (activeTimeout) socket.emit("system:timeout", activeTimeout);
+      } catch {
+        /* ignore */
+      }
+
       // Deliver any gift popups the recipient missed while offline (e.g. an
       // admin gifted them a cosmetic before they ever connected this
       // session). Delivered once per gift via the notified_at flag.
@@ -1018,6 +1026,19 @@ function registerSocketHandlers(io) {
       if (bannedUserIds.has(myId)) {
         appendErrorLog("dm:send", "User is banned", { toUserId }, myId, me.username);
         return socket.emit("dm:error", { message: "You are banned.", tempId: tempId || null, toUserId });
+      }
+      {
+        const { getActiveTimeout } = require("../lib/moderation");
+        const to = getActiveTimeout(myId);
+        if (to) {
+          return socket.emit("dm:error", {
+            message: to.message || "You are timed out and cannot send messages.",
+            code: "TIMED_OUT",
+            timeout: to,
+            tempId: tempId || null,
+            toUserId,
+          });
+        }
       }
       if (dmBlockPairs.has(convKey(myId, toUserId))) {
         appendErrorLog("dm:send", "Conversation blocked", { toUserId }, myId, me.username);

@@ -247,6 +247,7 @@ export default function App() {
   const [me, setMe] = useState(() => normalizeUser(getUser()));
   const [inviteCode, setInviteCode] = useState(() => parseInviteCodeFromLocation());
   const [inviteAuthOpen, setInviteAuthOpen] = useState(false);
+  const [activeTimeout, setActiveTimeout] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [myStatus, setMyStatus] = useState(() => {
     try {
@@ -1616,7 +1617,20 @@ export default function App() {
       setTimeout(() => setFriendNotice(""), 8000);
     });
 
-    socket.on("system:kick", () => { clearToken(); clearUser(); setMe(null); socket.disconnect(); });
+    socket.on("system:kick", (payload = {}) => {
+      const detail = [payload.message, payload.reason].filter(Boolean).join(" — ");
+      const prefix = payload.action === "ban" ? t("You are banned") : t("Removed by moderator");
+      setAuthError(detail ? `${prefix}: ${detail}` : prefix);
+      clearToken();
+      clearUser();
+      setMe(null);
+      setActiveTimeout(null);
+      socket.disconnect();
+    });
+    socket.on("system:timeout", (payload = {}) => {
+      setActiveTimeout(payload?.timedOut ? payload : payload?.until ? { timedOut: true, ...payload } : null);
+    });
+    socket.on("system:timeout:cleared", () => setActiveTimeout(null));
     socket.on("system:maintenance", () => { clearToken(); clearUser(); setMe(null); socket.disconnect(); });
 
     socket.on("group:call:summary", ({ groupId, summary } = {}) => {
@@ -1717,6 +1731,26 @@ export default function App() {
     socket.connect();
   };
 
+  const formatBanAuthError = (error) => {
+    if (error?.code === "ACCOUNT_BANNED" || error?.ban) {
+      const ban = error.ban || {};
+      const parts = [t("You are banned")];
+      if (ban.reason || ban.category) parts.push(ban.reason || ban.category);
+      if (ban.message) parts.push(ban.message);
+      if (ban.expiresAt) {
+        try {
+          parts.push(`${t("Until")}: ${new Date(ban.expiresAt).toLocaleString()}`);
+        } catch {
+          /* ignore */
+        }
+      } else {
+        parts.push(t("Permanent"));
+      }
+      return parts.filter(Boolean).join(" — ");
+    }
+    return error?.message || t("Something went wrong");
+  };
+
   const handleLogin = async (payload) => {
     try {
       setAuthLoading(true);
@@ -1743,7 +1777,7 @@ export default function App() {
       }
       return null;
     } catch (error) {
-      setAuthError(error.message);
+      setAuthError(formatBanAuthError(error));
       throw error;
     } finally {
       setAuthLoading(false);
@@ -1766,7 +1800,7 @@ export default function App() {
         /* analytics optional */
       }
     } catch (error) {
-      setAuthError(error.message);
+      setAuthError(formatBanAuthError(error));
       throw error;
     } finally {
       setAuthLoading(false);
@@ -1815,7 +1849,7 @@ export default function App() {
         /* analytics optional */
       }
     } catch (error) {
-      setAuthError(error.message);
+      setAuthError(formatBanAuthError(error));
       throw error;
     } finally {
       setAuthLoading(false);
@@ -1873,6 +1907,7 @@ export default function App() {
       .then(({ resetAnalyticsUser }) => resetAnalyticsUser())
       .catch(() => {});
     clearToken(); clearUser(); setMe(null);
+    setActiveTimeout(null);
     setIsConnected(false); setOnlineUsers([]); setFriends([]); setFriendRequests([]);
     friendsFromSocketRef.current = false;
     setFriendsLoaded(false);
@@ -2709,6 +2744,24 @@ export default function App() {
             {updateState === 'installing'
               ? `⚡ Descall ${updateVersion} yükleniyor, yeniden başlatılıyor…`
               : `⬇️ Descall ${updateVersion} güncelleniyor, arka planda indiriliyor…`}
+          </div>
+        )}
+        {activeTimeout?.timedOut && (
+          <div className="timeout-banner" role="status">
+            <div>
+              <strong>{t("You are timed out")}</strong>
+              {" · "}
+              {activeTimeout.categoryLabel || activeTimeout.reason || activeTimeout.category || t("Timeout")}
+              {activeTimeout.until ? (
+                <>
+                  {" · "}
+                  {t("Until")}: {new Date(activeTimeout.until).toLocaleString()}
+                </>
+              ) : null}
+              {activeTimeout.message ? <p>{activeTimeout.message}</p> : (
+                <p>{t("You cannot send messages until the timeout ends.")}</p>
+              )}
+            </div>
           </div>
         )}
         {(me?.is_admin || me?.username === "admin") && adminOpen && (

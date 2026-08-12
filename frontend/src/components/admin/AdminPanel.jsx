@@ -22,6 +22,7 @@ import RippleButton from "../ui/RippleButton";
 import AdminFeedback from "./AdminFeedback";
 import AdminErrorLogs from "./AdminErrorLogs";
 import AdminShop from "./AdminShop";
+import AdminModeration from "./AdminModeration";
 import { Avatar } from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
 
@@ -549,7 +550,7 @@ export default function AdminPanel({ socket, onClose, onAdminChanged }) {
     if (tab === "overview" || tab === "members") {
       loadMemberPulse().catch((e) => setErr(e.message));
     }
-    if (tab === "users") loadAllUsers().catch((e) => setErr(e.message));
+    if (tab === "users" || tab === "moderation") loadAllUsers().catch((e) => setErr(e.message));
     if (tab === "activity") loadActivity().catch((e) => setErr(e.message));
     if (tab === "engagement") loadEngagement().catch((e) => setErr(e.message));
     if (tab === "growth") loadGrowth().catch((e) => setErr(e.message));
@@ -1660,6 +1661,14 @@ function getTimeAgo(date, t) {
                       )}
                     </td>
                     <td className="admin-actions">
+                      <button
+                        type="button"
+                        className="admin-btn-red"
+                        title={t("Open moderation")}
+                        onClick={() => setTab("moderation")}
+                      >
+                        {t("Moderate")}
+                      </button>
                       {u.is_admin ? (
                         <button
                           type="button"
@@ -2457,85 +2466,68 @@ function getTimeAgo(date, t) {
         )}
 
         {tab === "moderation" && (
-          <section className="admin-section">
-            <h2>{t("Content Moderation")}</h2>
-            <p className="muted">{t("Manage banned users, flagged messages, and content filters")}</p>
-            
-            <div className="admin-toolbar">
-              <RippleButton type="button" onClick={() => act(loadSystem)} disabled={busy}>
-                {t("Refresh")}
-              </RippleButton>
-            </div>
-            
-            {system && (
-              <div className="admin-form">
-                <h3>{t("Banned Users")}</h3>
-                <div className="banned-users-list">
-                  {system.bannedUserIds?.length > 0 ? (
-                    system.bannedUserIds.map(id => (
-                      <div key={id} className="banned-user-item">
-                        <code>{id}</code>
-                        <RippleButton 
-                          type="button" 
-                          className="small"
-                          onClick={() => act(async () => {
-                            await adminFetch(`/users/${id}/unban`, { method: "POST" });
-                            await loadSystem();
-                          })}
-                        >
-                          {t("Unban")}
-                        </RippleButton>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="muted">{t("No banned users")}</p>
-                  )}
-                </div>
-                
-                <h3>{t("Flagged Messages")}</h3>
-                <div className="flagged-messages-list">
-                  {system.flaggedMessages?.length > 0 ? (
-                    system.flaggedMessages.map(msg => (
-                      <div key={msg.id} className="flagged-message-item">
-                        <span>{msg.text}</span>
-                        <span className="badge">{msg.reason}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="muted">{t("No flagged messages")}</p>
-                  )}
-                </div>
-                
-                <h3>{t("Profanity Filter")}</h3>
-                <label>
-                  {t("Add word to filter")}
-                  <input className="admin-input" id="prof-moderation" placeholder={t("Enter word...")} />
-                  <RippleButton
-                    type="button"
-                    onClick={() => {
-                      const w = document.getElementById("prof-moderation")?.value?.trim();
-                      if (!w) return;
-                      act(async () => {
-                        await adminFetch("/profanity", { method: "POST", body: JSON.stringify({ word: w }) });
-                        await loadSystem();
-                      });
-                    }}
-                  >
-                    {t("Add")}
-                  </RippleButton>
-                </label>
-                <div className="profanity-list">
-                  {system.profanityWords?.length > 0 ? (
-                    system.profanityWords.map(word => (
-                      <span key={word} className="profanity-tag">{word}</span>
-                    ))
-                  ) : (
-                    <p className="muted">{t("No filter words")}</p>
-                  )}
-                </div>
+          <>
+            <AdminModeration
+              users={users}
+              onRefreshUsers={() => {
+                loadAllUsers().catch(() => {});
+                loadSystem().catch(() => {});
+              }}
+            />
+            <section className="admin-section" style={{ marginTop: 16 }}>
+              <h2>{t("Content filters")}</h2>
+              <p className="muted">{t("Profanity filter and flagged messages")}</p>
+              <div className="admin-toolbar">
+                <RippleButton type="button" onClick={() => act(loadSystem)} disabled={busy}>
+                  {t("Refresh")}
+                </RippleButton>
               </div>
-            )}
-          </section>
+              {system && (
+                <div className="admin-form">
+                  <h3>{t("Flagged Messages")}</h3>
+                  <div className="flagged-messages-list">
+                    {system.flaggedMessages?.length > 0 ? (
+                      system.flaggedMessages.map((msg) => (
+                        <div key={msg.id} className="flagged-message-item">
+                          <span>{msg.text}</span>
+                          <span className="badge">{msg.reason}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="muted">{t("No flagged messages")}</p>
+                    )}
+                  </div>
+                  <h3>{t("Profanity Filter")}</h3>
+                  <label>
+                    {t("Add word to filter")}
+                    <input className="admin-input" id="prof-moderation" placeholder={t("Enter word...")} />
+                    <RippleButton
+                      type="button"
+                      onClick={() => {
+                        const w = document.getElementById("prof-moderation")?.value?.trim();
+                        if (!w) return;
+                        act(async () => {
+                          await adminFetch("/profanity", { method: "POST", body: JSON.stringify({ word: w }) });
+                          await loadSystem();
+                        });
+                      }}
+                    >
+                      {t("Add")}
+                    </RippleButton>
+                  </label>
+                  <div className="profanity-list">
+                    {system.profanityWords?.length > 0 ? (
+                      system.profanityWords.map((word) => (
+                        <span key={word} className="profanity-tag">{word}</span>
+                      ))
+                    ) : (
+                      <p className="muted">{t("No filter words")}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+          </>
         )}
 
         {tab === "analytics" && (

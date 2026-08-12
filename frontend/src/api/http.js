@@ -24,11 +24,19 @@ export async function httpRequest(path, options = {}) {
     }
 
     if (!response.ok) {
-      throw new Error(body.error || body.message || `HTTP ${response.status}`);
+      const err = new Error(body.error || body.message || `HTTP ${response.status}`);
+      err.status = response.status;
+      err.code = body.code || null;
+      err.ban = body.ban || null;
+      err.body = body;
+      throw err;
     }
 
     return body;
   } catch (networkError) {
+    if (networkError?.code || networkError?.ban || networkError?.status) {
+      throw networkError;
+    }
     if (networkError.message?.includes('Failed to fetch') || networkError.message?.includes('NetworkError')) {
       throw new Error("Sunucuya bağlanılamıyor. İnternet bağlantınızı kontrol edin.");
     }

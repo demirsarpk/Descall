@@ -13,8 +13,42 @@ const shop = require("../lib/shop");
 
 const { toPublicUser } = require("../lib/userProfile");
 const { publicRiotCard } = require("../lib/riotLink");
+const moderation = require("../lib/moderation");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const USER_BAN_COLS =
+  "is_banned, ban_category, ban_reason, ban_message, banned_at, ban_expires_at";
+
+async function rejectIfBanned(res, user) {
+  if (!user?.is_banned) return false;
+  const expired = user.ban_expires_at && new Date(user.ban_expires_at).getTime() <= Date.now();
+  if (expired) {
+    await moderation.revokeBan({ targetUserId: user.id, actorUserId: null, note: "Expired ban auto-clear" }).catch(() => {});
+    return false;
+  }
+  const ban = moderation.publicBanPayload(user);
+  res.status(403).json({
+    error: "Account is banned.",
+    code: "ACCOUNT_BANNED",
+    ban: ban
+      ? {
+          category: ban.category,
+          reason: ban.reason,
+          message: ban.message,
+          bannedAt: ban.bannedAt,
+          expiresAt: ban.expiresAt,
+        }
+      : {
+          category: user.ban_category || "other",
+          reason: user.ban_reason || null,
+          message: user.ban_message || null,
+          bannedAt: user.banned_at || null,
+          expiresAt: user.ban_expires_at || null,
+        },
+  });
+  return true;
+}
 
 function attemptKey(userId, purpose) {
   return `${userId}:${purpose}`;
@@ -415,7 +449,7 @@ router.post("/login", async (req, res) => {
     const { data: user, error: lookupError } = await supabase
       .from("users")
       .select(
-        "id, username, password_hash, avatar_url, display_name, bio, custom_status, banner_url, updated_at, auth_provider, email, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance"
+        "id, username, password_hash, avatar_url, display_name, bio, custom_status, banner_url, updated_at, auth_provider, email, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance, is_banned, ban_category, ban_reason, ban_message, banned_at, ban_expires_at"
       )
       .ilike("username", cleanUsername)
       .maybeSingle();
@@ -446,6 +480,8 @@ router.post("/login", async (req, res) => {
       console.log("[AUTH] Login failed - user exists:", !!user, "password match:", passwordMatch);
       return res.status(401).json({ error: "Invalid username or password." });
     }
+
+    if (await rejectIfBanned(res, user)) return;
 
     if (user.two_factor_enabled && user.email_confirmed_at && user.email) {
       const result = await issueAndSendCode({
@@ -605,7 +641,7 @@ router.post("/google", async (req, res) => {
 
     let { data: user, error: byGoogleError } = await supabase
       .from("users")
-      .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance")
+      .select(`id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance, ${USER_BAN_COLS}`)
       .eq("google_id", googleId)
       .maybeSingle();
 
@@ -617,7 +653,7 @@ router.post("/google", async (req, res) => {
     if (!user && email) {
       const { data: byEmail, error: byEmailError } = await supabase
         .from("users")
-        .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance")
+        .select(`id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, google_id, auth_provider, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance, ${USER_BAN_COLS}`)
         .ilike("email", email)
         .maybeSingle();
 
@@ -644,7 +680,7 @@ router.post("/google", async (req, res) => {
           .from("users")
           .update(linkUpdate)
           .eq("id", byEmail.id)
-          .select("id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance")
+          .select(`id, username, avatar_url, display_name, bio, custom_status, banner_url, updated_at, email, email_confirmed_at, two_factor_enabled, is_admin, descoin_balance, ${USER_BAN_COLS}`)
           .single();
 
         if (linkError || !linked) {
@@ -654,6 +690,8 @@ router.post("/google", async (req, res) => {
         user = linked;
       }
     }
+
+    if (user && (await rejectIfBanned(res, user))) return;
 
     if (!user) {
       const preferred =

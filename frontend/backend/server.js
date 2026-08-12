@@ -934,23 +934,12 @@ console.log("  SUPABASE_URL:", !!process.env.SUPABASE_URL);
 console.log("  SUPABASE_SERVICE_ROLE_KEY:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
 console.log("  JWT_SECRET:", !!process.env.JWT_SECRET);
 
-async function loadBannedUsersFromDb() {
-  try {
-    const { data, error } = await supabase.from("users").select("id").eq("is_banned", true);
-    if (error) {
-      console.warn("[boot] Could not load banned users:", error.message);
-      return;
-    }
-    for (const row of data || []) {
-      if (row?.id) state.bannedUserIds.add(String(row.id));
-    }
-    console.log("[boot] Loaded banned users:", state.bannedUserIds.size);
-  } catch (e) {
-    console.warn("[boot] loadBannedUsersFromDb:", e.message);
-  }
-}
-
 httpServer.listen(PORT, async () => {
   console.log(`Server listening on port ${PORT}`);
-  await loadBannedUsersFromDb();
+  try {
+    const { loadModerationStateFromDb } = require("./lib/moderation");
+    await loadModerationStateFromDb();
+  } catch (e) {
+    console.warn("[boot] moderation load failed:", e.message);
+  }
 });

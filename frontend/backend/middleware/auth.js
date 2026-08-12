@@ -1,5 +1,5 @@
 const { verifyToken } = require("../config/jwt");
-const { revokedSessionIds } = require("../runtime/sharedState");
+const { revokedSessionIds, bannedUserIds, banDetailsByUser } = require("../runtime/sharedState");
 
 function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -17,6 +17,24 @@ function requireAuth(req, res, next) {
     }
     if (decoded.sid && revokedSessionIds.has(decoded.sid)) {
       return res.status(401).json({ error: "Session has been signed out.", code: "SESSION_REVOKED" });
+    }
+    if (bannedUserIds.has(decoded.sub)) {
+      const detail = banDetailsByUser.get(decoded.sub);
+      if (detail?.expiresAt && new Date(detail.expiresAt).getTime() <= Date.now()) {
+        bannedUserIds.delete(decoded.sub);
+        banDetailsByUser.delete(decoded.sub);
+      } else {
+        return res.status(403).json({
+          error: "Account is banned.",
+          code: "ACCOUNT_BANNED",
+          ban: {
+            category: detail?.category || "other",
+            reason: detail?.reason || null,
+            message: detail?.message || null,
+            expiresAt: detail?.expiresAt || null,
+          },
+        });
+      }
     }
     req.user = { id: decoded.sub, username: decoded.username, sid: decoded.sid || null };
     next();
