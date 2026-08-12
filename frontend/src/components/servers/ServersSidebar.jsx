@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -38,15 +38,21 @@ import {
   GraduationCap,
   Sparkles,
   Layers,
+  Camera,
+  Upload,
+  ImagePlus,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { useToast } from "../../context/ToastContext";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { Avatar } from "../ui/Avatar";
+import ImageCropModal from "../ui/ImageCropModal";
 import useSpeaking from "../../hooks/useSpeaking";
 import { isChannelMuted, toggleChannelMute } from "../../lib/serverChannelMutes";
 import { serverHasPermission } from "../../lib/serverPermissions";
-import { updateServerNotificationLevel } from "../../api/servers";
+import { updateServerNotificationLevel, updateServer } from "../../api/servers";
+import { uploadFile } from "../../api/media";
+import { readFileAsDataUrl } from "../../lib/cropImage";
 import { BLANK_TEMPLATE, SERVER_TEMPLATES, getTemplateCard } from "../../lib/serverTemplatesCatalog";
 import ServerRolesModal from "./ServerRolesModal";
 import ServerInviteModal from "./ServerInviteModal";
@@ -119,6 +125,9 @@ export default function ServersSidebar({
   const [refreshing, setRefreshing] = useState(false);
   const [collapsedCats, setCollapsedCats] = useState({});
   const [mutedChannelTick, setMutedChannelTick] = useState(0);
+  const [serverIconCropSrc, setServerIconCropSrc] = useState("");
+  const [serverIconBusy, setServerIconBusy] = useState(false);
+  const serverIconFileRef = useRef(null);
 
   const canCreate = ownedCount < maxOwned;
   const canManageGuild = serverHasPermission(activeServer, "MANAGE_GUILD");
@@ -132,6 +141,45 @@ export default function ServersSidebar({
       !activeServer?.isOwner
   );
   const canManageChannels = serverHasPermission(activeServer, "MANAGE_CHANNELS");
+
+  const pickServerIconFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeServer?.id) return;
+    e.target.value = "";
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      toast(t("Icon must be JPG, PNG, WebP, or GIF."), "error");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast(t("Icon must be 8 MB or smaller."), "error");
+      return;
+    }
+    try {
+      setServerIconCropSrc(await readFileAsDataUrl(file));
+    } catch {
+      toast(t("Failed to read image."), "error");
+    }
+  };
+
+  const saveServerIconCrop = async (file) => {
+    if (!activeServer?.id) return;
+    setServerIconBusy(true);
+    try {
+      const uploaded = await uploadFile(file);
+      const url = uploaded?.url;
+      if (!url) throw new Error(t("Upload failed"));
+      const data = await updateServer(activeServer.id, { iconUrl: url });
+      const next = data?.server || { ...activeServer, iconUrl: url };
+      onServerUpdated?.(next);
+      setServerIconCropSrc("");
+      toast(t("Server icon updated"), "success");
+    } catch (err) {
+      toast(err?.message || t("Failed to update server icon."), "error");
+    } finally {
+      setServerIconBusy(false);
+    }
+  };
 
   const setNotificationLevel = async (level) => {
     if (!activeServer?.id || level === notifLevel || notifBusy) return;
@@ -322,6 +370,20 @@ export default function ServersSidebar({
                   >
                     <ShieldCheck size={15} />
                     {t("Community & Discovery")}
+                  </button>
+                )}
+                {canManageGuild && (
+                  <button
+                    type="button"
+                    className="server-dropdown-item"
+                    disabled={serverIconBusy}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      serverIconFileRef.current?.click();
+                    }}
+                  >
+                    <Camera size={15} />
+                    {t("Change server icon")}
                   </button>
                 )}
                 <div className="server-dropdown-section">
@@ -797,7 +859,29 @@ export default function ServersSidebar({
             }}
           />
         )}
+        {serverIconCropSrc ? (
+          <ImageCropModal
+            key="edit-server-icon-crop"
+            imageSrc={serverIconCropSrc}
+            aspect={1}
+            cropShape="rect"
+            title={t("Adjust server icon")}
+            confirmLabel={serverIconBusy ? t("Please wait...") : t("Save icon")}
+            outputMimeType="image/jpeg"
+            outputFileName="server-icon.jpg"
+            maxOutputSize={512}
+            onCancel={() => !serverIconBusy && setServerIconCropSrc("")}
+            onConfirm={saveServerIconCrop}
+          />
+        ) : null}
       </AnimatePresence>
+      <input
+        ref={serverIconFileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="server-hidden-file"
+        onChange={pickServerIconFile}
+      />
     </aside>
   );
 }
@@ -1446,8 +1530,12 @@ function CreateServerModal({ onClose, onCreate, canCreate, maxOwned }) {
   const [templateId, setTemplateId] = useState(null);
   const [name, setName] = useState("");
   const [iconUrl, setIconUrl] = useState("");
+  const [iconPreview, setIconPreview] = useState("");
+  const [iconCropSrc, setIconCropSrc] = useState("");
+  const [iconUploading, setIconUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const iconFileRef = useRef(null);
 
   const selected = getTemplateCard(templateId);
 
@@ -1455,6 +1543,51 @@ function CreateServerModal({ onClose, onCreate, canCreate, maxOwned }) {
     setTemplateId(id);
     setError("");
     setStep("details");
+  };
+
+  const onPickIconFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      setError(t("Icon must be JPG, PNG, WebP, or GIF."));
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setError(t("Icon must be 8 MB or smaller."));
+      return;
+    }
+    setError("");
+    try {
+      // Still crop GIFs to a square icon (server icons are static).
+      const dataUrl = await readFileAsDataUrl(file);
+      setIconCropSrc(dataUrl);
+    } catch {
+      setError(t("Failed to read image."));
+    }
+  };
+
+  const onCropIconConfirm = async (file) => {
+    setIconUploading(true);
+    setError("");
+    try {
+      const uploaded = await uploadFile(file);
+      const url = uploaded?.url;
+      if (!url) throw new Error(t("Upload failed"));
+      setIconUrl(url);
+      setIconPreview(url);
+      setIconCropSrc("");
+    } catch (err) {
+      setError(err?.message || t("Upload failed"));
+    } finally {
+      setIconUploading(false);
+    }
+  };
+
+  const clearIcon = () => {
+    setIconUrl("");
+    setIconPreview("");
   };
 
   const submit = async (e) => {
@@ -1647,29 +1780,67 @@ function CreateServerModal({ onClose, onCreate, canCreate, maxOwned }) {
                 required
               />
             </label>
-            <label className="server-field">
-              <span>{t("Icon URL (optional)")}</span>
-              <input
-                value={iconUrl}
-                onChange={(e) => setIconUrl(e.target.value)}
-                maxLength={500}
-                placeholder="https://"
-              />
-            </label>
+            <div className="server-field">
+              <span>{t("Server icon")}</span>
+              <div className="server-icon-picker">
+                <button
+                  type="button"
+                  className="server-icon-picker-preview"
+                  onClick={() => !iconUploading && iconFileRef.current?.click()}
+                  disabled={busy || iconUploading}
+                  aria-label={t("Choose server icon")}
+                >
+                  {iconPreview || iconUrl ? (
+                    <img src={iconPreview || iconUrl} alt="" />
+                  ) : (
+                    <ImagePlus size={22} />
+                  )}
+                  <span className="server-icon-picker-overlay">
+                    {iconUploading ? <RefreshCw size={16} className="server-spin" /> : <Camera size={16} />}
+                  </span>
+                </button>
+                <div className="server-icon-picker-actions">
+                  <button
+                    type="button"
+                    className="server-primary-btn"
+                    onClick={() => iconFileRef.current?.click()}
+                    disabled={busy || iconUploading}
+                  >
+                    <Upload size={14} />
+                    {iconUploading ? t("Uploading…") : t("Choose from gallery")}
+                  </button>
+                  {(iconPreview || iconUrl) && (
+                    <button type="button" className="server-ghost-btn" onClick={clearIcon} disabled={busy || iconUploading}>
+                      {t("Remove")}
+                    </button>
+                  )}
+                  <span className="server-icon-picker-hint">
+                    {t("Pick a photo, then zoom and crop. JPG, PNG, WebP or GIF · Max 8 MB")}
+                  </span>
+                </div>
+                <input
+                  ref={iconFileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="server-hidden-file"
+                  onChange={onPickIconFile}
+                />
+              </div>
+            </div>
             {error && <p className="server-modal-error">{error}</p>}
             <div className="server-modal-actions server-modal-actions-spread">
               <button
                 type="button"
                 className="server-ghost-btn"
                 onClick={() => setStep(templateId === "blank" ? "choose" : "templates")}
-                disabled={busy}
+                disabled={busy || iconUploading}
               >
                 {t("Back")}
               </button>
               <button
                 type="submit"
                 className="server-primary-btn"
-                disabled={busy || name.trim().length < 2}
+                disabled={busy || iconUploading || name.trim().length < 2}
               >
                 {busy ? t("Please wait...") : t("Create")}
               </button>
@@ -1677,6 +1848,23 @@ function CreateServerModal({ onClose, onCreate, canCreate, maxOwned }) {
           </form>
         )}
       </motion.div>
+      <AnimatePresence>
+        {iconCropSrc ? (
+          <ImageCropModal
+            key="server-icon-crop"
+            imageSrc={iconCropSrc}
+            aspect={1}
+            cropShape="rect"
+            title={t("Adjust server icon")}
+            confirmLabel={t("Use photo")}
+            outputMimeType="image/jpeg"
+            outputFileName="server-icon.jpg"
+            maxOutputSize={512}
+            onCancel={() => setIconCropSrc("")}
+            onConfirm={onCropIconConfirm}
+          />
+        ) : null}
+      </AnimatePresence>
     </motion.div>
   );
 }

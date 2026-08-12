@@ -9,10 +9,13 @@ import {
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
+import ImageCropModal from "../ui/ImageCropModal";
 import { getToken, setUser } from "../../lib/storage";
 import { API_BASE_URL } from "../../config/api";
 import { normalizeUser } from "../../lib/userProfile";
 import { cssUrl } from "../../lib/cssUrl";
+import { readFileAsDataUrl } from "../../lib/cropImage";
+import { uploadAvatar } from "../../api/media";
 import { getMe } from "../../api/auth";
 import {
   setEmail as apiSetEmail,
@@ -239,6 +242,7 @@ const UserPanel = forwardRef(function UserPanel({
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarCropSrc, setAvatarCropSrc] = useState("");
   const [copiedId, setCopiedId] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -826,6 +830,34 @@ const UserPanel = forwardRef(function UserPanel({
     }
   };
 
+  const persistAvatarFile = async (file) => {
+    setAvatarUploading(true);
+    setProfileError("");
+    try {
+      const data = await uploadAvatar(file);
+      if (data.avatarUrl) {
+        setAvatarUrl(data.avatarUrl);
+        if (data.user) applyProfileLocally(data.user);
+        else {
+          applyProfileLocally({
+            ...me,
+            avatarUrl: data.avatarUrl,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      } else {
+        setProfileError(data.error || t("Upload failed"));
+        setTimeout(() => setProfileError(""), 3000);
+      }
+    } catch (err) {
+      setProfileError(err?.message || t("Network error during upload"));
+      setTimeout(() => setProfileError(""), 3000);
+    } finally {
+      setAvatarUploading(false);
+      setAvatarCropSrc("");
+    }
+  };
+
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -841,37 +873,18 @@ const UserPanel = forwardRef(function UserPanel({
       setTimeout(() => setProfileError(""), 3000);
       return;
     }
-    setAvatarUploading(true);
     setProfileError("");
-    const formData = new FormData();
-    formData.append("avatar", file);
+    // Animated GIFs keep animation — skip crop. Still images open crop/zoom.
+    if (file.type === "image/gif") {
+      await persistAvatarFile(file);
+      return;
+    }
     try {
-      const token = getToken();
-      const res = await fetch(`${API_BASE_URL}/api/media/avatar`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (data.avatarUrl) {
-        setAvatarUrl(data.avatarUrl);
-        if (data.user) applyProfileLocally(data.user);
-        else {
-          applyProfileLocally({
-            ...me,
-            avatarUrl: data.avatarUrl,
-            updated_at: new Date().toISOString(),
-          });
-        }
-      } else {
-        setProfileError(data.error || "Upload failed");
-        setTimeout(() => setProfileError(""), 3000);
-      }
+      const dataUrl = await readFileAsDataUrl(file);
+      setAvatarCropSrc(dataUrl);
     } catch {
-      setProfileError("Network error during upload");
+      setProfileError(t("Failed to read image."));
       setTimeout(() => setProfileError(""), 3000);
-    } finally {
-      setAvatarUploading(false);
     }
   };
 
@@ -1085,7 +1098,9 @@ const UserPanel = forwardRef(function UserPanel({
                         </button>
                       )}
                     </div>
-                    <span className="us-hint">{t("JPG, PNG, WebP or GIF · Max 8 MB · GIFs animate on hover / while speaking")}</span>
+                    <span className="us-hint">
+                      {t("JPG, PNG, WebP or GIF · Max 8 MB · Crop & zoom after picking a photo · GIFs skip crop to keep animation")}
+                    </span>
                   </div>
                 </div>
                 <input
@@ -1985,6 +2000,23 @@ const UserPanel = forwardRef(function UserPanel({
         </div>
       </section>
     </motion.div>
+    <AnimatePresence>
+      {avatarCropSrc ? (
+        <ImageCropModal
+          key="avatar-crop"
+          imageSrc={avatarCropSrc}
+          aspect={1}
+          cropShape="round"
+          title={t("Adjust profile photo")}
+          confirmLabel={t("Save photo")}
+          outputMimeType="image/jpeg"
+          outputFileName="avatar.jpg"
+          maxOutputSize={1024}
+          onCancel={() => setAvatarCropSrc("")}
+          onConfirm={persistAvatarFile}
+        />
+      ) : null}
+    </AnimatePresence>
     </motion.div>
   );
 });

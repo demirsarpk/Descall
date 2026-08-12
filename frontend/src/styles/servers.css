@@ -656,6 +656,90 @@
   justify-content: space-between;
 }
 
+.server-hidden-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.server-icon-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.server-icon-picker-preview {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  border: 1px solid var(--border-3);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.server-icon-picker-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.server-icon-picker-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.server-icon-picker-preview:hover .server-icon-picker-overlay,
+.server-icon-picker-preview:focus-visible .server-icon-picker-overlay {
+  opacity: 1;
+}
+
+.server-icon-picker-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.server-icon-picker-actions .server-primary-btn,
+.server-icon-picker-actions .server-ghost-btn {
+  padding: 8px 12px;
+}
+
+.server-icon-picker-hint {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.server-spin {
+  animation: server-spin 0.8s linear infinite;
+}
+
+@keyframes server-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 640px) {
   .server-template-grid {
     grid-template-columns: 1fr;
