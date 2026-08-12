@@ -1717,9 +1717,10 @@ button.member-row.server-member-row {
   color: var(--text-1);
   font-size: 13px;
   font-weight: 600;
+  overflow: visible;
 }
 
-.server-voice-member span {
+.server-voice-member-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1772,17 +1773,22 @@ button.member-row.server-member-row {
 .server-voice-user-avatar-shell,
 .server-voice-member-avatar-shell {
   position: relative;
+  flex: 0 0 auto;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
+  overflow: visible;
+  min-width: 22px;
+  max-width: none;
 }
 
 .server-voice-member-avatar-shell {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
 }
 
 .server-voice-speak-ring {
@@ -1793,6 +1799,10 @@ button.member-row.server-member-row {
   pointer-events: none;
   opacity: 0;
   transform: scale(0.92);
+  flex: none !important;
+  overflow: visible !important;
+  max-width: none !important;
+  white-space: normal !important;
   transition:
     opacity 0.16s ease,
     transform 0.18s ease,
