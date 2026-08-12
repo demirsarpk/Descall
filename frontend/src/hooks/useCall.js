@@ -264,6 +264,8 @@ export function useCall(socket, callOccupancyRef = null) {
   const makingOfferRef = useRef(false);
   const negotiationQueuedRef = useRef(false);
   const iceRestartAttemptedRef = useRef(false);
+  const iceRecoveryTimerRef = useRef(null);
+  const negotiateRef = useRef(null);
   // Keep the original stream association so a late screen-share signal can
   // recover only a likely display track, never an arbitrary camera receiver.
   const receivedVideoTracksRef = useRef(new Map());
@@ -328,6 +330,11 @@ export function useCall(socket, callOccupancyRef = null) {
     negotiationQueuedRef.current = false;
     iceRestartAttemptedRef.current = false;
     receivedVideoTracksRef.current.clear();
+    if (iceRecoveryTimerRef.current) {
+      clearTimeout(iceRecoveryTimerRef.current);
+      iceRecoveryTimerRef.current = null;
+    }
+    negotiateRef.current = null;
     setMode(null);
     setCallType(null);
     setPeer(null);
@@ -579,6 +586,10 @@ export function useCall(socket, callOccupancyRef = null) {
         setConnectionQuality("good");
         setPeerConnectionState("connected");
         iceRestartAttemptedRef.current = false;
+        if (iceRecoveryTimerRef.current) {
+          clearTimeout(iceRecoveryTimerRef.current);
+          iceRecoveryTimerRef.current = null;
+        }
       } else if (state === "connecting") {
         setPeerConnectionState("connecting");
         setConnectionQuality("connecting");
@@ -593,38 +604,61 @@ export function useCall(socket, callOccupancyRef = null) {
       }
     };
 
+    const attemptIceRecovery = () => {
+      if (modeRef.current !== "active") return;
+      if (iceRestartAttemptedRef.current) return;
+      iceRestartAttemptedRef.current = true;
+      setPeerConnectionState("reconnecting");
+      setConnectionQuality("poor");
+      try {
+        if (negotiateRef.current) {
+          void negotiateRef.current({ iceRestart: true });
+        } else {
+          pc.restartIce();
+        }
+      } catch {
+        /* ignore — UI already shows reconnecting */
+      }
+    };
+
     pc.oniceconnectionstatechange = () => {
       const ice = pc.iceConnectionState;
       if (ice === "connected" || ice === "completed") {
         setConnectionQuality("good");
         setPeerConnectionState("connected");
         iceRestartAttemptedRef.current = false;
+        if (iceRecoveryTimerRef.current) {
+          clearTimeout(iceRecoveryTimerRef.current);
+          iceRecoveryTimerRef.current = null;
+        }
       } else if (ice === "checking") {
         setPeerConnectionState("connecting");
         setConnectionQuality("connecting");
       } else if (ice === "disconnected") {
+        // Brief drops often self-heal; if still broken after a short wait,
+        // renegotiate with iceRestart (group-call parity). Do NOT hang up.
         setPeerConnectionState("reconnecting");
         setConnectionQuality("poor");
+        if (iceRecoveryTimerRef.current) clearTimeout(iceRecoveryTimerRef.current);
+        iceRecoveryTimerRef.current = setTimeout(() => {
+          iceRecoveryTimerRef.current = null;
+          if (!pcRef.current || pcRef.current !== pc) return;
+          const still = pc.iceConnectionState;
+          if (still === "disconnected" || still === "failed") {
+            attemptIceRecovery();
+          }
+        }, 2500);
       } else if (ice === "failed") {
-        // One automatic ICE restart before giving up
-        if (!iceRestartAttemptedRef.current && modeRef.current === "active") {
-          iceRestartAttemptedRef.current = true;
-          try {
-            pc.restartIce();
-            setPeerConnectionState("reconnecting");
-            setConnectionQuality("poor");
-            return;
-          } catch { /* fall through */ }
-        }
-        setPeerConnectionState("disconnected");
-        setConnectionQuality("failed");
+        attemptIceRecovery();
+        setPeerConnectionState("reconnecting");
+        setConnectionQuality("poor");
       }
     };
 
     // A single serialized offer path for camera/screen changes. This mirrors
     // group-call peer behavior and avoids a second, delayed screen offer
     // racing the browser's negotiationneeded event.
-    const negotiate = async () => {
+    const negotiate = async (opts = {}) => {
       const sock = socketRef.current;
       try {
         if (modeRef.current !== "active") return;
@@ -633,7 +667,7 @@ export function useCall(socket, callOccupancyRef = null) {
         if (pc.signalingState !== "stable") return;
         negotiationQueuedRef.current = false;
         makingOfferRef.current = true;
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer(opts.iceRestart ? { iceRestart: true } : undefined);
         await pc.setLocalDescription(offer);
         sock.emit("call:offer", {
           toUserId: peerRef.current.id,
@@ -648,6 +682,7 @@ export function useCall(socket, callOccupancyRef = null) {
         }
       }
     };
+    negotiateRef.current = negotiate;
     // Skip while dialing — startCall already sends the initial offer; a
     // renegotiation request remains queued until the connection is stable.
     pc.onnegotiationneeded = () => {
@@ -660,6 +695,68 @@ export function useCall(socket, callOccupancyRef = null) {
       }
     };
   }, [attachRemoteScreenTrack, markRemoteMediaReady]);
+
+  // When returning from background (mobile home / app switcher), resume
+  // remote audio and recover ICE — never hang up just because we left.
+  useEffect(() => {
+    if (mode !== "active") return undefined;
+
+    const resumeAfterBackground = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      const audio = remoteAudioRef.current;
+      if (audio) {
+        try {
+          audio.muted = false;
+          const p = audio.play();
+          if (p?.catch) p.catch(() => {});
+        } catch {
+          /* ignore */
+        }
+      }
+      const video = remoteVideoRef.current;
+      if (video) {
+        try {
+          const p = video.play();
+          if (p?.catch) p.catch(() => {});
+        } catch {
+          /* ignore */
+        }
+      }
+      const pc = pcRef.current;
+      if (!pc || modeRef.current !== "active") return;
+      const ice = pc.iceConnectionState;
+      const conn = pc.connectionState;
+      const unhealthy =
+        ice === "disconnected" ||
+        ice === "failed" ||
+        conn === "disconnected" ||
+        conn === "failed";
+      if (!unhealthy) return;
+      iceRestartAttemptedRef.current = false;
+      setPeerConnectionState("reconnecting");
+      setConnectionQuality("poor");
+      try {
+        if (negotiateRef.current) void negotiateRef.current({ iceRestart: true });
+        else pc.restartIce();
+        iceRestartAttemptedRef.current = true;
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") resumeAfterBackground();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pageshow", resumeAfterBackground);
+    window.addEventListener("focus", resumeAfterBackground);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pageshow", resumeAfterBackground);
+      window.removeEventListener("focus", resumeAfterBackground);
+    };
+  }, [mode]);
 
   useEffect(() => {
     if (!socket) return;
