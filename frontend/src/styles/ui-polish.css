@@ -845,6 +845,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
 .participant-tile-hand-badge {
@@ -904,12 +908,20 @@
   overflow: visible;
 }
 
+.participant-tile-avatar-core {
+  position: relative;
+  flex-shrink: 0;
+  line-height: 0;
+  overflow: visible;
+}
+
+.participant-tile-avatar-core .status-badge,
 .participant-tile-avatar-shell .status-badge {
   right: -1px;
   bottom: -1px;
   z-index: 4;
   /* Match the dark call tile so the cutout reads cleanly */
-  border-color: var(--surface-1, #1a1b1f);
+  border-color: #0f1115;
 }
 
 .participant-tile-identity {
@@ -919,16 +931,26 @@
   gap: 6px;
   max-width: 100%;
   padding: 0 8px;
+  z-index: 2;
 }
 
 .participant-tile-identity-name {
-  font-size: 14px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 15px;
+  font-weight: 650;
   color: #fff;
   text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: min(240px, 80vw);
+  line-height: 1.25;
+}
+
+/* Name-effect gradients need overflow visible; don't ellipsis-clip cosmetics */
+.participant-tile-identity-name .cosmetic-name-effect {
+  overflow: visible;
   max-width: 100%;
 }
 
@@ -1843,7 +1865,8 @@
   justify-content: center;
   gap: 8px;
 }
-.participant-tile-avatar-shell .speaking-ring {
+.participant-tile-avatar-shell .speaking-ring,
+.participant-tile-avatar-core .speaking-ring {
   position: absolute;
   inset: -6px;
   border-radius: 50%;
@@ -1856,15 +1879,18 @@
     border-color 0.22s ease,
     box-shadow 0.22s ease;
 }
-.participant-tile-avatar-shell .speaking-ring.ring-a {
+.participant-tile-avatar-shell .speaking-ring.ring-a,
+.participant-tile-avatar-core .speaking-ring.ring-a {
   inset: -10px;
 }
-.participant-tile-avatar-shell .speaking-ring.active {
+.participant-tile-avatar-shell .speaking-ring.active,
+.participant-tile-avatar-core .speaking-ring.active {
   opacity: 1;
   border-color: rgba(35, 165, 90, 0.55);
   box-shadow: 0 0 18px rgba(35, 165, 90, 0.35);
 }
-.participant-tile-avatar-shell .speaking-ring.ring-b.active {
+.participant-tile-avatar-shell .speaking-ring.ring-b.active,
+.participant-tile-avatar-core .speaking-ring.ring-b.active {
   border-color: rgba(35, 165, 90, 0.28);
   box-shadow: none;
 }

@@ -243,6 +243,24 @@ export function patchUserAvatar(user, avatarUrl, avatarVersion) {
   });
 }
 
+/** Equipped shop cosmetics used on call tiles (frame, name effect, badge…). */
+export function pickEquippedCosmetics(user) {
+  if (!user) return {};
+  const out = {};
+  for (const key of [
+    "equippedAvatarFrame",
+    "equippedBadge",
+    "equippedTitle",
+    "equippedNameEffect",
+    "equippedAvatarEffect",
+    "equippedPresenceFlare",
+    "equippedCallOverlay",
+  ]) {
+    if (user[key]) out[key] = user[key];
+  }
+  return out;
+}
+
 export function patchUserInList(list, userId, patchOrAvatarUrl, avatarVersion) {
   if (!Array.isArray(list)) return list;
   const patch =

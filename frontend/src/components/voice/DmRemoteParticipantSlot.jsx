@@ -2,7 +2,10 @@ import { useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, VideoOff, Wifi, WifiOff } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
+import AdminBadge from "../social/AdminBadge";
+import { BadgeIcon, NameEffectText } from "../ui/Cosmetics";
 import { resolveAvatarUrl } from "../../lib/avatar";
+import { resolveDisplayName } from "../../lib/userProfile";
 import {
   deriveDmConnectionStatus,
   getConnectionStatusLabel,
@@ -64,6 +67,10 @@ function ConnectionBadge({ status }) {
 
 function ConnectingPlaceholder({ username, user, status }) {
   const t = useT();
+  const displayName = resolveDisplayName(user) || username || t("Participant");
+  const avatarSize = 96;
+  const shellPad = Math.round(avatarSize * 0.2);
+  const shellSize = avatarSize + shellPad * 2;
   return (
     <motion.div
       layout
@@ -84,27 +91,32 @@ function ConnectingPlaceholder({ username, user, status }) {
         width: "100%",
         height: "100%",
         willChange: "transform, opacity",
+        overflow: "visible",
       }}
     >
       <motion.div
         className="participant-tile-avatar-shell"
-        style={{ width: 96, height: 96 }}
+        style={{ width: shellSize, height: shellSize }}
         animate={{ scale: [1, 1.04, 1] }}
         transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
       >
-        <Avatar
-          name={username || "?"}
-          size={96}
-          user={user}
-          imageUrl={resolveAvatarUrl(user)}
-          animate="speaking"
-          isSpeaking={false}
-        />
-      </motion.div>
-      <div style={{ textAlign: "center", padding: "0 12px" }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 6 }}>
-          {username || t("Participant")}
+        <div className="participant-tile-avatar-core" style={{ width: avatarSize, height: avatarSize }}>
+          <Avatar
+            name={displayName}
+            size={avatarSize}
+            user={user}
+            imageUrl={resolveAvatarUrl(user)}
+            animate="speaking"
+            isSpeaking={false}
+          />
         </div>
+      </motion.div>
+      <div className="participant-tile-identity">
+        <span className="participant-tile-identity-name">
+          <NameEffectText user={user}>{displayName}</NameEffectText>
+          <BadgeIcon user={user} />
+        </span>
+        <AdminBadge user={user} variant="chip" />
         <ConnectionBadge status={status || "connecting"} />
       </div>
     </motion.div>
@@ -124,8 +136,8 @@ export default function DmRemoteParticipantSlot({
   cameraOn = true,
 }) {
   const t = useT();
-  const username = displayPeer?.username || t("User");
   const user = displayPeer;
+  const username = resolveDisplayName(displayPeer) || displayPeer?.username || t("User");
 
   const remoteVideoCallbackRef = useCallback(
     (el) => {
@@ -183,7 +195,10 @@ export default function DmRemoteParticipantSlot({
             />
           ) : (
             <div className="participant-tile-avatar-stack">
-              <div className="participant-tile-avatar-shell" style={{ width: 96, height: 96, position: "relative" }}>
+              <div
+                className="participant-tile-avatar-shell"
+                style={{ width: 96 + 38, height: 96 + 38, position: "relative" }}
+              >
                 {isSpeaking && (
                   <>
                     <span
@@ -191,7 +206,7 @@ export default function DmRemoteParticipantSlot({
                       className="speaking-ring ring-a active"
                       style={{
                         position: "absolute",
-                        inset: -10,
+                        inset: 0,
                         borderRadius: "50%",
                         border: "2px solid #3ba55d",
                         boxShadow: "0 0 0 3px rgba(59,165,93,0.22)",
@@ -204,7 +219,7 @@ export default function DmRemoteParticipantSlot({
                       className="speaking-ring ring-b active"
                       style={{
                         position: "absolute",
-                        inset: -6,
+                        inset: 8,
                         borderRadius: "50%",
                         border: "1px solid rgba(59,165,93,0.38)",
                         animation: "callTilePulse 1.2s 0.18s infinite",
@@ -213,17 +228,25 @@ export default function DmRemoteParticipantSlot({
                     />
                   </>
                 )}
-                <Avatar
-                  name={username}
-                  size={96}
-                  user={user}
-                  imageUrl={resolveAvatarUrl(user)}
-                  animate="speaking"
-                  isSpeaking={isSpeaking}
-                />
+                <div className="participant-tile-avatar-core" style={{ width: 96, height: 96 }}>
+                  <Avatar
+                    name={username}
+                    size={96}
+                    user={user}
+                    imageUrl={resolveAvatarUrl(user)}
+                    animate="speaking"
+                    isSpeaking={isSpeaking}
+                  />
+                </div>
               </div>
-              <span style={{ fontSize: 14, color: "#fff", fontWeight: 600 }}>{username}</span>
-              <ConnectionBadge status="connected" />
+              <div className="participant-tile-identity">
+                <span className="participant-tile-identity-name">
+                  <NameEffectText user={user}>{username}</NameEffectText>
+                  <BadgeIcon user={user} />
+                </span>
+                <AdminBadge user={user} variant="chip" />
+                <ConnectionBadge status="connected" />
+              </div>
             </div>
           )}
 
@@ -263,9 +286,14 @@ export default function DmRemoteParticipantSlot({
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  minWidth: 0,
                 }}
               >
-                {username}
+                <NameEffectText user={user}>{username}</NameEffectText>
+                <BadgeIcon user={user} />
               </span>
             </div>
             {isMuted && (

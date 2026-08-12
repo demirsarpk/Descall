@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { patchUserAvatar } from "../lib/userProfile";
+import { patchUserAvatar, pickEquippedCosmetics } from "../lib/userProfile";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
 import {
@@ -892,7 +892,16 @@ export function useCall(socket, callOccupancyRef = null) {
 
     const onProfileUpdated = ({ user } = {}) => {
       if (!user?.id) return;
-      setPeer((prev) => (prev?.id === user.id ? patchUserAvatar(prev, user.avatarUrl || user.avatar_url, user.avatarVersion || user.updated_at) : prev));
+      setPeer((prev) => {
+        if (!prev || prev.id !== user.id) return prev;
+        const withAvatar = patchUserAvatar(prev, user.avatarUrl || user.avatar_url, user.avatarVersion || user.updated_at);
+        return {
+          ...withAvatar,
+          ...pickEquippedCosmetics(user),
+          displayName: user.displayName ?? user.display_name ?? withAvatar.displayName,
+          display_name: user.displayName ?? user.display_name ?? withAvatar.display_name,
+        };
+      });
     };
 
     const onUnreachable = ({ toUserId, reason } = {}) => {

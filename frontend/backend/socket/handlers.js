@@ -1290,13 +1290,18 @@ function registerSocketHandlers(io) {
         callType: callType || "voice",
       });
 
-      emitToUser(io, targetId, "call:offer", {
-        fromUser: {
+      // Full public user (frame / name effect / badge) so the callee call
+      // tile can render shop cosmetics — bare id+username stripped them.
+      const fromUser =
+        enrichFriendEntry(myId) ||
+        getCachedPublicUser(myId) || {
           id: myId,
           username: me.username,
           avatar_url: me.avatar_url || socket.user?.avatar_url || null,
           avatarUrl: me.avatar_url || socket.user?.avatar_url || null,
-        },
+        };
+      emitToUser(io, targetId, "call:offer", {
+        fromUser,
         offer,
         callType: callType || "voice",
       });

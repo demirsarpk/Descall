@@ -8,9 +8,11 @@ import {
 import { Avatar } from "./ui/Avatar";
 import StatusBadge from "./ui/StatusBadge";
 import AdminBadge from "./social/AdminBadge";
+import { BadgeIcon, NameEffectText } from "./ui/Cosmetics";
 import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
 import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
 import { resolveAvatarUrl } from "../lib/avatar";
+import { resolveDisplayName } from "../lib/userProfile";
 import ScreenShareQualityPanel from "./voice/ScreenShareQualityPanel";
 import IncomingCallCard from "./voice/IncomingCallCard";
 import { useIsNarrowViewport } from "../lib/useIsNarrowViewport";
@@ -360,8 +362,10 @@ export default function CallOverlay({ call, groupCall, me }) {
   const remoteParticipants = isDm
     ? (call?.peer && call?.mode === "active"
         ? [{
+            // Keep full peer (equipped frame / name effect / badge) for Avatar cosmetics
+            ...call.peer,
             id: call.peer.id,
-            username: call.peer.username,
+            username: resolveDisplayName(call.peer) || call.peer.username,
             avatarUrl: resolveAvatarUrl(call.peer),
             stream: call.remoteStream,
             hasVideo: call.remoteCameraOn !== false && streamHasLiveVideo(call.remoteStream),
@@ -381,7 +385,7 @@ export default function CallOverlay({ call, groupCall, me }) {
       call?.peer
         ? [{
             id: call.peer.id,
-            username: call.peer.username,
+            username: resolveDisplayName(call.peer) || call.peer.username,
             stream: call.remoteScreenStream,
             isScreenSharing: true,
           }]
@@ -394,7 +398,7 @@ export default function CallOverlay({ call, groupCall, me }) {
           stream: p.screenStream,
           isScreenSharing: true,
         }));
-  const localUsername = me?.username || me?.displayName || t("You");
+  const localUsername = resolveDisplayName(me) || me?.username || t("You");
 
   const allScreenSharers = [
     ...(screenSharing ? [{ id: "local", username: localUsername, isLocal: true }] : []),
@@ -474,7 +478,8 @@ export default function CallOverlay({ call, groupCall, me }) {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          overflow: "hidden",
+          // visible — catalog avatar frames extend past the tile (~132%)
+          overflow: "visible",
           minHeight: 0,
           paddingTop: narrowViewport ? 56 : 60,
           paddingBottom: narrowViewport
@@ -1044,8 +1049,13 @@ function ParticipantTile({
   // Cap ring motion so level jitter doesn't look like flicker
   const ringScale = 1 + (isSpeaking ? Math.max(0.06, Math.min(0.22, level * 0.28)) : 0);
   const avatarSize = small ? 36 : 96;
+  // Frame overlay is ~132% of the avatar — pad the shell so overflow:hidden
+  // ancestors (call stage / framer layout) don't clip catalog frames.
+  const shellPad = small ? 6 : Math.round(avatarSize * 0.2);
+  const shellSize = avatarSize + shellPad * 2;
   const presenceStatus = status || (isLocal ? "online" : null);
   const showVideo = Boolean(hasVideo && cameraOn !== false && (videoRef || stream));
+  const displayName = resolveDisplayName(user) || username || "?";
 
   const setVideoEl = useCallback((el) => {
     elRef.current = el;
@@ -1093,35 +1103,37 @@ function ParticipantTile({
         />
       ) : (
         <div className="participant-tile-avatar-stack">
-          {/* Shell is a fixed square so speaking rings + status sit on the
-              avatar — not the whole column (avatar + name), which used to
-              stretch the green ring into a bottom-center "status" oval. */}
           <div
             className="participant-tile-avatar-shell"
-            style={{ width: avatarSize, height: avatarSize }}
+            style={{ width: shellSize, height: shellSize }}
           >
-            <span
-              className={`speaking-ring ring-a${isSpeaking ? " active" : ""}`}
-              style={{ transform: `scale(${ringScale})` }}
-            />
-            <span
-              className={`speaking-ring ring-b${isSpeaking ? " active" : ""}`}
-              style={{ transform: `scale(${1 + (isSpeaking ? level * 0.55 : 0)})` }}
-            />
-            <Avatar
-              name={username || "?"}
-              size={avatarSize}
-              user={user}
-              imageUrl={avatarUrl}
-              animate="speaking"
-              isSpeaking={isSpeaking}
-            />
-            {/* No presence-flare here — flare glow skews the avatar ring on call tiles. */}
-            <StatusBadge status={presenceStatus} />
+            <div className="participant-tile-avatar-core" style={{ width: avatarSize, height: avatarSize }}>
+              <span
+                className={`speaking-ring ring-a${isSpeaking ? " active" : ""}`}
+                style={{ transform: `scale(${ringScale})` }}
+              />
+              <span
+                className={`speaking-ring ring-b${isSpeaking ? " active" : ""}`}
+                style={{ transform: `scale(${1 + (isSpeaking ? level * 0.55 : 0)})` }}
+              />
+              <Avatar
+                name={displayName}
+                size={avatarSize}
+                user={user}
+                imageUrl={avatarUrl}
+                animate="speaking"
+                isSpeaking={isSpeaking}
+              />
+              {/* No presence-flare here — flare glow skews the avatar ring on call tiles. */}
+              <StatusBadge status={presenceStatus} />
+            </div>
           </div>
           {!small && (
             <div className="participant-tile-identity">
-              <span className="participant-tile-identity-name">{username}</span>
+              <span className="participant-tile-identity-name">
+                <NameEffectText user={user}>{displayName}</NameEffectText>
+                <BadgeIcon user={user} />
+              </span>
               <AdminBadge user={user} variant="chip" />
             </div>
           )}
@@ -1131,7 +1143,10 @@ function ParticipantTile({
       {showVideo && (
         <div className="participant-tile-label">
           {isSpeaking && <span className="speaking-dot" />}
-          <span className="participant-tile-name">{username}</span>
+          <span className="participant-tile-name">
+            <NameEffectText user={user}>{displayName}</NameEffectText>
+            <BadgeIcon user={user} />
+          </span>
           {muted && <MicOff size={14} aria-label={t("Muted")} title={t("Muted")} />}
           {cameraOn === false && <VideoOff size={14} aria-label={t("Camera off")} title={t("Camera off")} />}
           {!isLocal && (connectionQuality === "poor" || connectionQuality === "fair") && (
@@ -1249,7 +1264,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
         minHeight: 0,
       }}
     >
-      <motion.div layout transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }} style={{ minWidth: 0, minHeight: 0 }}>
+      <motion.div layout transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }} style={{ minWidth: 0, minHeight: 0, overflow: "visible" }}>
         <LocalVideoTile
           isDm={isDm}
           call={call}
@@ -1265,7 +1280,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
         <motion.div
           layout
           transition={{ layout: { duration: 0.32, ease: [0.16, 1, 0.3, 1] } }}
-          style={{ minWidth: 0, minHeight: 0, position: "relative" }}
+          style={{ minWidth: 0, minHeight: 0, position: "relative", overflow: "visible" }}
         >
           <SpeakingRemoteSlot
             displayPeer={dmRemote.displayPeer}
@@ -1282,7 +1297,7 @@ function ParticipantGrid({ isDm, call, groupCall, remoteParticipants, hasLocalVi
       )}
 
       {!isDm && remoteTiles.map((tile) => (
-        <motion.div key={tile.id} layout style={{ minWidth: 0, minHeight: 0 }}>
+        <motion.div key={tile.id} layout style={{ minWidth: 0, minHeight: 0, overflow: "visible" }}>
           <ParticipantTile
             username={tile.username}
             avatarUrl={tile.avatarUrl}
