@@ -14,6 +14,7 @@ const {
   Permissions,
   hasPermission,
   resolveMemberPermissions,
+  resolveChannelPermissions,
 } = require("../lib/serverPermissions");
 
 function resolveSocketAvatar(socket) {
@@ -69,7 +70,12 @@ async function assertTextChannelAccess(userId, channelId, requiredFlag) {
     throw err;
   }
 
-  const resolved = await resolveMemberPermissions(supabase, channel.server_id, userId);
+  const resolved = await resolveChannelPermissions(
+    supabase,
+    channel.server_id,
+    userId,
+    channelId
+  );
   if (!resolved.isMember) {
     const err = new Error("You are not a member of this server.");
     err.status = 403;
@@ -81,7 +87,7 @@ async function assertTextChannelAccess(userId, channelId, requiredFlag) {
     err.code = "MISSING_PERMISSION";
     throw err;
   }
-  return { channel, permissions: resolved.bits };
+  return { channel, permissions: resolved.bits, resolved };
 }
 
 function registerServerChannelHandlers(io, socket) {
@@ -120,6 +126,63 @@ function registerServerChannelHandlers(io, socket) {
     socket.leave(`server-channel:${channelId}`);
   });
 
+  /** Delete a channel message (author or MANAGE_MESSAGES). */
+  socket.on("server:channel:message:delete", async ({ serverId, channelId, messageId } = {}) => {
+    if (!channelId || !messageId) return;
+    try {
+      const { channel, permissions: bits } = await assertTextChannelAccess(
+        myId,
+        channelId,
+        Permissions.VIEW_CHANNEL
+      );
+      if (serverId && serverId !== channel.server_id) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "Channel does not belong to this server.",
+        });
+        return;
+      }
+      const { data: row, error } = await supabase
+        .from("server_messages")
+        .select("id, sender_id, channel_id, server_id")
+        .eq("id", messageId)
+        .eq("channel_id", channelId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!row) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "Message not found.",
+        });
+        return;
+      }
+      const canManage = hasPermission(bits, Permissions.MANAGE_MESSAGES);
+      if (row.sender_id !== myId && !canManage) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "Missing permission.",
+          code: "MISSING_PERMISSION",
+        });
+        return;
+      }
+      const { error: delErr } = await supabase
+        .from("server_messages")
+        .delete()
+        .eq("id", messageId)
+        .eq("channel_id", channelId);
+      if (delErr) throw delErr;
+      const payload = { serverId: channel.server_id, channelId, messageId };
+      io.to(`server-channel:${channelId}`).emit("server:channel:message:deleted", payload);
+      socket.emit("server:channel:message:deleted", payload);
+    } catch (err) {
+      socket.emit("server:channel:message:error", {
+        channelId,
+        message: err.message || "Failed to delete message.",
+        code: err.code || null,
+      });
+    }
+  });
+
   socket.on(
     "server:channel:message",
     async ({ serverId, channelId, tempId, content, mediaUrl, mediaType, duration, replyTo } = {}) => {
@@ -152,14 +215,12 @@ function registerServerChannelHandlers(io, socket) {
           return;
         }
 
-        const { channel } = await assertTextChannelAccess(
+        const { channel, permissions: channelBits } = await assertTextChannelAccess(
           myId,
           channelId,
           Permissions.SEND_MESSAGES
         );
-        // Also require view
-        const viewCheck = await resolveMemberPermissions(supabase, channel.server_id, myId);
-        if (!hasPermission(viewCheck.bits, Permissions.VIEW_CHANNEL)) {
+        if (!hasPermission(channelBits, Permissions.VIEW_CHANNEL)) {
           socket.emit("server:channel:message:error", {
             channelId,
             tempId: tempId || null,
@@ -185,6 +246,21 @@ function registerServerChannelHandlers(io, socket) {
           if (!trimmedContent || !trimmedContent.startsWith("__voice__:")) {
             trimmedContent = `__voice__:${dur || 1}`;
           }
+        }
+
+        // Gate @everyone / @here without MENTION_EVERYONE
+        if (
+          trimmedContent &&
+          /(^|\s)@(everyone|here)\b/i.test(trimmedContent) &&
+          !hasPermission(channelBits, Permissions.MENTION_EVERYONE)
+        ) {
+          socket.emit("server:channel:message:error", {
+            channelId,
+            tempId: tempId || null,
+            message: "You cannot mention @everyone here.",
+            code: "MISSING_PERMISSION",
+          });
+          return;
         }
 
         const replyMeta =

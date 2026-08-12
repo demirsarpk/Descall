@@ -35,6 +35,9 @@ export function useServerVoice(socket) {
   const mutedRef = useRef(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreamsVersion, setRemoteStreamsVersion] = useState(0);
+  const [serverMuted, setServerMuted] = useState(false);
+  const serverMutedRef = useRef(false);
+  const joinRef = useRef(null);
 
   useEffect(() => {
     preloadIceServers().catch(() => {});
@@ -110,6 +113,8 @@ export function useServerVoice(socket) {
     setChannelName("");
     setParticipants([]);
     setMuted(false);
+    setServerMuted(false);
+    serverMutedRef.current = false;
     setConnecting(false);
   }, [cleanupPeer]);
 
@@ -226,6 +231,7 @@ export function useServerVoice(socket) {
   );
 
   const toggleMute = useCallback(() => {
+    if (serverMutedRef.current) return;
     const track = localStreamRef.current?.getAudioTracks()?.[0];
     if (!track) return;
     track.enabled = !track.enabled;
@@ -236,6 +242,45 @@ export function useServerVoice(socket) {
       socket.emit("server:voice:media-state", { channelId, muted: nextMuted });
     }
   }, [socket]);
+
+  const applyLocalMute = useCallback((nextMuted, { forced = false } = {}) => {
+    const track = localStreamRef.current?.getAudioTracks()?.[0];
+    if (track) track.enabled = !nextMuted;
+    setMuted(Boolean(nextMuted));
+    if (forced) {
+      setServerMuted(true);
+      serverMutedRef.current = true;
+    }
+  }, []);
+
+  const disconnectMember = useCallback(
+    (serverId, channelId, userId) => {
+      if (!socket?.connected || !serverId || !userId) return;
+      socket.emit("server:voice:disconnect", { serverId, channelId, userId });
+    },
+    [socket]
+  );
+
+  const moveMember = useCallback(
+    (serverId, userId, fromChannelId, toChannelId) => {
+      if (!socket?.connected || !serverId || !userId || !toChannelId) return;
+      socket.emit("server:voice:move", { serverId, userId, fromChannelId, toChannelId });
+    },
+    [socket]
+  );
+
+  const serverMute = useCallback(
+    (serverId, channelId, userId, muted) => {
+      if (!socket?.connected || !serverId || !userId) return;
+      socket.emit("server:voice:server-mute", {
+        serverId,
+        channelId,
+        userId,
+        muted: Boolean(muted),
+      });
+    },
+    [socket]
+  );
 
   const subscribeServer = useCallback(
     (serverId) => {
@@ -257,12 +302,25 @@ export function useServerVoice(socket) {
     if (!socket) return undefined;
     myIdRef.current = getUser()?.id || myIdRef.current;
 
-    const onJoined = ({ channelId, serverId, channelName: name, participants: others } = {}) => {
+    const onJoined = ({
+      channelId,
+      serverId,
+      channelName: name,
+      participants: others,
+      canSpeak,
+      serverMuted: forcedMute,
+    } = {}) => {
       if (!channelId || channelId !== activeChannelIdRef.current) return;
       setActiveServerId(serverId || null);
       if (name) setChannelName(name);
       setParticipants(Array.isArray(others) ? others.map((u) => ({ ...u, hasAudio: true })) : []);
-      // Existing members will offer to us; we wait for offers.
+      if (forcedMute || canSpeak === false) {
+        applyLocalMute(true, { forced: true });
+        const ch = activeChannelIdRef.current;
+        if (ch && socket?.connected) {
+          socket.emit("server:voice:media-state", { channelId: ch, muted: true });
+        }
+      }
     };
 
     const onMemberJoined = ({ channelId, user } = {}) => {
@@ -342,11 +400,43 @@ export function useServerVoice(socket) {
       }
     };
 
-    const onMediaState = ({ channelId, fromUserId, muted: isMuted } = {}) => {
-      if (!channelId || channelId !== activeChannelIdRef.current || !fromUserId) return;
-      setParticipants((prev) =>
-        prev.map((p) => (p.id === fromUserId ? { ...p, muted: Boolean(isMuted) } : p))
-      );
+    const onMediaState = ({ channelId, fromUserId, muted: isMuted, serverMuted: sMuted } = {}) => {
+      if (!channelId || !fromUserId) return;
+      if (channelId === activeChannelIdRef.current) {
+        setParticipants((prev) =>
+          prev.map((p) =>
+            p.id === fromUserId
+              ? { ...p, muted: Boolean(isMuted), serverMuted: Boolean(sMuted) }
+              : p
+          )
+        );
+      }
+    };
+
+    const onForceDisconnected = ({ channelId } = {}) => {
+      if (!channelId || channelId !== activeChannelIdRef.current) return;
+      cleanupAll();
+      setError("You were disconnected from the voice channel.");
+    };
+
+    const onForceMoved = ({ fromChannelId, toChannelId, channelName: name, serverId } = {}) => {
+      if (!toChannelId) return;
+      if (fromChannelId && fromChannelId !== activeChannelIdRef.current) return;
+      cleanupAll();
+      // Rejoin destination after brief cleanup
+      window.setTimeout(() => {
+        joinRef.current?.(serverId, { id: toChannelId, name: name || "Voice" });
+      }, 80);
+    };
+
+    const onForceMute = ({ channelId, muted: isMuted } = {}) => {
+      if (!channelId || channelId !== activeChannelIdRef.current) return;
+      if (isMuted) {
+        applyLocalMute(true, { forced: true });
+      } else {
+        setServerMuted(false);
+        serverMutedRef.current = false;
+      }
     };
 
     const onChannelState = ({ serverId, channelId, members, memberCount } = {}) => {
@@ -369,9 +459,13 @@ export function useServerVoice(socket) {
       setVoiceStatesByServer((prev) => ({ ...prev, [serverId]: map }));
     };
 
-    const onError = ({ message } = {}) => {
+    const onError = ({ message, code } = {}) => {
       if (message) setError(message);
-      if (activeChannelIdRef.current) cleanupAll();
+      // Moderation / permission errors should not kick you from voice
+      if (code === "MISSING_PERMISSION" || code === "NOT_MEMBER") return;
+      if (activeChannelIdRef.current && /join|microphone|connect/i.test(message || "")) {
+        cleanupAll();
+      }
     };
 
     const onLeft = ({ channelId } = {}) => {
@@ -389,6 +483,9 @@ export function useServerVoice(socket) {
     socket.on("server:voice:states", onStates);
     socket.on("server:voice:error", onError);
     socket.on("server:voice:left", onLeft);
+    socket.on("server:voice:force-disconnected", onForceDisconnected);
+    socket.on("server:voice:force-moved", onForceMoved);
+    socket.on("server:voice:force-mute", onForceMute);
 
     return () => {
       socket.off("server:voice:joined", onJoined);
@@ -402,8 +499,15 @@ export function useServerVoice(socket) {
       socket.off("server:voice:states", onStates);
       socket.off("server:voice:error", onError);
       socket.off("server:voice:left", onLeft);
+      socket.off("server:voice:force-disconnected", onForceDisconnected);
+      socket.off("server:voice:force-moved", onForceMoved);
+      socket.off("server:voice:force-mute", onForceMute);
     };
-  }, [cleanupAll, cleanupPeer, offerToPeer, setupPc, socket]);
+  }, [applyLocalMute, cleanupAll, cleanupPeer, offerToPeer, setupPc, socket]);
+
+  useEffect(() => {
+    joinRef.current = join;
+  }, [join]);
 
   useEffect(() => () => cleanupAll(), [cleanupAll]);
 
@@ -419,6 +523,7 @@ export function useServerVoice(socket) {
     channelName,
     participants,
     muted,
+    serverMuted,
     connecting,
     error,
     voiceStatesByServer,
@@ -430,6 +535,9 @@ export function useServerVoice(socket) {
     toggleMute,
     subscribeServer,
     checkChannel,
+    disconnectMember,
+    moveMember,
+    serverMute,
   };
 }
 

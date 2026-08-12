@@ -1,13 +1,6 @@
 /**
- * Server voice channel hangouts (Step 10).
- * Mesh WebRTC signaling keyed by channelId — same model as group hangouts,
- * no SFU yet (Step 11).
- *
- * Events:
- *  server:voice:join | leave | check | subscribe
- *  server:voice:offer | answer | ice | media-state
- * Server emits:
- *  server:voice:joined | error | member-joined | member-left | channel-state | states
+ * Server voice channel hangouts (Step 10+) + moderation (MOVE_MEMBERS / MUTE_MEMBERS).
+ * Mesh WebRTC signaling keyed by channelId.
  */
 
 "use strict";
@@ -19,6 +12,7 @@ const {
   Permissions,
   hasPermission,
   resolveMemberPermissions,
+  resolveChannelPermissions,
 } = require("../lib/serverPermissions");
 
 function resolvePublicUser(socket) {
@@ -41,6 +35,7 @@ function resolvePublicUser(socket) {
     avatarUrl: avatar,
     avatar_url: avatar,
     muted: false,
+    serverMuted: false,
     ...pickChatCosmetics(cached),
   };
 }
@@ -81,10 +76,20 @@ async function assertVoiceAccess(userId, channelId) {
     err.code = "NOT_VOICE_CHANNEL";
     throw err;
   }
-  const resolved = await resolveMemberPermissions(supabase, channel.server_id, userId);
+  const resolved = await resolveChannelPermissions(
+    supabase,
+    channel.server_id,
+    userId,
+    channelId
+  );
   if (!resolved.isMember) {
     const err = new Error("You are not a member of this server.");
     err.code = "NOT_MEMBER";
+    throw err;
+  }
+  if (!hasPermission(resolved.bits, Permissions.VIEW_CHANNEL)) {
+    const err = new Error("Missing VIEW_CHANNEL permission.");
+    err.code = "MISSING_PERMISSION";
     throw err;
   }
   if (!hasPermission(resolved.bits, Permissions.CONNECT)) {
@@ -117,6 +122,30 @@ function removeUserFromAllServerVoice(io, userId) {
       removeFromVoice(io, channelId, userId);
     }
   }
+}
+
+function findUserVoiceChannel(userId) {
+  for (const [channelId, call] of activeServerVoiceCalls.entries()) {
+    if (call.participants.has(userId)) {
+      return { channelId, call };
+    }
+  }
+  return null;
+}
+
+async function assertVoiceMod(actorId, serverId, flag) {
+  const resolved = await resolveMemberPermissions(supabase, serverId, actorId);
+  if (!resolved.isMember) {
+    const err = new Error("You are not a member of this server.");
+    err.code = "NOT_MEMBER";
+    throw err;
+  }
+  if (!hasPermission(resolved.bits, flag)) {
+    const err = new Error("Missing permission.");
+    err.code = "MISSING_PERMISSION";
+    throw err;
+  }
+  return resolved;
 }
 
 function registerServerVoiceHandlers(io, socket) {
@@ -170,7 +199,7 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:join", async ({ serverId, channelId } = {}) => {
     if (!channelId) return;
     try {
-      const { channel } = await assertVoiceAccess(myId, channelId);
+      const { channel, resolved } = await assertVoiceAccess(myId, channelId);
       if (serverId && serverId !== channel.server_id) {
         socket.emit("server:voice:error", {
           channelId,
@@ -180,7 +209,6 @@ function registerServerVoiceHandlers(io, socket) {
         return;
       }
 
-      // Leave any other server voice channel first (one at a time)
       for (const [otherId, call] of activeServerVoiceCalls.entries()) {
         if (otherId !== channelId && call.participants.has(myId)) {
           removeFromVoice(io, otherId, myId);
@@ -200,6 +228,11 @@ function registerServerVoiceHandlers(io, socket) {
       }
 
       const mePublic = resolvePublicUser(socket);
+      const canSpeak = hasPermission(resolved.bits, Permissions.SPEAK);
+      if (!canSpeak) {
+        mePublic.muted = true;
+        mePublic.serverMuted = true;
+      }
       call.participants.set(myId, mePublic);
 
       socket.join(`server:${channel.server_id}`);
@@ -211,6 +244,8 @@ function registerServerVoiceHandlers(io, socket) {
         channelId,
         channelName: channel.name,
         participants: others,
+        canSpeak,
+        serverMuted: !canSpeak,
       });
 
       socket.to(`server-voice:${channelId}`).emit("server:voice:member-joined", {
@@ -235,6 +270,145 @@ function registerServerVoiceHandlers(io, socket) {
     removeFromVoice(io, channelId, myId);
     socket.leave(`server-voice:${channelId}`);
     socket.emit("server:voice:left", { channelId });
+  });
+
+  /** Force-disconnect a member from voice (MOVE_MEMBERS). */
+  socket.on("server:voice:disconnect", async ({ serverId, channelId, userId } = {}) => {
+    if (!serverId || !userId) return;
+    try {
+      await assertVoiceMod(myId, serverId, Permissions.MOVE_MEMBERS);
+      if (userId === myId) {
+        socket.emit("server:voice:error", { message: "Cannot disconnect yourself this way." });
+        return;
+      }
+      const found = channelId
+        ? activeServerVoiceCalls.get(channelId)?.participants.has(userId)
+          ? { channelId, call: activeServerVoiceCalls.get(channelId) }
+          : null
+        : findUserVoiceChannel(userId);
+      if (!found || found.call.serverId !== serverId) {
+        socket.emit("server:voice:error", { message: "User is not in a voice channel." });
+        return;
+      }
+      removeFromVoice(io, found.channelId, userId);
+      io.to(`user:${userId}`).emit("server:voice:force-disconnected", {
+        serverId,
+        channelId: found.channelId,
+        byUserId: myId,
+      });
+      socket.emit("server:voice:mod-ok", { action: "disconnect", userId, channelId: found.channelId });
+    } catch (err) {
+      socket.emit("server:voice:error", {
+        message: err.message || "Disconnect failed.",
+        code: err.code || null,
+      });
+    }
+  });
+
+  /** Move a member to another voice channel (MOVE_MEMBERS). */
+  socket.on(
+    "server:voice:move",
+    async ({ serverId, userId, fromChannelId, toChannelId } = {}) => {
+      if (!serverId || !userId || !toChannelId) return;
+      try {
+        await assertVoiceMod(myId, serverId, Permissions.MOVE_MEMBERS);
+        const { channel: dest } = await assertVoiceAccess(userId, toChannelId);
+        if (dest.server_id !== serverId) {
+          socket.emit("server:voice:error", { message: "Target channel is on another server." });
+          return;
+        }
+        const found = fromChannelId
+          ? activeServerVoiceCalls.get(fromChannelId)?.participants.has(userId)
+            ? { channelId: fromChannelId, call: activeServerVoiceCalls.get(fromChannelId) }
+            : null
+          : findUserVoiceChannel(userId);
+        if (!found || found.call.serverId !== serverId) {
+          socket.emit("server:voice:error", { message: "User is not in a voice channel." });
+          return;
+        }
+        if (found.channelId === toChannelId) return;
+
+        const snapshot = { ...(found.call.participants.get(userId) || { id: userId }) };
+        removeFromVoice(io, found.channelId, userId);
+
+        let destCall = activeServerVoiceCalls.get(toChannelId);
+        if (!destCall) {
+          destCall = {
+            serverId,
+            channelName: dest.name,
+            participants: new Map(),
+            startTime: Date.now(),
+          };
+          activeServerVoiceCalls.set(toChannelId, destCall);
+        }
+        destCall.participants.set(userId, snapshot);
+        emitChannelState(io, serverId, toChannelId);
+
+        io.to(`user:${userId}`).emit("server:voice:force-moved", {
+          serverId,
+          fromChannelId: found.channelId,
+          toChannelId,
+          channelName: dest.name,
+          byUserId: myId,
+        });
+        socket.emit("server:voice:mod-ok", {
+          action: "move",
+          userId,
+          fromChannelId: found.channelId,
+          toChannelId,
+        });
+      } catch (err) {
+        socket.emit("server:voice:error", {
+          message: err.message || "Move failed.",
+          code: err.code || null,
+        });
+      }
+    }
+  );
+
+  /** Server-mute / unmute a member (MUTE_MEMBERS). */
+  socket.on("server:voice:server-mute", async ({ serverId, channelId, userId, muted } = {}) => {
+    if (!serverId || !userId) return;
+    try {
+      await assertVoiceMod(myId, serverId, Permissions.MUTE_MEMBERS);
+      const found = channelId
+        ? activeServerVoiceCalls.get(channelId)?.participants.has(userId)
+          ? { channelId, call: activeServerVoiceCalls.get(channelId) }
+          : null
+        : findUserVoiceChannel(userId);
+      if (!found || found.call.serverId !== serverId) {
+        socket.emit("server:voice:error", { message: "User is not in a voice channel." });
+        return;
+      }
+      const member = found.call.participants.get(userId);
+      if (!member) return;
+      member.serverMuted = Boolean(muted);
+      if (muted) member.muted = true;
+      found.call.participants.set(userId, member);
+      emitChannelState(io, serverId, found.channelId);
+      io.to(`user:${userId}`).emit("server:voice:force-mute", {
+        serverId,
+        channelId: found.channelId,
+        muted: Boolean(muted),
+        byUserId: myId,
+      });
+      io.to(`server-voice:${found.channelId}`).emit("server:voice:media-state", {
+        channelId: found.channelId,
+        fromUserId: userId,
+        muted: Boolean(member.muted),
+        serverMuted: Boolean(member.serverMuted),
+      });
+      socket.emit("server:voice:mod-ok", {
+        action: muted ? "server-mute" : "server-unmute",
+        userId,
+        channelId: found.channelId,
+      });
+    } catch (err) {
+      socket.emit("server:voice:error", {
+        message: err.message || "Mute failed.",
+        code: err.code || null,
+      });
+    }
   });
 
   socket.on("server:voice:offer", ({ channelId, toUserId, offer } = {}) => {
@@ -277,6 +451,16 @@ function registerServerVoiceHandlers(io, socket) {
     if (!call?.participants.has(myId)) return;
     const me = call.participants.get(myId);
     if (me) {
+      // Server mute locks self-unmute
+      if (me.serverMuted && !muted) {
+        socket.emit("server:voice:force-mute", {
+          serverId: call.serverId,
+          channelId,
+          muted: true,
+          byUserId: null,
+        });
+        return;
+      }
       me.muted = Boolean(muted);
       call.participants.set(myId, me);
     }
@@ -284,6 +468,7 @@ function registerServerVoiceHandlers(io, socket) {
       channelId,
       fromUserId: myId,
       muted: Boolean(muted),
+      serverMuted: Boolean(me?.serverMuted),
     });
     emitChannelState(io, call.serverId, channelId);
   });

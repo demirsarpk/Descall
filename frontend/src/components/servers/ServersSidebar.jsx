@@ -24,6 +24,9 @@ import {
   MicOff,
   BellOff,
   Bell,
+  Lock,
+  PhoneOff,
+  ArrowRightLeft,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
@@ -34,6 +37,7 @@ import ServerRolesModal from "./ServerRolesModal";
 import ServerInviteModal from "./ServerInviteModal";
 import JoinServerModal from "./JoinServerModal";
 import ServerModerationModal from "./ServerModerationModal";
+import ChannelPermissionsModal from "./ChannelPermissionsModal";
 import { ServerListSkeleton } from "../ui/Skeleton";
 
 /**
@@ -96,6 +100,14 @@ export default function ServersSidebar({
   const canViewAudit = Boolean(
     activeServer?.isOwner || permFlags.VIEW_AUDIT_LOG || permFlags.ADMINISTRATOR
   );
+  const canMoveMembers = Boolean(
+    activeServer?.isOwner || permFlags.MOVE_MEMBERS || permFlags.ADMINISTRATOR
+  );
+  const canMuteMembers = Boolean(
+    activeServer?.isOwner || permFlags.MUTE_MEMBERS || permFlags.ADMINISTRATOR
+  );
+  const [channelAccess, setChannelAccess] = useState(null); // channel
+  const [voiceMenu, setVoiceMenu] = useState(null); // { user, channelId, x, y }
   const voiceStates = serverVoice?.voiceStatesByServer?.[activeServer?.id] || {};
   const participantStreams = serverVoice?.remoteStreams || null;
   const localVoiceStream = serverVoice?.localStream || null;
@@ -357,7 +369,16 @@ export default function ServersSidebar({
                           muted={ch.type === "text" ? isChannelMuted(ch.id) : false}
                           unread={ch.type === "text" ? channelUnread[ch.id] || 0 : 0}
                           muteTick={mutedChannelTick}
+                          canManageRoles={canManageRoles}
+                          canMoveMembers={canMoveMembers}
+                          canMuteMembers={canMuteMembers}
+                          voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice")}
+                          serverVoice={serverVoice}
                           onToggleMute={() => handleToggleChannelMute(ch.id)}
+                          onOpenAccess={() => {
+                            setChannelMenuId(null);
+                            setChannelAccess(ch);
+                          }}
                           onOpenMenu={() => setChannelMenuId((id) => (id === ch.id ? null : ch.id))}
                           onCloseMenu={() => setChannelMenuId(null)}
                           onSelect={() => {
@@ -371,6 +392,16 @@ export default function ServersSidebar({
                           onDelete={() => {
                             setChannelMenuId(null);
                             setChannelModal({ mode: "delete", channel: ch });
+                          }}
+                          onVoiceUserMenu={(user, channelId, event) => {
+                            event?.preventDefault?.();
+                            event?.stopPropagation?.();
+                            setVoiceMenu({
+                              user,
+                              channelId,
+                              x: event?.clientX || 0,
+                              y: event?.clientY || 0,
+                            });
                           }}
                         />
                       ))}
@@ -392,7 +423,16 @@ export default function ServersSidebar({
                   muted={node.type === "text" ? isChannelMuted(node.id) : false}
                   unread={node.type === "text" ? channelUnread[node.id] || 0 : 0}
                   muteTick={mutedChannelTick}
+                  canManageRoles={canManageRoles}
+                  canMoveMembers={canMoveMembers}
+                  canMuteMembers={canMuteMembers}
+                  voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice")}
+                  serverVoice={serverVoice}
                   onToggleMute={() => handleToggleChannelMute(node.id)}
+                  onOpenAccess={() => {
+                    setChannelMenuId(null);
+                    setChannelAccess(node);
+                  }}
                   onOpenMenu={() => setChannelMenuId((id) => (id === node.id ? null : node.id))}
                   onCloseMenu={() => setChannelMenuId(null)}
                   onSelect={() => {
@@ -406,6 +446,16 @@ export default function ServersSidebar({
                   onDelete={() => {
                     setChannelMenuId(null);
                     setChannelModal({ mode: "delete", channel: node });
+                  }}
+                  onVoiceUserMenu={(user, channelId, event) => {
+                    event?.preventDefault?.();
+                    event?.stopPropagation?.();
+                    setVoiceMenu({
+                      user,
+                      channelId,
+                      x: event?.clientX || 0,
+                      y: event?.clientY || 0,
+                    });
                   }}
                 />
               );
@@ -504,7 +554,26 @@ export default function ServersSidebar({
               onClose={() => setShowModeration(null)}
             />
           )}
+          {channelAccess && (
+            <ChannelPermissionsModal
+              server={activeServer}
+              channel={channelAccess}
+              onClose={() => setChannelAccess(null)}
+            />
+          )}
         </AnimatePresence>
+
+        {voiceMenu && (canMoveMembers || canMuteMembers) && (
+          <VoiceMemberContextMenu
+            menu={voiceMenu}
+            canMove={canMoveMembers}
+            canMute={canMuteMembers}
+            voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice")}
+            serverId={activeServer?.id}
+            serverVoice={serverVoice}
+            onClose={() => setVoiceMenu(null)}
+          />
+        )}
       </aside>
     );
   }
@@ -662,18 +731,119 @@ function ServerUnreadBadge({ count }) {
   );
 }
 
-function ServerVoiceUserRow({ member, stream = null, size = 20 }) {
+function ServerVoiceUserRow({ member, stream = null, size = 20, onContextMenu }) {
   const name = resolveDisplayName(member) || member?.username || "User";
-  const speaking = useSpeaking(stream, { muted: Boolean(member?.muted) });
+  const speaking = useSpeaking(stream, {
+    muted: Boolean(member?.muted || member?.serverMuted),
+  });
   return (
     <li
-      className={`server-voice-user${member?.muted ? " is-muted" : ""}${speaking ? " is-speaking" : ""}`}
+      className={`server-voice-user${member?.muted || member?.serverMuted ? " is-muted" : ""}${speaking ? " is-speaking" : ""}`}
       title={member?.username || name}
+      onContextMenu={onContextMenu}
+      onClick={(e) => {
+        if (e.detail >= 2) onContextMenu?.(e);
+      }}
     >
       <Avatar name={name} size={size} user={member} animate="never" className="server-voice-user-avatar" />
       <span className="server-voice-user-name">{name}</span>
-      {member?.muted ? <MicOff size={12} className="server-voice-user-mic" aria-hidden /> : null}
+      {member?.muted || member?.serverMuted ? (
+        <MicOff size={12} className="server-voice-user-mic" aria-hidden />
+      ) : null}
+      <button
+        type="button"
+        className="icon-btn server-voice-user-more"
+        title="…"
+        onClick={(e) => {
+          e.stopPropagation();
+          onContextMenu?.(e);
+        }}
+      >
+        <MoreHorizontal size={12} />
+      </button>
     </li>
+  );
+}
+
+function VoiceMemberContextMenu({
+  menu,
+  canMove,
+  canMute,
+  voiceChannels = [],
+  serverId,
+  serverVoice,
+  onClose,
+}) {
+  const t = useT();
+  const [moveOpen, setMoveOpen] = useState(false);
+  if (!menu?.user) return null;
+  const user = menu.user;
+  const channelId = menu.channelId;
+  const left = Math.min(menu.x || 12, (typeof window !== "undefined" ? window.innerWidth : 400) - 220);
+  const top = Math.min(menu.y || 12, (typeof window !== "undefined" ? window.innerHeight : 400) - 220);
+
+  return (
+    <>
+      <button type="button" className="server-voice-menu-backdrop" aria-label={t("Close")} onClick={onClose} />
+      <div className="server-voice-member-menu" style={{ left, top }} role="menu">
+        <div className="server-voice-member-menu-title">
+          {resolveDisplayName(user) || user.username}
+        </div>
+        {canMute && (
+          <button
+            type="button"
+            className="server-dropdown-item"
+            onClick={() => {
+              serverVoice?.serverMute?.(serverId, channelId, user.id, !user.serverMuted);
+              onClose();
+            }}
+          >
+            <MicOff size={14} />
+            {user.serverMuted ? t("Server unmute") : t("Server mute")}
+          </button>
+        )}
+        {canMove && (
+          <>
+            <button
+              type="button"
+              className="server-dropdown-item danger"
+              onClick={() => {
+                serverVoice?.disconnectMember?.(serverId, channelId, user.id);
+                onClose();
+              }}
+            >
+              <PhoneOff size={14} />
+              {t("Disconnect")}
+            </button>
+            <button
+              type="button"
+              className="server-dropdown-item"
+              onClick={() => setMoveOpen((v) => !v)}
+            >
+              <ArrowRightLeft size={14} />
+              {t("Move to…")}
+            </button>
+            {moveOpen &&
+              voiceChannels
+                .filter((c) => c.id !== channelId)
+                .map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="server-dropdown-item nested"
+                    onClick={() => {
+                      serverVoice?.moveMember?.(serverId, user.id, channelId, c.id);
+                      onClose();
+                    }}
+                  >
+                    <Volume2 size={14} />
+                    {c.name}
+                  </button>
+                ))}
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -690,19 +860,25 @@ function ChannelRow({
   muted = false,
   unread = 0,
   muteTick = 0,
+  canManageRoles = false,
+  canMoveMembers = false,
+  canMuteMembers = false,
   onToggleMute,
+  onOpenAccess,
   onOpenMenu,
   onCloseMenu,
   onSelect,
   onEdit,
   onDelete,
+  onVoiceUserMenu,
 }) {
   const t = useT();
   const Icon = channel.type === "voice" ? Volume2 : Hash;
   const voiceMembers = channel.type === "voice" ? voiceState?.members || [] : [];
-  const showMenu = canManage || channel.type === "text";
+  const showMenu = canManage || canManageRoles || channel.type === "text";
   void muteTick;
   const unreadCount = Number(unread) || 0;
+  const canModVoice = canMoveMembers || canMuteMembers;
   return (
     <div
       className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""} ${muted ? "is-muted-channel" : ""} ${unreadCount > 0 ? "has-unread" : ""}`}
@@ -751,6 +927,12 @@ function ChannelRow({
                     {muted ? t("Unmute channel") : t("Mute channel")}
                   </button>
                 )}
+                {canManageRoles && channel.type !== "category" && (
+                  <button type="button" className="server-dropdown-item" onClick={onOpenAccess}>
+                    <Lock size={14} />
+                    {t("Channel access")}
+                  </button>
+                )}
                 {canManage && (
                   <>
                     <button type="button" className="server-dropdown-item" onClick={onEdit}>
@@ -777,7 +959,18 @@ function ChannelRow({
               else if (participantStreams?.has?.(m.id)) stream = participantStreams.get(m.id);
               else if (m.stream) stream = m.stream;
             }
-            return <ServerVoiceUserRow key={m.id} member={m} stream={stream} />;
+            return (
+              <ServerVoiceUserRow
+                key={m.id}
+                member={m}
+                stream={stream}
+                onContextMenu={
+                  canModVoice
+                    ? (e) => onVoiceUserMenu?.(m, channel.id, e)
+                    : undefined
+                }
+              />
+            );
           })}
         </ul>
       )}

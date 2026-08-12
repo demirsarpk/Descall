@@ -1439,6 +1439,213 @@ button.member-row.server-member-row {
   color: var(--success, #3ba55d);
 }
 
+.server-channel-perms-modal {
+  width: min(860px, 96vw);
+  max-height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+
+.server-channel-perms-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 0;
+  min-height: 360px;
+  border-top: 1px solid var(--border-2);
+  overflow: hidden;
+}
+
+.server-channel-perms-targets {
+  border-right: 1px solid var(--border-2);
+  padding: 10px;
+  overflow: auto;
+}
+
+.server-channel-perms-targets-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.server-channel-perms-targets ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.server-channel-perms-target {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.server-channel-perms-target.active,
+.server-channel-perms-target:hover {
+  background: var(--surface-2);
+}
+
+.server-channel-perms-add {
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  max-height: 180px;
+  overflow: auto;
+}
+
+.server-channel-perms-add p {
+  margin: 6px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.server-channel-perms-editor {
+  padding: 14px 16px;
+  overflow: auto;
+}
+
+.server-channel-perms-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.server-channel-perms-editor-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.server-channel-perms-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.server-channel-perms-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-2);
+  font-size: 13px;
+}
+
+.server-channel-perms-tri {
+  display: inline-flex;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-2);
+}
+
+.server-perm-tri {
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.server-perm-tri.is-allow {
+  background: color-mix(in srgb, #23a559 28%, transparent);
+  color: #3ba55d;
+}
+
+.server-perm-tri.is-deny {
+  background: color-mix(in srgb, #f23f43 24%, transparent);
+  color: #f23f43;
+}
+
+.server-perm-tri.is-inherit {
+  background: var(--surface-3, var(--surface-2));
+  color: var(--text-1);
+}
+
+.server-voice-user {
+  position: relative;
+}
+
+.server-voice-user-more {
+  opacity: 0;
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+}
+
+.server-voice-user:hover .server-voice-user-more,
+.server-voice-user:focus-within .server-voice-user-more {
+  opacity: 1;
+}
+
+.server-voice-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  border: 0;
+  background: transparent;
+}
+
+.server-voice-member-menu {
+  position: fixed;
+  z-index: 81;
+  min-width: 200px;
+  max-width: 260px;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--surface-1, #2b2d31);
+  border: 1px solid var(--border-2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.server-voice-member-menu-title {
+  padding: 6px 10px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.server-dropdown-item.nested {
+  padding-left: 22px;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .server-channel-perms-layout {
+    grid-template-columns: 1fr;
+  }
+  .server-channel-perms-targets {
+    border-right: none;
+    border-bottom: 1px solid var(--border-2);
+    max-height: 160px;
+  }
+}
+
 .server-channel-row-wrap.is-muted-channel > .server-channel-row {
   opacity: 0.72;
 }

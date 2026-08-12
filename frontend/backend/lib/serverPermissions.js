@@ -164,6 +164,100 @@ function permissionsToFlags(bits) {
   return flags;
 }
 
+/**
+ * Apply Discord-style channel overwrites onto base member bits.
+ * Order: @everyone role override → other role overrides (by position) → member override.
+ * Deny clears bits, then allow sets bits.
+ */
+function applyOverwrites(baseBits, overwrites, { everyoneRoleId, memberRoleIds, userId }) {
+  let bits = typeof baseBits === "bigint" ? baseBits : fromPgBigint(baseBits);
+  const list = Array.isArray(overwrites) ? overwrites : [];
+
+  const applyOne = (row) => {
+    if (!row) return;
+    const deny = fromPgBigint(row.deny_permissions);
+    const allow = fromPgBigint(row.allow_permissions);
+    bits = (bits & ~deny) | allow;
+  };
+
+  if (everyoneRoleId) {
+    applyOne(
+      list.find((o) => o.target_type === "role" && String(o.target_id) === String(everyoneRoleId))
+    );
+  }
+
+  const roleOverrides = list
+    .filter(
+      (o) =>
+        o.target_type === "role" &&
+        String(o.target_id) !== String(everyoneRoleId || "") &&
+        memberRoleIds.has(String(o.target_id))
+    )
+    .sort((a, b) => (Number(a._position) || 0) - (Number(b._position) || 0));
+  for (const row of roleOverrides) applyOne(row);
+
+  applyOne(list.find((o) => o.target_type === "member" && String(o.target_id) === String(userId)));
+  return bits;
+}
+
+/**
+ * Resolve effective permissions for a member in a specific channel.
+ * Owner / ADMINISTRATOR ignore channel denies.
+ */
+async function resolveChannelPermissions(supabase, serverId, userId, channelId) {
+  const base = await resolveMemberPermissions(supabase, serverId, userId);
+  if (!base.isMember) {
+    return { ...base, channelId, overwritesApplied: false };
+  }
+  if (base.isOwner || hasPermission(base.bits, Permissions.ADMINISTRATOR)) {
+    return { bits: ALL_PERMISSIONS, isOwner: base.isOwner, isMember: true, channelId, overwritesApplied: false };
+  }
+
+  const [{ data: overrides, error: oErr }, { data: roles, error: rErr }, { data: assigned, error: aErr }] =
+    await Promise.all([
+      supabase
+        .from("server_channel_overrides")
+        .select("id, channel_id, target_type, target_id, allow_permissions, deny_permissions")
+        .eq("channel_id", channelId),
+      supabase
+        .from("server_roles")
+        .select("id, position, is_everyone")
+        .eq("server_id", serverId),
+      supabase
+        .from("server_member_roles")
+        .select("role_id")
+        .eq("server_id", serverId)
+        .eq("user_id", userId),
+    ]);
+  if (oErr) throw oErr;
+  if (rErr) throw rErr;
+  if (aErr) throw aErr;
+
+  const everyoneRoleId = (roles || []).find((r) => r.is_everyone)?.id || null;
+  const rolePos = new Map((roles || []).map((r) => [String(r.id), Number(r.position) || 0]));
+  const memberRoleIds = new Set((assigned || []).map((r) => String(r.role_id)));
+  if (everyoneRoleId) memberRoleIds.add(String(everyoneRoleId));
+
+  const decorated = (overrides || []).map((o) => ({
+    ...o,
+    _position: o.target_type === "role" ? rolePos.get(String(o.target_id)) || 0 : 0,
+  }));
+
+  const bits = applyOverwrites(base.bits, decorated, {
+    everyoneRoleId,
+    memberRoleIds,
+    userId,
+  });
+
+  return {
+    bits,
+    isOwner: false,
+    isMember: true,
+    channelId,
+    overwritesApplied: (overrides || []).length > 0,
+  };
+}
+
 module.exports = {
   Permissions,
   ALL_PERMISSIONS,
@@ -172,5 +266,7 @@ module.exports = {
   fromPgBigint,
   hasPermission,
   resolveMemberPermissions,
+  resolveChannelPermissions,
+  applyOverwrites,
   permissionsToFlags,
 };

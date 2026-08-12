@@ -17,6 +17,7 @@ const {
   Permissions,
   hasPermission,
   resolveMemberPermissions,
+  resolveChannelPermissions,
   permissionsToFlags,
 } = require("../lib/serverPermissions");
 
@@ -41,18 +42,89 @@ const EDITABLE_PERMISSION_KEYS = [
   "SEND_MESSAGES",
   "MANAGE_MESSAGES",
   "MANAGE_CHANNELS",
+  "MANAGE_GUILD",
   "MANAGE_ROLES",
   "CREATE_INSTANT_INVITE",
   "KICK_MEMBERS",
   "BAN_MEMBERS",
   "VIEW_AUDIT_LOG",
   "MENTION_EVERYONE",
+  "ATTACH_FILES",
+  "EMBED_LINKS",
+  "ADD_REACTIONS",
+  "READ_MESSAGE_HISTORY",
   "CONNECT",
   "SPEAK",
+  "STREAM",
   "MUTE_MEMBERS",
+  "DEAFEN_MEMBERS",
   "MOVE_MEMBERS",
   "ADMINISTRATOR",
 ];
+
+/** Channel overwrite keys by channel type (Discord-like subset). */
+const CHANNEL_OVERRIDE_KEYS = {
+  text: [
+    "VIEW_CHANNEL",
+    "SEND_MESSAGES",
+    "MANAGE_MESSAGES",
+    "CREATE_INSTANT_INVITE",
+    "MENTION_EVERYONE",
+    "ATTACH_FILES",
+    "EMBED_LINKS",
+    "ADD_REACTIONS",
+    "READ_MESSAGE_HISTORY",
+  ],
+  voice: [
+    "VIEW_CHANNEL",
+    "CONNECT",
+    "SPEAK",
+    "STREAM",
+    "MUTE_MEMBERS",
+    "MOVE_MEMBERS",
+    "CREATE_INSTANT_INVITE",
+  ],
+  category: ["VIEW_CHANNEL", "CONNECT", "SPEAK", "SEND_MESSAGES", "CREATE_INSTANT_INVITE"],
+};
+
+async function filterChannelsForMember(serverId, userId, channels) {
+  const base = await resolveMemberPermissions(supabase, serverId, userId);
+  if (!base.isMember) return [];
+  if (base.isOwner || hasPermission(base.bits, Permissions.ADMINISTRATOR)) {
+    return channels;
+  }
+  const out = [];
+  for (const ch of channels || []) {
+    if (ch.type === "category") {
+      out.push(ch);
+      continue;
+    }
+    const resolved = await resolveChannelPermissions(supabase, serverId, userId, ch.id);
+    if (hasPermission(resolved.bits, Permissions.VIEW_CHANNEL)) out.push(ch);
+  }
+  const visibleNonCat = new Set(out.filter((c) => c.type !== "category").map((c) => c.id));
+  const hasVisibleChild = (catId) =>
+    (channels || []).some((c) => c.parent_id === catId && visibleNonCat.has(c.id));
+  return out.filter((c) => c.type !== "category" || hasVisibleChild(c.id));
+}
+
+function parseAllowDenyFlags(raw, allowedKeys) {
+  const keys = allowedKeys || EDITABLE_PERMISSION_KEYS;
+  let allow = 0n;
+  let deny = 0n;
+  if (!raw || typeof raw !== "object") return { allow, deny };
+  for (const key of keys) {
+    if (!Permissions[key]) continue;
+    const v = raw[key];
+    if (v === true || v === "allow") allow |= Permissions[key];
+    else if (v === false || v === "deny") deny |= Permissions[key];
+  }
+  // Discord: a bit cannot be both allow and deny
+  const both = allow & deny;
+  allow &= ~both;
+  deny &= ~both;
+  return { allow, deny };
+}
 
 function generateInviteCode() {
   let code = "";
@@ -979,6 +1051,11 @@ router.get("/:id", requireAuth, async (req, res) => {
     if (!bundle) return res.status(404).json({ error: "Server not found." });
 
     const myPermissions = await buildMyPermissionsPayload(serverId, req.user.id);
+    const visibleChannels = await filterChannelsForMember(
+      serverId,
+      req.user.id,
+      bundle.channels
+    );
 
     return res.json({
       server: publicServer(bundle.server, {
@@ -987,7 +1064,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         nickname: membership.nickname || null,
         listPosition: membership.list_position ?? 0,
         joinedAt: membership.joined_at,
-        channels: bundle.channels.map(publicChannel),
+        channels: visibleChannels.map(publicChannel),
         roles: bundle.roles.map(publicRole),
         myPermissions,
       }),
@@ -1124,8 +1201,6 @@ router.get("/:id/channels/:channelId/messages", requireAuth, async (req, res) =>
     const channelId = req.params.channelId;
     const { before, limit = 50 } = req.query;
 
-    await requireServerPermission(serverId, req.user.id, Permissions.VIEW_CHANNEL);
-
     const { data: channel, error: cErr } = await supabase
       .from("server_channels")
       .select("id, server_id, type")
@@ -1136,6 +1211,22 @@ router.get("/:id/channels/:channelId/messages", requireAuth, async (req, res) =>
     if (!channel) return res.status(404).json({ error: "Channel not found." });
     if (channel.type !== "text") {
       return res.status(400).json({ error: "Only text channels have message history.", code: "NOT_TEXT_CHANNEL" });
+    }
+
+    const channelPerms = await resolveChannelPermissions(
+      supabase,
+      serverId,
+      req.user.id,
+      channelId
+    );
+    if (!channelPerms.isMember) {
+      return res.status(403).json({ error: "You are not a member of this server." });
+    }
+    if (!hasPermission(channelPerms.bits, Permissions.VIEW_CHANNEL)) {
+      return res.status(403).json({ error: "Missing permission.", code: "MISSING_PERMISSION" });
+    }
+    if (!hasPermission(channelPerms.bits, Permissions.READ_MESSAGE_HISTORY)) {
+      return res.json({ messages: [] });
     }
 
     let query = supabase
@@ -2035,12 +2126,212 @@ router.delete("/:id/channels/:channelId", requireAuth, async (req, res) => {
 });
 
 /**
- * PATCH /servers/:id — owner settings (name / icon / description / is_public)
+ * GET /servers/:id/channels/:channelId/overrides
+ */
+router.get("/:id/channels/:channelId/overrides", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const channelId = req.params.channelId;
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_ROLES);
+
+    const { data: channel, error: cErr } = await supabase
+      .from("server_channels")
+      .select("id, server_id, type, name")
+      .eq("id", channelId)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (cErr) throw cErr;
+    if (!channel) return res.status(404).json({ error: "Channel not found." });
+
+    const { data: rows, error } = await supabase
+      .from("server_channel_overrides")
+      .select("*")
+      .eq("channel_id", channelId);
+    if (error) throw error;
+
+    const overrides = (rows || []).map((row) => ({
+      id: row.id,
+      channelId: row.channel_id,
+      targetType: row.target_type,
+      targetId: row.target_id,
+      allow: permissionsToFlags(fromPgBigint(row.allow_permissions)),
+      deny: permissionsToFlags(fromPgBigint(row.deny_permissions)),
+      allowBits: String(fromPgBigint(row.allow_permissions)),
+      denyBits: String(fromPgBigint(row.deny_permissions)),
+    }));
+
+    return res.json({
+      channelId,
+      channelType: channel.type,
+      editableKeys: CHANNEL_OVERRIDE_KEYS[channel.type] || CHANNEL_OVERRIDE_KEYS.text,
+      overrides,
+    });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] GET overrides error:", err);
+    return res.status(status).json({ error: err.message || "Failed to load overrides.", code: err.code });
+  }
+});
+
+/**
+ * PUT /servers/:id/channels/:channelId/overrides
+ * Body: { targetType: 'role'|'member', targetId, permissions: { VIEW_CHANNEL: 'allow'|'deny'|'inherit'|true|false|null } }
+ */
+router.put("/:id/channels/:channelId/overrides", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const channelId = req.params.channelId;
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_ROLES);
+
+    const targetType = req.body?.targetType === "member" ? "member" : "role";
+    const targetId = String(req.body?.targetId || "").trim();
+    if (!targetId) return res.status(400).json({ error: "targetId is required." });
+
+    const { data: channel, error: cErr } = await supabase
+      .from("server_channels")
+      .select("id, server_id, type, name")
+      .eq("id", channelId)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (cErr) throw cErr;
+    if (!channel) return res.status(404).json({ error: "Channel not found." });
+
+    if (targetType === "role") {
+      const { data: role } = await supabase
+        .from("server_roles")
+        .select("id")
+        .eq("id", targetId)
+        .eq("server_id", serverId)
+        .maybeSingle();
+      if (!role) return res.status(404).json({ error: "Role not found." });
+    } else {
+      const mem = await getMembership(serverId, targetId);
+      if (!mem) return res.status(404).json({ error: "Member not found." });
+    }
+
+    const keys = CHANNEL_OVERRIDE_KEYS[channel.type] || CHANNEL_OVERRIDE_KEYS.text;
+    const { allow, deny } = parseAllowDenyFlags(req.body?.permissions || req.body?.flags, keys);
+
+    if (allow === 0n && deny === 0n) {
+      await supabase
+        .from("server_channel_overrides")
+        .delete()
+        .eq("channel_id", channelId)
+        .eq("target_type", targetType)
+        .eq("target_id", targetId);
+      await writeAudit({
+        serverId,
+        actorId: req.user.id,
+        action: "CHANNEL_OVERRIDE_CLEAR",
+        targetType: "channel",
+        targetId: channelId,
+        changes: { targetType, targetId },
+      });
+      return res.json({ cleared: true, channelId, targetType, targetId });
+    }
+
+    const { data: row, error } = await supabase
+      .from("server_channel_overrides")
+      .upsert(
+        {
+          channel_id: channelId,
+          target_type: targetType,
+          target_id: targetId,
+          allow_permissions: toPgBigint(allow),
+          deny_permissions: toPgBigint(deny),
+        },
+        { onConflict: "channel_id,target_type,target_id" }
+      )
+      .select("*")
+      .single();
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "CHANNEL_OVERRIDE_SET",
+      targetType: "channel",
+      targetId: channelId,
+      changes: {
+        targetType,
+        targetId,
+        allow: String(allow),
+        deny: String(deny),
+      },
+    });
+
+    return res.json({
+      override: {
+        id: row.id,
+        channelId: row.channel_id,
+        targetType: row.target_type,
+        targetId: row.target_id,
+        allow: permissionsToFlags(fromPgBigint(row.allow_permissions)),
+        deny: permissionsToFlags(fromPgBigint(row.deny_permissions)),
+      },
+    });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] PUT overrides error:", err);
+    return res.status(status).json({ error: err.message || "Failed to save override.", code: err.code });
+  }
+});
+
+/**
+ * DELETE /servers/:id/channels/:channelId/overrides/:targetType/:targetId
+ */
+router.delete(
+  "/:id/channels/:channelId/overrides/:targetType/:targetId",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const serverId = req.params.id;
+      const channelId = req.params.channelId;
+      const targetType = req.params.targetType === "member" ? "member" : "role";
+      const targetId = req.params.targetId;
+      await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_ROLES);
+
+      const { error } = await supabase
+        .from("server_channel_overrides")
+        .delete()
+        .eq("channel_id", channelId)
+        .eq("target_type", targetType)
+        .eq("target_id", targetId);
+      if (error) throw error;
+
+      await writeAudit({
+        serverId,
+        actorId: req.user.id,
+        action: "CHANNEL_OVERRIDE_DELETE",
+        targetType: "channel",
+        targetId: channelId,
+        changes: { targetType, targetId },
+      });
+
+      return res.json({ deleted: true });
+    } catch (err) {
+      const status = err.status || 500;
+      if (status >= 500) console.error("[SERVERS] DELETE overrides error:", err);
+      return res
+        .status(status)
+        .json({ error: err.message || "Failed to delete override.", code: err.code });
+    }
+  }
+);
+
+/**
+ * PATCH /servers/:id — owner or MANAGE_GUILD settings (name / icon / description / is_public)
  */
 router.patch("/:id", requireAuth, async (req, res) => {
   try {
     const serverId = req.params.id;
-    const { server } = await requireServerOwner(serverId, req.user.id);
+    let server;
+    try {
+      ({ server } = await requireServerOwner(serverId, req.user.id));
+    } catch (ownerErr) {
+      if (ownerErr.status !== 403) throw ownerErr;
+      ({ server } = await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_GUILD));
+    }
     const patch = {};
 
     if (req.body?.name != null) {

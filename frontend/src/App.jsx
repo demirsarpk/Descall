@@ -1473,6 +1473,17 @@ export default function App() {
       }
     });
 
+    socket.on("server:channel:message:deleted", ({ channelId, messageId } = {}) => {
+      if (!channelId || !messageId) return;
+      setChannelMessagesById((prev) => {
+        const cur = prev[channelId];
+        if (!cur?.length) return prev;
+        const next = cur.filter((m) => m.id !== messageId);
+        if (next.length === cur.length) return prev;
+        return { ...prev, [channelId]: next };
+      });
+    });
+
     socket.on("server:channel:message:error", ({ channelId, tempId, message } = {}) => {
       if (channelId && tempId) {
         setChannelMessagesById((prev) => {

@@ -82,6 +82,25 @@ export function deleteChannel(serverId, channelId) {
   });
 }
 
+/** Channel permission overrides (role/member allow/deny). */
+export function getChannelOverrides(serverId, channelId) {
+  return serversRequest(`/api/servers/${serverId}/channels/${channelId}/overrides`);
+}
+
+export function putChannelOverride(serverId, channelId, { targetType, targetId, permissions }) {
+  return serversRequest(`/api/servers/${serverId}/channels/${channelId}/overrides`, {
+    method: "PUT",
+    body: { targetType, targetId, permissions },
+  });
+}
+
+export function deleteChannelOverride(serverId, channelId, targetType, targetId) {
+  return serversRequest(
+    `/api/servers/${serverId}/channels/${channelId}/overrides/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}`,
+    { method: "DELETE" }
+  );
+}
+
 /** Text channel message history (membership-gated). */
 export function getChannelMessages(serverId, channelId, { before, limit = 50 } = {}) {
   const q = new URLSearchParams();
