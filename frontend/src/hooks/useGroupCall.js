@@ -1310,19 +1310,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         );
       }
 
-      const {
-        track: screenAudioTrack,
-        source: screenAudioSource,
-        audioCtx: screenAudioCtx,
-      } = await ensureScreenShareAudioTrack(
-        stream,
-        localStreamRef.current
-      );
-      if (screenAudioCtxRef.current) {
-        try { screenAudioCtxRef.current.close(); } catch { /* ignore */ }
-        screenAudioCtxRef.current = null;
-      }
-      if (screenAudioCtx) screenAudioCtxRef.current = screenAudioCtx;
+      const { track: screenAudioTrack } = await ensureScreenShareAudioTrack(stream);
       if (!screenAudioTrack) {
         toast(
           tRuntime(
@@ -1330,11 +1318,6 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
               ? "This device can’t share system/tab audio with screen share."
               : "No system/tab audio selected — enable “Share audio” in the picker for sound."
           ),
-          "info"
-        );
-      } else if (screenAudioSource === "mic-fallback") {
-        toast(
-          tRuntime("System/tab audio unavailable — your microphone is mixed into the screen share."),
           "info"
         );
       }

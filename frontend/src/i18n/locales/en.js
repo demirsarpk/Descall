@@ -2115,12 +2115,10 @@ export const phrases = {
   "30 days": "30 days",
   "90 days": "90 days",
   "1 year": "1 year",
+  "This device can’t share system/tab audio with screen share.":
+    "This device can’t share system/tab audio with screen share. On mobile browsers, YouTube/app audio usually can’t be captured with screen share — only the video mirror.",
   "No system/tab audio selected — enable “Share audio” in the picker for sound.":
     "No system/tab audio selected — enable “Share audio” in the picker for sound.",
-  "This device can’t share system/tab audio with screen share.":
-    "This device can’t share system/tab audio with screen share.",
-  "System/tab audio unavailable — your microphone is mixed into the screen share.":
-    "System/tab audio unavailable — your microphone is mixed into the screen share.",
   "Screen share ended while Descall was in the background.":
     "Screen share ended while Descall was in the background.",
   "Share your entire screen so switching apps keeps the broadcast alive.":

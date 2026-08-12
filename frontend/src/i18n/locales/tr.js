@@ -2400,12 +2400,10 @@ export const phrases = {
   "30 days": "30 gün",
   "90 days": "90 gün",
   "1 year": "1 yıl",
+  "This device can’t share system/tab audio with screen share.":
+    "Bu tarayıcıda ekran paylaşımına sistem/sekme sesi eklenemiyor. Mobil web’de YouTube/uygulama sesi genelde yakalanmaz — sadece görüntü gider. Mikrofon zaten arama sesinden duyulur.",
   "No system/tab audio selected — enable “Share audio” in the picker for sound.":
     "Sistem/sekme sesi seçilmedi — ses için seçicide “Sesi paylaş”ı aç.",
-  "This device can’t share system/tab audio with screen share.":
-    "Bu cihaz ekran paylaşımında sistem/sekme sesi gönderemiyor.",
-  "System/tab audio unavailable — your microphone is mixed into the screen share.":
-    "Sistem/sekme sesi yok — mikrofonun ekran paylaşımına karıştırıldı.",
   "Screen share ended while Descall was in the background.":
     "Descall arka plandayken ekran paylaşımı sonlandı.",
   "Share your entire screen so switching apps keeps the broadcast alive.":
