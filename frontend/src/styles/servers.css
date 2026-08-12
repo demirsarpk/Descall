@@ -1675,8 +1675,12 @@ button.member-row.server-member-row {
   opacity: 0.7;
 }
 
-.server-voice-member.is-speaking .ui-avatar {
-  box-shadow: 0 0 0 2px #23a559;
+/* Speaking ring must target the circular .ui-avatar-inner — .ui-avatar is a
+   square stacking context (frames overflow), so box-shadow there looks square. */
+.server-voice-member.is-speaking .ui-avatar-inner {
+  box-shadow:
+    0 0 0 2px #23a559,
+    0 0 0 4px rgba(35, 165, 89, 0.28);
 }
 
 .server-voice-count {
@@ -1747,8 +1751,10 @@ button.member-row.server-member-row {
   color: var(--text-1);
 }
 
-.server-voice-user.is-speaking .ui-avatar {
-  box-shadow: 0 0 0 2px #23a559;
+.server-voice-user.is-speaking .ui-avatar-inner {
+  box-shadow:
+    0 0 0 2px #23a559,
+    0 0 0 4px rgba(35, 165, 89, 0.28);
 }
 
 .server-channel-row-wrap.is-joined-voice > .server-channel-row {
