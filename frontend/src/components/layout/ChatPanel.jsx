@@ -554,7 +554,13 @@ export default function ChatPanel({
 
       {/* Typing + composer only on real chat surfaces — never under Activity */}
       {activeView !== "activity" &&
-        (activeDmUser || activeGroup || (activeView === "servers" && activeChannel?.type === "text")) && (
+        (activeDmUser ||
+          activeGroup ||
+          (activeView === "servers" &&
+            activeChannel?.type === "text" &&
+            (activeServer?.isOwner ||
+              activeServer?.myPermissions?.flags?.SEND_MESSAGES ||
+              activeServer?.myPermissions?.flags?.ADMINISTRATOR))) && (
         <>
           <AnimatePresence>
             {typingNames.length > 0 && (
@@ -577,7 +583,17 @@ export default function ChatPanel({
           <div className="composer-container">
             <MessageComposer
               onSend={onSendMessage}
-              disabled={!activeDmUser && !activeGroup && !(activeView === "servers" && activeChannel?.type === "text")}
+              disabled={
+                !activeDmUser &&
+                !activeGroup &&
+                !(
+                  activeView === "servers" &&
+                  activeChannel?.type === "text" &&
+                  (activeServer?.isOwner ||
+                    activeServer?.myPermissions?.flags?.SEND_MESSAGES ||
+                    activeServer?.myPermissions?.flags?.ADMINISTRATOR)
+                )
+              }
               activeDmUser={activeDmUser}
               activeGroup={activeGroup}
               onTypingDmStart={onTypingDmStart}

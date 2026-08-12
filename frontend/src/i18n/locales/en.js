@@ -1167,6 +1167,7 @@ export const phrases = {
   "Select a role to edit, or create a new one.": "Select a role to edit, or create a new one.",
   "Create a role first, then assign it to members.": "Create a role first, then assign it to members.",
   "Create roles and assign them to members. Full permission checks arrive next.": "Create roles and assign them to members. Full permission checks arrive next.",
+  "Create roles, set permissions, and assign them to members.": "Create roles, set permissions, and assign them to members.",
   "Members": "Members",
   "View channels": "View channels",
   "Send messages": "Send messages",

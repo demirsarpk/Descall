@@ -1,16 +1,24 @@
 "use strict";
 
 /**
- * Descall Servers API — Steps 1–5
- * Create / list / get / delete / leave + channel CRUD + text chat history + roles
+ * Descall Servers API — Steps 1–6
+ * Create / list / get / delete / leave + channel CRUD + text chat + roles + permission gates
  * Ownership limit: max 10 servers owned per user (membership unlimited).
- * Channel/role manage: owner only until permission engine lands in Step 6.
+ * Channel/role manage gated by MANAGE_CHANNELS / MANAGE_ROLES (owner always has all).
  */
 
 const express = require("express");
 const supabase = require("../db/supabase");
 const { requireAuth } = require("../middleware/auth");
-const { EVERYONE_DEFAULT, toPgBigint, fromPgBigint, Permissions } = require("../lib/serverPermissions");
+const {
+  EVERYONE_DEFAULT,
+  toPgBigint,
+  fromPgBigint,
+  Permissions,
+  hasPermission,
+  resolveMemberPermissions,
+  permissionsToFlags,
+} = require("../lib/serverPermissions");
 
 const router = express.Router();
 
@@ -25,7 +33,7 @@ const CHANNEL_TYPES = new Set(["text", "voice", "category"]);
 const ROLE_NAME_MIN = 1;
 const ROLE_NAME_MAX = 100;
 
-/** Permission keys editable in Step 5 role UI (full engine in Step 6). */
+/** Permission keys editable in the role UI. */
 const EDITABLE_PERMISSION_KEYS = [
   "VIEW_CHANNEL",
   "SEND_MESSAGES",
@@ -104,12 +112,57 @@ async function requireServerOwner(serverId, userId) {
     throw err;
   }
   if (server.owner_id !== userId) {
-    const err = new Error("Only the server owner can manage channels for now.");
+    const err = new Error("Only the server owner can do this.");
     err.status = 403;
     err.code = "OWNER_REQUIRED";
     throw err;
   }
-  return { server, membership };
+  return { server, membership, permissions: null, isOwner: true };
+}
+
+/**
+ * Require membership + a permission bit (owner always passes).
+ * @param {bigint|string} flag — Permissions.* bit or key name
+ */
+async function requireServerPermission(serverId, userId, flag) {
+  const resolved = await resolveMemberPermissions(supabase, serverId, userId);
+  if (!resolved.isMember) {
+    const err = new Error("You are not a member of this server.");
+    err.status = 403;
+    throw err;
+  }
+  if (!hasPermission(resolved.bits, flag)) {
+    const err = new Error("Missing permission.");
+    err.status = 403;
+    err.code = "MISSING_PERMISSION";
+    err.permission = typeof flag === "string" ? flag : null;
+    throw err;
+  }
+  const { data: server, error } = await supabase
+    .from("servers")
+    .select("*")
+    .eq("id", serverId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!server) {
+    const err = new Error("Server not found.");
+    err.status = 404;
+    throw err;
+  }
+  return {
+    server,
+    permissions: resolved.bits,
+    isOwner: resolved.isOwner,
+  };
+}
+
+async function buildMyPermissionsPayload(serverId, userId) {
+  const resolved = await resolveMemberPermissions(supabase, serverId, userId);
+  return {
+    bits: toPgBigint(resolved.bits),
+    flags: permissionsToFlags(resolved.bits),
+    isOwner: resolved.isOwner,
+  };
 }
 
 async function nextChannelPosition(serverId) {
@@ -509,6 +562,7 @@ router.post("/", requireAuth, async (req, res) => {
         listPosition,
         channels: [category, general, voiceCat, generalVoice].map(publicChannel),
         roles: [publicRole(everyoneRole)],
+        myPermissions: await buildMyPermissionsPayload(server.id, userId),
       }),
       ownedCount: owned + 1,
       maxOwned: MAX_OWNED_SERVERS,
@@ -533,6 +587,8 @@ router.get("/:id", requireAuth, async (req, res) => {
     const bundle = await loadServerBundle(serverId);
     if (!bundle) return res.status(404).json({ error: "Server not found." });
 
+    const myPermissions = await buildMyPermissionsPayload(serverId, req.user.id);
+
     return res.json({
       server: publicServer(bundle.server, {
         isOwner: bundle.server.owner_id === req.user.id,
@@ -542,6 +598,7 @@ router.get("/:id", requireAuth, async (req, res) => {
         joinedAt: membership.joined_at,
         channels: bundle.channels.map(publicChannel),
         roles: bundle.roles.map(publicRole),
+        myPermissions,
       }),
     });
   } catch (err) {
@@ -668,7 +725,7 @@ router.post("/:id/leave", requireAuth, async (req, res) => {
 
 /**
  * GET /servers/:id/channels/:channelId/messages
- * Membership-gated history for text channels.
+ * VIEW_CHANNEL-gated history for text channels.
  */
 router.get("/:id/channels/:channelId/messages", requireAuth, async (req, res) => {
   try {
@@ -676,10 +733,7 @@ router.get("/:id/channels/:channelId/messages", requireAuth, async (req, res) =>
     const channelId = req.params.channelId;
     const { before, limit = 50 } = req.query;
 
-    const membership = await getMembership(serverId, req.user.id);
-    if (!membership) {
-      return res.status(403).json({ error: "You are not a member of this server." });
-    }
+    await requireServerPermission(serverId, req.user.id, Permissions.VIEW_CHANNEL);
 
     const { data: channel, error: cErr } = await supabase
       .from("server_channels")
@@ -837,7 +891,7 @@ router.get("/:id/roles", requireAuth, async (req, res) => {
 router.post("/:id/roles", requireAuth, async (req, res) => {
   try {
     const serverId = req.params.id;
-    await requireServerOwner(serverId, req.user.id);
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_ROLES);
 
     const name = cleanName(req.body?.name);
     if (name.length < ROLE_NAME_MIN || name.length > ROLE_NAME_MAX) {
@@ -914,7 +968,7 @@ router.patch("/:id/roles/:roleId", requireAuth, async (req, res) => {
   try {
     const serverId = req.params.id;
     const roleId = req.params.roleId;
-    await requireServerOwner(serverId, req.user.id);
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_ROLES);
 
     const { data: existing, error: findErr } = await supabase
       .from("server_roles")
@@ -985,7 +1039,7 @@ router.delete("/:id/roles/:roleId", requireAuth, async (req, res) => {
   try {
     const serverId = req.params.id;
     const roleId = req.params.roleId;
-    await requireServerOwner(serverId, req.user.id);
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_ROLES);
 
     const { data: existing, error: findErr } = await supabase
       .from("server_roles")
@@ -1031,7 +1085,7 @@ router.put("/:id/members/:userId/roles/:roleId", requireAuth, async (req, res) =
     const serverId = req.params.id;
     const userId = req.params.userId;
     const roleId = req.params.roleId;
-    await requireServerOwner(serverId, req.user.id);
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_ROLES);
 
     const targetMembership = await getMembership(serverId, userId);
     if (!targetMembership) {
@@ -1081,7 +1135,7 @@ router.delete("/:id/members/:userId/roles/:roleId", requireAuth, async (req, res
     const serverId = req.params.id;
     const userId = req.params.userId;
     const roleId = req.params.roleId;
-    await requireServerOwner(serverId, req.user.id);
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_ROLES);
 
     const { data: role } = await supabase
       .from("server_roles")
@@ -1131,7 +1185,7 @@ router.post("/:id/channels", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Channel type must be text, voice, or category." });
     }
 
-    await requireServerOwner(serverId, req.user.id);
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_CHANNELS);
 
     const name = cleanChannelName(req.body?.name, type);
     if (name.length < CHANNEL_NAME_MIN) {
@@ -1206,7 +1260,7 @@ router.patch("/:id/channels/:channelId", requireAuth, async (req, res) => {
   try {
     const serverId = req.params.id;
     const channelId = req.params.channelId;
-    await requireServerOwner(serverId, req.user.id);
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_CHANNELS);
 
     const { data: existing, error: findErr } = await supabase
       .from("server_channels")
@@ -1281,7 +1335,7 @@ router.delete("/:id/channels/:channelId", requireAuth, async (req, res) => {
   try {
     const serverId = req.params.id;
     const channelId = req.params.channelId;
-    await requireServerOwner(serverId, req.user.id);
+    await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_CHANNELS);
 
     const { data: existing, error: findErr } = await supabase
       .from("server_channels")

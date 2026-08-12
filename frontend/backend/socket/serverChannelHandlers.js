@@ -1,7 +1,8 @@
 /**
- * Server channel text chat socket handlers (Step 4).
+ * Server channel text chat socket handlers (Steps 4–6).
  * Room: server-channel:${channelId}
  * Events: server:channel:join | leave | message (+ ack/error)
+ * Gated by VIEW_CHANNEL (join/history) and SEND_MESSAGES (send).
  */
 
 const supabase = require("../db/supabase");
@@ -9,6 +10,11 @@ const { getCachedPublicUser, getAvatarUrl, pickChatCosmetics, ensureCosmeticsCac
 const { toUtcIso } = require("../lib/datetime");
 const descoin = require("../lib/descoin");
 const { shouldCreditMessage } = require("../lib/descoinMessageGuard");
+const {
+  Permissions,
+  hasPermission,
+  resolveMemberPermissions,
+} = require("../lib/serverPermissions");
 
 function resolveSocketAvatar(socket) {
   const cached = getCachedPublicUser(socket.user?.id);
@@ -44,7 +50,7 @@ function buildSenderPayload(socket) {
   };
 }
 
-async function assertTextChannelMember(userId, channelId) {
+async function assertTextChannelAccess(userId, channelId, requiredFlag) {
   const { data: channel, error: cErr } = await supabase
     .from("server_channels")
     .select("id, server_id, type, name")
@@ -62,19 +68,20 @@ async function assertTextChannelMember(userId, channelId) {
     err.code = "NOT_TEXT_CHANNEL";
     throw err;
   }
-  const { data: membership, error: mErr } = await supabase
-    .from("server_members")
-    .select("server_id")
-    .eq("server_id", channel.server_id)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (mErr) throw mErr;
-  if (!membership) {
+
+  const resolved = await resolveMemberPermissions(supabase, channel.server_id, userId);
+  if (!resolved.isMember) {
     const err = new Error("You are not a member of this server.");
     err.status = 403;
     throw err;
   }
-  return channel;
+  if (requiredFlag && !hasPermission(resolved.bits, requiredFlag)) {
+    const err = new Error("Missing permission.");
+    err.status = 403;
+    err.code = "MISSING_PERMISSION";
+    throw err;
+  }
+  return { channel, permissions: resolved.bits };
 }
 
 function registerServerChannelHandlers(io, socket) {
@@ -84,7 +91,7 @@ function registerServerChannelHandlers(io, socket) {
   socket.on("server:channel:join", async (channelId) => {
     if (!channelId) return;
     try {
-      await assertTextChannelMember(myId, channelId);
+      await assertTextChannelAccess(myId, channelId, Permissions.VIEW_CHANNEL);
       socket.join(`server-channel:${channelId}`);
     } catch (err) {
       socket.emit("server:channel:error", {
@@ -100,7 +107,7 @@ function registerServerChannelHandlers(io, socket) {
     for (const channelId of channelIds) {
       if (!channelId) continue;
       try {
-        await assertTextChannelMember(myId, channelId);
+        await assertTextChannelAccess(myId, channelId, Permissions.VIEW_CHANNEL);
         socket.join(`server-channel:${channelId}`);
       } catch {
         /* skip unauthorized */
@@ -145,7 +152,23 @@ function registerServerChannelHandlers(io, socket) {
           return;
         }
 
-        const channel = await assertTextChannelMember(myId, channelId);
+        const { channel } = await assertTextChannelAccess(
+          myId,
+          channelId,
+          Permissions.SEND_MESSAGES
+        );
+        // Also require view
+        const viewCheck = await resolveMemberPermissions(supabase, channel.server_id, myId);
+        if (!hasPermission(viewCheck.bits, Permissions.VIEW_CHANNEL)) {
+          socket.emit("server:channel:message:error", {
+            channelId,
+            tempId: tempId || null,
+            message: "Missing permission.",
+            code: "MISSING_PERMISSION",
+          });
+          return;
+        }
+
         if (serverId && serverId !== channel.server_id) {
           socket.emit("server:channel:message:error", {
             channelId,
@@ -272,5 +295,5 @@ function registerServerChannelHandlers(io, socket) {
 
 module.exports = {
   registerServerChannelHandlers,
-  assertTextChannelMember,
+  assertTextChannelAccess,
 };

@@ -261,7 +261,7 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
           <div>
             <h3>{t("Roles")}</h3>
             <p className="server-modal-lead" style={{ marginBottom: 0 }}>
-              {t("Create roles and assign them to members. Full permission checks arrive next.")}
+              {t("Create roles, set permissions, and assign them to members.")}
             </p>
           </div>
           <button type="button" className="icon-btn" onClick={onClose} title={t("Close")}>

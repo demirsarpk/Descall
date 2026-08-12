@@ -2901,12 +2901,23 @@ export default function App() {
     }
   };
 
-  const handleRolesChanged = (roles) => {
+  const handleRolesChanged = async (roles) => {
     if (!activeServer?.id) return;
     setActiveServer((prev) => (prev ? { ...prev, roles: roles || [] } : prev));
     setMyServers((prev) =>
       prev.map((s) => (s.id === activeServer.id ? { ...s, roles: roles || [] } : s))
     );
+    try {
+      const data = await getServer(activeServer.id);
+      if (data?.server) {
+        setActiveServer(data.server);
+        setMyServers((prev) =>
+          prev.map((s) => (s.id === data.server.id ? { ...s, ...data.server } : s))
+        );
+      }
+    } catch {
+      /* best-effort refresh of myPermissions */
+    }
   };
 
   const handleServerBack = () => {

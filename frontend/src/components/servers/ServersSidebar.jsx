@@ -57,7 +57,13 @@ export default function ServersSidebar({
   const [collapsedCats, setCollapsedCats] = useState({});
 
   const canCreate = ownedCount < maxOwned;
-  const canManageChannels = Boolean(activeServer?.isOwner);
+  const permFlags = activeServer?.myPermissions?.flags || {};
+  const canManageChannels = Boolean(
+    activeServer?.isOwner || permFlags.MANAGE_CHANNELS || permFlags.ADMINISTRATOR
+  );
+  const canManageRoles = Boolean(
+    activeServer?.isOwner || permFlags.MANAGE_ROLES || permFlags.ADMINISTRATOR
+  );
   const categories = useMemo(
     () => (activeServer?.channels || []).filter((c) => c.type === "category").sort((a, b) => a.position - b.position),
     [activeServer?.channels]
@@ -163,6 +169,9 @@ export default function ServersSidebar({
                       <Folder size={15} />
                       {t("Create category")}
                     </button>
+                  </>
+                )}
+                {canManageRoles && (
                     <button
                       type="button"
                       className="server-dropdown-item"
@@ -174,7 +183,6 @@ export default function ServersSidebar({
                       <Shield size={15} />
                       {t("Roles")}
                     </button>
-                  </>
                 )}
                 {activeServer.isOwner ? (
                   <button type="button" className="server-dropdown-item danger" onClick={() => openConfirm("delete")}>

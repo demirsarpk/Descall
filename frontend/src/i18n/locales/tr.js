@@ -1127,6 +1127,7 @@ export const phrases = {
   "Select a role to edit, or create a new one.": "Düzenlemek için bir rol seç veya yeni oluştur.",
   "Create a role first, then assign it to members.": "Önce bir rol oluştur, sonra üyelere ata.",
   "Create roles and assign them to members. Full permission checks arrive next.": "Roller oluştur ve üyelere ata. Tam izin kontrolleri sonraki adımda.",
+  "Create roles, set permissions, and assign them to members.": "Roller oluştur, izinleri ayarla ve üyelere ata.",
   "Members": "Üyeler",
   "View channels": "Kanalları görüntüle",
   "Send messages": "Mesaj gönder",
