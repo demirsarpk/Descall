@@ -2477,12 +2477,20 @@ export default function App() {
       .finally(() => setMessagesLoading(false));
   }, [activeGroup?.id, t]);
 
-  // Stay joined to every text channel in the open server so unread can bump
-  // without a DB unread sync. Leave rooms when leaving the server shell.
+  // Live structure/member events for the open server.
   useEffect(() => {
     if (activeView !== "servers" || !activeServer?.id) return undefined;
     const serverId = activeServer.id;
     socketRef.current?.emit("server:subscribe", { serverId });
+    return () => {
+      socketRef.current?.emit("server:unsubscribe", { serverId });
+    };
+  }, [activeView, activeServer?.id]);
+
+  // Stay joined to every text channel in the open server so unread can bump
+  // without a DB unread sync. Leave rooms when leaving the server shell.
+  useEffect(() => {
+    if (activeView !== "servers" || !activeServer?.id) return undefined;
     const textIds = (activeServer.channels || [])
       .filter((c) => c.type === "text" && c.id)
       .map((c) => c.id);
@@ -2493,7 +2501,6 @@ export default function App() {
       for (const id of textIds) {
         socketRef.current?.emit("server:channel:leave", id);
       }
-      socketRef.current?.emit("server:unsubscribe", { serverId });
     };
   }, [
     activeView,
