@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { Avatar } from "./ui/Avatar";
 import { profileAuraClass } from "./ui/Cosmetics";
+import StatusBadge from "./ui/StatusBadge";
+import AdminBadge from "./social/AdminBadge";
 import DmRemoteParticipantSlot from "./voice/DmRemoteParticipantSlot";
 import { useDmRemoteParticipant } from "../hooks/useDmRemoteParticipant";
 import { resolveAvatarUrl } from "../lib/avatar";
@@ -1015,7 +1017,22 @@ function StatRow({ label, value }) {
   );
 }
 
-function ParticipantTile({ username, avatarUrl, user = null, isSpeaking: speakingProp, videoRef, hasVideo, isLocal, small = false, stream = null, muted = false, cameraOn = true, connectionQuality = null, handRaised = false }) {
+function ParticipantTile({
+  username,
+  avatarUrl,
+  user = null,
+  status = null,
+  isSpeaking: speakingProp,
+  videoRef,
+  hasVideo,
+  isLocal,
+  small = false,
+  stream = null,
+  muted = false,
+  cameraOn = true,
+  connectionQuality = null,
+  handRaised = false,
+}) {
   const t = useT();
   const elRef = useRef(null);
   const detected = useSpeaking(stream, {
@@ -1028,6 +1045,8 @@ function ParticipantTile({ username, avatarUrl, user = null, isSpeaking: speakin
   // Cap ring motion so level jitter doesn't look like flicker
   const ringScale = 1 + (isSpeaking ? Math.max(0.06, Math.min(0.22, level * 0.28)) : 0);
   const auraClass = profileAuraClass(user);
+  const avatarSize = small ? 36 : 72;
+  const presenceStatus = status || (isLocal ? "online" : null);
 
   const setVideoEl = useCallback((el) => {
     elRef.current = el;
@@ -1071,23 +1090,37 @@ function ParticipantTile({ username, avatarUrl, user = null, isSpeaking: speakin
         />
       ) : (
         <div className={`participant-tile-avatar-stack ${auraClass}`.trim()}>
-          <span
-            className={`speaking-ring ring-a${isSpeaking ? " active" : ""}`}
-            style={{ transform: `scale(${ringScale})` }}
-          />
-          <span
-            className={`speaking-ring ring-b${isSpeaking ? " active" : ""}`}
-            style={{ transform: `scale(${1 + (isSpeaking ? level * 0.55 : 0)})` }}
-          />
-          <Avatar
-            name={username || "?"}
-            size={small ? 36 : 72}
-            user={user}
-            imageUrl={avatarUrl}
-            animate="speaking"
-            isSpeaking={isSpeaking}
-          />
-          {!small && <span>{username}</span>}
+          {/* Shell is a fixed square so speaking rings + status sit on the
+              avatar — not the whole column (avatar + name), which used to
+              stretch the green ring into a bottom-center "status" oval. */}
+          <div
+            className="participant-tile-avatar-shell"
+            style={{ width: avatarSize, height: avatarSize }}
+          >
+            <span
+              className={`speaking-ring ring-a${isSpeaking ? " active" : ""}`}
+              style={{ transform: `scale(${ringScale})` }}
+            />
+            <span
+              className={`speaking-ring ring-b${isSpeaking ? " active" : ""}`}
+              style={{ transform: `scale(${1 + (isSpeaking ? level * 0.55 : 0)})` }}
+            />
+            <Avatar
+              name={username || "?"}
+              size={avatarSize}
+              user={user}
+              imageUrl={avatarUrl}
+              animate="speaking"
+              isSpeaking={isSpeaking}
+            />
+            <StatusBadge status={presenceStatus} user={user} />
+          </div>
+          {!small && (
+            <div className="participant-tile-identity">
+              <span className="participant-tile-identity-name">{username}</span>
+              <AdminBadge user={user} variant="chip" />
+            </div>
+          )}
         </div>
       )}
 

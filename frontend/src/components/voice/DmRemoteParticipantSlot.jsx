@@ -71,6 +71,7 @@ function ConnectingPlaceholder({ username, user, status }) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, y: 8 }}
       transition={{ duration: 0.28, ease: PARTICIPANT_EASE }}
+      className="dm-remote-connecting"
       style={{
         position: "relative",
         borderRadius: 14,
@@ -90,6 +91,8 @@ function ConnectingPlaceholder({ username, user, status }) {
       }}
     >
       <motion.div
+        className="participant-tile-avatar-shell"
+        style={{ width: 64, height: 64 }}
         animate={{ scale: [1, 1.04, 1] }}
         transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
       >
@@ -181,29 +184,33 @@ export default function DmRemoteParticipantSlot({
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-              <div style={{ position: "relative", width: 64, height: 64 }}>
+            <div className="participant-tile-avatar-stack">
+              <div className="participant-tile-avatar-shell" style={{ width: 64, height: 64, position: "relative" }}>
                 {isSpeaking && (
                   <>
                     <span
                       aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        inset: -5,
-                        borderRadius: "50%",
-                        border: "2px solid #3ba55d",
-                        boxShadow: "0 0 0 3px rgba(59,165,93,0.22)",
-                        animation: "callTilePulse 1.2s infinite",
-                      }}
-                    />
-                    <span
-                      aria-hidden="true"
+                      className="speaking-ring ring-a active"
                       style={{
                         position: "absolute",
                         inset: -10,
                         borderRadius: "50%",
+                        border: "2px solid #3ba55d",
+                        boxShadow: "0 0 0 3px rgba(59,165,93,0.22)",
+                        animation: "callTilePulse 1.2s infinite",
+                        opacity: 1,
+                      }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="speaking-ring ring-b active"
+                      style={{
+                        position: "absolute",
+                        inset: -6,
+                        borderRadius: "50%",
                         border: "1px solid rgba(59,165,93,0.38)",
                         animation: "callTilePulse 1.2s 0.18s infinite",
+                        opacity: 1,
                       }}
                     />
                   </>

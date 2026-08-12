@@ -428,7 +428,9 @@
     box-shadow 0.22s ease;
 }
 
-.speaking-ring,
+/* Only the tile border pulses while speaking — rings get their own
+   .speaking-ring.active styles. Applying box-shadow to every .speaking-ring
+   left inactive rings painted green under opacity quirks. */
 .participant-tile.is-speaking,
 .call-tile.is-speaking {
   box-shadow: 0 0 0 2px var(--success), 0 0 0 5px rgba(35, 165, 90, 0.22);
@@ -863,7 +865,47 @@
   font-weight: 500;
 }
 
-.participant-tile.small .participant-tile-avatar-stack { gap: 6px; }
+.participant-tile-avatar-shell {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  overflow: visible;
+}
+
+.participant-tile-avatar-shell .status-badge {
+  right: -1px;
+  bottom: -1px;
+  z-index: 4;
+  /* Match the dark call tile so the cutout reads cleanly */
+  border-color: var(--surface-1, #1a1b1f);
+}
+
+.participant-tile-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 0 8px;
+}
+
+.participant-tile-identity-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.participant-tile-identity .dsc-admin-badge--chip {
+  margin-top: 0;
+}
 
 /* Connection quality HUD */
 .call-quality-hud {
@@ -1763,7 +1805,7 @@
   color: var(--text-2);
 }
 
-/* ── Speaking rings ── */
+/* ── Speaking rings (scoped to the square avatar shell only) ── */
 .participant-tile-avatar-stack {
   position: relative;
   display: flex;
@@ -1772,9 +1814,9 @@
   justify-content: center;
   gap: 8px;
 }
-.speaking-ring {
+.participant-tile-avatar-shell .speaking-ring {
   position: absolute;
-  inset: 18% 22%;
+  inset: -6px;
   border-radius: 50%;
   border: 2px solid transparent;
   pointer-events: none;
@@ -1785,17 +1827,26 @@
     border-color 0.22s ease,
     box-shadow 0.22s ease;
 }
-.speaking-ring.ring-a {
-  inset: 12% 16%;
+.participant-tile-avatar-shell .speaking-ring.ring-a {
+  inset: -10px;
 }
-.speaking-ring.active {
+.participant-tile-avatar-shell .speaking-ring.active {
   opacity: 1;
   border-color: rgba(35, 165, 90, 0.55);
   box-shadow: 0 0 18px rgba(35, 165, 90, 0.35);
 }
-.speaking-ring.ring-b.active {
+.participant-tile-avatar-shell .speaking-ring.ring-b.active {
   border-color: rgba(35, 165, 90, 0.28);
   box-shadow: none;
+}
+
+/* Legacy selectors kept inert so old markup doesn't paint a green oval
+   across avatar + name column. */
+.speaking-ring {
+  pointer-events: none;
+}
+.speaking-ring.active {
+  opacity: 1;
 }
 
 /* ── Appearance density / bubbles ── */
