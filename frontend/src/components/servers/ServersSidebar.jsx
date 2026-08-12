@@ -53,6 +53,7 @@ export default function ServersSidebar({
   onRefresh,
   onJoinServer,
   onServerUpdated,
+  serverVoice = null,
   onMobileClose,
   isMobile = false,
 }) {
@@ -86,6 +87,7 @@ export default function ServersSidebar({
   const canViewAudit = Boolean(
     activeServer?.isOwner || permFlags.VIEW_AUDIT_LOG || permFlags.ADMINISTRATOR
   );
+  const voiceStates = serverVoice?.voiceStatesByServer?.[activeServer?.id] || {};
   const categories = useMemo(
     () => (activeServer?.channels || []).filter((c) => c.type === "category").sort((a, b) => a.position - b.position),
     [activeServer?.channels]
@@ -316,6 +318,8 @@ export default function ServersSidebar({
                           active={activeChannel?.id === ch.id}
                           canManage={canManageChannels}
                           menuOpen={channelMenuId === ch.id}
+                          voiceState={voiceStates[ch.id]}
+                          joinedHere={serverVoice?.activeChannelId === ch.id}
                           onOpenMenu={() => setChannelMenuId((id) => (id === ch.id ? null : ch.id))}
                           onCloseMenu={() => setChannelMenuId(null)}
                           onSelect={() => {
@@ -342,6 +346,8 @@ export default function ServersSidebar({
                   active={activeChannel?.id === node.id}
                   canManage={canManageChannels}
                   menuOpen={channelMenuId === node.id}
+                  voiceState={voiceStates[node.id]}
+                  joinedHere={serverVoice?.activeChannelId === node.id}
                   onOpenMenu={() => setChannelMenuId((id) => (id === node.id ? null : node.id))}
                   onCloseMenu={() => setChannelMenuId(null)}
                   onSelect={() => {
@@ -603,6 +609,8 @@ function ChannelRow({
   active,
   canManage,
   menuOpen,
+  voiceState = null,
+  joinedHere = false,
   onOpenMenu,
   onCloseMenu,
   onSelect,
@@ -611,8 +619,9 @@ function ChannelRow({
 }) {
   const t = useT();
   const Icon = channel.type === "voice" ? Volume2 : Hash;
+  const voiceMembers = channel.type === "voice" ? voiceState?.members || [] : [];
   return (
-    <div className={`server-channel-row-wrap ${active ? "active" : ""}`}>
+    <div className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""}`}>
       <button
         type="button"
         className={`server-channel-row ${active ? "active" : ""}`}
@@ -621,6 +630,9 @@ function ChannelRow({
       >
         <Icon size={16} />
         <span>{channel.name}</span>
+        {channel.type === "voice" && voiceMembers.length > 0 && (
+          <span className="server-voice-count">{voiceMembers.length}</span>
+        )}
       </button>
       {canManage && (
         <div className="server-channel-row-actions">
@@ -656,6 +668,15 @@ function ChannelRow({
             )}
           </AnimatePresence>
         </div>
+      )}
+      {channel.type === "voice" && voiceMembers.length > 0 && (
+        <ul className="server-voice-user-list">
+          {voiceMembers.slice(0, 8).map((m) => (
+            <li key={m.id} className={m.muted ? "is-muted" : ""}>
+              {m.displayName || m.username || "User"}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

@@ -23,6 +23,7 @@ import { useT } from "../../context/LocaleContext";
 import AdminBadge from "../social/AdminBadge";
 import UserProfileModal from "../social/UserProfileModal";
 import ServerMembersPanel from "../servers/ServerMembersPanel";
+import ServerVoicePanel from "../servers/ServerVoicePanel";
 
 export default function ChatPanel({
   activeView,
@@ -71,7 +72,8 @@ export default function ChatPanel({
   onRefresh,
   groups = [],
   activeTimeout = null,
-  children
+  children,
+  serverVoice = null,
 }) {
   const t = useT();
   const messagesRef = useRef(null);
@@ -498,6 +500,14 @@ export default function ChatPanel({
           : children}
       </div>
       ) : activeView === "servers" ? (
+        activeChannel?.type === "voice" && activeServer ? (
+          <ServerVoicePanel
+            channel={activeChannel}
+            server={activeServer}
+            me={me}
+            serverVoice={serverVoice}
+          />
+        ) : (
         <div className="server-main-placeholder">
           {activeChannel?.type === "voice" ? (
             <Phone size={40} strokeWidth={1.5} />
@@ -516,14 +526,13 @@ export default function ChatPanel({
           <p>
             {!activeServer
               ? t("Pick a server from the sidebar — or create one to get started.")
-              : activeChannel?.type === "voice"
-                ? t("Voice connect for server channels arrives in a later step.")
-                : t("Select a channel from the sidebar to get started.")}
+              : t("Select a channel from the sidebar to get started.")}
           </p>
           {activeChannel?.topic ? (
             <p className="server-channel-topic">{activeChannel.topic}</p>
           ) : null}
         </div>
+        )
       ) : (
       <div className="messages-container" ref={messagesRef}>
         {showSearch && (

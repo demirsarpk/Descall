@@ -25,6 +25,7 @@ import { API_BASE_URL } from "./config/api";
 import { preloadIceServers } from "./lib/iceConfig";
 import { useCall } from "./hooks/useCall";
 import { useGroupCall } from "./hooks/useGroupCall";
+import { useServerVoice } from "./hooks/useServerVoice";
 import {
   clearToken,
   clearUser,
@@ -325,6 +326,7 @@ export default function App() {
   const callOccupancyRef = useRef({ dmMode: null, groupActive: false });
   const call = useCall(socketApi, callOccupancyRef);
   const groupCall = useGroupCall(socketApi, me?.id, callOccupancyRef);
+  const serverVoice = useServerVoice(socketApi);
   const callRef = useRef(call);
   const groupCallRef = useRef(groupCall);
   useEffect(() => {
@@ -2158,6 +2160,18 @@ export default function App() {
   }, [activeGroup?.id, groupCall.setViewingGroupId]);
 
   useEffect(() => {
+    if (activeView === "servers" && activeServer?.id) {
+      serverVoice.subscribeServer?.(activeServer.id);
+    }
+  }, [activeView, activeServer?.id, serverVoice.subscribeServer]);
+
+  useEffect(() => {
+    if (activeView === "servers" && activeChannel?.type === "voice" && activeChannel?.id) {
+      serverVoice.checkChannel?.(activeChannel.id);
+    }
+  }, [activeView, activeChannel?.id, activeChannel?.type, serverVoice.checkChannel]);
+
+  useEffect(() => {
     // Wait for session validation so we never fire authed REST calls with a
     // stale cached user and a missing/expired token (common on descall.com
     // after an old tab, while descall.vercel.app still had a fresh login).
@@ -3066,6 +3080,7 @@ export default function App() {
           onDeleteChannel={handleDeleteChannel}
           onRolesChanged={handleRolesChanged}
           onRefreshServers={handleRefreshServers}
+          serverVoice={serverVoice}
           onlineUsers={onlineUsers}
           myStatus={myStatus}
           onStatusChange={handleStatusChange}

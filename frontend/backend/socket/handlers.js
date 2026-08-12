@@ -40,6 +40,7 @@ const {
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 const { registerServerChannelHandlers } = require("./serverChannelHandlers");
+const { registerServerVoiceHandlers, removeUserFromAllServerVoice } = require("./serverVoiceHandlers");
 const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
 const { toUtcIso } = require("../lib/datetime");
 const { trackOffer, markAnswered, isActiveDmCall, finalizeCall } = require("../lib/dmCallLog");
@@ -1903,6 +1904,7 @@ function registerSocketHandlers(io) {
         for (const groupId of activeGroupCalls.keys()) {
           scheduleParticipantDisconnectGrace(io, groupId, myId);
         }
+        removeUserFromAllServerVoice(io, myId);
         dmScreenSharingUsers.delete(myId);
       }
       socketToUser.delete(socket.id);
@@ -1946,8 +1948,9 @@ function registerSocketHandlers(io) {
       friends,
     });
 
-    // Server channel text chat (Step 4)
+    // Server channel text chat (Step 4) + voice hangouts (Step 10)
     registerServerChannelHandlers(io, socket);
+    registerServerVoiceHandlers(io, socket);
   });
 }
 

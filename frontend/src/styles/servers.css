@@ -1201,6 +1201,162 @@ button.member-row.server-member-row {
   flex-shrink: 0;
 }
 
+/* ── Server voice hangout (Step 10) ── */
+.server-voice-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 28px 20px 24px;
+  overflow-y: auto;
+}
+
+.server-voice-hero {
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.server-voice-hero-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--primary) 14%, var(--surface-2));
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+
+.server-voice-hero h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  color: var(--text-0);
+}
+
+.server-voice-hero p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.server-voice-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.server-voice-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 999px;
+  padding: 11px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--surface-3, var(--surface-2));
+  color: var(--text-1);
+}
+
+.server-voice-btn.join {
+  background: var(--primary);
+  color: #fff;
+}
+
+.server-voice-btn.leave,
+.server-voice-btn.is-off {
+  background: color-mix(in srgb, var(--danger, #ed4245) 18%, var(--surface-2));
+  color: var(--danger, #ed4245);
+}
+
+.server-voice-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.server-voice-members {
+  max-width: 420px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.server-voice-members-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.server-voice-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.server-voice-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.server-voice-member span {
+  flex: 1;
+  min-width: 0;
+}
+
+.server-voice-member.is-muted {
+  opacity: 0.7;
+}
+
+.server-voice-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface-3);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.server-voice-user-list {
+  list-style: none;
+  margin: 0 0 4px 28px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.server-voice-user-list li {
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 2px 0;
+}
+
+.server-voice-user-list li.is-muted {
+  opacity: 0.65;
+}
+
+.server-channel-row-wrap.is-joined-voice > .server-channel-row {
+  color: var(--success, #3ba55d);
+}
+
 @media (max-width: 720px) {
   .server-roles-layout {
     grid-template-columns: 1fr;

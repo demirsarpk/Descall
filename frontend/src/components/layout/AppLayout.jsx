@@ -98,6 +98,7 @@ export default function AppLayout({
   onRefreshServers,
   onJoinServer,
   onServerUpdated,
+  serverVoice = null,
 }) {
   const t = useT();
   const { isMobile } = useMobile();
@@ -397,6 +398,7 @@ export default function AppLayout({
             onRefresh={onRefreshServers}
             onJoinServer={onJoinServer}
             onServerUpdated={onServerUpdated}
+            serverVoice={serverVoice}
             onMobileClose={isMobile ? closeMobileDrawer : undefined}
             isMobile={isMobile}
           />
@@ -506,6 +508,7 @@ export default function AppLayout({
         onStartDm={handleOpenChatFromCalls}
         onRefresh={onRefresh}
         groups={groups}
+        serverVoice={serverVoice}
       >
         {children}
       </ChatPanel>
