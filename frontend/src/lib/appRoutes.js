@@ -25,7 +25,11 @@ export function parseAppRoute(pathname = "/") {
     return { view: "groups", groupId: target || null, joinCall: extra === "call" };
   }
   if (section === "servers") {
-    return { view: "servers", serverId: target || null };
+    return {
+      view: "servers",
+      serverId: target || null,
+      channelId: extra && extra !== "call" ? extra : null,
+    };
   }
   if (section === "settings") return { view: "chat", settingsTab: target || "overview" };
   if (section === "friends" || section === "calls" || section === "activity" || section === "play") {
@@ -44,9 +48,12 @@ export function groupPath(group) {
   return id ? `/groups/${encodeURIComponent(id)}` : "/groups";
 }
 
-export function serverPath(server) {
+export function serverPath(server, channel) {
   const id = typeof server === "string" ? server : server?.id;
-  return id ? `/servers/${encodeURIComponent(id)}` : "/servers";
+  if (!id) return "/servers";
+  const channelId = typeof channel === "string" ? channel : channel?.id;
+  if (channelId) return `/servers/${encodeURIComponent(id)}/${encodeURIComponent(channelId)}`;
+  return `/servers/${encodeURIComponent(id)}`;
 }
 
 export function appPathForView(view) {

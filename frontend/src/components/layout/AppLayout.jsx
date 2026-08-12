@@ -81,13 +81,18 @@ export default function AppLayout({
   servers = [],
   serversLoaded = false,
   activeServer = null,
+  activeChannel = null,
   ownedServerCount = 0,
   maxOwnedServers = 10,
   onServerSelect,
+  onChannelSelect,
   onServerBack,
   onCreateServer,
   onLeaveServer,
   onDeleteServer,
+  onCreateChannel,
+  onUpdateChannel,
+  onDeleteChannel,
   onRefreshServers,
 }) {
   const t = useT();
@@ -350,13 +355,18 @@ export default function AppLayout({
             servers={servers}
             serversLoaded={serversLoaded}
             activeServer={activeServer}
+            activeChannel={activeChannel}
             ownedCount={ownedServerCount}
             maxOwned={maxOwnedServers}
             onSelectServer={onServerSelect}
+            onSelectChannel={onChannelSelect}
             onBackToList={onServerBack}
             onCreateServer={onCreateServer}
             onLeaveServer={onLeaveServer}
             onDeleteServer={onDeleteServer}
+            onCreateChannel={onCreateChannel}
+            onUpdateChannel={onUpdateChannel}
+            onDeleteChannel={onDeleteChannel}
             onRefresh={onRefreshServers}
             onMobileClose={isMobile ? closeMobileDrawer : undefined}
             isMobile={isMobile}
@@ -426,6 +436,7 @@ export default function AppLayout({
         activeDmUser={activeDmUser}
         activeGroup={activeGroup}
         activeServer={activeServer}
+        activeChannel={activeChannel}
         socket={socket}
         me={me}
         activeTimeout={activeTimeout}

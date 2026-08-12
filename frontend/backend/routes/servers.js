@@ -1,9 +1,10 @@
 "use strict";
 
 /**
- * Descall Servers API — Step 1 skeleton
- * Create / list / get / delete / leave
+ * Descall Servers API — Steps 1–3
+ * Create / list / get / delete / leave + channel CRUD (text / voice / category)
  * Ownership limit: max 10 servers owned per user (membership unlimited).
+ * Channel manage: owner only until roles/permissions land in later steps.
  */
 
 const express = require("express");
@@ -14,11 +15,97 @@ const { EVERYONE_DEFAULT, toPgBigint } = require("../lib/serverPermissions");
 const router = express.Router();
 
 const MAX_OWNED_SERVERS = 10;
+const MAX_CHANNELS_PER_SERVER = 500;
 const NAME_MIN = 2;
 const NAME_MAX = 100;
+const CHANNEL_NAME_MIN = 1;
+const CHANNEL_NAME_MAX = 100;
+const CHANNEL_TYPES = new Set(["text", "voice", "category"]);
 
 function cleanName(raw) {
   return String(raw || "").trim().replace(/\s+/g, " ");
+}
+
+/** Discord-like channel names: text is slug-ish; voice/category keep spaces. */
+function cleanChannelName(raw, type) {
+  let name = String(raw || "").trim();
+  if (type === "text") {
+    name = name
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-_]/g, "")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  } else {
+    name = name.replace(/\s+/g, " ");
+  }
+  return name.slice(0, CHANNEL_NAME_MAX);
+}
+
+async function requireServerOwner(serverId, userId) {
+  const membership = await getMembership(serverId, userId);
+  if (!membership) {
+    const err = new Error("You are not a member of this server.");
+    err.status = 403;
+    throw err;
+  }
+  const { data: server, error } = await supabase
+    .from("servers")
+    .select("*")
+    .eq("id", serverId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!server) {
+    const err = new Error("Server not found.");
+    err.status = 404;
+    throw err;
+  }
+  if (server.owner_id !== userId) {
+    const err = new Error("Only the server owner can manage channels for now.");
+    err.status = 403;
+    err.code = "OWNER_REQUIRED";
+    throw err;
+  }
+  return { server, membership };
+}
+
+async function nextChannelPosition(serverId) {
+  const { data, error } = await supabase
+    .from("server_channels")
+    .select("position")
+    .eq("server_id", serverId)
+    .order("position", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const top = data?.[0]?.position;
+  return typeof top === "number" ? top + 1 : 0;
+}
+
+async function assertValidParent(serverId, parentId, channelType) {
+  if (!parentId) return null;
+  if (channelType === "category") {
+    const err = new Error("Categories cannot be nested.");
+    err.status = 400;
+    throw err;
+  }
+  const { data: parent, error } = await supabase
+    .from("server_channels")
+    .select("*")
+    .eq("id", parentId)
+    .eq("server_id", serverId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!parent) {
+    const err = new Error("Parent category not found.");
+    err.status = 400;
+    throw err;
+  }
+  if (parent.type !== "category") {
+    const err = new Error("Parent must be a category.");
+    err.status = 400;
+    throw err;
+  }
+  return parent;
 }
 
 function publicServer(row, extra = {}) {
@@ -585,6 +672,211 @@ router.get("/:id/members", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[SERVERS] GET /:id/members error:", err);
     return res.status(500).json({ error: "Failed to load members." });
+  }
+});
+
+/**
+ * POST /servers/:id/channels
+ * Create text | voice | category. Owner only (Step 3).
+ */
+router.post("/:id/channels", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const type = String(req.body?.type || "text").toLowerCase();
+    if (!CHANNEL_TYPES.has(type)) {
+      return res.status(400).json({ error: "Channel type must be text, voice, or category." });
+    }
+
+    await requireServerOwner(serverId, req.user.id);
+
+    const name = cleanChannelName(req.body?.name, type);
+    if (name.length < CHANNEL_NAME_MIN) {
+      return res.status(400).json({
+        error: `Channel name must be ${CHANNEL_NAME_MIN}–${CHANNEL_NAME_MAX} characters.`,
+      });
+    }
+
+    const { count, error: countErr } = await supabase
+      .from("server_channels")
+      .select("id", { count: "exact", head: true })
+      .eq("server_id", serverId);
+    if (countErr) throw countErr;
+    if ((count || 0) >= MAX_CHANNELS_PER_SERVER) {
+      return res.status(400).json({
+        error: `Servers can have at most ${MAX_CHANNELS_PER_SERVER} channels.`,
+        code: "MAX_CHANNELS",
+      });
+    }
+
+    const parentId = req.body?.parentId || null;
+    await assertValidParent(serverId, parentId, type);
+
+    const topic =
+      type === "text" && req.body?.topic != null
+        ? String(req.body.topic).trim().slice(0, 1024) || null
+        : null;
+
+    const position =
+      typeof req.body?.position === "number" && Number.isFinite(req.body.position)
+        ? Math.max(0, Math.floor(req.body.position))
+        : await nextChannelPosition(serverId);
+
+    const { data: channel, error } = await supabase
+      .from("server_channels")
+      .insert({
+        server_id: serverId,
+        name,
+        type,
+        topic,
+        position,
+        parent_id: type === "category" ? null : parentId,
+        slowmode_seconds: 0,
+        nsfw: false,
+      })
+      .select("*")
+      .single();
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "CHANNEL_CREATE",
+      targetType: "channel",
+      targetId: channel.id,
+      changes: { name, type, parentId: channel.parent_id },
+    });
+
+    return res.status(201).json({ channel: publicChannel(channel) });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] POST /:id/channels error:", err);
+    return res.status(status).json({ error: err.message || "Failed to create channel.", code: err.code });
+  }
+});
+
+/**
+ * PATCH /servers/:id/channels/:channelId
+ * Rename / topic / parent / position. Owner only.
+ */
+router.patch("/:id/channels/:channelId", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const channelId = req.params.channelId;
+    await requireServerOwner(serverId, req.user.id);
+
+    const { data: existing, error: findErr } = await supabase
+      .from("server_channels")
+      .select("*")
+      .eq("id", channelId)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (!existing) return res.status(404).json({ error: "Channel not found." });
+
+    const patch = {};
+    if (req.body?.name != null) {
+      const name = cleanChannelName(req.body.name, existing.type);
+      if (name.length < CHANNEL_NAME_MIN) {
+        return res.status(400).json({ error: "Channel name is required." });
+      }
+      patch.name = name;
+    }
+    if (req.body?.topic !== undefined && existing.type === "text") {
+      patch.topic = req.body.topic == null ? null : String(req.body.topic).trim().slice(0, 1024) || null;
+    }
+    if (req.body?.parentId !== undefined) {
+      const parentId = req.body.parentId || null;
+      await assertValidParent(serverId, parentId, existing.type);
+      patch.parent_id = existing.type === "category" ? null : parentId;
+    }
+    if (typeof req.body?.position === "number" && Number.isFinite(req.body.position)) {
+      patch.position = Math.max(0, Math.floor(req.body.position));
+    }
+    if (req.body?.nsfw !== undefined && existing.type === "text") {
+      patch.nsfw = Boolean(req.body.nsfw);
+    }
+    if (typeof req.body?.slowmodeSeconds === "number" && existing.type === "text") {
+      patch.slowmode_seconds = Math.max(0, Math.min(21600, Math.floor(req.body.slowmodeSeconds)));
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update." });
+    }
+
+    const { data: channel, error } = await supabase
+      .from("server_channels")
+      .update(patch)
+      .eq("id", channelId)
+      .eq("server_id", serverId)
+      .select("*")
+      .single();
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "CHANNEL_UPDATE",
+      targetType: "channel",
+      targetId: channelId,
+      changes: patch,
+    });
+
+    return res.json({ channel: publicChannel(channel) });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] PATCH /:id/channels/:channelId error:", err);
+    return res.status(status).json({ error: err.message || "Failed to update channel.", code: err.code });
+  }
+});
+
+/**
+ * DELETE /servers/:id/channels/:channelId
+ * Categories: children are unparented (ON DELETE SET NULL), then category removed.
+ */
+router.delete("/:id/channels/:channelId", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const channelId = req.params.channelId;
+    await requireServerOwner(serverId, req.user.id);
+
+    const { data: existing, error: findErr } = await supabase
+      .from("server_channels")
+      .select("*")
+      .eq("id", channelId)
+      .eq("server_id", serverId)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (!existing) return res.status(404).json({ error: "Channel not found." });
+
+    if (existing.type === "category") {
+      await supabase
+        .from("server_channels")
+        .update({ parent_id: null })
+        .eq("server_id", serverId)
+        .eq("parent_id", channelId);
+    }
+
+    const { error } = await supabase
+      .from("server_channels")
+      .delete()
+      .eq("id", channelId)
+      .eq("server_id", serverId);
+    if (error) throw error;
+
+    await writeAudit({
+      serverId,
+      actorId: req.user.id,
+      action: "CHANNEL_DELETE",
+      targetType: "channel",
+      targetId: channelId,
+      changes: { name: existing.name, type: existing.type },
+    });
+
+    return res.json({ message: "Channel deleted.", channelId, type: existing.type });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] DELETE /:id/channels/:channelId error:", err);
+    return res.status(status).json({ error: err.message || "Failed to delete channel.", code: err.code });
   }
 });
 

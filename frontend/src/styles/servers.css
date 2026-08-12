@@ -1,4 +1,4 @@
-/* ─── Servers view (Step 2) ─── */
+/* ─── Servers view (Steps 2–3) ─── */
 
 /* Keep 3-column layout (nav + list + main). Icon rail comes later if needed. */
 .app-root[data-view="servers"] {
@@ -194,8 +194,8 @@
 }
 
 .server-channel-row {
-  width: calc(100% - 16px);
-  margin: 1px 8px;
+  width: 100%;
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -205,12 +205,141 @@
   font-size: 14px;
   padding: 7px 10px;
   border-radius: 8px;
-  cursor: default;
+  cursor: pointer;
   text-align: left;
+  flex: 1;
+  min-width: 0;
+}
+
+.server-channel-row:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.server-channel-row.active {
+  background: var(--surface-3);
+  color: var(--text-0);
+  font-weight: 600;
+}
+
+.server-channel-row-wrap {
+  position: relative;
+  width: calc(100% - 16px);
+  margin: 1px 8px;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+}
+
+.server-channel-row-wrap:hover .server-channel-row-actions,
+.server-channel-row-wrap.active .server-channel-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.server-channel-row-actions {
+  position: relative;
+  opacity: 0;
+  pointer-events: none;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.server-channel-mini-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
+
+.server-channel-menu {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  z-index: 25;
+  min-width: 160px;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-3);
+  box-shadow: var(--shadow-xl, 0 12px 40px rgba(0, 0, 0, 0.35));
+}
+
+.server-channel-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: calc(100% - 16px);
+  margin: 0 8px;
+}
+
+.server-channel-cat-row .server-channel-cat-btn {
+  width: auto;
+  flex: 1;
+  margin: 0;
+}
+
+.server-channel-cat-actions {
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.server-channel-cat:hover .server-channel-cat-actions {
+  opacity: 1;
+}
+
+.server-type-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.server-type-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--border-3);
+  background: var(--surface-1);
+  color: var(--text-2);
+  border-radius: 10px;
+  padding: 9px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.server-type-btn.active {
+  border-color: var(--primary);
+  color: var(--text-0);
+  background: color-mix(in srgb, var(--primary) 16%, var(--surface-1));
+}
+
+.server-field select {
+  border: 1px solid var(--border-3);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text-0);
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+.server-field select:focus {
+  border-color: var(--primary);
+}
+
+.server-channel-topic {
+  margin-top: 4px !important;
+  color: var(--text-muted) !important;
+  font-size: 13px !important;
 }
 
 .server-channel-row:disabled {
   opacity: 0.85;
+  cursor: default;
 }
 
 .server-channel-row span {

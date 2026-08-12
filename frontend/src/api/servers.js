@@ -60,3 +60,24 @@ export function leaveServer(serverId, confirmName) {
 export function getServerMembers(serverId) {
   return serversRequest(`/api/servers/${serverId}/members`);
 }
+
+/** Create text | voice | category channel (owner only for now). */
+export function createChannel(serverId, { name, type = "text", parentId, topic, position } = {}) {
+  return serversRequest(`/api/servers/${serverId}/channels`, {
+    method: "POST",
+    body: { name, type, parentId, topic, position },
+  });
+}
+
+export function updateChannel(serverId, channelId, patch = {}) {
+  return serversRequest(`/api/servers/${serverId}/channels/${channelId}`, {
+    method: "PATCH",
+    body: patch,
+  });
+}
+
+export function deleteChannel(serverId, channelId) {
+  return serversRequest(`/api/servers/${serverId}/channels/${channelId}`, {
+    method: "DELETE",
+  });
+}

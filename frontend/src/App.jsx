@@ -15,6 +15,9 @@ import {
   deleteServer,
   leaveServer,
   getServer,
+  createChannel,
+  updateChannel,
+  deleteChannel,
 } from "./api/servers";
 import { createSocket } from "./socket";
 import { API_BASE_URL } from "./config/api";
@@ -297,6 +300,7 @@ export default function App() {
   const [myServers, setMyServers] = useState([]);
   const [serversLoaded, setServersLoaded] = useState(false);
   const [activeServer, setActiveServer] = useState(null);
+  const [activeChannel, setActiveChannel] = useState(null);
   const [ownedServerCount, setOwnedServerCount] = useState(0);
   const [maxOwnedServers, setMaxOwnedServers] = useState(10);
   // Electron silent auto-update state: null | 'downloading' | 'installing'
@@ -2125,17 +2129,41 @@ export default function App() {
       setActiveGroup(null);
       if (!requestedRoute.serverId) {
         setActiveServer(null);
+        setActiveChannel(null);
         return;
       }
       if (!serversLoaded) return;
       const server = myServers.find((item) => item?.id === requestedRoute.serverId);
       if (!server) {
         setActiveServer(null);
+        setActiveChannel(null);
         navigate("/servers", { replace: true });
         return;
       }
       if (activeServer?.id !== server.id) {
         setActiveServer(server);
+      }
+      const channels = (activeServer?.id === server.id ? activeServer?.channels : server.channels) || server.channels || [];
+      if (requestedRoute.channelId) {
+        const channel = channels.find((c) => c.id === requestedRoute.channelId && c.type !== "category");
+        if (!channel) {
+          const fallback = channels.find((c) => c.type === "text") || channels.find((c) => c.type === "voice");
+          if (fallback) {
+            navigate(serverPath(server, fallback), { replace: true });
+          } else {
+            setActiveChannel(null);
+            navigate(serverPath(server), { replace: true });
+          }
+          return;
+        }
+        if (activeChannel?.id !== channel.id) setActiveChannel(channel);
+      } else {
+        const fallback = channels.find((c) => c.type === "text") || channels.find((c) => c.type === "voice");
+        if (fallback) {
+          navigate(serverPath(server, fallback), { replace: true });
+        } else if (activeChannel) {
+          setActiveChannel(null);
+        }
       }
       return;
     }
@@ -2143,7 +2171,9 @@ export default function App() {
     setActiveDmUser(null);
     setActiveGroup(null);
     setActiveServer(null);
+    setActiveChannel(null);
   }, [
+    activeChannel,
     activeServer,
     friends,
     friendsLoaded,
@@ -2619,6 +2649,21 @@ export default function App() {
     );
   }
 
+  const patchServerChannels = (serverId, updater) => {
+    setMyServers((prev) =>
+      prev.map((s) => {
+        if (s.id !== serverId) return s;
+        const channels = typeof updater === "function" ? updater(s.channels || []) : updater;
+        return { ...s, channels };
+      })
+    );
+    setActiveServer((prev) => {
+      if (!prev || prev.id !== serverId) return prev;
+      const channels = typeof updater === "function" ? updater(prev.channels || []) : updater;
+      return { ...prev, channels };
+    });
+  };
+
   const handleRefreshServers = async () => {
     try {
       const data = await getMyServers();
@@ -2629,6 +2674,10 @@ export default function App() {
       if (activeServer?.id) {
         const updated = (data?.servers || []).find((s) => s.id === activeServer.id);
         setActiveServer(updated || null);
+        if (activeChannel?.id && updated) {
+          const nextCh = (updated.channels || []).find((c) => c.id === activeChannel.id);
+          setActiveChannel(nextCh || null);
+        }
       }
     } catch (err) {
       console.error("[App] refresh servers error:", err);
@@ -2644,8 +2693,13 @@ export default function App() {
       setOwnedServerCount(ownedCount ?? ((ownedServerCount || 0) + 1));
       if (maxOwned) setMaxOwnedServers(maxOwned);
       setActiveServer(server);
+      const firstChannel =
+        (server.channels || []).find((c) => c.type === "text") ||
+        (server.channels || []).find((c) => c.type === "voice") ||
+        null;
+      setActiveChannel(firstChannel);
       setActiveView("servers");
-      const nextPath = serverPath(server);
+      const nextPath = serverPath(server, firstChannel);
       if (location.pathname !== nextPath) navigate(nextPath);
     }
   };
@@ -2656,6 +2710,7 @@ export default function App() {
     setOwnedServerCount((c) => Math.max(0, (c || 1) - 1));
     if (activeServer?.id === serverId) {
       setActiveServer(null);
+      setActiveChannel(null);
       navigate("/servers");
     }
   };
@@ -2666,6 +2721,7 @@ export default function App() {
     if (result?.deleted) setOwnedServerCount((c) => Math.max(0, (c || 1) - 1));
     if (activeServer?.id === serverId) {
       setActiveServer(null);
+      setActiveChannel(null);
       navigate("/servers");
     }
   };
@@ -2675,8 +2731,13 @@ export default function App() {
     setActiveDmUser(null);
     setActiveGroup(null);
     setActiveServer(server);
+    const firstChannel =
+      (server.channels || []).find((c) => c.type === "text") ||
+      (server.channels || []).find((c) => c.type === "voice") ||
+      null;
+    setActiveChannel(firstChannel);
     setActiveView("servers");
-    const nextPath = serverPath(server);
+    const nextPath = serverPath(server, firstChannel);
     if (location.pathname !== nextPath) navigate(nextPath);
     getServer(server.id)
       .then((data) => {
@@ -2685,13 +2746,69 @@ export default function App() {
           setMyServers((prev) =>
             prev.map((s) => (s.id === data.server.id ? { ...s, ...data.server } : s))
           );
+          const channels = data.server.channels || [];
+          const preferred =
+            (activeChannel?.id && channels.find((c) => c.id === activeChannel.id)) ||
+            channels.find((c) => c.type === "text") ||
+            channels.find((c) => c.type === "voice") ||
+            null;
+          setActiveChannel(preferred);
+          if (preferred) {
+            const path = serverPath(data.server, preferred);
+            if (location.pathname !== path) navigate(path, { replace: true });
+          }
         }
       })
       .catch(() => {});
   };
 
+  const handleChannelSelect = (channel) => {
+    if (!activeServer?.id || !channel?.id || channel.type === "category") return;
+    setActiveChannel(channel);
+    const nextPath = serverPath(activeServer, channel);
+    if (location.pathname !== nextPath) navigate(nextPath);
+  };
+
+  const handleCreateChannel = async ({ name, type, parentId, topic }) => {
+    if (!activeServer?.id) return;
+    const { channel } = await createChannel(activeServer.id, { name, type, parentId, topic });
+    if (!channel) return;
+    patchServerChannels(activeServer.id, (channels) => [...channels, channel]);
+    if (channel.type !== "category") {
+      setActiveChannel(channel);
+      navigate(serverPath(activeServer, channel));
+    }
+  };
+
+  const handleUpdateChannel = async (channelId, patch) => {
+    if (!activeServer?.id) return;
+    const { channel } = await updateChannel(activeServer.id, channelId, patch);
+    if (!channel) return;
+    patchServerChannels(activeServer.id, (channels) =>
+      channels.map((c) => (c.id === channel.id ? { ...c, ...channel } : c))
+    );
+    if (activeChannel?.id === channel.id) setActiveChannel(channel);
+  };
+
+  const handleDeleteChannel = async (channelId) => {
+    if (!activeServer?.id) return;
+    await deleteChannel(activeServer.id, channelId);
+    const remaining = (activeServer.channels || []).filter((c) => c.id !== channelId);
+    // Unparent children of deleted category locally (API already did it)
+    const cleaned = remaining.map((c) =>
+      c.parentId === channelId ? { ...c, parentId: null } : c
+    );
+    patchServerChannels(activeServer.id, cleaned);
+    if (activeChannel?.id === channelId) {
+      const fallback = cleaned.find((c) => c.type === "text") || cleaned.find((c) => c.type === "voice");
+      setActiveChannel(fallback || null);
+      navigate(serverPath(activeServer, fallback));
+    }
+  };
+
   const handleServerBack = () => {
     setActiveServer(null);
+    setActiveChannel(null);
     if (location.pathname.startsWith("/servers/")) navigate("/servers");
   };
 
@@ -2754,13 +2871,16 @@ export default function App() {
             setActiveView(view);
             if (view !== "servers") {
               setActiveServer(null);
+              setActiveChannel(null);
               const nextPath = appPathForView(view);
               if (location.pathname !== nextPath) navigate(nextPath);
               return;
             }
             setActiveDmUser(null);
             setActiveGroup(null);
-            const nextPath = activeServer?.id ? serverPath(activeServer) : "/servers";
+            const nextPath = activeServer?.id
+              ? serverPath(activeServer, activeChannel)
+              : "/servers";
             if (location.pathname !== nextPath) navigate(nextPath);
           }}
           userPanelOpen={userPanelOpen}
@@ -2782,13 +2902,18 @@ export default function App() {
           servers={myServers}
           serversLoaded={serversLoaded}
           activeServer={activeServer}
+          activeChannel={activeChannel}
           ownedServerCount={ownedServerCount}
           maxOwnedServers={maxOwnedServers}
           onServerSelect={handleServerSelect}
+          onChannelSelect={handleChannelSelect}
           onServerBack={handleServerBack}
           onCreateServer={handleCreateServer}
           onLeaveServer={handleLeaveServer}
           onDeleteServer={handleDeleteServer}
+          onCreateChannel={handleCreateChannel}
+          onUpdateChannel={handleUpdateChannel}
+          onDeleteChannel={handleDeleteChannel}
           onRefreshServers={handleRefreshServers}
           onlineUsers={onlineUsers}
           myStatus={myStatus}
@@ -2811,6 +2936,7 @@ export default function App() {
             setUnreadMarker(unread > 0 ? { key: `dm:${dm.id}`, count: unread } : null);
             setActiveGroup(null);
             setActiveServer(null);
+            setActiveChannel(null);
             setActiveDmUser(dm);
             if (dmByUserId[dm.id] === undefined) setMessagesLoading(true);
             setDmUnread((u) => { const n = { ...u }; delete n[dm.id]; return n; });
@@ -2822,6 +2948,7 @@ export default function App() {
             setReplyTo(null);
             setActiveDmUser(null);
             setActiveServer(null);
+            setActiveChannel(null);
             if (!group?.id) {
               setActiveGroup(null);
               setUnreadMarker(null);

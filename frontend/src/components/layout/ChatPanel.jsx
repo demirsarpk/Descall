@@ -28,6 +28,7 @@ export default function ChatPanel({
   activeDmUser,
   activeGroup,
   activeServer = null,
+  activeChannel = null,
   socket,
   me,
   sidebarCollapsed,
@@ -172,6 +173,9 @@ export default function ChatPanel({
   const getTitle = () => {
     if (activeDmUser) return resolveDisplayName(activeDmUser);
     if (activeGroup) return activeGroup.name;
+    if (activeView === "servers" && activeChannel) {
+      return activeChannel.type === "voice" ? activeChannel.name : `#${activeChannel.name}`;
+    }
     if (activeServer) return activeServer.name;
     if (activeView === "chat") return t("Chats");
     if (activeView === "dms") return t("Direct Messages");
@@ -190,6 +194,11 @@ export default function ChatPanel({
     }
     if (activeGroup) {
       return t("{count} members", { count: activeGroup.memberCount || 0 });
+    }
+    if (activeView === "servers" && activeChannel) {
+      if (activeChannel.topic) return activeChannel.topic;
+      if (activeChannel.type === "voice") return t("Voice channel");
+      return activeServer?.name || t("Text channel");
     }
     if (activeServer) {
       return t("{count} members", { count: activeServer.memberCount || 1 });
@@ -469,13 +478,32 @@ export default function ChatPanel({
         />
       ) : activeView === "servers" ? (
         <div className="server-main-placeholder">
-          <Hash size={40} strokeWidth={1.5} />
-          <h2>{activeServer ? activeServer.name : t("Servers")}</h2>
+          {activeChannel?.type === "voice" ? (
+            <Phone size={40} strokeWidth={1.5} />
+          ) : (
+            <Hash size={40} strokeWidth={1.5} />
+          )}
+          <h2>
+            {activeChannel
+              ? activeChannel.type === "voice"
+                ? activeChannel.name
+                : `#${activeChannel.name}`
+              : activeServer
+                ? activeServer.name
+                : t("Servers")}
+          </h2>
           <p>
-            {activeServer
-              ? t("Text chat and voice connect land in the next steps. Channels are preview-only for now.")
-              : t("Pick a server from the sidebar — or create one to get started.")}
+            {!activeServer
+              ? t("Pick a server from the sidebar — or create one to get started.")
+              : activeChannel?.type === "voice"
+                ? t("Voice connect for server channels arrives in a later step.")
+                : activeChannel
+                  ? t("Text chat for this channel arrives in the next step.")
+                  : t("Select a channel from the sidebar to get started.")}
           </p>
+          {activeChannel?.topic ? (
+            <p className="server-channel-topic">{activeChannel.topic}</p>
+          ) : null}
         </div>
       ) : (
       <div className="messages-container" ref={messagesRef}>

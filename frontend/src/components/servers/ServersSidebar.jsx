@@ -4,6 +4,7 @@ import {
   Plus,
   Hash,
   Volume2,
+  Folder,
   ChevronDown,
   ChevronRight,
   ArrowLeft,
@@ -13,24 +14,31 @@ import {
   RefreshCw,
   Server,
   X,
+  Pencil,
+  Settings2,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 
 /**
- * Servers list + in-server channel shell (Step 2).
- * Channel CRUD / messaging comes in later steps — channels are read-only here.
+ * Servers list + in-server channel shell (Steps 2–3).
+ * Channel messaging / voice connect land in later steps.
  */
 export default function ServersSidebar({
   servers = [],
   serversLoaded = false,
   activeServer = null,
+  activeChannel = null,
   ownedCount = 0,
   maxOwned = 10,
   onSelectServer,
+  onSelectChannel,
   onBackToList,
   onCreateServer,
   onLeaveServer,
   onDeleteServer,
+  onCreateChannel,
+  onUpdateChannel,
+  onDeleteChannel,
   onRefresh,
   onMobileClose,
   isMobile = false,
@@ -39,15 +47,22 @@ export default function ServersSidebar({
   const [showCreate, setShowCreate] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirm, setConfirm] = useState(null); // { mode: 'leave'|'delete', server }
+  const [channelModal, setChannelModal] = useState(null); // { mode, channel?, defaultType?, parentId? }
+  const [channelMenuId, setChannelMenuId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [collapsedCats, setCollapsedCats] = useState({});
 
   const canCreate = ownedCount < maxOwned;
-
+  const canManageChannels = Boolean(activeServer?.isOwner);
+  const categories = useMemo(
+    () => (activeServer?.channels || []).filter((c) => c.type === "category").sort((a, b) => a.position - b.position),
+    [activeServer?.channels]
+  );
   const channelTree = useMemo(() => buildChannelTree(activeServer?.channels || []), [activeServer?.channels]);
 
   useEffect(() => {
     setMenuOpen(false);
+    setChannelMenuId(null);
     setCollapsedCats({});
   }, [activeServer?.id]);
 
@@ -88,6 +103,19 @@ export default function ServersSidebar({
                   <X size={18} />
                 </button>
               )}
+              {canManageChannels && (
+                <button
+                  type="button"
+                  className="icon-btn"
+                  title={t("Create channel")}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setChannelModal({ mode: "create", defaultType: "text" });
+                  }}
+                >
+                  <Plus size={18} />
+                </button>
+              )}
               <button
                 type="button"
                 className="icon-btn"
@@ -107,6 +135,32 @@ export default function ServersSidebar({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
               >
+                {canManageChannels && (
+                  <>
+                    <button
+                      type="button"
+                      className="server-dropdown-item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setChannelModal({ mode: "create", defaultType: "text" });
+                      }}
+                    >
+                      <Hash size={15} />
+                      {t("Create channel")}
+                    </button>
+                    <button
+                      type="button"
+                      className="server-dropdown-item"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setChannelModal({ mode: "create", defaultType: "category" });
+                      }}
+                    >
+                      <Folder size={15} />
+                      {t("Create category")}
+                    </button>
+                  </>
+                )}
                 {activeServer.isOwner ? (
                   <button type="button" className="server-dropdown-item danger" onClick={() => openConfirm("delete")}>
                     <Trash2 size={15} />
@@ -128,30 +182,104 @@ export default function ServersSidebar({
                 const closed = Boolean(collapsedCats[node.id]);
                 return (
                   <div key={node.id} className="server-channel-cat">
-                    <button
-                      type="button"
-                      className="server-channel-cat-btn"
-                      onClick={() =>
-                        setCollapsedCats((prev) => ({ ...prev, [node.id]: !prev[node.id] }))
-                      }
-                    >
-                      {closed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                      <span>{node.name}</span>
-                    </button>
+                    <div className="server-channel-cat-row">
+                      <button
+                        type="button"
+                        className="server-channel-cat-btn"
+                        onClick={() =>
+                          setCollapsedCats((prev) => ({ ...prev, [node.id]: !prev[node.id] }))
+                        }
+                      >
+                        {closed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                        <span>{node.name}</span>
+                      </button>
+                      {canManageChannels && (
+                        <div className="server-channel-cat-actions">
+                          <button
+                            type="button"
+                            className="icon-btn server-channel-mini-btn"
+                            title={t("Create channel")}
+                            onClick={() =>
+                              setChannelModal({ mode: "create", defaultType: "text", parentId: node.id })
+                            }
+                          >
+                            <Plus size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn server-channel-mini-btn"
+                            title={t("Edit category")}
+                            onClick={() => setChannelModal({ mode: "edit", channel: node })}
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn server-channel-mini-btn"
+                            title={t("Delete category")}
+                            onClick={() => setChannelModal({ mode: "delete", channel: node })}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     {!closed &&
                       node.children.map((ch) => (
-                        <ChannelRow key={ch.id} channel={ch} disabled />
+                        <ChannelRow
+                          key={ch.id}
+                          channel={ch}
+                          active={activeChannel?.id === ch.id}
+                          canManage={canManageChannels}
+                          menuOpen={channelMenuId === ch.id}
+                          onOpenMenu={() => setChannelMenuId((id) => (id === ch.id ? null : ch.id))}
+                          onCloseMenu={() => setChannelMenuId(null)}
+                          onSelect={() => {
+                            onSelectChannel?.(ch);
+                            if (isMobile) onMobileClose?.();
+                          }}
+                          onEdit={() => {
+                            setChannelMenuId(null);
+                            setChannelModal({ mode: "edit", channel: ch });
+                          }}
+                          onDelete={() => {
+                            setChannelMenuId(null);
+                            setChannelModal({ mode: "delete", channel: ch });
+                          }}
+                        />
                       ))}
                   </div>
                 );
               }
-              return <ChannelRow key={node.id} channel={node} disabled />;
+              return (
+                <ChannelRow
+                  key={node.id}
+                  channel={node}
+                  active={activeChannel?.id === node.id}
+                  canManage={canManageChannels}
+                  menuOpen={channelMenuId === node.id}
+                  onOpenMenu={() => setChannelMenuId((id) => (id === node.id ? null : node.id))}
+                  onCloseMenu={() => setChannelMenuId(null)}
+                  onSelect={() => {
+                    onSelectChannel?.(node);
+                    if (isMobile) onMobileClose?.();
+                  }}
+                  onEdit={() => {
+                    setChannelMenuId(null);
+                    setChannelModal({ mode: "edit", channel: node });
+                  }}
+                  onDelete={() => {
+                    setChannelMenuId(null);
+                    setChannelModal({ mode: "delete", channel: node });
+                  }}
+                />
+              );
             })}
             {channelTree.length === 0 && (
               <p className="server-empty-hint">{t("No channels yet.")}</p>
             )}
             <p className="server-step-hint">
-              {t("Text chat and voice connect land in the next steps. Channels are preview-only for now.")}
+              {t("Select a channel to open it. Messaging and voice connect arrive in the next steps.")}
             </p>
           </div>
         </div>
@@ -181,6 +309,44 @@ export default function ServersSidebar({
                 }}
               />
             )
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {channelModal?.mode === "create" && (
+            <ChannelFormModal
+              mode="create"
+              defaultType={channelModal.defaultType || "text"}
+              parentId={channelModal.parentId || null}
+              categories={categories}
+              onClose={() => setChannelModal(null)}
+              onSubmit={async (payload) => {
+                await onCreateChannel?.(payload);
+                setChannelModal(null);
+              }}
+            />
+          )}
+          {channelModal?.mode === "edit" && channelModal.channel && (
+            <ChannelFormModal
+              mode="edit"
+              channel={channelModal.channel}
+              categories={categories}
+              onClose={() => setChannelModal(null)}
+              onSubmit={async (payload) => {
+                await onUpdateChannel?.(channelModal.channel.id, payload);
+                setChannelModal(null);
+              }}
+            />
+          )}
+          {channelModal?.mode === "delete" && channelModal.channel && (
+            <ConfirmDeleteChannelDialog
+              channel={channelModal.channel}
+              onCancel={() => setChannelModal(null)}
+              onConfirm={async () => {
+                await onDeleteChannel?.(channelModal.channel.id);
+                setChannelModal(null);
+              }}
+            />
           )}
         </AnimatePresence>
       </aside>
@@ -264,7 +430,6 @@ export default function ServersSidebar({
                         {server.isOwner ? ` · ${t("Owner")}` : ""}
                       </span>
                     </div>
-                    {/* Unread / mention badges arrive in a later step */}
                     <span className="server-list-badge-slot" aria-hidden />
                   </button>
                 </li>
@@ -304,13 +469,66 @@ function ServerAvatar({ server }) {
   return <div className="server-list-icon server-list-icon-fallback">{initials}</div>;
 }
 
-function ChannelRow({ channel, disabled }) {
+function ChannelRow({
+  channel,
+  active,
+  canManage,
+  menuOpen,
+  onOpenMenu,
+  onCloseMenu,
+  onSelect,
+  onEdit,
+  onDelete,
+}) {
+  const t = useT();
   const Icon = channel.type === "voice" ? Volume2 : Hash;
   return (
-    <button type="button" className="server-channel-row" disabled={disabled} title={channel.name}>
-      <Icon size={16} />
-      <span>{channel.name}</span>
-    </button>
+    <div className={`server-channel-row-wrap ${active ? "active" : ""}`}>
+      <button
+        type="button"
+        className={`server-channel-row ${active ? "active" : ""}`}
+        title={channel.name}
+        onClick={onSelect}
+      >
+        <Icon size={16} />
+        <span>{channel.name}</span>
+      </button>
+      {canManage && (
+        <div className="server-channel-row-actions">
+          <button
+            type="button"
+            className="icon-btn server-channel-mini-btn"
+            title={t("Channel settings")}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenMenu?.();
+            }}
+          >
+            <MoreHorizontal size={14} />
+          </button>
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div
+                className="server-channel-menu"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                onMouseLeave={onCloseMenu}
+              >
+                <button type="button" className="server-dropdown-item" onClick={onEdit}>
+                  <Pencil size={14} />
+                  {t("Edit channel")}
+                </button>
+                <button type="button" className="server-dropdown-item danger" onClick={onDelete}>
+                  <Trash2 size={14} />
+                  {t("Delete channel")}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -328,6 +546,215 @@ function buildChannelTree(channels) {
     if (!used.has(ch.id)) tree.push({ ...ch, children: [] });
   }
   return tree;
+}
+
+function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null, categories = [], onClose, onSubmit }) {
+  const t = useT();
+  const isEdit = mode === "edit";
+  const initialType = isEdit ? channel.type : defaultType;
+  const [type, setType] = useState(initialType);
+  const [name, setName] = useState(isEdit ? channel.name : "");
+  const [topic, setTopic] = useState(isEdit ? channel.topic || "" : "");
+  const [selectedParent, setSelectedParent] = useState(
+    isEdit ? channel.parentId || "" : parentId || ""
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const typeLocked = isEdit;
+  const showParent = type !== "category";
+  const showTopic = type === "text";
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError(t("Channel name is required."));
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const payload = {
+        name: trimmed,
+        type,
+        parentId: showParent && selectedParent ? selectedParent : null,
+      };
+      if (showTopic) payload.topic = topic.trim() || null;
+      if (isEdit) {
+        await onSubmit({
+          name: payload.name,
+          topic: showTopic ? payload.topic : undefined,
+          parentId: showParent ? payload.parentId : undefined,
+        });
+      } else {
+        await onSubmit(payload);
+      }
+    } catch (err) {
+      setError(err?.message || t("Something went wrong."));
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
+  };
+
+  const title = isEdit
+    ? channel.type === "category"
+      ? t("Edit category")
+      : t("Edit channel")
+    : type === "category"
+      ? t("Create category")
+      : t("Create channel");
+
+  return (
+    <motion.div
+      className="server-modal-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.form
+        className="server-modal"
+        initial={{ scale: 0.94, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.94, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={submit}
+      >
+        <h3>{title}</h3>
+        <p className="server-modal-lead">
+          {type === "category"
+            ? t("Categories group channels in the sidebar.")
+            : t("Text and voice channels only — more types later.")}
+        </p>
+
+        {!typeLocked && (
+          <div className="server-type-toggle" role="group" aria-label={t("Channel type")}>
+            {[
+              { id: "text", label: t("Text"), Icon: Hash },
+              { id: "voice", label: t("Voice"), Icon: Volume2 },
+              { id: "category", label: t("Category"), Icon: Folder },
+            ].map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                className={`server-type-btn ${type === id ? "active" : ""}`}
+                onClick={() => setType(id)}
+              >
+                <Icon size={15} />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <label className="server-field">
+          <span>{type === "category" ? t("Category name") : t("Channel name")}</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={100}
+            placeholder={type === "text" ? "general" : type === "voice" ? t("General") : t("Text Channels")}
+            autoFocus
+            required
+          />
+        </label>
+
+        {showParent && (
+          <label className="server-field">
+            <span>{t("Category (optional)")}</span>
+            <select value={selectedParent} onChange={(e) => setSelectedParent(e.target.value)}>
+              <option value="">{t("No category")}</option>
+              {categories
+                .filter((c) => !isEdit || c.id !== channel?.id)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
+
+        {showTopic && (
+          <label className="server-field">
+            <span>{t("Topic (optional)")}</span>
+            <input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              maxLength={1024}
+              placeholder={t("What's this channel about?")}
+            />
+          </label>
+        )}
+
+        {error && <p className="server-modal-error">{error}</p>}
+        <div className="server-modal-actions">
+          <button type="button" className="server-ghost-btn" onClick={onClose} disabled={busy}>
+            {t("Cancel")}
+          </button>
+          <button type="submit" className="server-primary-btn" disabled={busy || !name.trim()}>
+            {busy ? t("Please wait...") : isEdit ? t("Save") : t("Create")}
+          </button>
+        </div>
+      </motion.form>
+    </motion.div>
+  );
+}
+
+function ConfirmDeleteChannelDialog({ channel, onConfirm, onCancel }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const isCategory = channel.type === "category";
+  return (
+    <motion.div
+      className="server-modal-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onCancel}
+    >
+      <motion.div
+        className="server-modal"
+        initial={{ scale: 0.94, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.94, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>{isCategory ? t("Delete category") : t("Delete channel")}</h3>
+        <p className="server-modal-lead">
+          {isCategory
+            ? t("Delete {name}? Channels inside stay, but leave this category.", { name: channel.name })
+            : t("Delete #{name}? This cannot be undone.", { name: channel.name })}
+        </p>
+        {error && <p className="server-modal-error">{error}</p>}
+        <div className="server-modal-actions">
+          <button type="button" className="server-ghost-btn" onClick={onCancel} disabled={busy}>
+            {t("Cancel")}
+          </button>
+          <button
+            type="button"
+            className="server-danger-btn"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              try {
+                await onConfirm();
+              } catch (err) {
+                setError(err?.message || t("Something went wrong."));
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? t("Please wait...") : isCategory ? t("Delete category") : t("Delete channel")}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
 }
 
 function CreateServerModal({ onClose, onCreate, canCreate, maxOwned }) {
