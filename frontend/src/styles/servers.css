@@ -258,24 +258,26 @@
   position: relative;
   width: calc(100% - 16px);
   margin: 1px 8px;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   border-radius: 8px;
 }
 
-/* Channel button + ⋯ stay on one row; voice members wrap underneath */
+/* Channel name + ⋯ share one row; voice members span full width below */
 .server-channel-row-wrap > .server-channel-row {
-  flex: 1 1 auto;
+  width: auto;
   min-width: 0;
+  max-width: 100%;
 }
 
 .server-channel-row-wrap > .server-channel-row-actions {
-  flex: 0 0 auto;
+  grid-column: 2;
+  justify-self: end;
 }
 
 .server-channel-row-wrap > .server-voice-user-list {
-  flex: 1 0 100%;
+  grid-column: 1 / -1;
   width: 100%;
 }
 
