@@ -2746,24 +2746,6 @@ export default function App() {
               : `⬇️ Descall ${updateVersion} güncelleniyor, arka planda indiriliyor…`}
           </div>
         )}
-        {activeTimeout?.timedOut && (
-          <div className="timeout-banner" role="status">
-            <div>
-              <strong>{t("You are timed out")}</strong>
-              {" · "}
-              {activeTimeout.categoryLabel || activeTimeout.reason || activeTimeout.category || t("Timeout")}
-              {activeTimeout.until ? (
-                <>
-                  {" · "}
-                  {t("Until")}: {new Date(activeTimeout.until).toLocaleString()}
-                </>
-              ) : null}
-              {activeTimeout.message ? <p>{activeTimeout.message}</p> : (
-                <p>{t("You cannot send messages until the timeout ends.")}</p>
-              )}
-            </div>
-          </div>
-        )}
         {(me?.is_admin || me?.username === "admin") && adminOpen && (
           <AdminPanel socket={socketApi} onClose={() => setAdminOpen(false)} onAdminChanged={() => setAdminChanged(true)} />
         )}
@@ -2791,6 +2773,7 @@ export default function App() {
         <AppLayout
           me={me}
           socket={socketApi}
+          activeTimeout={activeTimeout}
           onLogout={handleLogout}
           onProfileUpdated={applyProfileUpdate}
           activeDmUser={activeDmUser}

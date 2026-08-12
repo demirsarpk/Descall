@@ -84,6 +84,7 @@ export default function AppLayout({
   onUserPanelOpenChange,
   settingsTab,
   onSettingsTabChange,
+  activeTimeout = null,
 }) {
   const t = useT();
   const { isMobile } = useMobile();
@@ -396,6 +397,7 @@ export default function AppLayout({
         activeGuildChannel={activeGuildChannel}
         socket={socket}
         me={me}
+        activeTimeout={activeTimeout}
         sidebarCollapsed={sidebarCollapsed}
         onlineUsers={onlineUsers}
         friendNotice={friendNotice}

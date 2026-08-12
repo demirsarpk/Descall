@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, Video, Users, Hash,
   Settings, Search, MessageSquare, X, ChevronDown, ChevronRight, Menu, ChevronLeft,
-  UserPlus, Plus, Crown, Pin, PinOff
+  UserPlus, Plus, Crown, Pin, PinOff, Timer
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
@@ -70,6 +70,7 @@ export default function ChatPanel({
   onStartDm,
   onRefresh,
   groups = [],
+  activeTimeout = null,
   children
 }) {
   const t = useT();
@@ -248,6 +249,30 @@ export default function ChatPanel({
   return (
     <div className="chat-panel-shell">
       <main className="main-panel">
+        {activeTimeout?.timedOut && (
+          <div className="timeout-banner" role="status">
+            <Timer size={16} className="timeout-banner-icon" aria-hidden />
+            <div className="timeout-banner-body">
+              <div className="timeout-banner-title">
+                <strong>{t("You are timed out")}</strong>
+                {(activeTimeout.categoryLabel || activeTimeout.reason) && (
+                  <span className="timeout-banner-cat">
+                    {activeTimeout.categoryLabel || activeTimeout.reason}
+                  </span>
+                )}
+              </div>
+              {activeTimeout.until && (
+                <span className="timeout-banner-until">
+                  {t("Until")}: {new Date(activeTimeout.until).toLocaleString()}
+                </span>
+              )}
+              <p>
+                {activeTimeout.message ||
+                  t("You cannot send messages until the timeout ends.")}
+              </p>
+            </div>
+          </div>
+        )}
         {/* Header — hidden on activity view since ActivityView has its own header */}
         <header className="panel-header" style={activeView === "activity" ? { display: 'none' } : {}}>
         <div className="header-left">

@@ -1815,27 +1815,73 @@
   max-height: 420px;
 }
 
+/* In-flow banner inside .main-panel — must not overlay .panel-header */
 .timeout-banner {
-  position: sticky;
-  top: 0;
-  z-index: 40;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 10px 14px;
-  background: linear-gradient(90deg, rgba(245, 158, 11, 0.22), rgba(180, 83, 9, 0.18));
-  border-bottom: 1px solid rgba(245, 158, 11, 0.35);
+  background: #3a2710;
+  border-bottom: 1px solid rgba(245, 158, 11, 0.45);
   color: #fde68a;
   font-size: 13px;
+  line-height: 1.35;
+}
+
+.timeout-banner-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #fbbf24;
+}
+
+.timeout-banner-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.timeout-banner-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
 }
 
 .timeout-banner strong {
   color: #fff;
+  font-weight: 700;
+}
+
+.timeout-banner-cat {
+  color: #fcd34d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.timeout-banner-until {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: rgba(253, 230, 138, 0.75);
 }
 
 .timeout-banner p {
-  margin: 2px 0 0;
-  color: rgba(253, 230, 138, 0.85);
+  margin: 4px 0 0;
+  color: rgba(253, 230, 138, 0.9);
+}
+
+@media (max-width: 768px) {
+  .timeout-banner {
+    padding: 8px 12px;
+    font-size: 12px;
+    gap: 8px;
+  }
+
+  .timeout-banner-cat {
+    width: 100%;
+  }
 }
 
 
