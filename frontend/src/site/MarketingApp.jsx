@@ -462,7 +462,9 @@ export default function MarketingApp({
         <Route path="/faq" element={withLayout(FaqPage, openAuth)} />
         <Route path="/security" element={withLayout(SecurityPage, openAuth)} />
         <Route path="/privacy" element={withLayout(PrivacyPage, openAuth)} />
+        <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
         <Route path="/terms" element={withLayout(TermsPage, openAuth)} />
+        <Route path="/terms-of-service" element={<Navigate to="/terms" replace />} />
         <Route path="/about" element={withLayout(AboutPage, openAuth)} />
         <Route path="/contact" element={withLayout(ContactPage, openAuth)} />
         <Route path="/discord-alternative" element={withLayout(DiscordAlternativePage, openAuth)} />
