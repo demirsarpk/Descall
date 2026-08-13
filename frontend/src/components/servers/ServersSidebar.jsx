@@ -735,7 +735,15 @@ export default function ServersSidebar({
           </AnimatePresence>
 
           <div className="sidebar-content server-channels-scroll">
-            {channelTree.map((node) => {
+            {activeServer && !permissionsReady ? (
+              <div className="server-channels-loading" aria-busy="true">
+                <span className="server-channels-loading-bar" />
+                <span className="server-channels-loading-bar short" />
+                <span className="server-channels-loading-bar" />
+                <p className="server-empty-hint">{t("Loading channels…")}</p>
+              </div>
+            ) : null}
+            {permissionsReady ? channelTree.map((node) => {
               if (node.type === "category") {
                 const closed = Boolean(collapsedCats[node.id]);
                 return (
@@ -804,6 +812,7 @@ export default function ServersSidebar({
                           voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice" || c.type === "stage")}
                           serverVoice={serverVoice}
                           draggable={channelListDraggable}
+                          dragHandleOnly={Boolean(isMobile && channelReorderMode)}
                           dragReorderTitle={dragReorderTitle}
                           dragging={dragChannelId === ch.id}
                           dragOver={dragOverChannelId === ch.id}
@@ -856,6 +865,7 @@ export default function ServersSidebar({
                   canManage={canManageChannels}
                   menuOpen={channelMenuId === node.id}
                   draggable={channelListDraggable}
+                  dragHandleOnly={Boolean(isMobile && channelReorderMode)}
                   dragReorderTitle={dragReorderTitle}
                   dragging={dragChannelId === node.id}
                   dragOver={dragOverChannelId === node.id}
@@ -910,13 +920,15 @@ export default function ServersSidebar({
                   }}
                 />
               );
-            })}
-            {channelTree.length === 0 && (
+            }) : null}
+            {permissionsReady && channelTree.length === 0 && (
               <p className="server-empty-hint">{t("No channels yet.")}</p>
             )}
-            <p className="server-step-hint">
-              {t("Open a text channel to chat, or join a voice channel to hang out.")}
-            </p>
+            {permissionsReady ? (
+              <p className="server-step-hint">
+                {t("Open a text channel to chat, or join a voice channel to hang out.")}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -1541,6 +1553,7 @@ function ChannelRow({
   canMoveMembers = false,
   canMuteMembers = false,
   draggable = false,
+  dragHandleOnly = false,
   dragReorderTitle = "",
   dragging = false,
   dragOver = false,
@@ -1572,16 +1585,21 @@ function ChannelRow({
   void muteTick;
   const unreadCount = Number(unread) || 0;
   const canModVoice = canMoveMembers || canMuteMembers;
+  const rowDraggable = Boolean(draggable) && !dragHandleOnly;
+  const startChannelDrag = (e) => {
+    if (!draggable) return;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", channel.id);
+    onDragStartChannel?.();
+  };
   return (
     <div
       className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""} ${muted ? "is-muted-channel" : ""} ${unreadCount > 0 ? "has-unread" : ""} ${dragging ? "is-dragging" : ""} ${dragOver ? "is-drag-over" : ""}`}
-      draggable={Boolean(draggable)}
-      title={draggable ? dragReorderTitle : undefined}
+      draggable={rowDraggable}
+      title={rowDraggable ? dragReorderTitle : undefined}
       onDragStart={(e) => {
-        if (!draggable) return;
-        e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", channel.id);
-        onDragStartChannel?.();
+        if (!rowDraggable) return;
+        startChannelDrag(e);
       }}
       onDragOver={(e) => {
         if (!draggable) return;
@@ -1596,6 +1614,22 @@ function ChannelRow({
       }}
       onDragEnd={() => onDragEndChannel?.()}
     >
+      {dragHandleOnly && draggable ? (
+        <button
+          type="button"
+          className="server-channel-drag-handle"
+          draggable
+          title={dragReorderTitle || t("Hold and drag to reorder")}
+          aria-label={t("Hold and drag to reorder")}
+          onDragStart={(e) => {
+            e.stopPropagation();
+            startChannelDrag(e);
+          }}
+          onClick={(e) => e.preventDefault()}
+        >
+          <GripVertical size={14} />
+        </button>
+      ) : null}
       <button
         type="button"
         className={`server-channel-row ${active ? "active" : ""}`}

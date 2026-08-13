@@ -200,6 +200,7 @@ const UserPanel = forwardRef(function UserPanel({
   onStatusChange,
   initialTab = "overview",
   onTabChange,
+  activity = {},
 }, ref) {
   const { isMobile } = useMobile();
   const { t, locale, setLocale, locales } = useLocale();
@@ -1662,6 +1663,65 @@ const UserPanel = forwardRef(function UserPanel({
                     label={t("Call notifications")}
                   />
                 </SettingRow>
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">{t("Activity Status")}</h4>
+              <div className="us-card stack">
+                {activity?.isElectron && (
+                  <>
+                    <SettingRow
+                      icon={Monitor}
+                      title={t("Game activity")}
+                      description={t("Show friends what game you're playing")}
+                    >
+                      <Toggle
+                        value={activity?.settings?.show_game_activity !== false}
+                        onChange={(v) => activity?.updateSettings?.({ show_game_activity: v })}
+                        label={t("Game activity")}
+                      />
+                    </SettingRow>
+                    <SettingRow
+                      icon={MonitorSpeaker}
+                      title={t("App activity")}
+                      description={t("Show friends what apps you have open")}
+                    >
+                      <Toggle
+                        value={activity?.settings?.show_app_activity !== false}
+                        onChange={(v) => activity?.updateSettings?.({ show_app_activity: v })}
+                        label={t("App activity")}
+                      />
+                    </SettingRow>
+                    <SettingRow
+                      icon={Globe}
+                      title={t("Browser activity")}
+                      description={t("Show friends when you're browsing the web")}
+                    >
+                      <Toggle
+                        value={activity?.settings?.show_browser === true}
+                        onChange={(v) => activity?.updateSettings?.({ show_browser: v })}
+                        label={t("Browser activity")}
+                      />
+                    </SettingRow>
+                  </>
+                )}
+                <SettingRow
+                  icon={MonitorSpeaker}
+                  title={t("Descall usage time")}
+                  description={t("Track and show time spent in Descall")}
+                >
+                  <Toggle
+                    value={activity?.settings?.show_descall_time !== false}
+                    onChange={(v) => activity?.updateSettings?.({ show_descall_time: v })}
+                    label={t("Descall usage time")}
+                  />
+                </SettingRow>
+                {!activity?.isElectron && (
+                  <p className="us-row-desc" style={{ padding: "4px 4px 0" }}>
+                    {t("Install the Descall desktop app to share game and app activity automatically.")}
+                  </p>
+                )}
               </div>
             </section>
           </div>

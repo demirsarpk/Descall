@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, protocol, Menu, MenuItem, desktopCapturer, globalShortcut, Tray, Notification, powerMonitor } = require('electron');
 const { showNotificationWindow } = require('./notificationWindow.cjs');
 const { registerProcessScannerIPC } = require('./processScanner.cjs');
+const { registerOverlayIPC, destroyOverlayWindow } = require('./overlayWindow.cjs');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const path = require('path');
@@ -604,6 +605,7 @@ app.whenReady().then(async () => {
   }
 
   registerProcessScannerIPC();
+  registerOverlayIPC(() => mainWindow);
 
   globalShortcut.register('F12', () => mainWindow?.webContents.toggleDevTools());
   globalShortcut.register('CommandOrControl+Shift+I', () => mainWindow?.webContents.toggleDevTools());
@@ -629,6 +631,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   isQuitting = true;
   // autoInstallOnAppQuit=true applies a downloaded update during this quit
+  destroyOverlayWindow();
 });
 
 // Auto-updater events

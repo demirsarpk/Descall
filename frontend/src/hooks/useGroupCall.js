@@ -20,7 +20,8 @@ import {
   chainTrackUnmute,
   isPolitePeer,
 } from "../lib/webrtcNegotiation";
-import { getIceServers, preloadIceServers } from "../lib/iceConfig";
+import { preloadIceServers } from "../lib/iceConfig";
+import { createPeerConnection, attachLocalTracks, safeClosePeer } from "../lib/webrtcPeerFactory";
 import { sampleConnectionStats } from "../lib/connectionStats";
 import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
 import { useToast } from "../context/ToastContext";
@@ -292,10 +293,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       
       // Close all peer connections
       pcMapRef.current.forEach(peerData => {
-        try {
-          peerData.pc.close();
-        } catch (error) {
-            }
+        safeClosePeer(peerData.pc);
       });
       pcMapRef.current.clear();
       
@@ -354,7 +352,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     setDuration(0);
 
     pcMapRef.current.forEach((peerData, userId) => {
-      if (peerData.pc) peerData.pc.close();
+      safeClosePeer(peerData.pc);
     });
     pcMapRef.current.clear();
 
@@ -423,10 +421,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     // that matters.
     const peerData = pcMapRef.current.get(userId);
 
-    stream.getTracks().forEach((t) => {
-      t.enabled = true;
-      pc.addTrack(t, stream);
-    });
+    stream.getTracks().forEach((t) => { t.enabled = true; });
+    attachLocalTracks(pc, stream);
 
     pc.ontrack = (e) => {
       const track = e.track;
@@ -836,7 +832,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       memberIds.forEach((userId) => {
         if (userId === myIdRef.current) return;
         
-        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+        const pc = createPeerConnection({});
         const peerData = { pc, pendingIce: [] };
         pcMapRef.current.set(userId, peerData);
         
@@ -1411,10 +1407,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         let peerData = pcMapRef.current.get(fromUserId);
         let pc = peerData?.pc;
         if (!pc || pc.connectionState === "closed" || pc.connectionState === "failed") {
-          if (pc) {
-            try { pc.close(); } catch (_) {}
-          }
-          pc = new RTCPeerConnection({ iceServers: getIceServers() });
+          safeClosePeer(pc);
+          pc = createPeerConnection({});
           peerData = { pc, pendingIce: peerData?.pendingIce || [], fromUser };
           pcMapRef.current.set(fromUserId, peerData);
           setupPeerConnection(pc, stream, fromUserId, groupId);
@@ -1510,10 +1504,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         let peerData = pcMapRef.current.get(fromUserId);
         let pc = peerData?.pc;
         if (!pc || pc.connectionState === "closed" || pc.connectionState === "failed") {
-          if (pc) {
-            try { pc.close(); } catch (_) {}
-          }
-          pc = new RTCPeerConnection({ iceServers: getIceServers() });
+          safeClosePeer(pc);
+          pc = createPeerConnection({});
           peerData = { pc, pendingIce: peerData?.pendingIce || [], fromUser };
           pcMapRef.current.set(fromUserId, peerData);
           setupPeerConnection(pc, stream, fromUserId, groupId);
@@ -1624,7 +1616,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
           return;
         }
         
-        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+        const pc = createPeerConnection({});
         const early = pendingIceByUserRef.current.get(fromUserId) || [];
         pendingIceByUserRef.current.delete(fromUserId);
         const newPeerData = { pc, pendingIce: [...early], makingOffer: false };
@@ -1762,9 +1754,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       if (groupId && activeGroupIdRef.current && groupId !== activeGroupIdRef.current) return;
 
       const peerData = pcMapRef.current.get(userId);
-      if (peerData?.pc) {
-        try { peerData.pc.close(); } catch (_) {}
-      }
+      safeClosePeer(peerData?.pc);
       pcMapRef.current.delete(userId);
       pendingIceByUserRef.current.delete(userId);
 
@@ -1841,7 +1831,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
 
     const onDeclined = ({ groupId, fromUserId, fromUser }) => {
       const peerData = pcMapRef.current.get(fromUserId);
-      if (peerData?.pc) peerData.pc.close();
+      safeClosePeer(peerData?.pc);
       pcMapRef.current.delete(fromUserId);
       remoteStreamsRef.current.delete(fromUserId);
       setParticipants((prev) => prev.filter((p) => p.id !== fromUserId));
@@ -2057,7 +2047,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
             });
 
             // Set up peer connection for each existing participant
-            const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+            const pc = createPeerConnection({});
             const peerData = { pc, pendingIce: [] };
             pcMapRef.current.set(userId, peerData);
             
@@ -2291,7 +2281,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
           return [...prev, { id: userId, username: "Member", hasVideo: type === "video", hasAudio: true }];
         });
         if (!pcMapRef.current.has(userId)) {
-          const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+          const pc = createPeerConnection({});
           pcMapRef.current.set(userId, { pc, pendingIce: [] });
           setupPeerConnection(pc, stream, userId, groupId);
         }

@@ -39,3 +39,16 @@ export async function subscribeWebPush() {
   if (!response.ok) throw new Error(`Push subscription failed (${response.status})`);
   return true;
 }
+
+/** Re-subscribe when the browser rotates the push endpoint (common on iOS PWA). */
+export function listenForPushSubscriptionChange() {
+  if (!("serviceWorker" in navigator)) return () => {};
+  const onMessage = (event) => {
+    if (event?.data?.type !== "descall:pushsubscriptionchange") return;
+    subscribeWebPush().catch((error) => {
+      console.warn("[WebPush] Resubscribe after endpoint change failed:", error?.message || error);
+    });
+  };
+  navigator.serviceWorker.addEventListener("message", onMessage);
+  return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+}

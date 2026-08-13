@@ -45,6 +45,8 @@
       "notificationWindow.cjs",
       "notifPreload.cjs",
       "processScanner.cjs",
+      "overlayWindow.cjs",
+      "overlayPreload.cjs",
       "node_modules/**/*"
     ],
     "asar": true,

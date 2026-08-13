@@ -211,15 +211,32 @@
 
 .server-list,
 .server-channel-row-wrap {
+  /* Keep vertical finger scroll on the channel/server lists */
   touch-action: pan-y;
 }
 
-.server-channel-row-wrap[draggable="true"] {
-  touch-action: none;
+/*
+ * HTML5 DnD + touch-action:none on the whole row blocks sidebar scroll on phones.
+ * Only disable pan when a fine pointer (mouse) is dragging; on touch, pan-y wins.
+ */
+@media (pointer: fine) {
+  .server-channel-row-wrap[draggable="true"],
+  .server-list-row-wrap[draggable="true"] {
+    touch-action: none;
+  }
 }
 
-.server-list-row-wrap[draggable="true"] {
-  touch-action: none;
+@media (pointer: coarse) {
+  .server-channel-row-wrap[draggable="true"],
+  .server-list-row-wrap[draggable="true"] {
+    touch-action: pan-y;
+  }
+
+  /* Optional grip handle can still opt into non-pan for press-drag reorder */
+  .server-channel-drag-handle[draggable="true"],
+  .server-list-drag-handle[draggable="true"] {
+    touch-action: none;
+  }
 }
 
 .server-list-row-wrap:active {
@@ -450,6 +467,33 @@
   border-radius: 8px;
 }
 
+.server-channel-row-wrap:has(.server-channel-drag-handle) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.server-channel-drag-handle {
+  grid-column: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted, #949ba4);
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.server-channel-drag-handle:active {
+  cursor: grabbing;
+  color: var(--text-0, #f2f3f5);
+}
+
 /* Channel name + ⋯ share one row; voice members span full width below */
 .server-channel-row-wrap > .server-channel-row {
   width: auto;
@@ -457,9 +501,17 @@
   max-width: 100%;
 }
 
+.server-channel-row-wrap:has(.server-channel-drag-handle) > .server-channel-row {
+  grid-column: 2;
+}
+
 .server-channel-row-wrap > .server-channel-row-actions {
   grid-column: 2;
   justify-self: end;
+}
+
+.server-channel-row-wrap:has(.server-channel-drag-handle) > .server-channel-row-actions {
+  grid-column: 3;
 }
 
 .server-channel-row-wrap > .server-voice-user-list {
@@ -479,6 +531,36 @@
   pointer-events: none;
   flex-shrink: 0;
   margin-right: 4px;
+}
+
+.server-channels-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 14px 8px;
+}
+
+.server-channels-loading-bar {
+  display: block;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0.04)
+  );
+  background-size: 200% 100%;
+  animation: server-channels-shimmer 1.2s ease-in-out infinite;
+}
+
+.server-channels-loading-bar.short {
+  width: 62%;
+}
+
+@keyframes server-channels-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
 }
 
 .server-channel-mini-btn {

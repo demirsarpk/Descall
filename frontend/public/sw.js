@@ -13,12 +13,14 @@ self.addEventListener("push", (event) => {
         { action: "answer", title: type === "group-call" ? "Join" : "Answer" },
         { action: "decline", title: "Decline" },
       ]
-    : [];
+    : type === "dm" || type === "mention"
+      ? [{ action: "open", title: "Open" }]
+      : [];
 
   event.waitUntil(self.registration.showNotification(payload.title || "Descall", {
     body: payload.body || "",
-    icon: "/default-avatar.png",
-    badge: "/favicon.svg",
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
     tag: payload.tag || "descall",
     renotify: true,
     requireInteraction: isCall,
@@ -31,6 +33,8 @@ self.addEventListener("push", (event) => {
       from: payload.from || null,
       conversationId: payload.conversationId || payload.fromId || null,
       groupId: payload.groupId || null,
+      serverId: payload.serverId || null,
+      channelId: payload.channelId || null,
       callType: payload.callType || null,
     },
   }));
@@ -57,5 +61,18 @@ self.addEventListener("notificationclick", (event) => {
       return;
     }
     await clients.openWindow(deepLink);
+  })());
+});
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil((async () => {
+    try {
+      const windows = await clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of windows) {
+        client.postMessage({ type: "descall:pushsubscriptionchange" });
+      }
+    } catch {
+      /* ignore */
+    }
   })());
 });

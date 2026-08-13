@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
-import { getIceServers, preloadIceServers } from "../lib/iceConfig";
+import { preloadIceServers } from "../lib/iceConfig";
+import { createPeerConnection, attachLocalTracks, safeClosePeer } from "../lib/webrtcPeerFactory";
 import { API_BASE_URL } from "../config/api";
 import { getToken, getUser } from "../lib/storage";
 import {
@@ -223,13 +224,7 @@ export function useServerVoice(socket) {
 
   const cleanupPeer = useCallback((userId) => {
     const peer = pcMapRef.current.get(userId);
-    if (peer?.pc) {
-      try {
-        peer.pc.close();
-      } catch {
-        /* ignore */
-      }
-    }
+    safeClosePeer(peer?.pc);
     pcMapRef.current.delete(userId);
     if (remoteStreamMapRef.current.has(userId)) {
       remoteStreamMapRef.current.delete(userId);
@@ -390,7 +385,7 @@ export function useServerVoice(socket) {
   const setupPc = useCallback(
     (pc, stream, userId, channelId) => {
       if (canPublishVoice()) {
-        stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+        attachLocalTracks(pc, stream);
       }
       if (cameraStreamRef.current && canPublishVideo()) {
         const peer = pcMapRef.current.get(userId);
@@ -523,7 +518,7 @@ export function useServerVoice(socket) {
       if (!user?.id || !localStreamRef.current || !socket) return;
       if (sfuModeRef.current) return;
       if (pcMapRef.current.has(user.id)) return;
-      const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+      const pc = createPeerConnection({});
       const peer = { pc, pendingIce: [] };
       pcMapRef.current.set(user.id, peer);
       setupPc(pc, localStreamRef.current, user.id, channelId);
@@ -595,11 +590,23 @@ export function useServerVoice(socket) {
         setParticipants([]);
         setMuted(isStage);
         socket.emit("server:voice:join", { serverId, channelId: channel.id });
+        // Prefer LiveKit SFU whenever media-config reports it. Retry once on
+        // transient token/connect failures before optionally falling back to mesh.
         const mediaConfig = await getMediaConfig();
-        if (mediaConfig?.sfu) {
-          try {
-            const tokenData = await getLiveKitToken(channel.id);
-            if (tokenData?.enabled) {
+        if (mediaConfig?.sfu || mediaConfig?.preferSfu) {
+          let sfuConnected = false;
+          let lastSfuErr = null;
+          for (let attempt = 0; attempt < 2 && !sfuConnected; attempt += 1) {
+            try {
+              if (attempt > 0) {
+                liveKitConfigRef.current = null;
+                await new Promise((r) => setTimeout(r, 350));
+              }
+              const tokenData = await getLiveKitToken(channel.id);
+              if (!tokenData?.enabled) {
+                lastSfuErr = new Error(tokenData?.error || "LiveKit token unavailable");
+                continue;
+              }
               canSpeakRef.current = Boolean(tokenData.canPublish);
               setCanSpeak(Boolean(tokenData.canPublish));
               if (tokenData.canStream !== undefined) {
@@ -616,10 +623,17 @@ export function useServerVoice(socket) {
               }
               setCanRequestToSpeak(Boolean(tokenData.canRequestToSpeak));
               await connectLiveKitRoom(channel.id, tokenData, stream);
+              sfuConnected = true;
+            } catch (sfuErr) {
+              lastSfuErr = sfuErr;
+              disconnectLiveKit();
             }
-          } catch (sfuErr) {
-            console.warn("[ServerVoice] SFU connect failed; falling back to mesh:", sfuErr);
-            disconnectLiveKit();
+          }
+          if (!sfuConnected) {
+            if (mediaConfig?.forceSfu) {
+              throw lastSfuErr || new Error("LiveKit SFU is required but unavailable.");
+            }
+            console.warn("[ServerVoice] SFU connect failed; falling back to mesh:", lastSfuErr);
           }
         }
       } catch (err) {
@@ -1076,7 +1090,7 @@ export function useServerVoice(socket) {
 
       let peer = pcMapRef.current.get(fromUserId);
       if (!peer) {
-        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+        const pc = createPeerConnection({});
         peer = { pc, pendingIce: [] };
         pcMapRef.current.set(fromUserId, peer);
         setupPc(pc, stream, fromUserId, channelId);

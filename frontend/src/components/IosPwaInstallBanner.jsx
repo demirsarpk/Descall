@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Share, X } from "lucide-react";
+import { useT } from "../context/LocaleContext";
 import "./IosPwaInstallBanner.css";
 
 const DISMISSED_KEY = "descall:ios-pwa-install-dismissed";
@@ -11,6 +12,7 @@ export function isIosSafari({ userAgent = "", maxTouchPoints = 0, standalone = f
 }
 
 export default function IosPwaInstallBanner() {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -33,12 +35,25 @@ export default function IosPwaInstallBanner() {
     localStorage.setItem(DISMISSED_KEY, "1");
     setOpen(false);
   };
-  return <aside className="ios-pwa-banner" role="dialog" aria-label="Install Descall">
-    <div className="ios-pwa-banner__icon"><Share size={18} /></div>
-    <div className="ios-pwa-banner__body">
-      <strong>Descall’ı Ana Ekrana Ekle</strong>
-      <span>Safari’de <b>Paylaş (□↑)</b> → <b>“Ana Ekrana Ekle”</b> → <b>“Ekle”</b> seç.</span>
-    </div>
-    <button className="ios-pwa-banner__close" onClick={dismiss} aria-label="Kapat"><X size={18} /></button>
-  </aside>;
+  return (
+    <aside className="ios-pwa-banner" role="dialog" aria-label={t("Install Descall")}>
+      <div className="ios-pwa-banner__icon"><Share size={18} /></div>
+      <div className="ios-pwa-banner__body">
+        <strong>{t("Add Descall to your Home Screen")}</strong>
+        <span>
+          {t("In Safari tap Share")}{" "}
+          <b>(□↑)</b>
+          {" → "}
+          <b>{t("Add to Home Screen")}</b>
+          {" → "}
+          <b>{t("Add")}</b>
+          {". "}
+          {t("Then enable notifications for calls and DMs.")}
+        </span>
+      </div>
+      <button className="ios-pwa-banner__close" onClick={dismiss} aria-label={t("Close")}>
+        <X size={18} />
+      </button>
+    </aside>
+  );
 }

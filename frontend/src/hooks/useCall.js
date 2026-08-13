@@ -20,7 +20,8 @@ import {
   applyRemoteOffer,
   isPolitePeer,
 } from "../lib/webrtcNegotiation";
-import { getIceServers, preloadIceServers } from "../lib/iceConfig";
+import { preloadIceServers } from "../lib/iceConfig";
+import { createPeerConnection, attachLocalTracks, safeClosePeer } from "../lib/webrtcPeerFactory";
 import { getUser } from "../lib/storage";
 import useConnectionStats from "./useConnectionStats";
 import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
@@ -175,7 +176,7 @@ export function useCall(socket, callOccupancyRef = null) {
     incomingOfferRef.current = null;
     incomingCallTypeRef.current = null;
     if (pcRef.current) {
-      pcRef.current.close();
+      safeClosePeer(pcRef.current);
       pcRef.current = null;
     }
     if (localStreamRef.current) {
@@ -329,7 +330,7 @@ export function useCall(socket, callOccupancyRef = null) {
 
   const setupPeerConnection = useCallback((pc, stream, isInitiator) => {
     setPeerConnectionState("connecting");
-    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    attachLocalTracks(pc, stream);
 
     pc.ontrack = (e) => {
       const track = e.track;
@@ -853,7 +854,7 @@ export function useCall(socket, callOccupancyRef = null) {
         localVideoRef.current.play().catch(() => {});
       }
 
-      const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+      const pc = createPeerConnection({});
       pcRef.current = pc;
       setupPeerConnection(pc, stream, true);
 
@@ -896,7 +897,7 @@ export function useCall(socket, callOccupancyRef = null) {
         localVideoRef.current.play().catch(() => {});
       }
 
-      const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+      const pc = createPeerConnection({});
       pcRef.current = pc;
       setupPeerConnection(pc, stream, false);
 

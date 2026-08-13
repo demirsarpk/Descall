@@ -556,6 +556,7 @@ export default function AppLayout({
             onStatusChange={onStatusChange}
             initialTab={settingsTab}
             onTabChange={onSettingsTabChange}
+            activity={activity}
           />
         )}
       </AnimatePresence>

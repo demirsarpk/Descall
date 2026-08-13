@@ -99,6 +99,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Activity / process scanning
   scanProcesses: () => ipcRenderer.invoke('scan-processes'),
+
+  // Always-on voice mini overlay (Discord-style always-on-top HUD)
+  overlayShow: (payload) => ipcRenderer.send('descall:overlay:show', payload || {}),
+  overlayHide: () => ipcRenderer.send('descall:overlay:hide'),
+  overlayUpdate: (payload) => ipcRenderer.send('descall:overlay:update', payload || {}),
+  onOverlayAction: (callback) => {
+    const handler = (_, action) => callback(action);
+    ipcRenderer.on('descall:overlay:action', handler);
+    return () => ipcRenderer.off('descall:overlay:action', handler);
+  },
 });
 
 // Log preload loaded

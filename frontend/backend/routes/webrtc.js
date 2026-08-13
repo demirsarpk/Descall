@@ -119,11 +119,18 @@ router.get("/ice-config", (_req, res) => {
 });
 
 router.get("/media-config", (_req, res) => {
+  const sfu = isLiveKitConfigured();
+  // Prefer SFU whenever LiveKit is configured. Mesh remains emergency fallback
+  // unless LIVEKIT_FORCE=1 (ops: refuse mesh when SFU is expected in prod).
+  const forceSfu = String(process.env.LIVEKIT_FORCE || "").trim() === "1";
   res.set("Cache-Control", "public, max-age=60");
   res.json({
-    sfu: isLiveKitConfigured(),
-    livekitUrl: isLiveKitConfigured() ? process.env.LIVEKIT_URL : null,
+    sfu,
+    preferSfu: sfu,
+    forceSfu: sfu && forceSfu,
+    livekitUrl: sfu ? process.env.LIVEKIT_URL : null,
     turnConfigured: isTurnConfigured(),
+    mode: sfu ? "sfu" : "mesh",
   });
 });
 

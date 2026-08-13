@@ -976,8 +976,8 @@ function registerServerChannelHandlers(io, socket) {
               const memberSet = new Set((memberRows || []).map((r) => r.user_id));
               const fromName =
                 message.sender?.username || socket.user?.username || "Someone";
-              for (const uid of candidateIds) {
-                if (!memberSet.has(uid)) continue;
+              const mentionTargets = candidateIds.filter((uid) => memberSet.has(uid));
+              for (const uid of mentionTargets) {
                 io.to(`user:${uid}`).emit("mention:received", {
                   serverId: channel.server_id,
                   channelId,
@@ -987,6 +987,47 @@ function registerServerChannelHandlers(io, socket) {
                   from: fromName,
                   text: trimmedContent,
                 });
+              }
+              if (mentionTargets.length > 0) {
+                try {
+                  const [{ data: memberships }, { data: mutes }] = await Promise.all([
+                    supabase
+                      .from("server_members")
+                      .select("user_id, notification_level")
+                      .eq("server_id", channel.server_id)
+                      .in("user_id", mentionTargets),
+                    supabase
+                      .from("server_channel_mutes")
+                      .select("user_id")
+                      .eq("channel_id", channelId)
+                      .in("user_id", mentionTargets),
+                  ]);
+                  const mutedSet = new Set((mutes || []).map((r) => r.user_id));
+                  const levelByUser = new Map(
+                    (memberships || []).map((r) => [r.user_id, String(r.notification_level || "all").toLowerCase()])
+                  );
+                  const pushTargets = mentionTargets.filter((uid) => {
+                    if (mutedSet.has(uid)) return false;
+                    return levelByUser.get(uid) !== "muted";
+                  });
+                  if (pushTargets.length > 0) {
+                    const { sendMentionPush } = require("../lib/webPush");
+                    void sendMentionPush(pushTargets, {
+                      title: `${fromName} mentioned you`,
+                      body: trimmedContent.slice(0, 140),
+                      text: trimmedContent.slice(0, 140),
+                      from: fromName,
+                      serverId: channel.server_id,
+                      channelId,
+                      channelName: channel.name || null,
+                      serverName: serverMeta?.name || null,
+                      messageId: message.id,
+                      deepLink: `/?server=${encodeURIComponent(channel.server_id)}&channel=${encodeURIComponent(channelId)}`,
+                    });
+                  }
+                } catch (pushErr) {
+                  console.warn("[WebPush] Mention push skipped:", pushErr?.message || pushErr);
+                }
               }
             }
           }

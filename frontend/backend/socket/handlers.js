@@ -1175,15 +1175,51 @@ function registerSocketHandlers(io) {
       }
 
       // Emit mention:received if text contains @recipient — used by notification service
+      let dmMentioned = false;
       if (text) {
         const recipientUsername = usernameById.get(toUserId);
         const mentionPattern = new RegExp(`@${recipientUsername}\\b`, "i");
         if (recipientUsername && mentionPattern.test(text)) {
+          dmMentioned = true;
           emitToUser(io, toUserId, "mention:received", {
             dmConversationId: myId,
             from: me.username,
             text,
           });
+        }
+      }
+
+      // Wake backgrounded clients (web push + FCM) when the recipient isn't
+      // looking at this DM. Mentions get a distinct payload for notification UX.
+      if (recipientActivePeer !== myId) {
+        try {
+          const { sendDmMessagePush, sendMentionPush } = require("../lib/webPush");
+          const preview =
+            isVoice
+              ? "Voice message"
+              : mediaUrl
+                ? "Sent an attachment"
+                : String(storedText || text || "").slice(0, 140) || "New message";
+          if (dmMentioned) {
+            void sendMentionPush([toUserId], {
+              title: `${me.username || "Someone"} mentioned you`,
+              body: preview,
+              text: preview,
+              from: me.username,
+              fromId: myId,
+              deepLink: `/?dm=${encodeURIComponent(myId)}`,
+            });
+          } else {
+            void sendDmMessagePush([toUserId], {
+              title: me.username || "New message",
+              body: preview,
+              from: me.username,
+              fromId: myId,
+              deepLink: `/?dm=${encodeURIComponent(myId)}`,
+            });
+          }
+        } catch (pushErr) {
+          console.warn("[WebPush] DM push skipped:", pushErr?.message || pushErr);
         }
       }
     });

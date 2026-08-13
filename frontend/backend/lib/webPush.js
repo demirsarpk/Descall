@@ -56,29 +56,27 @@ async function sendWebPushToUsers(userIds, payload) {
   }));
 }
 
-/**
- * Group-call push notification. This used to be imported by
- * socket/groupHandlers.js but was never actually defined here, so every
- * `group:call:start` threw an uncaught TypeError ("sendGroupCallPush is not
- * a function") straight out of a socket event handler — which crashes the
- * entire Node process, dropping every connected user's socket and killing
- * any in-progress calls/signaling for the whole server, not just the one
- * group call being started. That single crash-on-every-group-call is the
- * root cause behind a wide range of previously reported group call symptoms
- * (sudden drops, calls where nobody can see/hear each other, banners never
- * reaching other members, etc).
- *
- * For now this is a thin wrapper around the existing Web Push (VAPID) path,
- * which already covers the "notify even while backgrounded" use case this
- * was meant for. Kept as a distinct export (rather than inlining a second
- * sendWebPushToUsers call at the call site) so a native/FCM delivery path
- * can be added here later without touching callers.
- */
-async function sendGroupCallPush(userIds, payload = {}) {
+async function deliverPush(userIds, payload = {}) {
   await Promise.allSettled([
     sendWebPushToUsers(userIds, payload),
     sendFcmToUsers(userIds, payload),
   ]);
+}
+
+/**
+ * Group-call push notification. Thin wrapper around VAPID + FCM so native and
+ * installed PWAs wake even when backgrounded.
+ */
+async function sendGroupCallPush(userIds, payload = {}) {
+  const body = {
+    type: "group-call",
+    title: payload.title || "Group call",
+    body: payload.body || "Someone started a group call on Descall",
+    tag: payload.tag || "group-call",
+    deepLink: payload.deepLink || "/",
+    ...payload,
+  };
+  await deliverPush(userIds, body);
 }
 
 /** DM / 1:1 incoming call — wake backgrounded native + web clients. */
@@ -91,10 +89,58 @@ async function sendIncomingCallPush(userIds, payload = {}) {
     deepLink: payload.deepLink || "/",
     ...payload,
   };
-  await Promise.allSettled([
-    sendWebPushToUsers(userIds, body),
-    sendFcmToUsers(userIds, body),
-  ]);
+  await deliverPush(userIds, body);
 }
 
-module.exports = { sendWebPushToUsers, sendGroupCallPush, sendIncomingCallPush };
+/** Direct message while recipient is backgrounded / offline. */
+async function sendDmMessagePush(userIds, payload = {}) {
+  const preview = String(payload.body || payload.text || "New message").slice(0, 140);
+  const body = {
+    type: "dm",
+    title: payload.title || payload.from || "New message",
+    body: preview,
+    tag: payload.tag || `dm-${payload.fromId || "msg"}`,
+    deepLink: payload.deepLink || (payload.fromId ? `/?dm=${encodeURIComponent(payload.fromId)}` : "/"),
+    conversationId: payload.fromId || payload.conversationId || null,
+    fromId: payload.fromId || null,
+    from: payload.from || null,
+    ...payload,
+    body: preview,
+  };
+  await deliverPush(userIds, body);
+}
+
+/** @mention in a server channel or DM. */
+async function sendMentionPush(userIds, payload = {}) {
+  const preview = String(payload.body || payload.text || "mentioned you").slice(0, 140);
+  const deepLink =
+    payload.deepLink ||
+    (payload.serverId && payload.channelId
+      ? `/?server=${encodeURIComponent(payload.serverId)}&channel=${encodeURIComponent(payload.channelId)}`
+      : payload.fromId
+        ? `/?dm=${encodeURIComponent(payload.fromId)}`
+        : "/");
+  const body = {
+    type: "mention",
+    title: payload.title || `${payload.from || "Someone"} mentioned you`,
+    body: preview,
+    tag: payload.tag || `mention-${payload.messageId || payload.channelId || "x"}`,
+    deepLink,
+    serverId: payload.serverId || null,
+    channelId: payload.channelId || null,
+    messageId: payload.messageId || null,
+    from: payload.from || null,
+    ...payload,
+    body: preview,
+    deepLink,
+  };
+  await deliverPush(userIds, body);
+}
+
+module.exports = {
+  sendWebPushToUsers,
+  sendGroupCallPush,
+  sendIncomingCallPush,
+  sendDmMessagePush,
+  sendMentionPush,
+};
