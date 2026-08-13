@@ -1,10 +1,13 @@
 /**
- * Unified analytics: PostHog (primary funnel) + optional GA4 / Clarity.
+ * Unified analytics: PostHog (primary funnel) + Google Ads / optional GA4 / Clarity.
  *
  * Env (Vite build-time):
  *   VITE_PUBLIC_POSTHOG_KEY  — project API key (phc_…)
  *   VITE_PUBLIC_POSTHOG_HOST — e.g. https://eu.i.posthog.com
  *   VITE_GA_MEASUREMENT_ID
+ *   VITE_GOOGLE_ADS_ID                 — defaults to AW-439578855
+ *   VITE_GOOGLE_ADS_SIGNUP_LABEL       — conversion label only (e.g. AbCdEfGhIj)
+ *                                      or full send_to "AW-439578855/AbCdEfGhIj"
  *   VITE_CLARITY_ID
  *
  * Public project key is safe to ship in the client bundle. Env overrides win;
@@ -16,10 +19,15 @@ import posthog from "posthog-js";
 
 let booted = false;
 let posthogReady = false;
+let gtagJsBooted = false;
+const gtagConfiguredIds = new Set();
 
 /** Descall EU project — public `phc_` key (not a secret). */
 const DESCALL_POSTHOG_KEY = "phc_ztiuFNjFuPcfrCV6ANXunnYaZh4yH99ZhxFZf2cryacQ";
 const DESCALL_POSTHOG_HOST = "https://eu.i.posthog.com";
+/** Google Ads account tag (public). */
+const DEFAULT_GOOGLE_ADS_ID = "AW-439578855";
+const GADS_SIGNUP_SENT_KEY = "descall:gads_signup_conversion_sent";
 
 function posthogKey() {
   const fromEnv = String(import.meta.env.VITE_PUBLIC_POSTHOG_KEY || "").trim();
@@ -33,6 +41,95 @@ function posthogHost() {
   return String(
     import.meta.env.VITE_PUBLIC_POSTHOG_HOST || DESCALL_POSTHOG_HOST
   ).trim();
+}
+
+function googleAdsId() {
+  return String(import.meta.env.VITE_GOOGLE_ADS_ID || DEFAULT_GOOGLE_ADS_ID).trim();
+}
+
+/**
+ * Load googletagmanager gtag.js once and `config` each id exactly once.
+ * Safe on SSR (no-op) and when an ad blocker strips the script.
+ */
+function ensureGtagConfigs(ids, { anonymizeIpIds } = {}) {
+  if (typeof window === "undefined") return;
+  const list = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!list.length) return;
+
+  try {
+    window.dataLayer = window.dataLayer || [];
+    if (typeof window.gtag !== "function") {
+      window.gtag = function gtag() {
+        // eslint-disable-next-line prefer-rest-params
+        window.dataLayer.push(arguments);
+      };
+    }
+
+    const existing = document.querySelector('script[src*="googletagmanager.com/gtag/js"]');
+    if (!existing) {
+      const s = document.createElement("script");
+      s.async = true;
+      s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(list[0])}`;
+      document.head.appendChild(s);
+    }
+
+    if (!gtagJsBooted) {
+      window.gtag("js", new Date());
+      gtagJsBooted = true;
+    }
+
+    const anon = anonymizeIpIds instanceof Set ? anonymizeIpIds : new Set();
+    for (const id of list) {
+      if (gtagConfiguredIds.has(id)) continue;
+      gtagConfiguredIds.add(id);
+      if (anon.has(id)) {
+        window.gtag("config", id, { anonymize_ip: true });
+      } else {
+        window.gtag("config", id);
+      }
+    }
+  } catch (err) {
+    console.warn("[analytics] gtag init failed", err);
+  }
+}
+
+/**
+ * Fire Google Ads Sign-Up conversion only after a confirmed new account.
+ * Never throws. Deduped per browser session. No-ops without a conversion label
+ * (label must come from Google Ads — never invent one).
+ */
+export function trackGoogleAdsSignUpConversion(properties = {}) {
+  if (typeof window === "undefined") return;
+  try {
+    try {
+      if (sessionStorage.getItem(GADS_SIGNUP_SENT_KEY) === "1") return;
+    } catch {
+      /* private mode — continue with in-memory dedupe via configured set below */
+    }
+
+    const adsId = googleAdsId();
+    if (!adsId) return;
+    ensureGtagConfigs([adsId]);
+
+    if (typeof window.gtag !== "function") return;
+
+    try {
+      sessionStorage.setItem(GADS_SIGNUP_SENT_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+
+    const rawLabel = String(import.meta.env.VITE_GOOGLE_ADS_SIGNUP_LABEL || "").trim();
+    if (rawLabel) {
+      const sendTo = rawLabel.includes("/") ? rawLabel : `${adsId}/${rawLabel}`;
+      window.gtag("event", "conversion", {
+        send_to: sendTo,
+        ...(properties.method ? { method: properties.method } : {}),
+      });
+    }
+  } catch {
+    /* Tracking must never break Sign Up */
+  }
 }
 
 export function initAnalytics() {
@@ -79,21 +176,15 @@ export function initAnalytics() {
     }
   }
 
-  const gaId = import.meta.env.VITE_GA_MEASUREMENT_ID || "";
+  const gaId = String(import.meta.env.VITE_GA_MEASUREMENT_ID || "").trim();
+  const adsId = googleAdsId();
   const clarityId = import.meta.env.VITE_CLARITY_ID || "";
 
-  if (gaId) {
-    const s = document.createElement("script");
-    s.async = true;
-    s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaId)}`;
-    document.head.appendChild(s);
-    window.dataLayer = window.dataLayer || [];
-    window.gtag = function gtag() {
-      window.dataLayer.push(arguments);
-    };
-    window.gtag("js", new Date());
-    window.gtag("config", gaId, { anonymize_ip: true });
-  }
+  // Single gtag.js load — config Google Ads + optional GA4 without duplicates.
+  const gtagIds = [];
+  if (adsId) gtagIds.push(adsId);
+  if (gaId) gtagIds.push(gaId);
+  ensureGtagConfigs(gtagIds, { anonymizeIpIds: new Set(gaId ? [gaId] : []) });
 
   if (clarityId) {
     (function (c, l, a, r, i, t, y) {
@@ -210,7 +301,11 @@ export const Funnel = {
   landingView: (props) => trackEvent("landing_view", props),
   ctaClick: (props) => trackEvent("cta_click", props),
   registerStart: (props) => trackEvent("register_start", props),
-  registerComplete: (props) => trackEvent("register_complete", props),
+  /** Call only after auth/API confirms a brand-new account (never on login). */
+  registerComplete: (props) => {
+    trackEvent("register_complete", props);
+    trackGoogleAdsSignUpConversion(props || {});
+  },
   loginComplete: (props) => trackEvent("login_complete", props),
   inviteGenerated: (props) => trackEvent("invite_generated", props),
   inviteLanding: (props) => trackEvent("invite_landing", props),
