@@ -44,8 +44,8 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
   const openPicker = (kind) => {
     if (!canManage || busy || uploading) return;
     const ref = kind === "icon" ? iconRef : bannerRef;
-    // Keep the user gesture → file dialog chain intact on mobile.
-    window.setTimeout(() => ref.current?.click(), 0);
+    // Must stay synchronous — deferred clicks break the file dialog on iOS.
+    ref.current?.click();
   };
 
   const pickImage = async (e, kind) => {

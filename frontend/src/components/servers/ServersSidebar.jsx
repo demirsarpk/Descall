@@ -439,10 +439,12 @@ export default function ServersSidebar({
                     type="button"
                     className="server-dropdown-item"
                     disabled={serverIconBusy}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      // Keep file dialog in the same user-gesture stack (iOS).
+                      serverIconFileRef.current?.click();
                       setMenuOpen(false);
-                      // Defer so the dropdown unmount doesn't swallow the file-picker gesture.
-                      window.setTimeout(() => serverIconFileRef.current?.click(), 0);
                     }}
                   >
                     <Camera size={15} />
