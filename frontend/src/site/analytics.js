@@ -6,8 +6,8 @@
  *   VITE_PUBLIC_POSTHOG_HOST — e.g. https://eu.i.posthog.com
  *   VITE_GA_MEASUREMENT_ID
  *   VITE_GOOGLE_ADS_ID                 — defaults to AW-439578855
- *   VITE_GOOGLE_ADS_SIGNUP_LABEL       — conversion label only (e.g. AbCdEfGhIj)
- *                                      or full send_to "AW-439578855/AbCdEfGhIj"
+ *   VITE_GOOGLE_ADS_SIGNUP_LABEL       — overrides default Kaydolma label
+ *                                      (label only or full AW-…/label send_to)
  *   VITE_CLARITY_ID
  *
  * Public project key is safe to ship in the client bundle. Env overrides win;
@@ -27,6 +27,8 @@ const DESCALL_POSTHOG_KEY = "phc_ztiuFNjFuPcfrCV6ANXunnYaZh4yH99ZhxFZf2cryacQ";
 const DESCALL_POSTHOG_HOST = "https://eu.i.posthog.com";
 /** Google Ads account tag (public). */
 const DEFAULT_GOOGLE_ADS_ID = "AW-439578855";
+/** "Kaydolma işlemi (2)" conversion label from Google Ads event snippet. */
+const DEFAULT_GOOGLE_ADS_SIGNUP_LABEL = "OLLZCM7ZmuEcEOfhzdEB";
 const GADS_SIGNUP_SENT_KEY = "descall:gads_signup_conversion_sent";
 
 function posthogKey() {
@@ -45,6 +47,15 @@ function posthogHost() {
 
 function googleAdsId() {
   return String(import.meta.env.VITE_GOOGLE_ADS_ID || DEFAULT_GOOGLE_ADS_ID).trim();
+}
+
+function googleAdsSignupSendTo() {
+  const adsId = googleAdsId();
+  const raw = String(
+    import.meta.env.VITE_GOOGLE_ADS_SIGNUP_LABEL || DEFAULT_GOOGLE_ADS_SIGNUP_LABEL || ""
+  ).trim();
+  if (!raw || !adsId) return "";
+  return raw.includes("/") ? raw : `${adsId}/${raw}`;
 }
 
 /**
@@ -95,8 +106,8 @@ function ensureGtagConfigs(ids, { anonymizeIpIds } = {}) {
 
 /**
  * Fire Google Ads Sign-Up conversion only after a confirmed new account.
- * Never throws. Deduped per browser session. No-ops without a conversion label
- * (label must come from Google Ads — never invent one).
+ * Never throws. Deduped per browser session.
+ * send_to: AW-439578855/OLLZCM7ZmuEcEOfhzdEB ("Kaydolma işlemi (2)").
  */
 export function trackGoogleAdsSignUpConversion(properties = {}) {
   if (typeof window === "undefined") return;
@@ -104,11 +115,12 @@ export function trackGoogleAdsSignUpConversion(properties = {}) {
     try {
       if (sessionStorage.getItem(GADS_SIGNUP_SENT_KEY) === "1") return;
     } catch {
-      /* private mode — continue with in-memory dedupe via configured set below */
+      /* private mode — continue; still fire once this page load */
     }
 
     const adsId = googleAdsId();
-    if (!adsId) return;
+    const sendTo = googleAdsSignupSendTo();
+    if (!adsId || !sendTo) return;
     ensureGtagConfigs([adsId]);
 
     if (typeof window.gtag !== "function") return;
@@ -119,14 +131,10 @@ export function trackGoogleAdsSignUpConversion(properties = {}) {
       /* ignore */
     }
 
-    const rawLabel = String(import.meta.env.VITE_GOOGLE_ADS_SIGNUP_LABEL || "").trim();
-    if (rawLabel) {
-      const sendTo = rawLabel.includes("/") ? rawLabel : `${adsId}/${rawLabel}`;
-      window.gtag("event", "conversion", {
-        send_to: sendTo,
-        ...(properties.method ? { method: properties.method } : {}),
-      });
-    }
+    window.gtag("event", "conversion", {
+      send_to: sendTo,
+      ...(properties.method ? { method: properties.method } : {}),
+    });
   } catch {
     /* Tracking must never break Sign Up */
   }
