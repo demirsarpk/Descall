@@ -1045,6 +1045,212 @@
   text-underline-offset: 2px;
   word-break: break-all;
 }
+
+.msg-link-invite {
+  display: inline;
+  font-weight: 650;
+  text-decoration: none;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  border-radius: 6px;
+  padding: 1px 7px;
+  word-break: break-all;
+}
+
+.msg-link-invite:hover {
+  background: color-mix(in srgb, var(--primary) 22%, transparent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Discord-style in-chat invite embeds */
+.invite-embed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  max-width: min(420px, 100%);
+}
+
+.invite-embed {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--border-3);
+  background: var(--surface-2);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.invite-embed-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--primary) 40%, #23a55a));
+}
+
+.invite-embed-splash {
+  height: 72px;
+  background-size: cover;
+  background-position: center;
+  border-bottom: 1px solid var(--border-3);
+}
+
+.invite-embed-splash-fallback {
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--primary) 45%, transparent), transparent 55%),
+    linear-gradient(135deg, var(--surface-1), var(--surface-3));
+}
+
+.invite-embed-body {
+  padding: 12px 14px 14px 16px;
+}
+
+.invite-embed-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.invite-embed-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.invite-embed-icon,
+.invite-embed-icon-fallback {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border-3);
+}
+
+.invite-embed-icon-fallback {
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--text-0);
+  background: color-mix(in srgb, var(--primary) 32%, var(--surface-1));
+}
+
+.invite-embed-avatar.friend {
+  flex-shrink: 0;
+}
+
+.invite-embed-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.invite-embed-copy strong {
+  font-size: 16px;
+  font-weight: 750;
+  color: var(--text-0);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite-embed-copy span {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.invite-embed-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 650;
+  color: #3ba55d;
+}
+
+.invite-embed-cta {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 13.5px;
+  font-weight: 750;
+  cursor: pointer;
+  color: #fff;
+  background: var(--primary);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 35%, transparent);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.invite-embed-cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.invite-embed-cta:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.invite-embed-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.invite-embed-loading,
+.invite-embed-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.invite-embed-error {
+  color: var(--danger, #ed4245);
+}
+
+.invite-embed-inline-error {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--danger, #ed4245);
+}
+
+.invite-embed-friend .invite-embed-accent {
+  background: linear-gradient(180deg, #57f287, var(--primary));
+}
+
+.invite-embed-server .invite-embed-accent {
+  background: linear-gradient(180deg, var(--primary), #eb459e);
+}
+
+@media (max-width: 480px) {
+  .invite-embed-list {
+    max-width: 100%;
+  }
+
+  .invite-embed-splash {
+    height: 64px;
+  }
+}
 .msg-mention {
   color: var(--primary);
   background: var(--primary-soft);

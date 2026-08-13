@@ -3,9 +3,20 @@
  * Keeps the wire format as plain strings.
  */
 import { splitHighlightRanges } from "../../lib/textHighlight";
+import { isDescallInviteUrl, parseDescallInviteUrl } from "../../lib/inviteLinks";
 
-const URL_RE = /(https?:\/\/[^\s<]+[^\s<.,;:!?'")\]])/g;
+const URL_RE =
+  /((?:https?:\/\/|(?:www\.)?descall\.(?:com|vercel\.app)\/|des-call\.onrender\.com\/)[^\s<]+[^\s<.,;:!?'")\]])/g;
 const MENTION_RE = /@([a-zA-Z0-9_]{2,32})/g;
+
+function inviteLinkLabel(href) {
+  const parsed = parseDescallInviteUrl(href);
+  if (!parsed) return href;
+  if (parsed.kind === "server") return `descall.com/servers/join/${parsed.code}`;
+  if (parsed.kind === "group") return `descall.com/invite/${parsed.code}`;
+  if (parsed.kind === "friend") return `descall.com/register?ref=${parsed.username || parsed.code}`;
+  return href;
+}
 
 /** Wrap case-insensitive matches of `needle` inside plain text with <mark>. */
 function highlightPlain(value, needle, keyPrefix) {
@@ -25,7 +36,8 @@ function renderInline(text, keyPrefix = "t", highlight = "") {
   if (!text) return null;
   const parts = [];
   let last = 0;
-  const re = /(`[^`]+`)|(@[a-zA-Z0-9_]{2,32})|(https?:\/\/[^\s<]+[^\s<.,;:!?'")\]])/g;
+  const re =
+    /(`[^`]+`)|(@[a-zA-Z0-9_]{2,32})|((?:https?:\/\/|(?:www\.)?descall\.(?:com|vercel\.app)\/|des-call\.onrender\.com\/)[^\s<]+[^\s<.,;:!?'")\]])/g;
   let m;
   let i = 0;
   while ((m = re.exec(text)) !== null) {
@@ -46,15 +58,17 @@ function renderInline(text, keyPrefix = "t", highlight = "") {
         </span>
       );
     } else {
+      const isInvite = isDescallInviteUrl(token);
+      const href = /^https?:\/\//i.test(token) ? token : `https://${token.replace(/^\/\//, "")}`;
       parts.push(
         <a
           key={`${keyPrefix}-${i++}`}
-          className="msg-link"
-          href={token}
+          className={isInvite ? "msg-link msg-link-invite" : "msg-link"}
+          href={href}
           target="_blank"
           rel="noopener noreferrer"
         >
-          {token}
+          {isInvite ? inviteLinkLabel(token) : token}
         </a>
       );
     }

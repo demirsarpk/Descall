@@ -10,6 +10,7 @@ import UserProfileModal from "../social/UserProfileModal";
 import GameMessageBubble from "./GameMessageBubble";
 import MessageReactions from "./MessageReactions";
 import MessageContent from "./MessageContent";
+import { InviteLinkEmbedList } from "./InviteLinkEmbed";
 import MessageMediaLightbox from "./MessageMediaLightbox";
 import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
@@ -748,6 +749,7 @@ function MessageBubble({
                   ({t("edited")})
                 </span>
               ) : null}
+              <InviteLinkEmbedList text={message.text} />
             </>
           )
         )}

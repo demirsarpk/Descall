@@ -3284,6 +3284,57 @@ export default function App() {
     setInviteAuthOpen(false);
   }, []);
 
+  // In-chat Discord-style invite embeds → join / open group or server
+  useEffect(() => {
+    const openServerFromInvite = (server) => {
+      if (!server?.id) return;
+      setMyServers((prev) => {
+        const list = Array.isArray(prev) ? prev : [];
+        if (list.some((s) => s.id === server.id)) {
+          return list.map((s) => (s.id === server.id ? { ...s, ...server } : s));
+        }
+        return [...list, server];
+      });
+      setActiveDmUser(null);
+      setActiveGroup(null);
+      setActiveServer(server);
+      setActiveChannel(null);
+      setActiveView("servers");
+      try {
+        const nextPath = serverPath(server);
+        if (location.pathname !== nextPath) navigate(nextPath);
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const onJoinedGroup = (event) => {
+      handleInviteJoined(event?.detail?.group);
+    };
+    const onJoinedServer = (event) => {
+      openServerFromInvite(event?.detail?.server);
+    };
+    const onOpenInviteTarget = (event) => {
+      const detail = event?.detail || {};
+      if (detail.kind === "group" && detail.group) {
+        handleInviteJoined(detail.group);
+        return;
+      }
+      if (detail.kind === "server" && detail.server) {
+        openServerFromInvite(detail.server);
+      }
+    };
+
+    window.addEventListener("descall:joined-group", onJoinedGroup);
+    window.addEventListener("descall:joined-server", onJoinedServer);
+    window.addEventListener("descall:open-invite-target", onOpenInviteTarget);
+    return () => {
+      window.removeEventListener("descall:joined-group", onJoinedGroup);
+      window.removeEventListener("descall:joined-server", onJoinedServer);
+      window.removeEventListener("descall:open-invite-target", onOpenInviteTarget);
+    };
+  }, [handleInviteJoined, location.pathname, navigate]);
+
   const dismissInvite = useCallback(() => {
     try {
       sessionStorage.removeItem("descall:pendingInvite");
