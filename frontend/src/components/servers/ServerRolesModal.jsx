@@ -213,31 +213,33 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
   };
 
   const toggleMemberRole = async (member, roleId, hasRole) => {
-    if (!server?.id) return;
-    setBusy(true);
+    if (!server?.id || !member?.userId || !roleId) return;
     setError("");
-    try {
-      if (hasRole) await removeMemberRole(server.id, member.userId, roleId);
-      else await assignMemberRole(server.id, member.userId, roleId);
-      setMembers((prev) =>
-        prev.map((m) => {
-          if (m.userId !== member.userId) return m;
-          const roleIds = new Set(m.roleIds || []);
-          if (hasRole) roleIds.delete(roleId);
-          else roleIds.add(roleId);
-          return { ...m, roleIds: [...roleIds] };
-        })
-      );
-    } catch (err) {
-      setError(err?.message || t("Something went wrong."));
-    } finally {
-      setBusy(false);
-    }
+    // Do not toggle global `busy` here — it disabled every chip and felt broken on mobile.
+    if (hasRole) await removeMemberRole(server.id, member.userId, roleId);
+    else await assignMemberRole(server.id, member.userId, roleId);
+    setMembers((prev) =>
+      prev.map((m) => {
+        if (m.userId !== member.userId) return m;
+        const roleIds = new Set(m.roleIds || []);
+        if (hasRole) roleIds.delete(roleId);
+        else roleIds.add(roleId);
+        const highestPosition = [...roleIds].reduce((top, id) => {
+          const role = roles.find((r) => r.id === id);
+          return Math.max(top, Number(role?.position) || 0);
+        }, 0);
+        return { ...m, roleIds: [...roleIds], highestPosition };
+      })
+    );
   };
 
+  const actorIsOwner = Boolean(server?.isOwner || server?.myPermissions?.isOwner);
+  const actorIsAdmin = Boolean(server?.myPermissions?.flags?.ADMINISTRATOR);
   const actorHighestPosition = Number(server?.myPermissions?.highestPosition) || 0;
   const assignableRoles = roles.filter(
-    (r) => !r.isEveryone && (server?.isOwner || (Number(r.position) || 0) < actorHighestPosition)
+    (r) =>
+      !r.isEveryone &&
+      (actorIsOwner || actorIsAdmin || (Number(r.position) || 0) < actorHighestPosition)
   );
 
   const reorderCustomRoles = async (fromId, toId) => {
@@ -504,7 +506,14 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
             assignableRoles={assignableRoles}
             allRoles={roles}
             busy={busy}
-            onToggleRole={toggleMemberRole}
+            onToggleRole={async (member, roleId, hasRole) => {
+              try {
+                await toggleMemberRole(member, roleId, hasRole);
+              } catch (err) {
+                setError(err?.message || t("Something went wrong."));
+                throw err;
+              }
+            }}
           />
         )}
       </motion.div>

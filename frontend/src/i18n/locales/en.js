@@ -1241,6 +1241,7 @@ export const phrases = {
   "Add members to this role…": "Add members to this role…",
   "No members have this role yet.": "No members have this role yet.",
   "Remove role": "Remove role",
+  "Assign role": "Assign role",
   "This member has an equal or higher role.": "This member has an equal or higher role.",
   "Create a role first, then assign it to members.": "Create a role first, then assign it to members.",
   "You can own at most {max} servers.": "You can own at most {max} servers.",
