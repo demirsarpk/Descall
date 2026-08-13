@@ -11,6 +11,7 @@ import GameMessageBubble from "./GameMessageBubble";
 import MessageReactions from "./MessageReactions";
 import MessageContent from "./MessageContent";
 import { InviteLinkEmbedList } from "./InviteLinkEmbed";
+import SlashCommandEmbed from "./SlashCommandEmbed";
 import MessageMediaLightbox from "./MessageMediaLightbox";
 import { MessageSkeleton } from "../ui/Skeleton";
 import { getPresenceStatus } from "../../lib/presence";
@@ -352,6 +353,9 @@ export default function MessageList({
                     }}
                   >
                     <NameEffectText user={avatarUser}>{resolveDisplayName(avatarUser)}</NameEffectText>
+                    {(avatarUser?.isBot || avatarUser?.id === "descall-apps") ? (
+                      <span className="msg-bot-badge" title="App">APP</span>
+                    ) : null}
                     <BadgeIcon user={avatarUser} />
                     <AdminBadge user={avatarUser} variant="inline" />
                   </span>
@@ -458,6 +462,7 @@ function MessageBubble({
   const isGif =
     mediaTypeNorm === "gif" || /\.gif(\?|#|$)/i.test(mediaUrl) || /giphy\.com/i.test(mediaUrl);
   const mediaOnly = isVisualMedia && !String(message.text || "").trim();
+  const hasSlashEmbed = Boolean(message.embed && typeof message.embed === "object");
   const x = useMotionValue(0);
   const replyHintOpacity = useTransform(
     x,
@@ -667,12 +672,12 @@ function MessageBubble({
           resetSwipe();
           if (shouldReply) triggerReply();
         }}
-        className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""} ${menuOpen ? "menu-open" : ""} ${mediaOnly ? "has-media-only" : ""} ${isVisualMedia ? "has-media" : ""} ${chatBubbleKey ? `cosmetic-chat-bubble bubble-${chatBubbleKey}` : ""}`}
+        className={`message-bubble ${isOwn ? "own" : ""} ${isCompact ? "compact" : ""} ${menuOpen ? "menu-open" : ""} ${mediaOnly ? "has-media-only" : ""} ${isVisualMedia ? "has-media" : ""} ${hasSlashEmbed ? "has-slash-embed" : ""} ${chatBubbleKey ? `cosmetic-chat-bubble bubble-${chatBubbleKey}` : ""}`}
         onMouseEnter={openMenu}
         onMouseLeave={scheduleClose}
         onClick={(e) => {
           // Touch / click toggle for devices without hover
-          if (e.target.closest("a, button, video, img, .message-media, .message-hover-bar, .message-reactions")) return;
+          if (e.target.closest("a, button, video, img, .message-media, .message-hover-bar, .message-reactions, .slash-embed")) return;
           if (window.matchMedia("(hover: none)").matches) {
             setMenuOpen((v) => !v);
             setPickerOpen(false);
@@ -740,6 +745,8 @@ function MessageBubble({
               </button>
             </div>
           </div>
+        ) : message.embed ? (
+          <SlashCommandEmbed embed={message.embed} type={message.appType || message.type} />
         ) : (
           message.text && (
             <>

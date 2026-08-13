@@ -6,16 +6,25 @@ const {
   hasPermission,
   assertHierarchy,
 } = require("./serverPermissions");
-const { handleGameCommand, VALID_COMMANDS, createGameMessage } = require("../socket/gameHandlers");
+const { handleGameCommand, VALID_COMMANDS } = require("../socket/gameHandlers");
 
 const APP_BOT = {
   id: "descall-apps",
   username: "Descall Apps",
   displayName: "Descall Apps",
   display_name: "Descall Apps",
-  avatar_url: null,
-  avatarUrl: null,
+  avatar_url: "/brand/descall-logo.png",
+  avatarUrl: "/brand/descall-logo.png",
   isBot: true,
+};
+
+const EMBED_COLORS = {
+  default: 0x5865f2,
+  success: 0x57f287,
+  danger: 0xed4245,
+  warn: 0xfee75c,
+  pink: 0xeb459e,
+  blurple: 0x5865f2,
 };
 
 const MAX_NICKNAME_LENGTH = 32;
@@ -142,8 +151,66 @@ function commandCatalog({ context = "server" } = {}) {
     }));
 }
 
-function createSlashBotMessage(content, type = "app_command", data = null) {
-  return createGameMessage(content, data, type, "descall-apps");
+function makeEmbed({
+  title = null,
+  description = null,
+  color = EMBED_COLORS.default,
+  fields = [],
+  thumbnail = null,
+  image = null,
+  footer = null,
+  author = null,
+} = {}) {
+  return {
+    type: "rich",
+    title,
+    description,
+    color: Number(color) || EMBED_COLORS.default,
+    fields: Array.isArray(fields) ? fields.filter(Boolean) : [],
+    thumbnail: thumbnail ? { url: String(thumbnail.url || thumbnail) } : null,
+    image: image ? { url: String(image.url || image) } : null,
+    footer: footer
+      ? { text: String(footer.text || footer), iconUrl: footer.iconUrl || footer.icon_url || null }
+      : null,
+    author: author
+      ? {
+          name: String(author.name || ""),
+          iconUrl: author.iconUrl || author.icon_url || null,
+          url: author.url || null,
+        }
+      : null,
+  };
+}
+
+function field(name, value, inline = true) {
+  return { name: String(name || ""), value, inline: Boolean(inline) };
+}
+
+function userFieldValue(user) {
+  if (!user?.id) return "Unknown";
+  return {
+    kind: "user",
+    id: user.id,
+    username: user.username || null,
+    displayName: user.display_name || user.displayName || user.username || null,
+    avatarUrl: user.avatar_url || user.avatarUrl || null,
+  };
+}
+
+function createSlashBotMessage(content, type = "app_command", embed = null) {
+  const now = new Date().toISOString();
+  return {
+    id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    sender: { ...APP_BOT },
+    sender_id: APP_BOT.id,
+    content: content || "",
+    type,
+    embed: embed || null,
+    isBot: true,
+    isAppMessage: true,
+    created_at: now,
+    timestamp: now,
+  };
 }
 
 function emitAppMessage({ io, socket, context, roomId, message }) {
@@ -203,67 +270,178 @@ async function handleHelpCommand(ctx) {
     .filter((cmd) => cmd.casino || !cmd.permission || ctx.context !== "server" || hasPermission(ctx.permissions, Permissions[cmd.permission]))
     .map((cmd) => {
       const opts = (cmd.options || []).map((o) => (o.required ? `<${o.name}>` : `[${o.name}]`)).join(" ");
-      return `/${cmd.name}${opts ? ` ${opts}` : ""} — ${cmd.description}`;
+      return {
+        name: `/${cmd.name}${opts ? ` ${opts}` : ""}`,
+        value: cmd.description,
+        inline: false,
+      };
     });
 
   return {
-    message: createContextMessage(ctx, `**Slash commands**\n${commands.join("\n")}`, "app_help"),
+    message: createContextMessage(ctx, {
+      content: "Slash commands",
+      type: "app_help",
+      embed: makeEmbed({
+        title: "Slash commands",
+        description: "Commands you can use in this chat.",
+        color: EMBED_COLORS.blurple,
+        fields: commands.slice(0, 20),
+        footer: { text: "Tip: start typing / to open the command picker" },
+      }),
+    }),
   };
 }
 
 async function handleServerCommand(ctx) {
   const [{ data: server }, { count: channelCount }, { count: memberCount }] = await Promise.all([
-    supabase.from("servers").select("id, name, owner_id, created_at").eq("id", ctx.serverId).maybeSingle(),
+    supabase
+      .from("servers")
+      .select("id, name, owner_id, created_at, icon_url, description, banner_url")
+      .eq("id", ctx.serverId)
+      .maybeSingle(),
     supabase.from("server_channels").select("id", { count: "exact", head: true }).eq("server_id", ctx.serverId),
     supabase.from("server_members").select("user_id", { count: "exact", head: true }).eq("server_id", ctx.serverId),
   ]);
-  if (!server) return { message: createContextMessage(ctx, "Server not found.", "app_error") };
+  if (!server) {
+    return {
+      message: createContextMessage(ctx, {
+        content: "Server not found.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Server not found",
+          color: EMBED_COLORS.danger,
+          description: "This server could not be loaded.",
+        }),
+      }),
+    };
+  }
+  const owner = server.owner_id ? await loadUserWithMembership(ctx.serverId, server.owner_id) : null;
   const created = server.created_at ? new Date(server.created_at).toLocaleDateString("en-US") : "Unknown";
+  const name = server.name || "Server";
   return {
-    message: createContextMessage(
-      ctx,
-      `**${server.name || "Server"}**\nOwner: <@${server.owner_id || "unknown"}>\nMembers: **${memberCount ?? "?"}** · Channels: **${channelCount ?? "?"}**\nCreated: ${created}`,
-      "app_server"
-    ),
+    message: createContextMessage(ctx, {
+      content: name,
+      type: "app_server",
+      embed: makeEmbed({
+        title: name,
+        description: server.description || null,
+        color: EMBED_COLORS.blurple,
+        thumbnail: server.icon_url ? { url: server.icon_url } : null,
+        fields: [
+          field("Owner", userFieldValue(owner), true),
+          field("Members", String(memberCount ?? "?"), true),
+          field("Channels", String(channelCount ?? "?"), true),
+          field("Created", created, true),
+        ],
+        footer: { text: "Server info" },
+      }),
+    }),
   };
 }
 
 async function handleUserCommand(ctx) {
   const user = await resolveUserArg(ctx, ctx.parsed.args);
   if (!user) {
-    return { message: createContextMessage(ctx, "User not found.", "app_error") };
+    return {
+      message: createContextMessage(ctx, {
+        content: "User not found.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "User not found",
+          color: EMBED_COLORS.danger,
+          description: "No member matched that lookup.",
+        }),
+      }),
+    };
   }
+  const display = user.display_name || user.username || "User";
   const joined = user.member?.joined_at ? new Date(user.member.joined_at).toLocaleDateString("en-US") : null;
-  const nick = user.member?.nickname ? `\nNickname: **${escapeMd(user.member.nickname)}**` : "";
-  const joinedLine = joined ? `\nJoined: ${joined}` : "";
+  const fields = [
+    field("Username", `@${user.username || "unknown"}`, true),
+  ];
+  if (user.member?.nickname) fields.push(field("Nickname", user.member.nickname, true));
+  if (joined) fields.push(field("Joined", joined, true));
+  if (user.member?.timeout_until && new Date(user.member.timeout_until) > new Date()) {
+    fields.push(field("Timeout until", new Date(user.member.timeout_until).toLocaleString("en-US"), false));
+  }
   return {
-    message: createContextMessage(
-      ctx,
-      `**${escapeMd(user.display_name || user.username || "User")}**\n@${escapeMd(user.username || "unknown")}${nick}${joinedLine}`,
-      "app_user"
-    ),
+    message: createContextMessage(ctx, {
+      content: display,
+      type: "app_user",
+      embed: makeEmbed({
+        author: {
+          name: display,
+          iconUrl: user.avatar_url || null,
+        },
+        title: display,
+        color: EMBED_COLORS.success,
+        thumbnail: user.avatar_url ? { url: user.avatar_url } : null,
+        fields,
+        footer: { text: "Member card" },
+      }),
+    }),
   };
 }
 
 async function handleAvatarCommand(ctx) {
   const user = await resolveUserArg(ctx, ctx.parsed.args);
   if (!user) {
-    return { message: createContextMessage(ctx, "User not found.", "app_error") };
+    return {
+      message: createContextMessage(ctx, {
+        content: "User not found.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "User not found",
+          color: EMBED_COLORS.danger,
+          description: "No member matched that lookup.",
+        }),
+      }),
+    };
   }
-  const url = user.avatar_url || "No avatar set.";
+  const display = user.display_name || user.username || "User";
+  if (!user.avatar_url) {
+    return {
+      message: createContextMessage(ctx, {
+        content: `${display}'s avatar`,
+        type: "app_avatar",
+        embed: makeEmbed({
+          title: `${display}'s avatar`,
+          description: "No avatar set.",
+          color: EMBED_COLORS.pink,
+          footer: { text: "Avatar" },
+        }),
+      }),
+    };
+  }
   return {
-    message: createContextMessage(
-      ctx,
-      `**${escapeMd(user.display_name || user.username || "User")}'s avatar**\n${url}`,
-      "app_avatar"
-    ),
+    message: createContextMessage(ctx, {
+      content: `${display}'s avatar`,
+      type: "app_avatar",
+      embed: makeEmbed({
+        title: `${display}'s avatar`,
+        color: EMBED_COLORS.pink,
+        image: { url: user.avatar_url },
+        thumbnail: { url: user.avatar_url },
+        footer: { text: `@${user.username || "unknown"}` },
+      }),
+    }),
   };
 }
 
 async function handleNickCommand(ctx) {
   const nickname = String(ctx.parsed.args || "").trim().slice(0, MAX_NICKNAME_LENGTH) || null;
   if (nickname && nickname.length < 1) {
-    return { message: createContextMessage(ctx, "Nickname must be 1-32 characters.", "app_error") };
+    return {
+      message: createContextMessage(ctx, {
+        content: "Nickname must be 1-32 characters.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Invalid nickname",
+          description: "Nickname must be 1-32 characters.",
+          color: EMBED_COLORS.danger,
+        }),
+      }),
+    };
   }
   if (!hasPermission(ctx.permissions, Permissions.CHANGE_NICKNAME)) {
     const err = new Error("You need Change Nickname to edit your nickname.");
@@ -279,11 +457,15 @@ async function handleNickCommand(ctx) {
     nickname,
   });
   return {
-    message: createContextMessage(
-      ctx,
-      nickname ? `Nickname updated to **${escapeMd(nickname)}**.` : "Nickname cleared.",
-      "app_nick"
-    ),
+    message: createContextMessage(ctx, {
+      content: nickname ? `Nickname updated to ${nickname}.` : "Nickname cleared.",
+      type: "app_nick",
+      embed: makeEmbed({
+        title: nickname ? "Nickname updated" : "Nickname cleared",
+        description: nickname ? `Your nickname is now **${nickname}**.` : "Your server nickname was cleared.",
+        color: EMBED_COLORS.blurple,
+      }),
+    }),
   };
 }
 
@@ -291,11 +473,15 @@ async function handlePollCommand(ctx) {
   const parts = ctx.parsed.args.split("|").map((p) => p.trim()).filter(Boolean);
   if (parts.length < 3) {
     return {
-      message: createContextMessage(
-        ctx,
-        "Usage: `/poll question | option 1 | option 2`",
-        "app_error"
-      ),
+      message: createContextMessage(ctx, {
+        content: "Usage: /poll question | option 1 | option 2",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Poll usage",
+          description: "Use: `/poll question | option 1 | option 2`",
+          color: EMBED_COLORS.warn,
+        }),
+      }),
     };
   }
   const [question, ...rawOptions] = parts;
@@ -312,16 +498,44 @@ async function handleTimeoutCommand(ctx) {
   const [targetRaw, durationRaw, ...reasonParts] = ctx.parsed.args.split(/\s+/).filter(Boolean);
   if (!targetRaw || !durationRaw) {
     return {
-      message: createContextMessage(ctx, "Usage: `/timeout @user 5m reason`", "app_error"),
+      message: createContextMessage(ctx, {
+        content: "Usage: /timeout @user 5m reason",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Timeout usage",
+          description: "Use: `/timeout @user 5m reason`",
+          color: EMBED_COLORS.warn,
+        }),
+      }),
     };
   }
   const target = await resolveUserArg(ctx, targetRaw);
   if (!target?.id) {
-    return { message: createContextMessage(ctx, "Member not found.", "app_error") };
+    return {
+      message: createContextMessage(ctx, {
+        content: "Member not found.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Member not found",
+          color: EMBED_COLORS.danger,
+          description: "No member matched that lookup.",
+        }),
+      }),
+    };
   }
   const durationSeconds = parseDurationSeconds(durationRaw);
   if (!durationSeconds) {
-    return { message: createContextMessage(ctx, "Duration must look like `60s`, `5m`, `1h`, `1d`, or `1w`.", "app_error") };
+    return {
+      message: createContextMessage(ctx, {
+        content: "Invalid duration.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Invalid duration",
+          description: "Duration must look like `60s`, `5m`, `1h`, `1d`, or `1w`.",
+          color: EMBED_COLORS.danger,
+        }),
+      }),
+    };
   }
   const reason = reasonParts.join(" ").trim().slice(0, 512) || null;
   const timeout = await applyServerTimeout({
@@ -331,12 +545,22 @@ async function handleTimeoutCommand(ctx) {
     durationSeconds,
     reason,
   });
+  const display = target.display_name || target.username || "member";
   return {
-    message: createContextMessage(
-      ctx,
-      `Timed out **${escapeMd(target.display_name || target.username || "member")}** until ${new Date(timeout.until).toLocaleString("en-US")}.${reason ? `\nReason: ${escapeMd(reason)}` : ""}`,
-      "app_timeout"
-    ),
+    message: createContextMessage(ctx, {
+      content: `Timed out ${display}`,
+      type: "app_timeout",
+      embed: makeEmbed({
+        title: "Member timed out",
+        color: EMBED_COLORS.danger,
+        thumbnail: target.avatar_url ? { url: target.avatar_url } : null,
+        fields: [
+          field("Member", userFieldValue(target), true),
+          field("Until", new Date(timeout.until).toLocaleString("en-US"), true),
+          reason ? field("Reason", reason, false) : null,
+        ],
+      }),
+    }),
   };
 }
 
@@ -389,24 +613,27 @@ async function persistPollMessage(ctx, content) {
   };
 }
 
-function createContextMessage(ctx, content, type) {
-  const message = createSlashBotMessage(content, { userId: ctx.userId }, type);
+function createContextMessage(ctx, contentOrOpts, maybeType) {
+  const opts =
+    contentOrOpts && typeof contentOrOpts === "object"
+      ? contentOrOpts
+      : { content: contentOrOpts, type: maybeType || "app_command", embed: null };
+  const type = opts.type || "app_command";
+  const message = createSlashBotMessage(opts.content || "", type, opts.embed || null);
   if (ctx.context === "server") {
     return {
       ...message,
-      id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       server_id: ctx.serverId,
       channel_id: ctx.roomId,
       sender_id: APP_BOT.id,
-      sender: APP_BOT,
+      sender: { ...APP_BOT },
     };
   }
   return {
     ...message,
-    id: `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     group_id: ctx.roomId,
     sender_id: APP_BOT.id,
-    sender: APP_BOT,
+    sender: { ...APP_BOT },
   };
 }
 

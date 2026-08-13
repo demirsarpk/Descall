@@ -1422,13 +1422,17 @@ export default function App() {
         updated_at: message.sender?.updated_at,
       });
       const voice = parseVoiceMeta(message.content, message.media_type);
+      const hasEmbed = Boolean(message.embed && typeof message.embed === "object");
+      const isAppBot =
+        Boolean(message.isAppMessage || message.isBot || sender?.isBot) ||
+        sender?.id === "descall-apps";
       const normalized = {
         id: message.id,
-        from: sender,
+        from: isAppBot ? { ...sender, isBot: true } : sender,
         username: sender?.username || "Unknown",
         displayName: sender?.displayName || null,
         avatarUrl: sender?.avatarUrl,
-        text: voice.isVoice ? "" : (message.content || ""),
+        text: voice.isVoice ? "" : hasEmbed ? "" : (message.content || ""),
         timestamp: parseAppDate(message.created_at)?.toISOString() || new Date().toISOString(),
         mediaUrl: message.media_url,
         mediaType: voice.isVoice ? "voice" : message.media_type,
@@ -1436,6 +1440,9 @@ export default function App() {
         size: message.file_size,
         duration: voice.duration ?? message.duration ?? null,
         replyTo: message.replyTo || message.reply_to || null,
+        embed: hasEmbed ? message.embed : null,
+        appType: typeof message.type === "string" ? message.type : null,
+        isAppMessage: isAppBot,
       };
       setGroupMessagesById((prev) => {
         const cur = prev[groupId] ?? [];
@@ -1519,13 +1526,18 @@ export default function App() {
         updated_at: message.sender?.updated_at,
       });
       const voice = parseVoiceMeta(message.content, message.media_type);
+      const hasEmbed = Boolean(message.embed && typeof message.embed === "object");
+      const isAppBot =
+        Boolean(message.isAppMessage || message.isBot || sender?.isBot) ||
+        sender?.id === "descall-apps";
       const normalized = {
         id: message.id,
-        from: sender,
+        from: isAppBot ? { ...sender, isBot: true } : sender,
         username: sender?.username || "Unknown",
         displayName: sender?.displayName || null,
         avatarUrl: sender?.avatarUrl,
-        text: voice.isVoice ? "" : (message.content || ""),
+        // Prefer rich embed UI — keep content only as fallback when no embed.
+        text: voice.isVoice ? "" : hasEmbed ? "" : (message.content || ""),
         timestamp: parseAppDate(message.created_at)?.toISOString() || new Date().toISOString(),
         mediaUrl: message.media_url,
         mediaType: voice.isVoice ? "voice" : message.media_type,
@@ -1535,6 +1547,9 @@ export default function App() {
         pinnedAt: message.pinned_at || message.pinnedAt || null,
         pinnedBy: message.pinned_by || message.pinnedBy || null,
         reactions: Array.isArray(message.reactions) ? message.reactions : [],
+        embed: hasEmbed ? message.embed : null,
+        appType: typeof message.type === "string" ? message.type : null,
+        isAppMessage: isAppBot,
       };
       setChannelMessagesById((prev) => {
         const cur = prev[channelId] ?? [];
