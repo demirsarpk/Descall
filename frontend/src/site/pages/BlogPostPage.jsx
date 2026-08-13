@@ -4,7 +4,7 @@ import SeoRelatedLinks from "../components/SeoRelatedLinks";
 import { buildArticleLd, buildBreadcrumbLd, buildFaqLd } from "../JsonLd";
 import { BLOG_POSTS, BLOG_RELATED, COMPARE_FAQ, GAMER_FAQ } from "../content/discordSeoContent";
 import { BLOG_BODIES } from "../seo/blogBodies";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 import NotFoundPage from "./NotFoundPage";
 
 const FAQ_BY_SLUG = {

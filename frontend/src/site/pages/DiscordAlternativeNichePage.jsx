@@ -5,7 +5,7 @@ import SeoRelatedLinks from "../components/SeoRelatedLinks";
 import SeoProductPreview from "../components/SeoProductPreview";
 import { buildBreadcrumbLd, buildFaqLd, buildDiscordAlternativeAppLd } from "../JsonLd";
 import { NICHE_LANDINGS } from "../seo/nicheLandings";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 
 export default function DiscordAlternativeNichePage({ onSignIn }) {
   const t = useT();

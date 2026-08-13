@@ -1,4 +1,4 @@
-import { useLocale } from "../../context/LocaleContext";
+import { useLocale } from "../../context/localeContextInstance";
 import { TERMS_CONTENT } from "../../legal/legalContent";
 import { SITE_OPERATOR } from "../siteIdentity";
 

@@ -9,7 +9,7 @@ import {
   Layers,
   Hash,
 } from "lucide-react";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 import { Funnel, getFeatureFlag, getFeatureFlagPayload } from "../analytics";
 import JsonLd, {
   buildOrganizationLd,

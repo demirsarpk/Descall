@@ -1,4 +1,4 @@
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 import { SITE_OPERATOR } from "../siteIdentity";
 import JsonLd, { buildOrganizationLd } from "../JsonLd";
 

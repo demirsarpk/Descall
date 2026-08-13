@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 import { FAQ_ITEMS } from "../faqData";
 import JsonLd, { buildFaqLd } from "../JsonLd";
 

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import SeoLandingShell from "../components/SeoLandingShell";
 import { buildBreadcrumbLd } from "../JsonLd";
 import { BLOG_POSTS } from "../content/discordSeoContent";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 
 const crumbs = [
   { label: "Home", to: "/" },

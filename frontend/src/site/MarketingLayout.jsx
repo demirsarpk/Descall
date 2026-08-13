@@ -1,10 +1,26 @@
 import { useState } from "react";
 import { NavLink, Link } from "react-router-dom";
-import { Menu, X } from "lucide-react";
-import { useLocale, useT } from "../context/LocaleContext";
+import { useLocale, useT } from "../context/localeContextInstance";
 import { Funnel } from "./analytics";
+import { signalMarketingEngage } from "./analyticsGate";
 import { SITE_OPERATOR } from "./siteIdentity";
 import "./site.css";
+
+function IconMenu() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconClose() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const NAV = [
   { to: "/features", label: "Features" },
@@ -21,10 +37,12 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
 
   const closeMenu = () => setMenuOpen(false);
   const openRegister = () => {
+    signalMarketingEngage({ source: "header", intent: "register" });
     Funnel.ctaClick({ page: "nav", placement: "header", label: "start_free", intent: "register" });
     (onSignUp || onSignIn)?.({ mode: "register", source: "header" });
   };
   const openLogin = () => {
+    signalMarketingEngage({ source: "header", intent: "login" });
     Funnel.ctaClick({ page: "nav", placement: "header", label: "sign_in", intent: "login" });
     onSignIn?.({ mode: "login", source: "header" });
   };
@@ -123,7 +141,7 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
             aria-controls="marketing-navigation"
             aria-label={menuOpen ? t("Close menu") : t("Open menu")}
           >
-            {menuOpen ? <X size={20} aria-hidden /> : <Menu size={20} aria-hidden />}
+            {menuOpen ? <IconClose /> : <IconMenu />}
           </button>
         </div>
       </header>

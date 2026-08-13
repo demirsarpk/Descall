@@ -59,10 +59,10 @@
     <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" />
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&family=Inter:wght@400;600&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
     <noscript>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
     </noscript>
     <style>
       /* Critical boot splash — paints before JS bundle */
@@ -121,6 +121,19 @@
       }
       #seo-static p { margin: 0 0 1rem; color: #c5ccd6; }
       #seo-static a { color: #8eb6ff; }
+      #seo-static a[href="/download"],
+      #seo-static a[href="/register"] {
+        display: inline-block;
+        margin: 0.25rem 0.5rem 0.25rem 0;
+        padding: 0.55rem 0.95rem;
+        border-radius: 10px;
+        background: #5865f2;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      #seo-static ul { padding-left: 1.2rem; color: #c5ccd6; }
+      #seo-static li { margin: 0.35rem 0; }
       html[data-react-ready="1"] #seo-static { display: none !important; }
       #boot-splash * {
         font-family: inherit !important;

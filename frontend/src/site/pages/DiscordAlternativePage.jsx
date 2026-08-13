@@ -9,7 +9,7 @@ import {
   buildDiscordAlternativeAppLd,
 } from "../JsonLd";
 import { ALTERNATIVE_PILLARS, COMPARE_FAQ, COMPARE_ROWS } from "../content/discordSeoContent";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 
 const crumbs = [
   { label: "Home", to: "/" },

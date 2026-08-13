@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 
 /** Cluster-aware internal linking block — keeps crawl depth low. */
 export default function SeoRelatedLinks({ title = "Keep exploring", links = [] }) {

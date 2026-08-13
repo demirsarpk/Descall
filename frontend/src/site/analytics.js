@@ -15,6 +15,8 @@
  * Dashboard env wiring. Local/dev can leave the key empty to no-op.
  */
 
+import { isAnalyticsAllowed } from "./analyticsGate";
+
 /** Lazily loaded PostHog SDK — keep marketing entry free of the ~80KB vendor chunk. */
 let posthog = null;
 let posthogLoadPromise = null;
@@ -175,6 +177,8 @@ export function trackGoogleAdsSignUpConversion(properties = {}) {
 
 export function initAnalytics() {
   if (booted || typeof window === "undefined") return;
+  // Stay cold until marketing CTA / engage unlock (or app idle schedule).
+  if (!isAnalyticsAllowed()) return;
   booted = true;
 
   const phKey = posthogKey();
