@@ -2895,25 +2895,23 @@ export default function App() {
       if (activeServer?.id !== server.id) {
         setActiveServer(server);
       }
-      // URL/reload hydration used to keep the list payload forever — without a
-      // follow-up getServer(), myPermissions/roles stayed missing and Join/manage UI broke.
-      if (!server.myPermissions || !Array.isArray(server.roles)) {
-        getServer(server.id)
-          .then((data) => {
-            if (!data?.server) return;
-            setActiveServer((prev) =>
-              !prev || String(prev.id) !== String(data.server.id)
-                ? prev
-                : { ...prev, ...data.server }
-            );
-            setMyServers((prev) =>
-              prev.map((s) =>
-                String(s.id) === String(data.server.id) ? { ...s, ...data.server } : s
-              )
-            );
-          })
-          .catch(() => {});
-      }
+      // Always re-fetch server detail so channel lists stay VIEW_CHANNEL-filtered
+      // (list payload / role changes must not leave private channels visible).
+      getServer(server.id)
+        .then((data) => {
+          if (!data?.server) return;
+          setActiveServer((prev) =>
+            !prev || String(prev.id) !== String(data.server.id)
+              ? prev
+              : { ...prev, ...data.server }
+          );
+          setMyServers((prev) =>
+            prev.map((s) =>
+              String(s.id) === String(data.server.id) ? { ...s, ...data.server } : s
+            )
+          );
+        })
+        .catch(() => {});
       const channels =
         (activeServer?.id === server.id ? activeServer?.channels : server.channels) ||
         server.channels ||

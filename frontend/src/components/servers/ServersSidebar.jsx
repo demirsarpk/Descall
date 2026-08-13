@@ -44,7 +44,7 @@ import {
   FolderPlus,
   GripVertical,
   Headphones,
-  HeadphonesOff,
+  HeadphoneOff,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { useToast } from "../../context/ToastContext";
@@ -1374,7 +1374,7 @@ function ServerVoiceUserRow({ member, stream = null, size = 22, onContextMenu })
         </span>
       ) : null}
       {member?.serverDeafened ? (
-        <HeadphonesOff size={12} className="server-voice-user-deafen" aria-hidden />
+        <HeadphoneOff size={12} className="server-voice-user-deafen" aria-hidden />
       ) : null}
       {member?.muted || member?.serverMuted ? (
         <MicOff size={12} className="server-voice-user-mic" aria-hidden />
@@ -1457,7 +1457,7 @@ function VoiceMemberContextMenu({
               onClose();
             }}
           >
-            {user.serverDeafened ? <Headphones size={14} /> : <HeadphonesOff size={14} />}
+            {user.serverDeafened ? <Headphones size={14} /> : <HeadphoneOff size={14} />}
             {user.serverDeafened ? t("Undeafen") : t("Server deafen")}
           </button>
         )}
