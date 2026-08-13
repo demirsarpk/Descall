@@ -2751,10 +2751,12 @@ export default function App() {
       delete next[activeChannel.id];
       return next;
     });
-    markChannelRead(activeServer.id, activeChannel.id).catch((err) =>
-      console.warn("[App] mark channel read failed:", err?.message || err)
-    );
-  }, [activeChannel?.id, activeChannel?.type, activeServer?.id]);
+    const msgs = channelMessagesById[activeChannel.id];
+    const lastMsg = Array.isArray(msgs) && msgs.length ? msgs[msgs.length - 1] : null;
+    markChannelRead(activeServer.id, activeChannel.id, {
+      lastReadMessageId: lastMsg?.id || null,
+    }).catch((err) => console.warn("[App] mark channel read failed:", err?.message || err));
+  }, [activeChannel?.id, activeChannel?.type, activeServer?.id, channelMessagesById]);
 
   // Sync the "ongoing call" banner for whichever group is currently open.
   // The live push (group:call:banner-update) only reaches clients that were
