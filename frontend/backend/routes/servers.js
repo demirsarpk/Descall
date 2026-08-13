@@ -765,6 +765,58 @@ router.get("/my", requireAuth, async (req, res) => {
 });
 
 /**
+ * PUT /servers/my/order — reorder the current user's server list (list_position).
+ * Body: { serverIds: string[] } — full ordered list of server ids the user belongs to.
+ */
+router.put("/my/order", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const rawIds = Array.isArray(req.body?.serverIds) ? req.body.serverIds : null;
+    if (!rawIds || rawIds.length === 0) {
+      return res.status(400).json({ error: "serverIds is required.", code: "INVALID_ORDER" });
+    }
+
+    const serverIds = [...new Set(rawIds.map((id) => String(id || "").trim()).filter(Boolean))];
+    if (serverIds.length === 0) {
+      return res.status(400).json({ error: "serverIds is required.", code: "INVALID_ORDER" });
+    }
+
+    const { data: memberships, error } = await supabase
+      .from("server_members")
+      .select("server_id")
+      .eq("user_id", userId);
+    if (error) throw error;
+
+    const memberSet = new Set((memberships || []).map((m) => m.server_id));
+    if (serverIds.length !== memberSet.size || serverIds.some((id) => !memberSet.has(id))) {
+      return res.status(400).json({
+        error: "serverIds must include every server you belong to, exactly once.",
+        code: "INVALID_ORDER",
+      });
+    }
+
+    // Rewrite positions sequentially so GET /my stays stable.
+    for (let index = 0; index < serverIds.length; index += 1) {
+      const { error: upErr } = await supabase
+        .from("server_members")
+        .update({ list_position: index })
+        .eq("user_id", userId)
+        .eq("server_id", serverIds[index]);
+      if (upErr) throw upErr;
+    }
+
+    return res.json({
+      ok: true,
+      serverIds,
+      listPositions: serverIds.map((_, index) => index),
+    });
+  } catch (err) {
+    console.error("[SERVERS] PUT /my/order error:", err);
+    return res.status(500).json({ error: "Failed to reorder servers." });
+  }
+});
+
+/**
  * GET /servers/templates — advanced create-server templates (public metadata).
  */
 router.get("/templates", requireAuth, (_req, res) => {

@@ -11,6 +11,7 @@ import { getMyGroups, getGroupMessages } from "./api/groups";
 import { getFriendsList, getFriendRequestsList } from "./api/friends";
 import {
   getMyServers,
+  reorderMyServers,
   createServer,
   deleteServer,
   leaveServer,
@@ -3601,6 +3602,18 @@ export default function App() {
     if (activeChannel?.id === channel.id) setActiveChannel(channel);
   };
 
+  const handleReorderServers = async (orderedServers) => {
+    if (!Array.isArray(orderedServers) || orderedServers.length === 0) return;
+    const previous = myServers;
+    setMyServers(orderedServers);
+    try {
+      await reorderMyServers(orderedServers.map((s) => s.id));
+    } catch (err) {
+      setMyServers(previous);
+      throw err;
+    }
+  };
+
   const handleDeleteChannel = async (channelId) => {
     if (!activeServer?.id) return;
     await deleteChannel(activeServer.id, channelId);
@@ -3747,6 +3760,7 @@ export default function App() {
           onUpdateChannel={handleUpdateChannel}
           onDeleteChannel={handleDeleteChannel}
           onRolesChanged={handleRolesChanged}
+          onReorderServers={handleReorderServers}
           onRefreshServers={handleRefreshServers}
           serverVoice={serverVoice}
           onlineUsers={onlineUsers}

@@ -58,6 +58,25 @@
   gap: 4px;
 }
 
+.server-list-row-wrap {
+  list-style: none;
+  border-radius: 10px;
+  cursor: grab;
+}
+
+.server-list-row-wrap:active {
+  cursor: grabbing;
+}
+
+.server-list-row-wrap.is-dragging {
+  opacity: 0.55;
+}
+
+.server-list-row-wrap.is-drag-over > .server-list-item {
+  outline: 1px solid color-mix(in srgb, var(--accent, #5865f2) 70%, transparent);
+  background: color-mix(in srgb, var(--accent, #5865f2) 12%, transparent);
+}
+
 .server-list-item {
   width: 100%;
   display: flex;

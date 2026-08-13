@@ -27,6 +27,14 @@ export function getMyServers() {
   return serversRequest("/api/servers/my");
 }
 
+/** Persist personal server list order (list_position). */
+export function reorderMyServers(serverIds) {
+  return serversRequest("/api/servers/my/order", {
+    method: "PUT",
+    body: { serverIds },
+  });
+}
+
 /** Create a server (max 10 owned). Optional templateId: blank | gaming | valorant | … */
 export function createServer({ name, iconUrl, description, templateId } = {}) {
   return serversRequest("/api/servers", {

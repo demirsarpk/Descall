@@ -106,6 +106,7 @@ export default function ServersSidebar({
   onRefresh,
   onJoinServer,
   onServerUpdated,
+  onReorderServers,
   serverVoice = null,
   onMobileClose,
   isMobile = false,
@@ -121,6 +122,8 @@ export default function ServersSidebar({
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragChannelId, setDragChannelId] = useState(null);
   const [dragOverChannelId, setDragOverChannelId] = useState(null);
+  const [dragServerId, setDragServerId] = useState(null);
+  const [dragOverServerId, setDragOverServerId] = useState(null);
   const [notifBusy, setNotifBusy] = useState(false);
   const [confirm, setConfirm] = useState(null); // { mode: 'leave'|'delete', server }
   const [channelModal, setChannelModal] = useState(null); // { mode, channel?, defaultType?, parentId? }
@@ -145,6 +148,37 @@ export default function ServersSidebar({
       !activeServer?.isOwner
   );
   const canManageChannels = serverHasPermission(activeServer, "MANAGE_CHANNELS");
+
+  const reorderServerDrop = async (targetServer) => {
+    if (!dragServerId || !targetServer?.id || !Array.isArray(servers)) return;
+    if (dragServerId === targetServer.id) {
+      setDragServerId(null);
+      setDragOverServerId(null);
+      return;
+    }
+    const dragged = servers.find((s) => s.id === dragServerId);
+    if (!dragged) {
+      setDragServerId(null);
+      setDragOverServerId(null);
+      return;
+    }
+    const without = servers.filter((s) => s.id !== dragged.id);
+    const targetIdx = without.findIndex((s) => s.id === targetServer.id);
+    if (targetIdx < 0) {
+      setDragServerId(null);
+      setDragOverServerId(null);
+      return;
+    }
+    without.splice(targetIdx, 0, dragged);
+    const next = without.map((s, index) => ({ ...s, listPosition: index }));
+    setDragServerId(null);
+    setDragOverServerId(null);
+    try {
+      await onReorderServers?.(next);
+    } catch (err) {
+      toast(err?.message || t("Failed to reorder servers."), "error");
+    }
+  };
 
   const reorderChannelDrop = async (targetChannel) => {
     if (!canManageChannels || !dragChannelId || !targetChannel?.id) return;
@@ -931,11 +965,36 @@ export default function ServersSidebar({
           ) : (
             <ul className="server-list">
               {servers.map((server) => (
-                <li key={server.id}>
+                <li
+                  key={server.id}
+                  className={`server-list-row-wrap${dragServerId === server.id ? " is-dragging" : ""}${
+                    dragOverServerId === server.id ? " is-drag-over" : ""
+                  }`}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", server.id);
+                    setDragServerId(server.id);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (dragOverServerId !== server.id) setDragOverServerId(server.id);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    reorderServerDrop(server);
+                  }}
+                  onDragEnd={() => {
+                    setDragServerId(null);
+                    setDragOverServerId(null);
+                  }}
+                >
                   <button
                     type="button"
                     className={`server-list-item${serverUnreadById[server.id] ? " has-unread" : ""}`}
                     onClick={() => {
+                      if (dragServerId) return;
                       onSelectServer?.(server);
                     }}
                   >

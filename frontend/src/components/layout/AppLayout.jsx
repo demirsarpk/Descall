@@ -99,6 +99,7 @@ export default function AppLayout({
   onUpdateChannel,
   onDeleteChannel,
   onRolesChanged,
+  onReorderServers,
   onRefreshServers,
   onJoinServer,
   onServerUpdated,
@@ -414,6 +415,7 @@ export default function AppLayout({
             onUpdateChannel={onUpdateChannel}
             onDeleteChannel={onDeleteChannel}
             onRolesChanged={onRolesChanged}
+            onReorderServers={onReorderServers}
             onRefresh={onRefreshServers}
             onJoinServer={onJoinServer}
             onServerUpdated={onServerUpdated}
