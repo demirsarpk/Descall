@@ -756,6 +756,11 @@ const UserPanel = forwardRef(function UserPanel({
     micAnalyserRef.current = null;
     setMicTestLevel(0);
     setMicTesting(false);
+    import("../../lib/noiseSuppression")
+      .then(({ disposeNoiseSuppressionSession }) => {
+        disposeNoiseSuppressionSession({ stopRaw: true });
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => () => stopMicTest(), [stopMicTest]);
