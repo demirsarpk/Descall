@@ -2126,6 +2126,7 @@ export default function App() {
 
     socket.on("server:channel:created", ({ serverId, channel } = {}) => {
       if (!serverId || !channel?.id) return;
+      // Only arrives for members with VIEW_CHANNEL (server filters recipients).
       upsertServerChannel(serverId, channel);
       if (
         channel.type === "text" &&
@@ -2200,9 +2201,22 @@ export default function App() {
               String(s.id) === String(serverId) ? { ...s, ...data.server } : s
             )
           );
+          // Drop active channel if it disappeared after permission/visibility change.
+          setActiveChannel((prev) => {
+            if (!prev) return prev;
+            const stillThere = (data.server.channels || []).some(
+              (c) => String(c.id) === String(prev.id)
+            );
+            return stillThere ? prev : null;
+          });
         })
         .catch(() => {});
     };
+
+    socket.on("server:channels:resync", ({ serverId } = {}) => {
+      if (!serverId) return;
+      refreshServerBundle(serverId);
+    });
 
     socket.on("server:role:created", ({ serverId, role } = {}) => {
       upsertServerRole(serverId, role);
@@ -3768,14 +3782,6 @@ export default function App() {
     );
     if (activeServer?.id && String(activeServer.id) === String(serverId)) {
       setActiveServer((prev) => (prev ? { ...prev, folderId: folderId || null } : prev));
-    }
-  };
-    setMyServers(orderedServers);
-    try {
-      await reorderMyServers(orderedServers.map((s) => s.id));
-    } catch (err) {
-      setMyServers(previous);
-      throw err;
     }
   };
 

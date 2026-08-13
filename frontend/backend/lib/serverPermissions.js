@@ -302,6 +302,7 @@ function applyOverwrites(baseBits, overwrites, { everyoneRoleId, memberRoleIds, 
 /**
  * Resolve effective permissions for a member in a specific channel.
  * Owner / ADMINISTRATOR ignore channel denies.
+ * Discord-like: category overwrites apply first, then the channel's own overwrites.
  */
 async function resolveChannelPermissions(supabase, serverId, userId, channelId) {
   const base = await resolveMemberPermissions(supabase, serverId, userId);
@@ -312,12 +313,23 @@ async function resolveChannelPermissions(supabase, serverId, userId, channelId) 
     return { bits: ALL_PERMISSIONS, isOwner: base.isOwner, isMember: true, channelId, overwritesApplied: false };
   }
 
+  const { data: channelRow, error: chErr } = await supabase
+    .from("server_channels")
+    .select("id, parent_id")
+    .eq("id", channelId)
+    .eq("server_id", serverId)
+    .maybeSingle();
+  if (chErr) throw chErr;
+
+  const parentId = channelRow?.parent_id || null;
+  const overrideChannelIds = parentId ? [parentId, channelId] : [channelId];
+
   const [{ data: overrides, error: oErr }, { data: roles, error: rErr }, { data: assigned, error: aErr }] =
     await Promise.all([
       supabase
         .from("server_channel_overrides")
         .select("id, channel_id, target_type, target_id, allow_permissions, deny_permissions")
-        .eq("channel_id", channelId),
+        .in("channel_id", overrideChannelIds),
       supabase
         .from("server_roles")
         .select("id, position, is_everyone")
@@ -337,16 +349,26 @@ async function resolveChannelPermissions(supabase, serverId, userId, channelId) 
   const memberRoleIds = new Set((assigned || []).map((r) => String(r.role_id)));
   if (everyoneRoleId) memberRoleIds.add(String(everyoneRoleId));
 
-  const decorated = (overrides || []).map((o) => ({
-    ...o,
-    _position: o.target_type === "role" ? rolePos.get(String(o.target_id)) || 0 : 0,
-  }));
+  const decorate = (rows) =>
+    (rows || []).map((o) => ({
+      ...o,
+      _position: o.target_type === "role" ? rolePos.get(String(o.target_id)) || 0 : 0,
+    }));
 
-  const bits = applyOverwrites(base.bits, decorated, {
-    everyoneRoleId,
-    memberRoleIds,
-    userId,
-  });
+  const ctx = { everyoneRoleId, memberRoleIds, userId };
+  let bits = base.bits;
+  if (parentId) {
+    bits = applyOverwrites(
+      bits,
+      decorate((overrides || []).filter((o) => String(o.channel_id) === String(parentId))),
+      ctx
+    );
+  }
+  bits = applyOverwrites(
+    bits,
+    decorate((overrides || []).filter((o) => String(o.channel_id) === String(channelId))),
+    ctx
+  );
 
   return {
     bits,
