@@ -1,58 +1,21 @@
 "use strict";
 
 const supabase = require("../db/supabase");
-
-const APP_BOT = {
-  id: "descall-apps",
-  username: "Descall Apps",
-  displayName: "Descall Apps",
-  display_name: "Descall Apps",
-  avatar_url: "/brand/descall-logo.png",
-  avatarUrl: "/brand/descall-logo.png",
-  isBot: true,
-};
+const { postMemberJoinSystem } = require("./serverSystemMessages");
 
 const TEMP_MEMBER_GRACE_MS = 60_000;
 const pendingTempRemovals = new Map();
 
 /**
- * Socket-only welcome message from Descall Apps (not persisted — sender is app bot).
+ * Persist welcome / join system messages (survives reload).
  */
 async function postWelcomeMessage(io, server, userId) {
-  const channelId = server?.welcome_channel_id || server?.welcomeChannelId;
-  if (!channelId || !io || !server?.id) return;
-
-  const { data: user, error } = await supabase
-    .from("users")
-    .select("username, display_name")
-    .eq("id", userId)
-    .maybeSingle();
-  if (error) {
-    console.warn("[ServerJoin] welcome user lookup failed:", error.message);
+  if (!server?.id || !userId) return;
+  try {
+    await postMemberJoinSystem(io, server, userId);
+  } catch (err) {
+    console.warn("[ServerJoin] system welcome failed:", err?.message || err);
   }
-
-  const label = user?.display_name || user?.username || "there";
-  void label;
-  const content = `Welcome <@${userId}> to **${server.name}**!`;
-  const now = new Date().toISOString();
-  const message = {
-    id: `welcome-${Date.now()}-${userId}`,
-    server_id: server.id,
-    channel_id: channelId,
-    sender_id: APP_BOT.id,
-    sender: { ...APP_BOT },
-    content,
-    text: content,
-    type: "system",
-    isBot: true,
-    isAppMessage: true,
-    created_at: now,
-    timestamp: now,
-  };
-
-  const payload = { serverId: server.id, channelId, message };
-  io.to(`server-channel:${channelId}`).emit("server:channel:message", payload);
-  io.to(`server:${server.id}`).emit("server:channel:message", payload);
 }
 
 function userHasLiveSockets(io, userId) {

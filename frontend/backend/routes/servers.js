@@ -30,6 +30,8 @@ const {
   updateMemberNickname,
 } = require("../lib/slashCommands");
 const { postWelcomeMessage } = require("../lib/serverMemberJoin");
+const { postSystemMessage, lookupUserLabel } = require("../lib/serverSystemMessages");
+const { getServerInsights } = require("../lib/serverInsights");
 const {
   BLANK_ID,
   listTemplateSummaries,
@@ -2277,6 +2279,19 @@ router.post("/:id/leave", requireAuth, async (req, res) => {
       targetId: userId,
     });
 
+    const leaveUsername = await lookupUserLabel(userId);
+    emitToServer(req, serverId, "server:member:left", {
+      userId,
+      reason: "left",
+    });
+    void postSystemMessage(getIo(req), {
+      serverId,
+      serverName: server.name,
+      kind: "member_leave",
+      targetUserId: userId,
+      meta: { username: leaveUsername },
+    });
+
     return res.json({ message: "Left server.", deleted: false, serverId });
   } catch (err) {
     console.error("[SERVERS] POST /:id/leave error:", err);
@@ -2302,8 +2317,11 @@ router.get("/:id/channels/:channelId/messages", requireAuth, async (req, res) =>
       .maybeSingle();
     if (cErr) throw cErr;
     if (!channel) return res.status(404).json({ error: "Channel not found." });
-    if (channel.type !== "text") {
-      return res.status(400).json({ error: "Only text channels have message history.", code: "NOT_TEXT_CHANNEL" });
+    if (channel.type !== "text" && channel.type !== "announcement") {
+      return res.status(400).json({
+        error: "Only text and announcement channels have message history.",
+        code: "NOT_TEXT_CHANNEL",
+      });
     }
 
     const channelPerms = await resolveChannelPermissions(
@@ -2363,7 +2381,24 @@ router.get("/:id/channels/:channelId/messages", requireAuth, async (req, res) =>
       console.warn("[SERVERS] cosmetics enrich failed:", err?.message || err);
     }
 
-    const ordered = (messages || []).reverse();
+    const ordered = (messages || []).reverse().map((m) => {
+      if (m?.message_type === "system" || m?.system_kind) {
+        return {
+          ...m,
+          type: "system",
+          isSystemMessage: true,
+          sender_id: m.sender_id || "descall-system",
+          sender: m.sender || {
+            id: "descall-system",
+            username: "System",
+            display_name: "System",
+            avatar_url: "/brand/descall-logo.png",
+            isBot: true,
+          },
+        };
+      }
+      return m;
+    });
     const withReactions = await attachServerReactions(ordered, channelId);
     return res.json({ messages: withReactions });
   } catch (err) {
@@ -2835,13 +2870,14 @@ router.delete("/:id/members/:userId", requireAuth, async (req, res) => {
       .eq("server_id", serverId)
       .eq("user_id", targetUserId);
 
+    const kickReason = req.body?.reason ? String(req.body.reason).slice(0, 200) : null;
     await writeAudit({
       serverId,
       actorId: req.user.id,
       action: "MEMBER_KICK",
       targetType: "member",
       targetId: targetUserId,
-      reason: req.body?.reason ? String(req.body.reason).slice(0, 200) : null,
+      reason: kickReason,
     });
 
     notifyServerMemberRemoved(req, {
@@ -2849,8 +2885,17 @@ router.delete("/:id/members/:userId", requireAuth, async (req, res) => {
       serverName: server.name,
       targetUserId,
       action: "kick",
-      reason: req.body?.reason ? String(req.body.reason).slice(0, 200) : null,
+      reason: kickReason,
       actorId: req.user.id,
+    });
+
+    void postSystemMessage(getIo(req), {
+      serverId,
+      serverName: server.name,
+      kind: "member_kick",
+      targetUserId,
+      actorId: req.user.id,
+      meta: { reason: kickReason },
     });
 
     return res.json({ message: "Member kicked.", userId: targetUserId, serverId });
@@ -3200,6 +3245,15 @@ router.put("/:id/bans/:userId", requireAuth, async (req, res) => {
       actorId: req.user.id,
     });
 
+    void postSystemMessage(getIo(req), {
+      serverId,
+      serverName: server.name,
+      kind: "member_ban",
+      targetUserId,
+      actorId: req.user.id,
+      meta: { reason },
+    });
+
     return res.json({ message: "Member banned.", userId: targetUserId, serverId, reason });
   } catch (err) {
     const status = err.status || 500;
@@ -3247,6 +3301,27 @@ router.delete("/:id/bans/:userId", requireAuth, async (req, res) => {
     const status = err.status || 500;
     if (status >= 500) console.error("[SERVERS] DELETE ban error:", err);
     return res.status(status).json({ error: err.message || "Failed to unban member.", code: err.code });
+  }
+});
+
+/**
+ * GET /servers/:id/insights — activity charts (VIEW_GUILD_INSIGHTS)
+ * Query: days=7|14|30
+ */
+router.get("/:id/insights", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    await requireServerPermission(serverId, req.user.id, Permissions.VIEW_GUILD_INSIGHTS);
+    const days = Math.min(30, Math.max(1, Number(req.query.days) || 7));
+    const insights = await getServerInsights(serverId, { days });
+    return res.json({ insights });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] GET insights error:", err);
+    return res.status(status).json({
+      error: err.message || "Failed to load server insights.",
+      code: err.code,
+    });
   }
 });
 

@@ -217,6 +217,31 @@ function normalizeGroupMessage(m) {
       groupId: m.group_id,
     };
   }
+
+  const isSystem =
+    m.message_type === "system" ||
+    m.type === "system" ||
+    Boolean(m.isSystemMessage) ||
+    Boolean(m.system_kind);
+  if (isSystem) {
+    return {
+      id: m.id,
+      from: {
+        id: "descall-system",
+        username: "System",
+        displayName: "System",
+        avatarUrl: "/brand/descall-logo.png",
+        isBot: true,
+      },
+      text: m.content || m.text || "",
+      timestamp: parseAppDate(m.created_at || m.timestamp)?.toISOString() || new Date().toISOString(),
+      type: "system",
+      isSystemMessage: true,
+      systemKind: m.system_kind || m.systemKind || null,
+      systemMeta: m.system_meta || m.systemMeta || null,
+    };
+  }
+
   const sender = normalizeUser(m.sender || {
     id: m.sender?.id || m.sender_id,
     username: m.sender?.username || "Unknown",
@@ -2318,12 +2343,12 @@ export default function App() {
     };
   }, [activeView, activeServer?.id]);
 
-  // Stay joined to every text channel in the open server so unread can bump
+  // Stay joined to every text/announcement channel in the open server so unread can bump
   // without a DB unread sync. Leave rooms when leaving the server shell.
   useEffect(() => {
     if (activeView !== "servers" || !activeServer?.id) return undefined;
     const textIds = (activeServer.channels || [])
-      .filter((c) => c.type === "text" && c.id)
+      .filter((c) => (c.type === "text" || c.type === "announcement") && c.id)
       .map((c) => c.id);
     if (textIds.length) {
       socketRef.current?.emit("server:channels:rejoin", textIds);
@@ -2338,7 +2363,7 @@ export default function App() {
     activeServer?.id,
     // Rejoin when channel set changes (create/delete)
     (activeServer?.channels || [])
-      .filter((c) => c.type === "text")
+      .filter((c) => c.type === "text" || c.type === "announcement")
       .map((c) => c.id)
       .join(","),
   ]);
@@ -2346,7 +2371,7 @@ export default function App() {
   // Fetch messages for the active text channel (room join handled above)
   useEffect(() => {
     if (activeView !== "servers" || !activeServer?.id || !activeChannel?.id) return;
-    if (activeChannel.type !== "text") {
+    if (activeChannel.type !== "text" && activeChannel.type !== "announcement") {
       setMessagesLoading(false);
       return;
     }
@@ -2370,7 +2395,13 @@ export default function App() {
 
   // Clear unread when opening a channel + persist read state
   useEffect(() => {
-    if (!activeChannel?.id || activeChannel.type !== "text" || !activeServer?.id) return;
+    if (
+      !activeChannel?.id ||
+      (activeChannel.type !== "text" && activeChannel.type !== "announcement") ||
+      !activeServer?.id
+    ) {
+      return;
+    }
     setChannelUnread((prev) => {
       if (!prev[activeChannel.id]) return prev;
       const next = { ...prev };

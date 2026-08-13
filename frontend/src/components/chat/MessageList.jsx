@@ -53,6 +53,35 @@ function hoverAnchorFromRect(rect) {
   };
 }
 
+/** Render system channel lines: **bold** + <@uuid> mentions. */
+function renderSystemText(text) {
+  const raw = String(text || "");
+  if (!raw) return null;
+  const parts = [];
+  const re = /(\*\*[^*]+\*\*|<@[0-9a-fA-F-]{8,}>)/g;
+  let last = 0;
+  let m;
+  let i = 0;
+  while ((m = re.exec(raw)) !== null) {
+    if (m.index > last) {
+      parts.push(<span key={`s-${i++}`}>{raw.slice(last, m.index)}</span>);
+    }
+    const token = m[0];
+    if (token.startsWith("**")) {
+      parts.push(<strong key={`s-${i++}`}>{token.slice(2, -2)}</strong>);
+    } else {
+      parts.push(
+        <span key={`s-${i++}`} className="msg-mention">
+          {token}
+        </span>
+      );
+    }
+    last = m.index + token.length;
+  }
+  if (last < raw.length) parts.push(<span key={`s-${i++}`}>{raw.slice(last)}</span>);
+  return parts.length ? parts : raw;
+}
+
 function dayKeyOf(iso) {
   const d = parseAppDate(iso);
   if (!d) return "";
@@ -231,6 +260,11 @@ export default function MessageList({
         grouped.push({ isActiveBanner: true, banner: msg, id: msg.id });
         return;
       }
+      if (msg.isSystemMessage || msg.type === "system") {
+        flush();
+        grouped.push({ isSystem: true, systemMsg: msg, id: msg.id });
+        return;
+      }
       // Game messages render standalone (no grouping)
       if (msg.isGameMessage || msg.type?.startsWith("game_")) {
         flush();
@@ -311,6 +345,19 @@ export default function MessageList({
               onJoin={onJoinActiveCall}
               onDismiss={onDismissActiveBanner}
             />
+          );
+        }
+        if (group.isSystem) {
+          const sys = group.systemMsg;
+          return (
+            <div key={group.id || `system-${groupIndex}`} className="message-system-row">
+              <span className="message-system-text">{renderSystemText(sys?.text)}</span>
+              {sys?.timestamp ? (
+                <time className="message-system-time" dateTime={sys.timestamp}>
+                  {formatMessageClock(sys.timestamp)}
+                </time>
+              ) : null}
+            </div>
           );
         }
         if (group.isGame) {

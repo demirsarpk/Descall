@@ -714,6 +714,19 @@ async function kickServerMember({ io, serverId, actorId, targetUserId, reason })
     reason: trimmedReason,
     actorId,
   });
+  try {
+    const { postSystemMessage } = require("./serverSystemMessages");
+    void postSystemMessage(io, {
+      serverId,
+      serverName: server.name,
+      kind: "member_kick",
+      targetUserId,
+      actorId,
+      meta: { reason: trimmedReason },
+    });
+  } catch (err) {
+    console.warn("[Slash] system kick message failed:", err?.message || err);
+  }
   return { server, reason: trimmedReason };
 }
 
@@ -785,6 +798,19 @@ async function banServerMember({ io, serverId, actorId, targetUserId, reason }) 
     reason: trimmedReason,
     actorId,
   });
+  try {
+    const { postSystemMessage } = require("./serverSystemMessages");
+    void postSystemMessage(io, {
+      serverId,
+      serverName: server.name,
+      kind: "member_ban",
+      targetUserId,
+      actorId,
+      meta: { reason: trimmedReason },
+    });
+  } catch (err) {
+    console.warn("[Slash] system ban message failed:", err?.message || err);
+  }
   return { server, reason: trimmedReason };
 }
 

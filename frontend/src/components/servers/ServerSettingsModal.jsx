@@ -361,6 +361,9 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
                     </option>
                   ))}
                 </select>
+                <small className="server-field-hint">
+                  {t("Join, leave, kick, and ban notices are saved here.")}
+                </small>
               </label>
               <label className="server-field">
                 <span>{t("Welcome channel")}</span>
@@ -376,6 +379,9 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
                     </option>
                   ))}
                 </select>
+                <small className="server-field-hint">
+                  {t("Welcome messages are posted when someone joins.")}
+                </small>
               </label>
             </div>
           )}

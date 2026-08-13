@@ -175,21 +175,33 @@ export function bindServerSocketHandlers(socket, ctx) {
 
   const handleChannelMessage = ({ serverId, channelId, message, tempId } = {}) => {
     if (!channelId || !message) return;
-    const sender = normalizeUser(message.sender || {
-      id: message.sender_id,
-      username: message.sender?.username || "Unknown",
-      display_name: message.sender?.display_name || message.sender?.displayName,
-      avatar_url: message.sender?.avatar_url,
-      updated_at: message.sender?.updated_at,
-    });
+    const isSystem =
+      message.message_type === "system" ||
+      message.type === "system" ||
+      Boolean(message.isSystemMessage) ||
+      Boolean(message.system_kind);
+    const sender = normalizeUser(
+      message.sender || {
+        id: isSystem ? "descall-system" : message.sender_id,
+        username: isSystem ? "System" : message.sender?.username || "Unknown",
+        display_name: isSystem
+          ? "System"
+          : message.sender?.display_name || message.sender?.displayName,
+        avatar_url: isSystem
+          ? "/brand/descall-logo.png"
+          : message.sender?.avatar_url,
+        updated_at: message.sender?.updated_at,
+      }
+    );
     const voice = parseVoiceMeta(message.content, message.media_type);
     const hasEmbed = Boolean(message.embed && typeof message.embed === "object");
     const isAppBot =
       Boolean(message.isAppMessage || message.isBot || sender?.isBot) ||
-      sender?.id === "descall-apps";
+      sender?.id === "descall-apps" ||
+      sender?.id === "descall-system";
     const normalized = {
       id: message.id,
-      from: isAppBot ? { ...sender, isBot: true } : sender,
+      from: isAppBot || isSystem ? { ...sender, isBot: true } : sender,
       username: sender?.username || "Unknown",
       displayName: sender?.displayName || null,
       avatarUrl: sender?.avatarUrl,
@@ -206,7 +218,11 @@ export function bindServerSocketHandlers(socket, ctx) {
       reactions: Array.isArray(message.reactions) ? message.reactions : [],
       embed: hasEmbed ? message.embed : null,
       appType: typeof message.type === "string" ? message.type : null,
-      isAppMessage: isAppBot,
+      isAppMessage: isAppBot && !isSystem,
+      type: isSystem ? "system" : message.type || null,
+      isSystemMessage: isSystem,
+      systemKind: message.system_kind || message.systemKind || null,
+      systemMeta: message.system_meta || message.systemMeta || null,
     };
     setChannelMessagesById((prev) => {
       const cur = prev[channelId] ?? [];
@@ -220,6 +236,8 @@ export function bindServerSocketHandlers(socket, ctx) {
       if (cur.some((m) => m.id === normalized.id)) return prev;
       return { ...prev, [channelId]: sortMessagesChronologically([...cur, normalized]) };
     });
+    // System messages are quiet — visible in history, no unread/sound spam.
+    if (isSystem) return;
     const isFromMe = normalized.from?.id === myIdRef.current;
     const isActive = activeChannelRef.current?.id === channelId;
     const notifLevel = getServerNotificationLevel(serverId || message.server_id);
