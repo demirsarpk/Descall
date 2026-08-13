@@ -13,7 +13,7 @@ const distDir = path.join(root, "dist");
 const indexPath = path.join(distDir, "index.html");
 
 const SITE = "https://descall.com";
-const OG = `${SITE}/og-default.svg`;
+const OG = `${SITE}/og-default.png`;
 
 const { PUBLIC_ROUTES } = await import(pathToFileURL(path.join(root, "src/site/seoConfig.js")).href);
 const { NICHE_LANDINGS } = await import(pathToFileURL(path.join(root, "src/site/seo/nicheLandings.js")).href);

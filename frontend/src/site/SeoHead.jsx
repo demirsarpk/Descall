@@ -90,6 +90,9 @@ export default function SeoHead({ forceNoindex = false, title, description, path
     upsertMeta("property", "og:description", pageDesc);
     upsertMeta("property", "og:url", canonical);
     upsertMeta("property", "og:image", ogImage);
+    upsertMeta("property", "og:image:type", "image/png");
+    upsertMeta("property", "og:image:width", "1200");
+    upsertMeta("property", "og:image:height", "630");
     upsertMeta("property", "og:image:alt", `${SITE_NAME} — Discord alternative`);
 
     upsertMeta("name", "twitter:card", "summary_large_image");

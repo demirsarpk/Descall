@@ -3,7 +3,8 @@
 export const SITE_NAME = "Descall";
 // descall.com is the canonical public host; the Render hostname is infrastructure.
 export const DEFAULT_ORIGIN = "https://descall.com";
-export const DEFAULT_OG_IMAGE = "/og-default.svg";
+// PNG — Instagram/Facebook rasterize SVG poorly (dark smudge next to wordmark).
+export const DEFAULT_OG_IMAGE = "/og-default.png";
 export const SUPPORTED_LOCALES = ["en", "tr"];
 
 /** Runtime origin (API / preview hosts). Prefer this only for non-SEO needs. */

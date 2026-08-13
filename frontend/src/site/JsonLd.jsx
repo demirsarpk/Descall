@@ -9,7 +9,7 @@ export function buildOrganizationLd() {
     "@type": "Organization",
     name: SITE_NAME,
     url: absoluteUrl("/"),
-    logo: absoluteUrl("/og-default.svg"),
+    logo: absoluteUrl("/og-default.png"),
     sameAs: ["https://github.com/demirsarpk/Descall"],
     description:
       "Free Discord alternative for servers, roles, channels, chat, voice, screen share, and Valorant LFG.",
@@ -105,10 +105,10 @@ export function buildArticleLd({ title, description, path, datePublished, dateMo
       name: SITE_NAME,
       logo: {
         "@type": "ImageObject",
-        url: absoluteUrl("/og-default.svg"),
+        url: absoluteUrl("/og-default.png"),
       },
     },
-    image: [absoluteUrl("/og-default.svg")],
+    image: [absoluteUrl("/og-default.png")],
   };
 }
 
