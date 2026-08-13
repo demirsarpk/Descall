@@ -1215,6 +1215,12 @@ export const phrases = {
   "No channels yet.": "Henüz kanal yok.",
   "Loading channels…": "Kanallar yükleniyor…",
   "Connected (private channel)": "Bağlı (gizli kanal)",
+  "Noise suppression": "Gürültü engelleme",
+  "AI noise suppression": "Yapay zekâ gürültü engelleme",
+  "Removes keyboard, fan, and background noise in group calls and server voice. Uses GTCRN / RNNoise when available.":
+    "Grup aramalarında ve sunucu sesinde klavye, fan ve arka plan gürültüsünü temizler. Mümkünse GTCRN / RNNoise kullanır.",
+  "Active engine": "Aktif motor",
+  "Ready": "Hazır",
   "Install Descall": "Descall’ı yükle",
   "Add Descall to your Home Screen": "Descall’ı Ana Ekrana Ekle",
   "In Safari tap Share": "Safari’de Paylaş’a dokun",

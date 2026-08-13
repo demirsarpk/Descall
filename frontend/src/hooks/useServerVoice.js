@@ -16,15 +16,11 @@ import {
   isMobileScreenCapture,
   isRemoteScreenVideoTrack,
 } from "../lib/webrtcScreenShare";
-
-const AUDIO_CONSTRAINTS = {
-  audio: {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
-  },
-  video: false,
-};
+import {
+  acquireVoiceMicStream,
+  disposeNoiseSuppressionSession,
+  setNoiseSuppressedTrackEnabled,
+} from "../lib/noiseSuppression";
 
 const CAMERA_CONSTRAINTS = {
   audio: false,
@@ -341,6 +337,7 @@ export function useServerVoice(socket) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     }
+    disposeNoiseSuppressionSession({ stopRaw: true });
     remoteStreamMapRef.current = new Map();
     setLocalStream(null);
     setRemoteStreamsVersion((v) => v + 1);
@@ -568,12 +565,13 @@ export function useServerVoice(socket) {
         const isStage = nextChannelType === "stage";
         const stream = isStage
           ? new MediaStream()
-          : await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
+          : await acquireVoiceMicStream({ video: false });
         localStreamRef.current = stream;
         setLocalStream(stream);
         stream.getAudioTracks().forEach((t) => {
           t.enabled = true;
         });
+        setNoiseSuppressedTrackEnabled(true);
         setActiveChannelId(channel.id);
         setActiveServerId(serverId);
         setChannelName(channel.name || "");
@@ -662,11 +660,10 @@ export function useServerVoice(socket) {
     }
     let track = localStreamRef.current?.getAudioTracks()?.[0];
     if (!track) {
-      const stream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
+      const stream = await acquireVoiceMicStream({ video: false });
       track = stream.getAudioTracks()[0];
-      if (!localStreamRef.current) localStreamRef.current = new MediaStream();
-      if (track) localStreamRef.current.addTrack(track);
-      setLocalStream(localStreamRef.current);
+      localStreamRef.current = stream;
+      setLocalStream(stream);
       if (sfuModeRef.current && liveKitRoomRef.current && track) {
         await liveKitRoomRef.current.localParticipant.publishTrack(track, {
           source: Track.Source.Microphone,
@@ -685,6 +682,7 @@ export function useServerVoice(socket) {
     if (!track) return;
     track.enabled = !track.enabled;
     const nextMuted = !track.enabled;
+    setNoiseSuppressedTrackEnabled(!nextMuted);
     setMuted(nextMuted);
     const channelId = activeChannelIdRef.current;
     if (channelId && socket?.connected) {

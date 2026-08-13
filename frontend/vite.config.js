@@ -10,6 +10,10 @@ export default defineConfig({
   plugins: [react()],
   base: electronBase ? "./" : "/",
   publicDir: "public",
+  assetsInclude: ["**/*.wasm"],
+  optimizeDeps: {
+    exclude: ["@sapphi-red/web-noise-suppressor"],
+  },
   build: {
     target: "es2020",
     outDir: "dist",

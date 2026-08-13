@@ -1255,6 +1255,12 @@ export const phrases = {
   "No channels yet.": "No channels yet.",
   "Loading channels…": "Loading channels…",
   "Connected (private channel)": "Connected (private channel)",
+  "Noise suppression": "Noise suppression",
+  "AI noise suppression": "AI noise suppression",
+  "Removes keyboard, fan, and background noise in group calls and server voice. Uses GTCRN / RNNoise when available.":
+    "Removes keyboard, fan, and background noise in group calls and server voice. Uses GTCRN / RNNoise when available.",
+  "Active engine": "Active engine",
+  "Ready": "Ready",
   "Install Descall": "Install Descall",
   "Add Descall to your Home Screen": "Add Descall to your Home Screen",
   "In Safari tap Share": "In Safari tap Share",

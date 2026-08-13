@@ -27,6 +27,11 @@ import useConnectionStats from "./useConnectionStats";
 import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
 import { acquireCallWakeLock, releaseCallWakeLock, pulseCallWakeLock } from "../lib/callWakeLock";
 import { startDesCoinHeartbeat } from "../lib/descoinHeartbeat";
+import {
+  acquireVoiceMicStream,
+  disposeNoiseSuppressionSession,
+  setNoiseSuppressedTrackEnabled,
+} from "../lib/noiseSuppression";
 
 /**
  * Unified WebRTC call hook supporting:
@@ -183,6 +188,7 @@ export function useCall(socket, callOccupancyRef = null) {
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     }
+    disposeNoiseSuppressionSession({ stopRaw: true });
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
@@ -824,19 +830,14 @@ export function useCall(socket, callOccupancyRef = null) {
       return;
     }
     try {
-      const audio = {
-        echoCancellation: { ideal: true },
-        noiseSuppression: { ideal: true },
-        autoGainControl: { ideal: true },
-        channelCount: { ideal: 1 },
-      };
-      const constraints = type === "video"
-        ? { audio, video: { width: 1280, height: 720, facingMode: "user" } }
-        : { audio, video: false };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await acquireVoiceMicStream(
+        type === "video"
+          ? { video: { width: 1280, height: 720, facingMode: "user" } }
+          : { video: false }
+      );
       localStreamRef.current = stream;
       setLocalStream(stream);
+      setNoiseSuppressedTrackEnabled(true);
 
       // Sync peerRef immediately — unreachable/decline can arrive before React commit
       const peerObj = { ...friend, id: peerId };
@@ -882,13 +883,14 @@ export function useCall(socket, callOccupancyRef = null) {
       if (modeRef.current !== "incoming") return;
     }
     try {
-      const constraints = type === "video"
-        ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
-        : { audio: true, video: false };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await acquireVoiceMicStream(
+        type === "video"
+          ? { video: { width: 1280, height: 720, facingMode: "user" } }
+          : { video: false }
+      );
       localStreamRef.current = stream;
       setLocalStream(stream);
+      setNoiseSuppressedTrackEnabled(true);
       setCallType(type);
       setCameraOn(type === "video");
 
@@ -1254,11 +1256,16 @@ export function useCall(socket, callOccupancyRef = null) {
     setSelectedAudioInput(deviceId);
     if (!localStreamRef.current) return;
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId } }, video: false });
+      disposeNoiseSuppressionSession({ stopRaw: true });
+      const newStream = await acquireVoiceMicStream({
+        audio: { deviceId: { exact: deviceId } },
+        video: false,
+      });
       const newTrack = newStream.getAudioTracks()[0];
       if (!newTrack) return;
       localStreamRef.current.getAudioTracks().forEach(t => { t.stop(); localStreamRef.current.removeTrack(t); });
       localStreamRef.current.addTrack(newTrack);
+      setNoiseSuppressedTrackEnabled(true);
       if (pcRef.current) {
         const sender = pcRef.current.getSenders().find(s => s.track?.kind === "audio");
         if (sender) await sender.replaceTrack(newTrack);

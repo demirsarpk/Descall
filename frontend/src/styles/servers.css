@@ -2792,6 +2792,22 @@ button.member-row.server-member-row {
   margin-top: 8px !important;
 }
 
+.server-voice-ns-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b5f0c8;
+  background: rgba(35, 165, 90, 0.18);
+  border: 1px solid rgba(35, 165, 90, 0.35);
+  white-space: nowrap;
+}
+
 .server-voice-controls {
   display: flex;
   justify-content: center;

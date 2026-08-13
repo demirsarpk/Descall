@@ -40,6 +40,12 @@ import AdminBadge from "../social/AdminBadge";
 import ShopPanel from "../settings/ShopPanel";
 import { getShopCatalog, getShopInventory, equipShopItem } from "../../api/shop";
 import { NameEffectText, BadgeIcon, TitleTag } from "../ui/Cosmetics";
+import {
+  isNoiseSuppressionEnabled,
+  setNoiseSuppressionEnabled,
+  getNoiseSuppressionEngine,
+  preloadNoiseSuppression,
+} from "../../lib/noiseSuppression";
 
 /* ─── Helpers ─── */
 const SETTINGS_KEY = "descall_user_settings";
@@ -633,6 +639,8 @@ const UserPanel = forwardRef(function UserPanel({
   const [selectedAudioIn, setSelectedAudioIn] = useState(stored.selectedAudioIn || "");
   const [selectedAudioOut, setSelectedAudioOut] = useState(stored.selectedAudioOut || "");
   const [selectedVideoIn, setSelectedVideoIn] = useState(stored.selectedVideoIn || "");
+  const [noiseSuppressionOn, setNoiseSuppressionOn] = useState(() => isNoiseSuppressionEnabled());
+  const [noiseEngine, setNoiseEngine] = useState(() => getNoiseSuppressionEngine());
   const [micTestLevel, setMicTestLevel] = useState(0);
   const [micTesting, setMicTesting] = useState(false);
   const micAnalyserRef = useRef(null);
@@ -713,11 +721,14 @@ const UserPanel = forwardRef(function UserPanel({
   const startMicTest = useCallback(async () => {
     if (micStreamRef.current) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const { acquireVoiceMicStream } = await import("../../lib/noiseSuppression");
+      const stream = await acquireVoiceMicStream({
         audio: { deviceId: selectedAudioIn ? { exact: selectedAudioIn } : undefined },
+        video: false,
       });
       micStreamRef.current = stream;
       setMicTesting(true);
+      setNoiseEngine(getNoiseSuppressionEngine());
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const src = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
@@ -1808,6 +1819,46 @@ const UserPanel = forwardRef(function UserPanel({
                 <button type="button" className="us-btn ghost" onClick={refreshDevices}>
                   <RefreshCw size={14} /> {t("Refresh devices")}
                 </button>
+              </div>
+            </section>
+
+            <section className="us-section">
+              <h4 className="us-section-label">{t("Noise suppression")}</h4>
+              <div className="us-card stack">
+                <SettingRow
+                  icon={Sparkles}
+                  title={t("AI noise suppression")}
+                  description={t(
+                    "Removes keyboard, fan, and background noise in group calls and server voice. Uses GTCRN / RNNoise when available."
+                  )}
+                >
+                  <Toggle
+                    value={noiseSuppressionOn}
+                    onChange={(v) => {
+                      setNoiseSuppressionOn(v);
+                      setNoiseSuppressionEnabled(v);
+                      if (v) preloadNoiseSuppression();
+                      setNoiseEngine(getNoiseSuppressionEngine());
+                    }}
+                    label={t("AI noise suppression")}
+                  />
+                </SettingRow>
+                {noiseSuppressionOn ? (
+                  <p className="us-row-desc" style={{ margin: "0 4px 8px" }}>
+                    {t("Active engine")}:{" "}
+                    <strong>
+                      {noiseEngine === "gtcrn"
+                        ? "GTCRN"
+                        : noiseEngine === "rnnoise"
+                          ? "RNNoise"
+                          : noiseEngine === "speex"
+                            ? "Speex"
+                            : noiseEngine === "dsp"
+                              ? "DSP"
+                              : t("Ready")}
+                    </strong>
+                  </p>
+                ) : null}
               </div>
             </section>
 

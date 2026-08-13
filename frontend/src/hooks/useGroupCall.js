@@ -28,6 +28,11 @@ import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
 import { acquireCallWakeLock, releaseCallWakeLock, pulseCallWakeLock } from "../lib/callWakeLock";
 import { startDesCoinHeartbeat } from "../lib/descoinHeartbeat";
+import {
+  acquireVoiceMicStream,
+  disposeNoiseSuppressionSession,
+  setNoiseSuppressedTrackEnabled,
+} from "../lib/noiseSuppression";
 
 /** Build / merge a group-call participant row, keeping shop cosmetics. */
 function buildCallParticipant(user, extras = {}) {
@@ -360,6 +365,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     }
+    disposeNoiseSuppressionSession({ stopRaw: true });
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
@@ -782,32 +788,11 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     const hangout = Boolean(options?.hangout);
     
     try {
-      // OPTIMIZED: Low latency audio constraints to reduce 1-2 second delay
-      const constraints = type === "video"
-        ? { 
-            audio: { 
-              echoCancellation: true, 
-              noiseSuppression: true,
-              autoGainControl: true,
-              latency: { ideal: 0.01 }, // 10ms target latency
-              sampleRate: { ideal: 48000 }, // Standard VoIP sample rate
-              channelCount: { ideal: 2 }
-            }, 
-            video: { width: 1280, height: 720, facingMode: "user" } 
-          }
-        : { 
-            audio: { 
-              echoCancellation: true, 
-              noiseSuppression: true,
-              autoGainControl: true,
-              latency: { ideal: 0.01 }, // 10ms target latency
-              sampleRate: { ideal: 48000 },
-              channelCount: { ideal: 2 }
-            }, 
-            video: false 
-          };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await acquireVoiceMicStream(
+        type === "video"
+          ? { video: { width: 1280, height: 720, facingMode: "user" } }
+          : { video: false }
+      );
       localStreamRef.current = stream;
       setLocalStream(stream);
       
@@ -815,6 +800,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       stream.getAudioTracks().forEach(track => {
         track.enabled = true;
       });
+      setNoiseSuppressedTrackEnabled(true);
       
       setIsInCall(true);
       setIsInitiator(true);
@@ -889,11 +875,11 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     try {
       audioManager.stop("incomingCall");
 
-      const constraints = type === "video"
-        ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
-        : { audio: true, video: false };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await acquireVoiceMicStream(
+        type === "video"
+          ? { video: { width: 1280, height: 720, facingMode: "user" } }
+          : { video: false }
+      );
       localStreamRef.current = stream;
       setLocalStream(stream);
       
@@ -901,6 +887,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       stream.getAudioTracks().forEach(track => {
         track.enabled = true;
       });
+      setNoiseSuppressedTrackEnabled(true);
       
       setIsInCall(true);
       setIsInitiator(false);
@@ -2008,12 +1995,12 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       }
 
       try {
-        // Get media stream
-        const constraints = existingCallType === "video"
-          ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
-          : { audio: true, video: false };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // Get media stream (AI noise suppression applied when enabled)
+        const stream = await acquireVoiceMicStream(
+          existingCallType === "video"
+            ? { video: { width: 1280, height: 720, facingMode: "user" } }
+            : { video: false }
+        );
         localStreamRef.current = stream;
         setLocalStream(stream);
         
@@ -2021,6 +2008,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         stream.getAudioTracks().forEach(track => {
           track.enabled = true;
         });
+        setNoiseSuppressedTrackEnabled(true);
         
         setIsInCall(true);
         setIsInitiator(false); // We're joining, not initiating
@@ -2198,7 +2186,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
     setSelectedAudioInput(deviceId);
     if (!localStreamRef.current) return;
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
+      disposeNoiseSuppressionSession({ stopRaw: true });
+      const newStream = await acquireVoiceMicStream({
         audio: { deviceId: { exact: deviceId } },
         video: false,
       });
@@ -2212,6 +2201,7 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         localStreamRef.current.removeTrack(t);
       });
       localStreamRef.current.addTrack(newAudioTrack);
+      setNoiseSuppressedTrackEnabled(true);
 
       // Replace the track on all active peer senders
       const replacePromises = [];
@@ -2253,13 +2243,15 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
       participantCount,
     } = banner;
     try {
-      const constraints = type === "video"
-        ? { audio: true, video: { width: 1280, height: 720, facingMode: "user" } }
-        : { audio: true, video: false };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await acquireVoiceMicStream(
+        type === "video"
+          ? { video: { width: 1280, height: 720, facingMode: "user" } }
+          : { video: false }
+      );
       localStreamRef.current = stream;
       setLocalStream(stream);
       stream.getAudioTracks().forEach((t) => { t.enabled = true; });
+      setNoiseSuppressedTrackEnabled(true);
       setIsInCall(true);
       setIsInitiator(false);
       setCallType(type);

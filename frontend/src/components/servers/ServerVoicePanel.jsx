@@ -18,6 +18,7 @@ import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { serverHasPermission } from "../../lib/serverPermissions";
 import useSpeaking from "../../hooks/useSpeaking";
+import { isNoiseSuppressionEnabled } from "../../lib/noiseSuppression";
 
 function streamHasLiveVideo(stream) {
   return Boolean(
@@ -508,6 +509,11 @@ export default function ServerVoicePanel({
               {serverVoice.muted ? <MicOff size={16} /> : <Mic size={16} />}
               {serverVoice.muted ? t("Unmute") : t("Mute")}
             </button>
+            {isNoiseSuppressionEnabled() ? (
+              <span className="server-voice-ns-badge" title={t("AI noise suppression")}>
+                NS
+              </span>
+            ) : null}
             {isStage && serverVoice.stageRole !== "speaker" ? (
               <button
                 type="button"
