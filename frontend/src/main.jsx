@@ -1,7 +1,6 @@
 import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, HashRouter } from "react-router-dom";
-import { Analytics } from "@vercel/analytics/react";
 import IosPwaInstallBanner from "./components/IosPwaInstallBanner";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./context/ToastContext";
@@ -32,6 +31,10 @@ if (!preferMarketingShell) {
 const RootApp = preferMarketingShell
   ? lazy(() => import("./site/MarketingBoot.jsx"))
   : lazy(() => import("./App.jsx"));
+
+const AnalyticsLazy = lazy(() =>
+  import("@vercel/analytics/react").then((m) => ({ default: m.Analytics }))
+);
 
 // Electron loadFile() uses file:// — BrowserRouter cannot deep-link there.
 const Router =
@@ -92,7 +95,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               <RootApp />
             </Suspense>
             {!preferMarketingShell ? <IosPwaInstallBanner /> : null}
-            <Analytics />
+            <Suspense fallback={null}>
+              <AnalyticsLazy />
+            </Suspense>
           </Router>
         </LocaleProvider>
       </ToastProvider>
