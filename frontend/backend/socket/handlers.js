@@ -40,7 +40,8 @@ const {
 const { setupAdminSocket, notifyAdminRoom } = require("./adminHandlers");
 const { registerGroupHandlers, removeUserFromAllGroupCalls } = require("./groupHandlers");
 const { registerServerChannelHandlers } = require("./serverChannelHandlers");
-const { registerServerVoiceHandlers, removeUserFromAllServerVoice } = require("./serverVoiceHandlers");
+const { registerServerVoiceHandlers, removeUserFromAllServerVoice, startAfkIdleScanner } = require("./serverVoiceHandlers");
+const { scheduleTemporaryMemberCleanup } = require("../lib/serverMemberJoin");
 const { scheduleParticipantDisconnectGrace } = require("./groupCallLifecycle");
 const { toUtcIso } = require("../lib/datetime");
 const { trackOffer, markAnswered, isActiveDmCall, finalizeCall } = require("../lib/dmCallLog");
@@ -645,6 +646,7 @@ async function removeFriendshipFromDB(userId, friendId) {
 }
 
 function registerSocketHandlers(io) {
+  startAfkIdleScanner(io);
   io.on("connection", (socket) => {
     const me = socket.user;
     const myId = me.id;
@@ -1940,6 +1942,7 @@ function registerSocketHandlers(io) {
         }
         removeUserFromAllServerVoice(io, myId);
         dmScreenSharingUsers.delete(myId);
+        scheduleTemporaryMemberCleanup(io, myId);
       }
       socketToUser.delete(socket.id);
 

@@ -28,6 +28,7 @@ export default function ServerInviteModal({ server, onClose, onServerUpdated }) 
   const [loading, setLoading] = useState(true);
   const [maxAgeSeconds, setMaxAgeSeconds] = useState(60 * 60 * 24 * 7);
   const [maxUses, setMaxUses] = useState("");
+  const [temporary, setTemporary] = useState(false);
   const [latestUrl, setLatestUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const [isPublic, setIsPublic] = useState(Boolean(server?.isPublic));
@@ -67,6 +68,7 @@ export default function ServerInviteModal({ server, onClose, onServerUpdated }) 
       const data = await createServerInvite(server.id, {
         maxAgeSeconds: Number(maxAgeSeconds) || 0,
         maxUses: maxUses === "" ? null : Number(maxUses),
+        temporary,
       });
       const invite = data?.invite;
       if (invite?.url) {
@@ -177,6 +179,16 @@ export default function ServerInviteModal({ server, onClose, onServerUpdated }) 
                 />
               </label>
             </div>
+
+            <label className="server-check-row">
+              <input
+                type="checkbox"
+                checked={temporary}
+                disabled={busy}
+                onChange={(e) => setTemporary(e.target.checked)}
+              />
+              <span>{t("Temporary membership")}</span>
+            </label>
 
             <button
               type="button"

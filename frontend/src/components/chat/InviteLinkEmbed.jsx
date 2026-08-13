@@ -13,11 +13,13 @@ import { useT } from "../../context/LocaleContext";
 import { useToast } from "../../context/ToastContext";
 import { Avatar } from "../ui/Avatar";
 import { previewGroupInvite, joinGroupByInvite } from "../../api/groups";
-import { previewServerInvite, joinServerByInvite } from "../../api/servers";
+import { previewServerInvite, joinServerByInvite, previewServerVanity, joinServerByVanity } from "../../api/servers";
 import {
   extractDescallInvites,
   getCachedInvitePreview,
   setCachedInvitePreview,
+  isVanityServerInvite,
+  vanitySlugFromInviteCode,
 } from "../../lib/inviteLinks";
 
 /**
@@ -55,9 +57,14 @@ export default function InviteLinkEmbed({ invite }) {
       setLoading(true);
       setError("");
       try {
+        const isVanity = invite.kind === "server" && isVanityServerInvite(invite);
+        const vanitySlug =
+          invite.vanitySlug || (isVanity ? vanitySlugFromInviteCode(invite.code) : null);
         const data =
           invite.kind === "server"
-            ? await previewServerInvite(invite.code)
+            ? isVanity
+              ? await previewServerVanity(vanitySlug)
+              : await previewServerInvite(invite.code)
             : await previewGroupInvite(invite.code);
         if (cancelled) return;
         setCachedInvitePreview(invite.kind, invite.code, data);
@@ -132,7 +139,12 @@ export default function InviteLinkEmbed({ invite }) {
     setError("");
     try {
       if (invite.kind === "server") {
-        const data = await joinServerByInvite(invite.code);
+        const isVanity = isVanityServerInvite(invite);
+        const vanitySlug =
+          invite.vanitySlug || (isVanity ? vanitySlugFromInviteCode(invite.code) : null);
+        const data = isVanity
+          ? await joinServerByVanity(vanitySlug)
+          : await joinServerByInvite(invite.code);
         const server = data?.server;
         setCachedInvitePreview(invite.kind, invite.code, {
           ...(preview || {}),

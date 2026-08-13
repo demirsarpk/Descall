@@ -5,9 +5,12 @@ import { useT } from "../../context/LocaleContext";
 import {
   previewServerInvite,
   joinServerByInvite,
+  previewServerVanity,
+  joinServerByVanity,
   discoverPublicServers,
   joinPublicServer,
 } from "../../api/servers";
+import { isVanityServerInvite, vanitySlugFromInviteCode } from "../../lib/inviteLinks";
 
 /**
  * Join via invite code + browse public servers.
@@ -25,11 +28,27 @@ export default function JoinServerModal({ onClose, onJoined }) {
 
   const normalizeCode = (raw) => {
     const s = String(raw || "").trim();
+    const fromVanity = s.match(/\/s\/([a-z0-9][a-z0-9-]{2,31})/i);
+    if (fromVanity) return `vanity:${fromVanity[1].toLowerCase()}`;
     const fromUrl = s.match(/\/servers\/join\/([A-Za-z0-9_-]+)/);
     if (fromUrl) return fromUrl[1];
     const fromInvite = s.match(/\/invite\/s\/([A-Za-z0-9_-]+)/);
     if (fromInvite) return fromInvite[1];
     return s.replace(/^@/, "").split("/").pop();
+  };
+
+  const fetchPreview = async (normalized) => {
+    if (isVanityServerInvite(normalized)) {
+      return previewServerVanity(vanitySlugFromInviteCode(normalized));
+    }
+    return previewServerInvite(normalized);
+  };
+
+  const fetchJoin = async (normalized) => {
+    if (isVanityServerInvite(normalized)) {
+      return joinServerByVanity(vanitySlugFromInviteCode(normalized));
+    }
+    return joinServerByInvite(normalized);
   };
 
   useEffect(() => {
@@ -64,7 +83,7 @@ export default function JoinServerModal({ onClose, onJoined }) {
     setError("");
     setPreview(null);
     try {
-      const data = await previewServerInvite(normalized);
+      const data = await fetchPreview(normalized);
       setPreview(data);
       setCode(normalized);
     } catch (err) {
@@ -80,7 +99,7 @@ export default function JoinServerModal({ onClose, onJoined }) {
     setBusy(true);
     setError("");
     try {
-      const data = await joinServerByInvite(normalized);
+      const data = await fetchJoin(normalized);
       onJoined?.(data?.server);
       onClose?.();
     } catch (err) {

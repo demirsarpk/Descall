@@ -1,0 +1,41 @@
+{
+  "desktop": {
+    "name": "desktop",
+    "asset": "https://descall.com/assets/index-SAzQ63n2.js",
+    "markers": [
+      "mic-fallback",
+      "screen-audio-",
+      "preferCurrentTab:!1",
+      "Share audio",
+      "microphone is mixed",
+      "This device can"
+    ],
+    "sinkOk": {
+      "before": 0,
+      "after": 1,
+      "paused": true
+    },
+    "errors": [],
+    "title": null
+  },
+  "mobile": {
+    "name": "mobile",
+    "asset": "https://descall.com/assets/index-SAzQ63n2.js",
+    "markers": [
+      "mic-fallback",
+      "screen-audio-",
+      "preferCurrentTab:!1",
+      "Share audio",
+      "microphone is mixed",
+      "This device can"
+    ],
+    "sinkOk": {
+      "before": 0,
+      "after": 1,
+      "paused": true
+    },
+    "errors": [],
+    "title": null
+  },
+  "ts": "2026-08-12T10:10:38.095Z"
+}

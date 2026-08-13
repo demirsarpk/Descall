@@ -3,7 +3,7 @@
  * Keeps the wire format as plain strings.
  */
 import { splitHighlightRanges } from "../../lib/textHighlight";
-import { isDescallInviteUrl, parseDescallInviteUrl } from "../../lib/inviteLinks";
+import { isDescallInviteUrl, parseDescallInviteUrl, isVanityServerInvite, vanitySlugFromInviteCode } from "../../lib/inviteLinks";
 
 const URL_RE =
   /((?:https?:\/\/|(?:www\.)?descall\.(?:com|vercel\.app)\/|des-call\.onrender\.com\/)[^\s<]+[^\s<.,;:!?'")\]])/g;
@@ -12,7 +12,12 @@ const MENTION_RE = /@([a-zA-Z0-9_]{2,32})/g;
 function inviteLinkLabel(href) {
   const parsed = parseDescallInviteUrl(href);
   if (!parsed) return href;
-  if (parsed.kind === "server") return `descall.com/servers/join/${parsed.code}`;
+  if (parsed.kind === "server") {
+    if (isVanityServerInvite(parsed)) {
+      return `descall.com/s/${vanitySlugFromInviteCode(parsed.code)}`;
+    }
+    return `descall.com/servers/join/${parsed.code}`;
+  }
   if (parsed.kind === "group") return `descall.com/invite/${parsed.code}`;
   if (parsed.kind === "friend") return `descall.com/register?ref=${parsed.username || parsed.code}`;
   return href;

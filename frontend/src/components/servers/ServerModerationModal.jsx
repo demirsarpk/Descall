@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Ban, ScrollText, UserCheck, RefreshCw, X } from "lucide-react";
+import { Ban, ScrollText, UserCheck, RefreshCw, X, Search } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { useToast } from "../../context/ToastContext";
 import { Avatar } from "../ui/Avatar";
@@ -55,6 +55,8 @@ export default function ServerModerationModal({
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [auditActionFilter, setAuditActionFilter] = useState("all");
+  const [auditSearch, setAuditSearch] = useState("");
 
   const loadBans = async () => {
     if (!server?.id || !canBan) return;
@@ -85,6 +87,31 @@ export default function ServerModerationModal({
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server?.id, tab]);
+
+  const auditActionOptions = useMemo(() => {
+    const actions = [...new Set((logs || []).map((log) => log.action).filter(Boolean))].sort();
+    return actions;
+  }, [logs]);
+
+  const filteredLogs = useMemo(() => {
+    const q = auditSearch.trim().toLowerCase();
+    return (logs || []).filter((log) => {
+      if (auditActionFilter !== "all" && log.action !== auditActionFilter) return false;
+      if (!q) return true;
+      const actorName = String(
+        log.actorDisplayName || log.actorUsername || log.actorId || ""
+      ).toLowerCase();
+      const targetName = String(
+        log.changes?.username ||
+          log.changes?.targetUsername ||
+          log.changes?.displayName ||
+          log.targetId ||
+          ""
+      ).toLowerCase();
+      const reason = String(log.reason || "").toLowerCase();
+      return actorName.includes(q) || targetName.includes(q) || reason.includes(q);
+    });
+  }, [logs, auditActionFilter, auditSearch]);
 
   const unban = async (ban) => {
     if (!server?.id) return;
@@ -158,6 +185,35 @@ export default function ServerModerationModal({
         </div>
 
         <div className="server-moderation-toolbar">
+          {tab === "audit" && canAudit ? (
+            <>
+              <label className="server-audit-filter">
+                <span className="sr-only">{t("Filter by action")}</span>
+                <select
+                  value={auditActionFilter}
+                  onChange={(e) => setAuditActionFilter(e.target.value)}
+                  aria-label={t("Filter by action")}
+                >
+                  <option value="all">{t("All actions")}</option>
+                  {auditActionOptions.map((action) => (
+                    <option key={action} value={action}>
+                      {t(ACTION_LABELS[action] || action)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="server-audit-search">
+                <Search size={14} aria-hidden />
+                <input
+                  type="search"
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  placeholder={t("Search by username")}
+                  aria-label={t("Search by username")}
+                />
+              </label>
+            </>
+          ) : null}
           <button type="button" className="icon-btn" onClick={load} title={t("Refresh")}>
             <RefreshCw size={14} />
           </button>
@@ -209,15 +265,22 @@ export default function ServerModerationModal({
                 );
               })
             )
-          ) : logs.length === 0 ? (
-            <p className="server-empty-hint">{t("No audit events yet")}</p>
+          ) : filteredLogs.length === 0 ? (
+            <p className="server-empty-hint">
+              {logs.length === 0 ? t("No audit events yet") : t("No matching audit events")}
+            </p>
           ) : (
-            logs.map((log) => {
+            filteredLogs.map((log) => {
               const actorName = nameOf({
                 actorId: log.actorId,
                 actorUsername: log.actorUsername,
                 actorDisplayName: log.actorDisplayName,
               });
+              const targetHint =
+                log.changes?.username ||
+                log.changes?.targetUsername ||
+                log.changes?.displayName ||
+                (log.targetId ? String(log.targetId).slice(0, 8) : "");
               return (
                 <div key={log.id} className="server-audit-row">
                   <div className="server-audit-action">
@@ -226,6 +289,7 @@ export default function ServerModerationModal({
                   <div className="server-audit-detail">
                     <span>
                       {actorName !== "User" ? actorName : t("System")}
+                      {targetHint ? ` → ${targetHint}` : ""}
                       {log.reason ? ` · ${log.reason}` : ""}
                     </span>
                     <time dateTime={log.createdAt || undefined}>

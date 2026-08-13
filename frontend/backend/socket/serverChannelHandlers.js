@@ -76,7 +76,7 @@ async function assertTextChannelAccess(userId, channelId, requiredFlag) {
     err.status = 404;
     throw err;
   }
-  if (channel.type !== "text") {
+  if (channel.type !== "text" && channel.type !== "announcement") {
     const err = new Error("Only text channels support chat messages.");
     err.status = 400;
     err.code = "NOT_TEXT_CHANNEL";
@@ -141,6 +141,7 @@ async function assertSlowmode({ userId, channel, channelId, channelBits, tempId,
   }
 
   let dbTime = 0;
+  let dbOk = false;
   try {
     const { data: rows, error } = await supabase
       .from("server_messages")
@@ -153,12 +154,14 @@ async function assertSlowmode({ userId, channel, channelId, channelBits, tempId,
     if (error) throw error;
     const lastMessage = Array.isArray(rows) ? rows[0] : null;
     dbTime = lastMessage?.created_at ? new Date(lastMessage.created_at).getTime() : 0;
+    dbOk = true;
   } catch (err) {
-    // Fall back to in-memory marker so a history query failure can't disable slowmode.
+    // Fall back to in-memory marker only when DB is unavailable.
     console.warn("[ServerChannel] slowmode history lookup failed:", err?.message || err);
   }
-  const memTime = slowmodeLastSend.get(slowmodeKey(channelId, userId)) || 0;
-  const lastTime = Math.max(dbTime, memTime);
+  const lastTime = dbOk
+    ? dbTime
+    : slowmodeLastSend.get(slowmodeKey(channelId, userId)) || 0;
   if (!lastTime) return false;
 
   const elapsedSeconds = Math.floor((Date.now() - lastTime) / 1000);
@@ -177,6 +180,53 @@ async function assertSlowmode({ userId, channel, channelId, channelBits, tempId,
 
 function markSlowmodeSend(channelId, userId) {
   slowmodeLastSend.set(slowmodeKey(channelId, userId), Date.now());
+}
+
+/** Best-effort unread bump for server members when a message is sent (async). */
+function bumpChannelUnreadForMembers(serverId, channelId, senderId) {
+  if (!serverId || !channelId || !senderId) return;
+  (async () => {
+    try {
+      const { data: members, error: mErr } = await supabase
+        .from("server_members")
+        .select("user_id")
+        .eq("server_id", serverId)
+        .neq("user_id", senderId);
+      if (mErr) throw mErr;
+      const userIds = (members || []).map((m) => m.user_id).filter(Boolean);
+      if (!userIds.length) return;
+
+      const { data: existing, error: rErr } = await supabase
+        .from("server_channel_reads")
+        .select("user_id, unread_count")
+        .eq("channel_id", channelId)
+        .in("user_id", userIds);
+      if (rErr) throw rErr;
+
+      const byUser = new Map((existing || []).map((r) => [r.user_id, r]));
+      await Promise.all(
+        userIds.map(async (uid) => {
+          const row = byUser.get(uid);
+          if (row) {
+            await supabase
+              .from("server_channel_reads")
+              .update({ unread_count: Math.max(0, Number(row.unread_count) || 0) + 1 })
+              .eq("user_id", uid)
+              .eq("channel_id", channelId);
+          } else {
+            await supabase.from("server_channel_reads").insert({
+              user_id: uid,
+              channel_id: channelId,
+              unread_count: 1,
+              last_read_at: null,
+            });
+          }
+        })
+      );
+    } catch (err) {
+      console.warn("[ServerChannel] unread bump failed:", err?.message || err);
+    }
+  })();
 }
 
 function mapPinnedServerMessage(row, senderProfile) {
@@ -695,6 +745,30 @@ function registerServerChannelHandlers(io, socket) {
           }
         }
 
+        if (mediaUrl && !isVoice) {
+          if (!hasPermission(channelBits, Permissions.ATTACH_FILES)) {
+            socket.emit("server:channel:message:error", {
+              channelId,
+              tempId: tempId || null,
+              message: "Missing permission to attach files.",
+              code: "MISSING_PERMISSION",
+            });
+            return;
+          }
+        }
+
+        if (trimmedContent && /https?:\/\//i.test(trimmedContent)) {
+          if (!hasPermission(channelBits, Permissions.EMBED_LINKS)) {
+            socket.emit("server:channel:message:error", {
+              channelId,
+              tempId: tempId || null,
+              message: "Missing permission to embed links.",
+              code: "MISSING_PERMISSION",
+            });
+            return;
+          }
+        }
+
         // Gate @everyone / @here without MENTION_EVERYONE
         if (
           trimmedContent &&
@@ -870,6 +944,8 @@ function registerServerChannelHandlers(io, socket) {
           message,
           tempId,
         });
+
+        bumpChannelUnreadForMembers(channel.server_id, channelId, myId);
 
         // Direct @mention alerts (works even if the target is not in the channel room)
         if (trimmedContent) {

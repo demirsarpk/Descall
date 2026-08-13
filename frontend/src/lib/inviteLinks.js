@@ -5,6 +5,7 @@
 const HOST_RE =
   /(?:^|\.)descall\.(?:com|vercel\.app)$|^des-call\.onrender\.com$|^(?:localhost|127\.0\.0\.1)(?::\d+)?$/i;
 const CODE_RE = "[A-Za-z0-9_-]{4,32}";
+const VANITY_SLUG_RE = "[a-z0-9][a-z0-9-]{2,31}";
 const USERNAME_RE = "[A-Za-z0-9_.-]{2,24}";
 
 /** Full URLs + protocol-less descall.com / www.descall.com invite paths */
@@ -55,8 +56,15 @@ export function parseDescallInviteUrl(href) {
 
   const path = url.pathname || "";
 
+  // Server vanity: /s/:slug
+  let m = path.match(new RegExp(`^/s/(${VANITY_SLUG_RE})/?$`, "i"));
+  if (m) {
+    const slug = m[1].toLowerCase();
+    return { kind: "server", code: `vanity:${slug}`, vanitySlug: slug, url: cleaned };
+  }
+
   // Server: /servers/join/:code  or  /invite/s/:code
-  let m = path.match(new RegExp(`^/servers/join/(${CODE_RE})/?$`, "i"));
+  m = path.match(new RegExp(`^/servers/join/(${CODE_RE})/?$`, "i"));
   if (m) {
     return { kind: "server", code: m[1], url: cleaned };
   }
@@ -108,6 +116,17 @@ export function extractDescallInvites(text) {
 
 export function isDescallInviteUrl(href) {
   return Boolean(parseDescallInviteUrl(href));
+}
+
+export function isVanityServerInvite(inviteOrCode) {
+  const code = typeof inviteOrCode === "string" ? inviteOrCode : inviteOrCode?.code;
+  return String(code || "").toLowerCase().startsWith("vanity:");
+}
+
+export function vanitySlugFromInviteCode(code) {
+  return String(code || "")
+    .replace(/^vanity:/i, "")
+    .toLowerCase();
 }
 
 /** In-memory preview cache so repeated links don't refetch. */

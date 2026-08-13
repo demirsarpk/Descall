@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Settings2, Camera, ImagePlus, Trash2, X } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
@@ -19,6 +19,10 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
   const [description, setDescription] = useState(server?.description || "");
   const [iconUrl, setIconUrl] = useState(server?.iconUrl || "");
   const [bannerUrl, setBannerUrl] = useState(server?.bannerUrl || "");
+  const [afkChannelId, setAfkChannelId] = useState(server?.afkChannelId || "");
+  const [afkTimeoutSeconds, setAfkTimeoutSeconds] = useState(server?.afkTimeoutSeconds ?? 300);
+  const [systemChannelId, setSystemChannelId] = useState(server?.systemChannelId || "");
+  const [welcomeChannelId, setWelcomeChannelId] = useState(server?.welcomeChannelId || "");
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [cropSrc, setCropSrc] = useState("");
@@ -31,7 +35,30 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
     setDescription(server?.description || "");
     setIconUrl(server?.iconUrl || "");
     setBannerUrl(server?.bannerUrl || "");
-  }, [server?.id, server?.name, server?.description, server?.iconUrl, server?.bannerUrl]);
+    setAfkChannelId(server?.afkChannelId || "");
+    setAfkTimeoutSeconds(server?.afkTimeoutSeconds ?? 300);
+    setSystemChannelId(server?.systemChannelId || "");
+    setWelcomeChannelId(server?.welcomeChannelId || "");
+  }, [
+    server?.id,
+    server?.name,
+    server?.description,
+    server?.iconUrl,
+    server?.bannerUrl,
+    server?.afkChannelId,
+    server?.afkTimeoutSeconds,
+    server?.systemChannelId,
+    server?.welcomeChannelId,
+  ]);
+
+  const voiceChannels = useMemo(
+    () => (server?.channels || []).filter((c) => c.type === "voice"),
+    [server?.channels]
+  );
+  const textChannels = useMemo(
+    () => (server?.channels || []).filter((c) => c.type === "text" || c.type === "announcement"),
+    [server?.channels]
+  );
 
   const canManage = serverHasPermission(server, "MANAGE_GUILD");
   const initials = String(name || server?.name || "?")
@@ -110,6 +137,10 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
         description: description.trim() || null,
         iconUrl: iconUrl || null,
         bannerUrl: bannerUrl || null,
+        afkChannelId: afkChannelId || null,
+        afkTimeoutSeconds: Number(afkTimeoutSeconds) || 300,
+        systemChannelId: systemChannelId || null,
+        welcomeChannelId: welcomeChannelId || null,
       });
       onServerUpdated?.(
         data?.server || {
@@ -118,6 +149,10 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
           description: description.trim() || null,
           iconUrl: iconUrl || null,
           bannerUrl: bannerUrl || null,
+          afkChannelId: afkChannelId || null,
+          afkTimeoutSeconds: Number(afkTimeoutSeconds) || 300,
+          systemChannelId: systemChannelId || null,
+          welcomeChannelId: welcomeChannelId || null,
         }
       );
       toast(t("Saved"), "success");
@@ -281,6 +316,68 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
               placeholder={t("What is this server about?")}
             />
           </label>
+
+          {canManage && (
+            <div className="server-settings-channels">
+              <h4>{t("System channels")}</h4>
+              <label className="server-field">
+                <span>{t("AFK voice channel")}</span>
+                <select
+                  value={afkChannelId}
+                  disabled={busy}
+                  onChange={(e) => setAfkChannelId(e.target.value)}
+                >
+                  <option value="">{t("None")}</option>
+                  {voiceChannels.map((ch) => (
+                    <option key={ch.id} value={ch.id}>
+                      {ch.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="server-field">
+                <span>{t("AFK timeout (seconds)")}</span>
+                <input
+                  type="number"
+                  min={60}
+                  max={3600}
+                  value={afkTimeoutSeconds}
+                  disabled={busy || !afkChannelId}
+                  onChange={(e) => setAfkTimeoutSeconds(Number(e.target.value) || 300)}
+                />
+              </label>
+              <label className="server-field">
+                <span>{t("System channel")}</span>
+                <select
+                  value={systemChannelId}
+                  disabled={busy}
+                  onChange={(e) => setSystemChannelId(e.target.value)}
+                >
+                  <option value="">{t("None")}</option>
+                  {textChannels.map((ch) => (
+                    <option key={ch.id} value={ch.id}>
+                      #{ch.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="server-field">
+                <span>{t("Welcome channel")}</span>
+                <select
+                  value={welcomeChannelId}
+                  disabled={busy}
+                  onChange={(e) => setWelcomeChannelId(e.target.value)}
+                >
+                  <option value="">{t("None")}</option>
+                  {textChannels.map((ch) => (
+                    <option key={ch.id} value={ch.id}>
+                      #{ch.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
 
           <div className="server-settings-footer">
             <button

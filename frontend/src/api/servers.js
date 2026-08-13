@@ -231,10 +231,10 @@ export function getServerAuditLogs(serverId, { limit = 40 } = {}) {
 }
 
 /** Create a shareable server invite (CREATE_INSTANT_INVITE). */
-export function createServerInvite(serverId, { maxUses, maxAgeSeconds, channelId } = {}) {
+export function createServerInvite(serverId, { maxUses, maxAgeSeconds, channelId, temporary } = {}) {
   return serversRequest(`/api/servers/${serverId}/invites`, {
     method: "POST",
-    body: { maxUses, maxAgeSeconds, channelId },
+    body: { maxUses, maxAgeSeconds, channelId, temporary: Boolean(temporary) },
   });
 }
 
@@ -254,6 +254,17 @@ export function previewServerInvite(code) {
 
 export function joinServerByInvite(code) {
   return serversRequest(`/api/servers/invites/${encodeURIComponent(code)}/join`, {
+    method: "POST",
+    body: {},
+  });
+}
+
+export function previewServerVanity(slug) {
+  return serversRequest(`/api/servers/vanity/${encodeURIComponent(slug)}`);
+}
+
+export function joinServerByVanity(slug) {
+  return serversRequest(`/api/servers/vanity/${encodeURIComponent(slug)}/join`, {
     method: "POST",
     body: {},
   });
@@ -286,6 +297,64 @@ export function updateServerNotificationLevel(serverId, notificationLevel) {
   return serversRequest(`/api/servers/${serverId}/me/settings`, {
     method: "PATCH",
     body: { notificationLevel },
+  });
+}
+
+/** Muted text channel ids for current user. */
+export function getMyChannelMutes() {
+  return serversRequest("/api/servers/me/channel-mutes");
+}
+
+/** Toggle per-channel mute (synced). */
+export function setChannelMute(serverId, channelId, muted) {
+  return serversRequest(`/api/servers/${serverId}/channels/${channelId}/mute`, {
+    method: "PUT",
+    body: { muted: Boolean(muted) },
+  });
+}
+
+/** Unread counts per channel id. */
+export function getMyChannelUnread() {
+  return serversRequest("/api/servers/me/unread");
+}
+
+/** Mark a text channel read. */
+export function markChannelRead(serverId, channelId, { lastReadMessageId } = {}) {
+  return serversRequest(`/api/servers/${serverId}/channels/${channelId}/read`, {
+    method: "POST",
+    body: lastReadMessageId ? { lastReadMessageId } : {},
+  });
+}
+
+/** Personal server folders. */
+export function getMyServerFolders() {
+  return serversRequest("/api/servers/me/folders");
+}
+
+export function createServerFolder(name) {
+  return serversRequest("/api/servers/me/folders", {
+    method: "POST",
+    body: { name },
+  });
+}
+
+export function updateServerFolder(folderId, patch = {}) {
+  return serversRequest(`/api/servers/me/folders/${folderId}`, {
+    method: "PATCH",
+    body: patch,
+  });
+}
+
+export function deleteServerFolder(folderId) {
+  return serversRequest(`/api/servers/me/folders/${folderId}`, {
+    method: "DELETE",
+  });
+}
+
+export function setServerFolder(serverId, folderId) {
+  return serversRequest(`/api/servers/${serverId}/me/folder`, {
+    method: "PATCH",
+    body: { folderId: folderId ?? null },
   });
 }
 

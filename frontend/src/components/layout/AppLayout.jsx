@@ -99,6 +99,9 @@ export default function AppLayout({
   onUpdateChannel,
   onDeleteChannel,
   onRolesChanged,
+  serverFolders = [],
+  onServerFoldersChange,
+  onMoveServerToFolder,
   onReorderServers,
   onRefreshServers,
   onJoinServer,
@@ -400,6 +403,9 @@ export default function AppLayout({
           <ServersSidebar
             servers={servers}
             serversLoaded={serversLoaded}
+            serverFolders={serverFolders}
+            onServerFoldersChange={onServerFoldersChange}
+            onMoveServerToFolder={onMoveServerToFolder}
             activeServer={activeServer}
             activeChannel={activeChannel}
             channelUnread={channelUnread}

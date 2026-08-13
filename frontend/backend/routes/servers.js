@@ -28,6 +28,7 @@ const {
   clearServerTimeout,
   updateMemberNickname,
 } = require("../lib/slashCommands");
+const { postWelcomeMessage } = require("../lib/serverMemberJoin");
 const {
   BLANK_ID,
   listTemplateSummaries,
@@ -44,7 +45,7 @@ const NAME_MIN = 2;
 const NAME_MAX = 100;
 const CHANNEL_NAME_MIN = 1;
 const CHANNEL_NAME_MAX = 100;
-const CHANNEL_TYPES = new Set(["text", "voice", "stage", "category"]);
+const CHANNEL_TYPES = new Set(["text", "voice", "stage", "category", "announcement"]);
 const ROLE_NAME_MIN = 1;
 const ROLE_NAME_MAX = 100;
 const INVITE_CODE_LENGTH = 8;
@@ -74,10 +75,8 @@ const EDITABLE_PERMISSION_KEYS = [
   "CONNECT",
   "SPEAK",
   "REQUEST_TO_SPEAK",
-  "PRIORITY_SPEAKER",
   "STREAM",
   "MUTE_MEMBERS",
-  "DEAFEN_MEMBERS",
   "MOVE_MEMBERS",
   "ADMINISTRATOR",
 ];
@@ -116,6 +115,17 @@ const CHANNEL_OVERRIDE_KEYS = {
     "CREATE_INSTANT_INVITE",
   ],
   category: ["VIEW_CHANNEL", "CONNECT", "SPEAK", "SEND_MESSAGES", "CREATE_INSTANT_INVITE"],
+  announcement: [
+    "VIEW_CHANNEL",
+    "SEND_MESSAGES",
+    "MANAGE_MESSAGES",
+    "CREATE_INSTANT_INVITE",
+    "MENTION_EVERYONE",
+    "ATTACH_FILES",
+    "EMBED_LINKS",
+    "ADD_REACTIONS",
+    "READ_MESSAGE_HISTORY",
+  ],
 };
 
 async function filterChannelsForMember(serverId, userId, channels) {
@@ -163,6 +173,31 @@ function generateInviteCode() {
     code += INVITE_CHARS.charAt(Math.floor(Math.random() * INVITE_CHARS.length));
   }
   return code;
+}
+
+function publicVanityUrl(req, slug) {
+  const origin =
+    process.env.PUBLIC_APP_URL ||
+    process.env.APP_ORIGIN ||
+    `${req.protocol}://${req.get("host")}`;
+  return `${String(origin).replace(/\/$/, "")}/s/${slug}`;
+}
+
+function normalizeVanitySlug(raw) {
+  const slug = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (!slug) return null;
+  if (slug.length < 3 || slug.length > 32) {
+    const err = new Error("Vanity URL must be 3–32 characters (letters, numbers, hyphens).");
+    err.status = 400;
+    err.code = "INVALID_VANITY_SLUG";
+    throw err;
+  }
+  return slug;
 }
 
 function publicInviteUrl(req, code) {
@@ -249,7 +284,7 @@ function cleanName(raw) {
 /** Discord-like channel names: text is slug-ish; voice/category keep spaces. */
 function cleanChannelName(raw, type) {
   let name = String(raw || "").trim();
-  if (type === "text") {
+  if (type === "text" || type === "announcement") {
     name = name
       .toLowerCase()
       .replace(/\s+/g, "-")
@@ -393,6 +428,10 @@ function publicServer(row, extra = {}) {
     rulesChannelId: row.rules_channel_id || null,
     rulesText: row.rules_text || null,
     verificationLevel: row.verification_level || "none",
+    afkChannelId: row.afk_channel_id || null,
+    afkTimeoutSeconds: row.afk_timeout_seconds ?? 300,
+    systemChannelId: row.system_channel_id || null,
+    welcomeChannelId: row.welcome_channel_id || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...extra,
@@ -598,6 +637,44 @@ function emitToServer(req, serverId, event, payload) {
   }
 }
 
+function getIo(req) {
+  return req.app?.get?.("io") || null;
+}
+
+async function assertServerChannelRef(serverId, channelId, allowedTypes) {
+  if (!channelId) return null;
+  const { data: channel, error } = await supabase
+    .from("server_channels")
+    .select("id, type, server_id")
+    .eq("id", channelId)
+    .eq("server_id", serverId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!channel) {
+    const err = new Error("Channel not found on this server.");
+    err.status = 400;
+    throw err;
+  }
+  if (allowedTypes && !allowedTypes.includes(channel.type)) {
+    const err = new Error("Invalid channel type for this setting.");
+    err.status = 400;
+    throw err;
+  }
+  return channel;
+}
+
+async function afterMemberJoined(req, serverRow, userId, serverId) {
+  const bundle = await loadServerBundle(serverId);
+  await postWelcomeMessage(getIo(req), bundle?.server || serverRow, userId);
+  const myPermissions = await buildMyPermissionsPayload(serverId, userId);
+  const member = await publicMemberBrief(serverId, userId);
+  emitToServer(req, serverId, "server:member:joined", {
+    member,
+    memberCount: bundle.memberCount,
+  });
+  return { bundle, myPermissions, member };
+}
+
 async function publicMemberBrief(serverId, userId, extras = {}) {
   try {
     const { data: user } = await supabase
@@ -684,7 +761,7 @@ router.get("/my", requireAuth, async (req, res) => {
     const { data: memberships, error } = await supabase
       .from("server_members")
       .select(
-        "server_id, nickname, list_position, joined_at, notification_level, rules_accepted_at, timeout_until, timeout_reason"
+        "server_id, nickname, list_position, joined_at, notification_level, rules_accepted_at, timeout_until, timeout_reason, folder_id"
       )
       .eq("user_id", userId)
       .order("list_position", { ascending: true });
@@ -745,6 +822,7 @@ router.get("/my", requireAuth, async (req, res) => {
           rulesAcceptedAt: m.rules_accepted_at || null,
           timeoutUntil: m.timeout_until || null,
           timeoutReason: m.timeout_reason || null,
+          folderId: m.folder_id || null,
           isOwner: row.owner_id === userId,
           memberCount: counts.get(row.id) || 0,
           channels: channelsByServer.get(row.id) || [],
@@ -813,6 +891,385 @@ router.put("/my/order", requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[SERVERS] PUT /my/order error:", err);
     return res.status(500).json({ error: "Failed to reorder servers." });
+  }
+});
+
+async function assertMemberChannel(serverId, channelId, userId) {
+  const { data: channel, error: chErr } = await supabase
+    .from("server_channels")
+    .select("id, server_id, type")
+    .eq("id", channelId)
+    .eq("server_id", serverId)
+    .maybeSingle();
+  if (chErr) throw chErr;
+  if (!channel) {
+    const err = new Error("Channel not found.");
+    err.status = 404;
+    throw err;
+  }
+  const { data: member, error: mErr } = await supabase
+    .from("server_members")
+    .select("user_id")
+    .eq("server_id", serverId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (mErr) throw mErr;
+  if (!member) {
+    const err = new Error("You are not a member of this server.");
+    err.status = 403;
+    throw err;
+  }
+  return channel;
+}
+
+/**
+ * GET /servers/me/channel-mutes — muted text channel ids for current user.
+ */
+router.get("/me/channel-mutes", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { data, error } = await supabase
+      .from("server_channel_mutes")
+      .select("channel_id")
+      .eq("user_id", userId);
+    if (error) throw error;
+    return res.json({
+      channelIds: (data || []).map((r) => r.channel_id).filter(Boolean),
+    });
+  } catch (err) {
+    console.error("[SERVERS] GET /me/channel-mutes error:", err);
+    return res.status(500).json({ error: "Failed to load channel mutes." });
+  }
+});
+
+/**
+ * PUT /servers/:id/channels/:channelId/mute — toggle per-channel mute (synced).
+ */
+router.put("/:id/channels/:channelId/mute", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const channelId = req.params.channelId;
+    const userId = req.user.id;
+    const muted = Boolean(req.body?.muted);
+
+    const channel = await assertMemberChannel(serverId, channelId, userId);
+    if (channel.type !== "text") {
+      return res.status(400).json({ error: "Only text channels can be muted." });
+    }
+
+    if (muted) {
+      const { error } = await supabase.from("server_channel_mutes").upsert(
+        {
+          user_id: userId,
+          channel_id: channelId,
+          muted_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,channel_id" }
+      );
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from("server_channel_mutes")
+        .delete()
+        .eq("user_id", userId)
+        .eq("channel_id", channelId);
+      if (error) throw error;
+    }
+
+    return res.json({ channelId, serverId, muted });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] PUT channel mute error:", err);
+    return res.status(status).json({ error: err.message || "Failed to update channel mute." });
+  }
+});
+
+/**
+ * GET /servers/me/unread — unread counts per text channel for current user.
+ */
+router.get("/me/unread", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { data: memberships, error: mErr } = await supabase
+      .from("server_members")
+      .select("server_id")
+      .eq("user_id", userId);
+    if (mErr) throw mErr;
+    const serverIds = (memberships || []).map((m) => m.server_id).filter(Boolean);
+    if (!serverIds.length) {
+      return res.json({ unread: {} });
+    }
+
+    const { data: channels, error: cErr } = await supabase
+      .from("server_channels")
+      .select("id")
+      .in("server_id", serverIds)
+      .eq("type", "text");
+    if (cErr) throw cErr;
+    const channelIds = (channels || []).map((c) => c.id).filter(Boolean);
+    if (!channelIds.length) {
+      return res.json({ unread: {} });
+    }
+
+    const { data: reads, error: rErr } = await supabase
+      .from("server_channel_reads")
+      .select("channel_id, unread_count")
+      .eq("user_id", userId)
+      .in("channel_id", channelIds);
+    if (rErr) throw rErr;
+
+    const unread = {};
+    for (const row of reads || []) {
+      const count = Math.max(0, Number(row.unread_count) || 0);
+      if (count > 0 && row.channel_id) unread[row.channel_id] = count;
+    }
+    return res.json({ unread });
+  } catch (err) {
+    console.error("[SERVERS] GET /me/unread error:", err);
+    return res.status(500).json({ error: "Failed to load unread counts." });
+  }
+});
+
+/**
+ * POST /servers/:id/channels/:channelId/read — mark channel read for current user.
+ */
+router.post("/:id/channels/:channelId/read", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const channelId = req.params.channelId;
+    const userId = req.user.id;
+    const lastMessageId = req.body?.lastReadMessageId
+      ? String(req.body.lastReadMessageId)
+      : null;
+
+    await assertMemberChannel(serverId, channelId, userId);
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("server_channel_reads").upsert(
+      {
+        user_id: userId,
+        channel_id: channelId,
+        last_read_at: now,
+        last_read_message_id: lastMessageId,
+        unread_count: 0,
+      },
+      { onConflict: "user_id,channel_id" }
+    );
+    if (error) throw error;
+    return res.json({ channelId, serverId, lastReadAt: now, unreadCount: 0 });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] POST channel read error:", err);
+    return res.status(status).json({ error: err.message || "Failed to mark channel read." });
+  }
+});
+
+/**
+ * GET /servers/me/folders — personal server folders.
+ */
+router.get("/me/folders", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { data, error } = await supabase
+      .from("server_folders")
+      .select("id, name, position, created_at")
+      .eq("user_id", userId)
+      .order("position", { ascending: true });
+    if (error) throw error;
+    return res.json({
+      folders: (data || []).map((f) => ({
+        id: f.id,
+        name: f.name,
+        position: f.position ?? 0,
+        createdAt: f.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error("[SERVERS] GET /me/folders error:", err);
+    return res.status(500).json({ error: "Failed to load folders." });
+  }
+});
+
+/**
+ * POST /servers/me/folders — create folder.
+ */
+router.post("/me/folders", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const name = String(req.body?.name || "").trim().slice(0, 100);
+    if (name.length < 1) {
+      return res.status(400).json({ error: "Folder name is required." });
+    }
+    const { data: existing, error: listErr } = await supabase
+      .from("server_folders")
+      .select("position")
+      .eq("user_id", userId)
+      .order("position", { ascending: false })
+      .limit(1);
+    if (listErr) throw listErr;
+    const position =
+      existing?.length && Number.isFinite(existing[0].position)
+        ? existing[0].position + 1
+        : 0;
+    const { data, error } = await supabase
+      .from("server_folders")
+      .insert({ user_id: userId, name, position })
+      .select("id, name, position, created_at")
+      .single();
+    if (error) throw error;
+    return res.status(201).json({
+      folder: {
+        id: data.id,
+        name: data.name,
+        position: data.position ?? 0,
+        createdAt: data.created_at,
+      },
+    });
+  } catch (err) {
+    console.error("[SERVERS] POST /me/folders error:", err);
+    return res.status(500).json({ error: "Failed to create folder." });
+  }
+});
+
+/**
+ * PATCH /servers/me/folders/:folderId — rename or reorder folder.
+ */
+router.patch("/me/folders/:folderId", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const folderId = req.params.folderId;
+    const { data: row, error: findErr } = await supabase
+      .from("server_folders")
+      .select("id")
+      .eq("id", folderId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (!row) return res.status(404).json({ error: "Folder not found." });
+
+    const patch = {};
+    if (req.body?.name !== undefined) {
+      const name = String(req.body.name || "").trim().slice(0, 100);
+      if (name.length < 1) {
+        return res.status(400).json({ error: "Folder name is required." });
+      }
+      patch.name = name;
+    }
+    if (req.body?.position !== undefined) {
+      const pos = Math.floor(Number(req.body.position));
+      if (!Number.isFinite(pos) || pos < 0) {
+        return res.status(400).json({ error: "Invalid folder position." });
+      }
+      patch.position = pos;
+    }
+    if (!Object.keys(patch).length) {
+      return res.status(400).json({ error: "Nothing to update." });
+    }
+
+    const { data, error } = await supabase
+      .from("server_folders")
+      .update(patch)
+      .eq("id", folderId)
+      .eq("user_id", userId)
+      .select("id, name, position, created_at")
+      .single();
+    if (error) throw error;
+    return res.json({
+      folder: {
+        id: data.id,
+        name: data.name,
+        position: data.position ?? 0,
+        createdAt: data.created_at,
+      },
+    });
+  } catch (err) {
+    console.error("[SERVERS] PATCH /me/folders error:", err);
+    return res.status(500).json({ error: "Failed to update folder." });
+  }
+});
+
+/**
+ * DELETE /servers/me/folders/:folderId — delete folder (servers become unfiled).
+ */
+router.delete("/me/folders/:folderId", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const folderId = req.params.folderId;
+    const { data: row, error: findErr } = await supabase
+      .from("server_folders")
+      .select("id")
+      .eq("id", folderId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (findErr) throw findErr;
+    if (!row) return res.status(404).json({ error: "Folder not found." });
+
+    await supabase
+      .from("server_members")
+      .update({ folder_id: null })
+      .eq("user_id", userId)
+      .eq("folder_id", folderId);
+    const { error } = await supabase
+      .from("server_folders")
+      .delete()
+      .eq("id", folderId)
+      .eq("user_id", userId);
+    if (error) throw error;
+    return res.json({ message: "Folder deleted.", folderId });
+  } catch (err) {
+    console.error("[SERVERS] DELETE /me/folders error:", err);
+    return res.status(500).json({ error: "Failed to delete folder." });
+  }
+});
+
+/**
+ * PATCH /servers/:id/me/folder — assign this server to a folder (or unfiled).
+ */
+router.patch("/:id/me/folder", requireAuth, async (req, res) => {
+  try {
+    const serverId = req.params.id;
+    const userId = req.user.id;
+    const folderId =
+      req.body?.folderId === null || req.body?.folderId === ""
+        ? null
+        : req.body?.folderId
+          ? String(req.body.folderId)
+          : undefined;
+    if (folderId === undefined) {
+      return res.status(400).json({ error: "folderId is required (uuid or null)." });
+    }
+
+    const { data: member, error: mErr } = await supabase
+      .from("server_members")
+      .select("user_id")
+      .eq("server_id", serverId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (mErr) throw mErr;
+    if (!member) {
+      return res.status(403).json({ error: "You are not a member of this server." });
+    }
+
+    if (folderId) {
+      const { data: folder, error: fErr } = await supabase
+        .from("server_folders")
+        .select("id")
+        .eq("id", folderId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (fErr) throw fErr;
+      if (!folder) return res.status(404).json({ error: "Folder not found." });
+    }
+
+    const { error } = await supabase
+      .from("server_members")
+      .update({ folder_id: folderId })
+      .eq("server_id", serverId)
+      .eq("user_id", userId);
+    if (error) throw error;
+    return res.json({ serverId, folderId });
+  } catch (err) {
+    console.error("[SERVERS] PATCH /:id/me/folder error:", err);
+    return res.status(500).json({ error: "Failed to update server folder." });
   }
 });
 
@@ -1246,6 +1703,7 @@ router.post("/invites/:code/join", requireAuth, async (req, res) => {
       server_id: invite.server_id,
       user_id: userId,
       list_position: listPosition,
+      temporary: Boolean(invite.temporary),
     });
     if (joinErr) throw joinErr;
 
@@ -1265,13 +1723,12 @@ router.post("/invites/:code/join", requireAuth, async (req, res) => {
       changes: { via: "invite", code },
     });
 
-    const bundle = await loadServerBundle(invite.server_id);
-    const myPermissions = await buildMyPermissionsPayload(invite.server_id, userId);
-    const member = await publicMemberBrief(invite.server_id, userId);
-    emitToServer(req, invite.server_id, "server:member:joined", {
-      member,
-      memberCount: bundle.memberCount,
-    });
+    const { bundle, myPermissions } = await afterMemberJoined(
+      req,
+      null,
+      userId,
+      invite.server_id
+    );
 
     return res.status(201).json({
       alreadyMember: false,
@@ -1288,6 +1745,163 @@ router.post("/invites/:code/join", requireAuth, async (req, res) => {
   } catch (err) {
     const status = err.status || 500;
     if (status >= 500) console.error("[SERVERS] POST /invites/:code/join error:", err);
+    return res.status(status).json({ error: err.message || "Failed to join server.", code: err.code });
+  }
+});
+
+/**
+ * GET /servers/vanity/:slug — vanity URL preview (must be registered before /:id)
+ */
+router.get("/vanity/:slug", requireAuth, async (req, res) => {
+  try {
+    let slug;
+    try {
+      slug = normalizeVanitySlug(req.params.slug);
+    } catch (slugErr) {
+      return res.status(slugErr.status || 400).json({ error: slugErr.message, code: slugErr.code });
+    }
+
+    const { data: server, error } = await supabase
+      .from("servers")
+      .select(
+        "id, name, icon_url, banner_url, splash_url, description, owner_id, vanity_slug, is_public, community_enabled, rules_text, verification_level, welcome_channel_id"
+      )
+      .eq("vanity_slug", slug)
+      .maybeSingle();
+    if (error) throw error;
+    if (!server) {
+      return res.status(404).json({ error: "Server not found.", code: "VANITY_NOT_FOUND" });
+    }
+
+    const { count } = await supabase
+      .from("server_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("server_id", server.id);
+
+    const membership = await getMembership(server.id, req.user.id);
+
+    return res.json({
+      vanity: { slug, url: publicVanityUrl(req, slug) },
+      server: publicServer(server, {
+        memberCount: count || 1,
+        isMember: Boolean(membership),
+        isOwner: server.owner_id === req.user.id,
+        rulesAcceptedAt: membership?.rules_accepted_at || null,
+        needsRulesAccept:
+          Boolean(server.community_enabled) &&
+          Boolean(server.rules_text) &&
+          !membership?.rules_accepted_at,
+      }),
+    });
+  } catch (err) {
+    console.error("[SERVERS] GET /vanity/:slug error:", err);
+    return res.status(500).json({ error: "Failed to load server." });
+  }
+});
+
+/**
+ * POST /servers/vanity/:slug/join — join via vanity URL
+ */
+router.post("/vanity/:slug/join", requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    let slug;
+    try {
+      slug = normalizeVanitySlug(req.params.slug);
+    } catch (slugErr) {
+      return res.status(slugErr.status || 400).json({ error: slugErr.message, code: slugErr.code });
+    }
+
+    const { data: server, error } = await supabase
+      .from("servers")
+      .select("*")
+      .eq("vanity_slug", slug)
+      .maybeSingle();
+    if (error) throw error;
+    if (!server) {
+      return res.status(404).json({ error: "Server not found.", code: "VANITY_NOT_FOUND" });
+    }
+
+    const { data: ban } = await supabase
+      .from("server_bans")
+      .select("user_id")
+      .eq("server_id", server.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (ban) {
+      return res.status(403).json({ error: "You are banned from this server.", code: "BANNED" });
+    }
+
+    const existing = await getMembership(server.id, userId);
+    if (existing) {
+      const bundle = await loadServerBundle(server.id);
+      const myPermissions = await buildMyPermissionsPayload(server.id, userId);
+      return res.json({
+        alreadyMember: true,
+        server: publicServer(bundle.server, {
+          isOwner: bundle.server.owner_id === userId,
+          memberCount: bundle.memberCount,
+          nickname: existing.nickname || null,
+          listPosition: existing.list_position ?? 0,
+          joinedAt: existing.joined_at,
+          channels: bundle.channels.map(publicChannel),
+          roles: bundle.roles.map(publicRole),
+          myPermissions,
+        }),
+      });
+    }
+
+    try {
+      await assertJoinVerification(server, userId);
+    } catch (vErr) {
+      return res.status(vErr.status || 403).json({
+        error: vErr.message,
+        code: vErr.code || "VERIFICATION_REQUIRED",
+        requirements: vErr.requirements || [],
+        verificationLevel: vErr.verificationLevel || server.verification_level || "none",
+      });
+    }
+
+    const { count: existingPos } = await supabase
+      .from("server_members")
+      .select("server_id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    const listPosition = existingPos || 0;
+
+    const { error: joinErr } = await supabase.from("server_members").insert({
+      server_id: server.id,
+      user_id: userId,
+      list_position: listPosition,
+      temporary: false,
+    });
+    if (joinErr) throw joinErr;
+
+    await writeAudit({
+      serverId: server.id,
+      actorId: userId,
+      action: "MEMBER_JOIN",
+      targetType: "member",
+      targetId: userId,
+      changes: { via: "vanity", slug },
+    });
+
+    const { bundle, myPermissions } = await afterMemberJoined(req, server, userId, server.id);
+
+    return res.status(201).json({
+      alreadyMember: false,
+      server: publicServer(bundle.server, {
+        isOwner: false,
+        memberCount: bundle.memberCount,
+        nickname: null,
+        listPosition,
+        channels: bundle.channels.map(publicChannel),
+        roles: bundle.roles.map(publicRole),
+        myPermissions,
+      }),
+    });
+  } catch (err) {
+    const status = err.status || 500;
+    if (status >= 500) console.error("[SERVERS] POST /vanity/:slug/join error:", err);
     return res.status(status).json({ error: err.message || "Failed to join server.", code: err.code });
   }
 });
@@ -1370,13 +1984,8 @@ router.post("/discover/:id/join", requireAuth, async (req, res) => {
       changes: { via: "discover" },
     });
 
-    const bundle = await loadServerBundle(serverId);
-    const myPermissions = await buildMyPermissionsPayload(serverId, userId);
-    const member = await publicMemberBrief(serverId, userId);
-    emitToServer(req, serverId, "server:member:joined", {
-      member,
-      memberCount: bundle.memberCount,
-    });
+    const { bundle, myPermissions } = await afterMemberJoined(req, server, userId, serverId);
+
     return res.status(201).json({
       alreadyMember: false,
       server: publicServer(bundle.server, {
@@ -2577,7 +3186,9 @@ router.post("/:id/channels", requireAuth, async (req, res) => {
     const serverId = req.params.id;
     const type = String(req.body?.type || "text").toLowerCase();
     if (!CHANNEL_TYPES.has(type)) {
-      return res.status(400).json({ error: "Channel type must be text, voice, stage, or category." });
+      return res.status(400).json({
+        error: "Channel type must be text, voice, stage, category, or announcement.",
+      });
     }
 
     await requireServerPermission(serverId, req.user.id, Permissions.MANAGE_CHANNELS);
@@ -2604,12 +3215,13 @@ router.post("/:id/channels", requireAuth, async (req, res) => {
     const parentId = req.body?.parentId || null;
     await assertValidParent(serverId, parentId, type);
 
+    const isTextLike = type === "text" || type === "announcement";
     const topic =
-      type === "text" && req.body?.topic != null
+      isTextLike && req.body?.topic != null
         ? String(req.body.topic).trim().slice(0, 1024) || null
         : null;
     const slowmodeParsed =
-      type === "text" && req.body?.slowmodeSeconds != null && req.body?.slowmodeSeconds !== ""
+      isTextLike && req.body?.slowmodeSeconds != null && req.body?.slowmodeSeconds !== ""
         ? Math.floor(Number(req.body.slowmodeSeconds))
         : 0;
     const slowmodeSeconds = Number.isFinite(slowmodeParsed)
@@ -2620,7 +3232,7 @@ router.post("/:id/channels", requireAuth, async (req, res) => {
       typeof req.body?.position === "number" && Number.isFinite(req.body.position)
         ? Math.max(0, Math.floor(req.body.position))
         : await nextChannelPosition(serverId);
-    const nsfw = type === "text" ? Boolean(req.body?.nsfw) : false;
+    const nsfw = isTextLike ? Boolean(req.body?.nsfw) : false;
 
     const { data: channel, error } = await supabase
       .from("server_channels")
@@ -2684,7 +3296,7 @@ router.patch("/:id/channels/:channelId", requireAuth, async (req, res) => {
       }
       patch.name = name;
     }
-    if (req.body?.topic !== undefined && existing.type === "text") {
+    if (req.body?.topic !== undefined && (existing.type === "text" || existing.type === "announcement")) {
       patch.topic = req.body.topic == null ? null : String(req.body.topic).trim().slice(0, 1024) || null;
     }
     if (req.body?.parentId !== undefined) {
@@ -2695,10 +3307,13 @@ router.patch("/:id/channels/:channelId", requireAuth, async (req, res) => {
     if (typeof req.body?.position === "number" && Number.isFinite(req.body.position)) {
       patch.position = Math.max(0, Math.floor(req.body.position));
     }
-    if (req.body?.nsfw !== undefined && existing.type === "text") {
+    if (req.body?.nsfw !== undefined && (existing.type === "text" || existing.type === "announcement")) {
       patch.nsfw = Boolean(req.body.nsfw);
     }
-    if (req.body?.slowmodeSeconds !== undefined && existing.type === "text") {
+    if (
+      req.body?.slowmodeSeconds !== undefined &&
+      (existing.type === "text" || existing.type === "announcement")
+    ) {
       const parsed = Math.floor(Number(req.body.slowmodeSeconds));
       if (!Number.isFinite(parsed)) {
         return res.status(400).json({ error: "Invalid slowmode value." });
@@ -3045,6 +3660,55 @@ router.patch("/:id", requireAuth, async (req, res) => {
         return res.status(400).json({ error: "Invalid verification level." });
       }
       patch.verification_level = level;
+    }
+    if (req.body?.vanitySlug !== undefined) {
+      const raw = req.body.vanitySlug;
+      if (raw == null || raw === "") {
+        patch.vanity_slug = null;
+      } else {
+        const slug = normalizeVanitySlug(raw);
+        const { data: taken } = await supabase
+          .from("servers")
+          .select("id")
+          .eq("vanity_slug", slug)
+          .neq("id", serverId)
+          .maybeSingle();
+        if (taken) {
+          return res.status(409).json({
+            error: "That vanity URL is already taken.",
+            code: "VANITY_TAKEN",
+          });
+        }
+        patch.vanity_slug = slug;
+      }
+    }
+    if (req.body?.afkChannelId !== undefined) {
+      const channelId = req.body.afkChannelId || null;
+      if (channelId) {
+        await assertServerChannelRef(serverId, channelId, ["voice"]);
+      }
+      patch.afk_channel_id = channelId;
+    }
+    if (req.body?.afkTimeoutSeconds !== undefined) {
+      const parsed = Math.floor(Number(req.body.afkTimeoutSeconds));
+      if (!Number.isFinite(parsed)) {
+        return res.status(400).json({ error: "Invalid AFK timeout." });
+      }
+      patch.afk_timeout_seconds = Math.max(60, Math.min(3600, parsed));
+    }
+    if (req.body?.systemChannelId !== undefined) {
+      const channelId = req.body.systemChannelId || null;
+      if (channelId) {
+        await assertServerChannelRef(serverId, channelId, ["text", "announcement"]);
+      }
+      patch.system_channel_id = channelId;
+    }
+    if (req.body?.welcomeChannelId !== undefined) {
+      const channelId = req.body.welcomeChannelId || null;
+      if (channelId) {
+        await assertServerChannelRef(serverId, channelId, ["text", "announcement"]);
+      }
+      patch.welcome_channel_id = channelId;
     }
 
     if (!Object.keys(patch).length) {

@@ -61,6 +61,8 @@ export function useServerVoice(socket) {
   const [remoteStreamsVersion, setRemoteStreamsVersion] = useState(0);
   const [serverMuted, setServerMuted] = useState(false);
   const serverMutedRef = useRef(false);
+  const [serverDeafened, setServerDeafened] = useState(false);
+  const serverDeafenedRef = useRef(false);
   const joinRef = useRef(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState(null);
@@ -138,6 +140,8 @@ export function useServerVoice(socket) {
       remoteAudioRefs.current.set(userId, el);
     }
     el.srcObject = stream;
+    el.muted = Boolean(serverDeafenedRef.current);
+    el.volume = serverDeafenedRef.current ? 0 : 1;
     el.play().catch(() => {});
     remoteStreamMapRef.current.set(userId, stream);
     setRemoteStreamsVersion((v) => v + 1);
@@ -146,6 +150,20 @@ export function useServerVoice(socket) {
       if (exists) return prev.map((p) => (p.id === userId ? { ...p, stream, hasAudio: true } : p));
       return [...prev, { id: userId, username: "Member", stream, hasAudio: true }];
     });
+  }, []);
+
+  const applyRemoteDeafen = useCallback((deafened) => {
+    serverDeafenedRef.current = Boolean(deafened);
+    setServerDeafened(Boolean(deafened));
+    for (const el of remoteAudioRefs.current.values()) {
+      el.muted = Boolean(deafened);
+      el.volume = deafened ? 0 : 1;
+    }
+    if (deafened) {
+      const track = localStreamRef.current?.getAudioTracks()?.[0];
+      if (track) track.enabled = false;
+      setMuted(true);
+    }
   }, []);
 
   const updateRemoteParticipant = useCallback((userId, patch) => {
@@ -345,6 +363,8 @@ export function useServerVoice(socket) {
     setMuted(false);
     setServerMuted(false);
     serverMutedRef.current = false;
+    setServerDeafened(false);
+    serverDeafenedRef.current = false;
     setChannelType("voice");
     setStageRole("speaker");
     setRequestedToSpeak(false);
@@ -696,6 +716,19 @@ export function useServerVoice(socket) {
         channelId,
         userId,
         muted: Boolean(muted),
+      });
+    },
+    [socket]
+  );
+
+  const serverDeafen = useCallback(
+    (serverId, channelId, userId, deafened) => {
+      if (!socket?.connected || !serverId || !userId) return;
+      socket.emit("server:voice:server-deafen", {
+        serverId,
+        channelId,
+        userId,
+        deafened: Boolean(deafened),
       });
     },
     [socket]
@@ -1105,6 +1138,7 @@ export function useServerVoice(socket) {
       fromUserId,
       muted: isMuted,
       serverMuted: sMuted,
+      serverDeafened: sDeafened,
       cameraOn,
     } = {}) => {
       if (!channelId || !fromUserId) return;
@@ -1116,6 +1150,7 @@ export function useServerVoice(socket) {
                   ...p,
                   muted: Boolean(isMuted),
                   serverMuted: Boolean(sMuted),
+                  serverDeafened: sDeafened !== undefined ? Boolean(sDeafened) : p.serverDeafened,
                   cameraOn: cameraOn !== undefined ? Boolean(cameraOn) : p.cameraOn,
                 }
               : p
@@ -1166,6 +1201,18 @@ export function useServerVoice(socket) {
       } else {
         setServerMuted(false);
         serverMutedRef.current = false;
+      }
+    };
+
+    const onForceDeafen = ({ channelId, deafened } = {}) => {
+      if (!channelId || channelId !== activeChannelIdRef.current) return;
+      if (deafened) {
+        applyLocalMute(true, { forced: true });
+        applyRemoteDeafen(true);
+      } else {
+        setServerDeafened(false);
+        serverDeafenedRef.current = false;
+        applyRemoteDeafen(false);
       }
     };
 
@@ -1350,6 +1397,7 @@ export function useServerVoice(socket) {
     socket.on("server:voice:force-disconnected", onForceDisconnected);
     socket.on("server:voice:force-moved", onForceMoved);
     socket.on("server:voice:force-mute", onForceMute);
+    socket.on("server:voice:force-deafen", onForceDeafen);
     socket.on("server:voice:screen:started", onScreenStarted);
     socket.on("server:voice:screen:stopped", onScreenStopped);
     socket.on("server:voice:camera:started", onCameraStarted);
@@ -1372,6 +1420,7 @@ export function useServerVoice(socket) {
       socket.off("server:voice:force-disconnected", onForceDisconnected);
       socket.off("server:voice:force-moved", onForceMoved);
       socket.off("server:voice:force-mute", onForceMute);
+      socket.off("server:voice:force-deafen", onForceDeafen);
       socket.off("server:voice:screen:started", onScreenStarted);
       socket.off("server:voice:screen:stopped", onScreenStopped);
       socket.off("server:voice:camera:started", onCameraStarted);
@@ -1381,6 +1430,7 @@ export function useServerVoice(socket) {
     };
   }, [
     applyLocalMute,
+    applyRemoteDeafen,
     cleanupAll,
     cleanupPeer,
     connectLiveKitRoom,
@@ -1411,6 +1461,7 @@ export function useServerVoice(socket) {
     participants,
     muted,
     serverMuted,
+    serverDeafened,
     connecting,
     error,
     voiceStatesByServer,
@@ -1442,6 +1493,7 @@ export function useServerVoice(socket) {
     disconnectMember,
     moveMember,
     serverMute,
+    serverDeafen,
     setStageParticipantRole,
   };
 }

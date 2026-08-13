@@ -26,6 +26,11 @@ export default function ServerCommunityModal({ server, onClose, onServerUpdated 
   const [splashUrl, setSplashUrl] = useState(server?.splashUrl || "");
   const [verificationLevel, setVerificationLevel] = useState(server?.verificationLevel || "none");
   const [isPublic, setIsPublic] = useState(Boolean(server?.isPublic));
+  const [vanitySlug, setVanitySlug] = useState(server?.vanitySlug || "");
+
+  const vanityPreviewUrl = vanitySlug
+    ? `https://descall.com/s/${String(vanitySlug).toLowerCase()}`
+    : "";
 
   useEffect(() => {
     setCommunityEnabled(Boolean(server?.communityEnabled));
@@ -33,7 +38,8 @@ export default function ServerCommunityModal({ server, onClose, onServerUpdated 
     setSplashUrl(server?.splashUrl || "");
     setVerificationLevel(server?.verificationLevel || "none");
     setIsPublic(Boolean(server?.isPublic));
-  }, [server?.id, server?.communityEnabled, server?.rulesText, server?.splashUrl, server?.verificationLevel, server?.isPublic]);
+    setVanitySlug(server?.vanitySlug || "");
+  }, [server?.id, server?.communityEnabled, server?.rulesText, server?.splashUrl, server?.verificationLevel, server?.isPublic, server?.vanitySlug]);
 
   const canManage = serverHasPermission(server, "MANAGE_GUILD");
 
@@ -48,6 +54,7 @@ export default function ServerCommunityModal({ server, onClose, onServerUpdated 
         splashUrl: splashUrl.trim() || null,
         verificationLevel,
         isPublic,
+        vanitySlug: vanitySlug.trim() || null,
       });
       onServerUpdated?.(data?.server || {
         ...server,
@@ -56,6 +63,7 @@ export default function ServerCommunityModal({ server, onClose, onServerUpdated 
         splashUrl: splashUrl.trim() || null,
         verificationLevel,
         isPublic,
+        vanitySlug: vanitySlug.trim() || null,
       });
       toast(t("Saved"), "success");
       onClose?.();
@@ -120,6 +128,27 @@ export default function ServerCommunityModal({ server, onClose, onServerUpdated 
                 </option>
               ))}
             </select>
+          </label>
+          <label className="server-field">
+            <span>{t("Vanity invite URL")}</span>
+            <input
+              value={vanitySlug}
+              disabled={!canManage || busy}
+              onChange={(e) =>
+                setVanitySlug(
+                  e.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9-]/g, "")
+                    .slice(0, 32)
+                )
+              }
+              placeholder={t("my-server")}
+            />
+            {vanityPreviewUrl ? (
+              <p className="server-modal-sub">{vanityPreviewUrl}</p>
+            ) : (
+              <p className="server-modal-sub">{t("Custom link: descall.com/s/your-name")}</p>
+            )}
           </label>
           <label className="server-field">
             <span>{t("Invite splash image URL")}</span>

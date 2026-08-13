@@ -41,6 +41,10 @@ import {
   Camera,
   Upload,
   ImagePlus,
+  FolderPlus,
+  GripVertical,
+  Headphones,
+  HeadphonesOff,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { useToast } from "../../context/ToastContext";
@@ -48,9 +52,15 @@ import { resolveDisplayName } from "../../lib/userProfile";
 import { Avatar } from "../ui/Avatar";
 import ImageCropModal from "../ui/ImageCropModal";
 import useSpeaking from "../../hooks/useSpeaking";
-import { isChannelMuted, toggleChannelMute } from "../../lib/serverChannelMutes";
+import { isChannelMuted, setChannelMutedAsync } from "../../lib/serverChannelMutes";
 import { serverHasPermission, serverPermissionsLoaded } from "../../lib/serverPermissions";
-import { updateServerNotificationLevel, updateServer } from "../../api/servers";
+import {
+  updateServerNotificationLevel,
+  updateServer,
+  createServerFolder,
+  deleteServerFolder,
+  setServerFolder,
+} from "../../api/servers";
 import { uploadFile } from "../../api/media";
 import { readFileAsDataUrl } from "../../lib/cropImage";
 import { BLANK_TEMPLATE, SERVER_TEMPLATES, getTemplateCard } from "../../lib/serverTemplatesCatalog";
@@ -88,6 +98,9 @@ const NOTIF_LEVELS = [
 export default function ServersSidebar({
   servers = [],
   serversLoaded = false,
+  serverFolders = [],
+  onServerFoldersChange,
+  onMoveServerToFolder,
   activeServer = null,
   activeChannel = null,
   channelUnread = {},
@@ -131,7 +144,11 @@ export default function ServersSidebar({
   const [channelMenuId, setChannelMenuId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [collapsedCats, setCollapsedCats] = useState({});
+  const [collapsedFolders, setCollapsedFolders] = useState({});
   const [mutedChannelTick, setMutedChannelTick] = useState(0);
+  const [serverListReorderMode, setServerListReorderMode] = useState(false);
+  const [channelReorderMode, setChannelReorderMode] = useState(false);
+  const [serverMenuId, setServerMenuId] = useState(null);
   const [serverIconCropSrc, setServerIconCropSrc] = useState("");
   const [serverIconBusy, setServerIconBusy] = useState(false);
   const [rulesPrompt, setRulesPrompt] = useState(false);
@@ -286,6 +303,7 @@ export default function ServersSidebar({
   const canViewAudit = permissionsReady && serverHasPermission(activeServer, "VIEW_AUDIT_LOG");
   const canMoveMembers = permissionsReady && serverHasPermission(activeServer, "MOVE_MEMBERS");
   const canMuteMembers = permissionsReady && serverHasPermission(activeServer, "MUTE_MEMBERS");
+  const canDeafenMembers = permissionsReady && serverHasPermission(activeServer, "DEAFEN_MEMBERS");
   const [channelAccess, setChannelAccess] = useState(null); // channel
   const [voiceMenu, setVoiceMenu] = useState(null); // { user, channelId, x, y }
   const voiceStates = serverVoice?.voiceStatesByServer?.[activeServer?.id] || {};
@@ -310,6 +328,29 @@ export default function ServersSidebar({
   );
   const channelTree = useMemo(() => buildChannelTree(activeServer?.channels || []), [activeServer?.channels]);
 
+  const groupedServers = useMemo(() => {
+    const folderMap = new Map(
+      (serverFolders || []).map((f) => [String(f.id), { ...f, servers: [] }])
+    );
+    const unfiled = [];
+    for (const server of servers || []) {
+      const fid = server.folderId ? String(server.folderId) : null;
+      if (fid && folderMap.has(fid)) {
+        folderMap.get(fid).servers.push(server);
+      } else {
+        unfiled.push(server);
+      }
+    }
+    return {
+      folders: [...folderMap.values()].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
+      unfiled,
+    };
+  }, [servers, serverFolders]);
+
+  const serverListDraggable = !isMobile || serverListReorderMode;
+  const channelListDraggable = canManageChannels && (!isMobile || channelReorderMode);
+  const dragReorderTitle = t("Hold and drag to reorder");
+
   useEffect(() => {
     setMenuOpen(false);
     setChannelMenuId(null);
@@ -329,12 +370,139 @@ export default function ServersSidebar({
     setConfirm({ mode, server: activeServer });
   };
 
-  const handleToggleChannelMute = (channelId) => {
-    if (!channelId) return;
-    toggleChannelMute(channelId);
-    setMutedChannelTick((n) => n + 1);
+  const handleToggleChannelMute = async (channelId) => {
+    if (!channelId || !activeServer?.id) return;
+    const next = !isChannelMuted(channelId);
     setChannelMenuId(null);
+    try {
+      await setChannelMutedAsync(channelId, activeServer.id, next);
+      setMutedChannelTick((n) => n + 1);
+    } catch (err) {
+      toast(err?.message || t("Something went wrong."), "error");
+    }
   };
+
+  const handleCreateFolder = async () => {
+    const name = window.prompt(t("Folder name"));
+    if (!name?.trim()) return;
+    try {
+      const { folder } = await createServerFolder(name.trim());
+      if (folder) {
+        onServerFoldersChange?.([...(serverFolders || []), folder]);
+        toast(t("Folder created"), "success");
+      }
+    } catch (err) {
+      toast(err?.message || t("Something went wrong."), "error");
+    }
+  };
+
+  const handleMoveServerToFolder = async (server, folderId) => {
+    if (!server?.id) return;
+    setServerMenuId(null);
+    try {
+      if (onMoveServerToFolder) {
+        await onMoveServerToFolder(server.id, folderId);
+      } else {
+        await setServerFolder(server.id, folderId);
+      }
+      toast(folderId ? t("Server moved to folder") : t("Server removed from folder"), "success");
+    } catch (err) {
+      toast(err?.message || t("Something went wrong."), "error");
+    }
+  };
+
+  const handleDeleteFolder = async (folder) => {
+    if (!folder?.id) return;
+    if (!window.confirm(t("Delete folder \"{name}\"? Servers will stay unfiled.", { name: folder.name }))) {
+      return;
+    }
+    try {
+      await deleteServerFolder(folder.id);
+      onServerFoldersChange?.((serverFolders || []).filter((f) => f.id !== folder.id));
+      toast(t("Folder deleted"), "success");
+    } catch (err) {
+      toast(err?.message || t("Something went wrong."), "error");
+    }
+  };
+
+  const renderServerRow = (server) => (
+    <li
+      key={server.id}
+      className={`server-list-row-wrap${dragServerId === server.id ? " is-dragging" : ""}${
+        dragOverServerId === server.id ? " is-drag-over" : ""
+      }`}
+      draggable={serverListDraggable}
+      title={serverListDraggable ? dragReorderTitle : undefined}
+      onDragStart={(e) => {
+        if (!serverListDraggable) return;
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", server.id);
+        setDragServerId(server.id);
+      }}
+      onDragOver={(e) => {
+        if (!serverListDraggable) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (dragOverServerId !== server.id) setDragOverServerId(server.id);
+      }}
+      onDrop={(e) => {
+        if (!serverListDraggable) return;
+        e.preventDefault();
+        reorderServerDrop(server);
+      }}
+      onDragEnd={() => {
+        setDragServerId(null);
+        setDragOverServerId(null);
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setServerMenuId(server.id);
+      }}
+    >
+      <button
+        type="button"
+        className={`server-list-item${serverUnreadById[server.id] ? " has-unread" : ""}`}
+        onClick={() => {
+          if (dragServerId) return;
+          onSelectServer?.(server);
+        }}
+      >
+        <ServerAvatar server={server} />
+        <div className="server-list-copy">
+          <span className="server-list-name">{server.name}</span>
+          <span className="server-list-sub">
+            {t("{count} members", { count: server.memberCount || 1 })}
+            {server.isOwner ? ` · ${t("Owner")}` : ""}
+          </span>
+        </div>
+        <span className="server-list-badge-slot">
+          <ServerUnreadBadge count={serverUnreadById[server.id] || 0} />
+        </span>
+      </button>
+      {serverMenuId === server.id ? (
+        <div className="server-folder-move-menu" role="menu">
+          <div className="server-folder-move-title">{t("Move to folder")}</div>
+          <button type="button" className="server-dropdown-item" onClick={() => handleMoveServerToFolder(server, null)}>
+            {t("Unfiled")}
+          </button>
+          {(serverFolders || []).map((folder) => (
+            <button
+              key={folder.id}
+              type="button"
+              className="server-dropdown-item"
+              onClick={() => handleMoveServerToFolder(server, folder.id)}
+            >
+              <Folder size={14} />
+              {folder.name}
+            </button>
+          ))}
+          <button type="button" className="server-dropdown-item" onClick={() => setServerMenuId(null)}>
+            {t("Close")}
+          </button>
+        </div>
+      ) : null}
+    </li>
+  );
 
   const runLeaveOrDelete = async (mode, server, confirmName) => {
     if (mode === "delete") await onDeleteServer?.(server.id, confirmName);
@@ -380,6 +548,17 @@ export default function ServersSidebar({
                   <Plus size={18} />
                 </button>
               )}
+              {canManageChannels && isMobile ? (
+                <button
+                  type="button"
+                  className={`icon-btn${channelReorderMode ? " active" : ""}`}
+                  title={t("Reorder channels")}
+                  aria-pressed={channelReorderMode}
+                  onClick={() => setChannelReorderMode((v) => !v)}
+                >
+                  <GripVertical size={18} />
+                </button>
+              ) : null}
               <button
                 type="button"
                 className="icon-btn"
@@ -624,7 +803,8 @@ export default function ServersSidebar({
                           canMuteMembers={canMuteMembers}
                           voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice" || c.type === "stage")}
                           serverVoice={serverVoice}
-                          draggable={canManageChannels}
+                          draggable={channelListDraggable}
+                          dragReorderTitle={dragReorderTitle}
                           dragging={dragChannelId === ch.id}
                           dragOver={dragOverChannelId === ch.id}
                           onDragStartChannel={() => setDragChannelId(ch.id)}
@@ -675,7 +855,8 @@ export default function ServersSidebar({
                   active={activeChannel?.id === node.id}
                   canManage={canManageChannels}
                   menuOpen={channelMenuId === node.id}
-                  draggable={canManageChannels}
+                  draggable={channelListDraggable}
+                  dragReorderTitle={dragReorderTitle}
                   dragging={dragChannelId === node.id}
                   dragOver={dragOverChannelId === node.id}
                   onDragStartChannel={() => setDragChannelId(node.id)}
@@ -856,11 +1037,12 @@ export default function ServersSidebar({
           )}
         </AnimatePresence>
 
-        {voiceMenu && (canMoveMembers || canMuteMembers) && (
+        {voiceMenu && (canMoveMembers || canMuteMembers || canDeafenMembers) && (
           <VoiceMemberContextMenu
             menu={voiceMenu}
             canMove={canMoveMembers}
             canMute={canMuteMembers}
+            canDeafen={canDeafenMembers}
             voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice" || c.type === "stage")}
             serverId={activeServer?.id}
             serverVoice={serverVoice}
@@ -932,6 +1114,23 @@ export default function ServersSidebar({
             </button>
             <button
               type="button"
+              className={`icon-btn${serverListReorderMode ? " active" : ""}`}
+              title={isMobile ? t("Reorder servers") : dragReorderTitle}
+              aria-pressed={serverListReorderMode}
+              onClick={() => setServerListReorderMode((v) => !v)}
+            >
+              <GripVertical size={18} />
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              title={t("New folder")}
+              onClick={handleCreateFolder}
+            >
+              <FolderPlus size={18} />
+            </button>
+            <button
+              type="button"
               className="icon-btn"
               title={canCreate ? t("Create server") : t("Own limit reached ({max})", { max: maxOwned })}
               disabled={!canCreate}
@@ -944,6 +1143,11 @@ export default function ServersSidebar({
 
         <div className="server-owned-banner">
           {t("Owned {owned} / {max}", { owned: ownedCount, max: maxOwned })}
+          {!isMobile ? (
+            <span className="server-dnd-hint" title={dragReorderTitle}>
+              {dragReorderTitle}
+            </span>
+          ) : null}
         </div>
 
         <div className="sidebar-content">
@@ -973,56 +1177,69 @@ export default function ServersSidebar({
               </button>
             </div>
           ) : (
-            <ul className="server-list">
-              {servers.map((server) => (
-                <li
-                  key={server.id}
-                  className={`server-list-row-wrap${dragServerId === server.id ? " is-dragging" : ""}${
-                    dragOverServerId === server.id ? " is-drag-over" : ""
-                  }`}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/plain", server.id);
-                    setDragServerId(server.id);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "move";
-                    if (dragOverServerId !== server.id) setDragOverServerId(server.id);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    reorderServerDrop(server);
-                  }}
-                  onDragEnd={() => {
-                    setDragServerId(null);
-                    setDragOverServerId(null);
-                  }}
-                >
-                  <button
-                    type="button"
-                    className={`server-list-item${serverUnreadById[server.id] ? " has-unread" : ""}`}
-                    onClick={() => {
-                      if (dragServerId) return;
-                      onSelectServer?.(server);
-                    }}
-                  >
-                    <ServerAvatar server={server} />
-                    <div className="server-list-copy">
-                      <span className="server-list-name">{server.name}</span>
-                      <span className="server-list-sub">
-                        {t("{count} members", { count: server.memberCount || 1 })}
-                        {server.isOwner ? ` · ${t("Owner")}` : ""}
-                      </span>
+            <div className="server-list-grouped">
+              {groupedServers.folders.map((folder) => {
+                const closed = Boolean(collapsedFolders[folder.id]);
+                return (
+                  <section key={folder.id} className="server-folder-section">
+                    <div
+                      className={`server-folder-head${dragOverServerId === `folder:${folder.id}` ? " is-drag-over" : ""}`}
+                      onDragOver={(e) => {
+                        if (!serverListDraggable) return;
+                        e.preventDefault();
+                        setDragOverServerId(`folder:${folder.id}`);
+                      }}
+                      onDrop={(e) => {
+                        if (!serverListDraggable || !dragServerId) return;
+                        e.preventDefault();
+                        const dragged = servers.find((s) => s.id === dragServerId);
+                        if (dragged) handleMoveServerToFolder(dragged, folder.id);
+                        setDragServerId(null);
+                        setDragOverServerId(null);
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="server-folder-toggle"
+                        onClick={() =>
+                          setCollapsedFolders((prev) => ({ ...prev, [folder.id]: !prev[folder.id] }))
+                        }
+                      >
+                        {closed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                        <Folder size={14} />
+                        <span>{folder.name}</span>
+                        <span className="server-folder-count">{folder.servers.length}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn sm"
+                        title={t("Delete folder")}
+                        onClick={() => handleDeleteFolder(folder)}
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
-                    <span className="server-list-badge-slot">
-                      <ServerUnreadBadge count={serverUnreadById[server.id] || 0} />
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    {!closed ? (
+                      <ul className="server-list server-list-in-folder">
+                        {folder.servers.map((server) => renderServerRow(server))}
+                      </ul>
+                    ) : null}
+                  </section>
+                );
+              })}
+              {groupedServers.unfiled.length > 0 ? (
+                <section className="server-folder-section">
+                  {groupedServers.folders.length > 0 ? (
+                    <div className="server-folder-head server-folder-head-unfiled">
+                      <span>{t("Unfiled")}</span>
+                    </div>
+                  ) : null}
+                  <ul className="server-list">
+                    {groupedServers.unfiled.map((server) => renderServerRow(server))}
+                  </ul>
+                </section>
+              ) : null}
+            </div>
           )}
         </div>
       </div>
@@ -1122,9 +1339,10 @@ function ServerVoiceUserRow({ member, stream = null, size = 22, onContextMenu })
     attackMs: 55,
     releaseMs: 260,
   });
+  const isPrioritySpeaker = Boolean(speaking && member?.canPrioritySpeaker);
   return (
     <li
-      className={`server-voice-user${member?.muted || member?.serverMuted ? " is-muted" : ""}${speaking ? " is-speaking" : ""}`}
+      className={`server-voice-user${member?.muted || member?.serverMuted ? " is-muted" : ""}${member?.serverDeafened ? " is-deafened" : ""}${speaking ? " is-speaking" : ""}${isPrioritySpeaker ? " is-priority-speaker" : ""}`}
       title={member?.username || name}
       onContextMenu={onContextMenu}
       onClick={(e) => {
@@ -1150,6 +1368,14 @@ function ServerVoiceUserRow({ member, stream = null, size = 22, onContextMenu })
       {member?.requestedToSpeak ? (
         <span className="server-stage-request-badge">{t("Requested")}</span>
       ) : null}
+      {isPrioritySpeaker ? (
+        <span className="server-priority-speaker-badge" title={t("Priority speaker")}>
+          {t("Priority")}
+        </span>
+      ) : null}
+      {member?.serverDeafened ? (
+        <HeadphonesOff size={12} className="server-voice-user-deafen" aria-hidden />
+      ) : null}
       {member?.muted || member?.serverMuted ? (
         <MicOff size={12} className="server-voice-user-mic" aria-hidden />
       ) : null}
@@ -1174,6 +1400,7 @@ function VoiceMemberContextMenu({
   menu,
   canMove,
   canMute,
+  canDeafen = false,
   voiceChannels = [],
   serverId,
   serverVoice,
@@ -1219,6 +1446,19 @@ function VoiceMemberContextMenu({
           >
             <MicOff size={14} />
             {user.serverMuted ? t("Server unmute") : t("Server mute")}
+          </button>
+        )}
+        {canDeafen && (
+          <button
+            type="button"
+            className="server-dropdown-item"
+            onClick={() => {
+              serverVoice?.serverDeafen?.(serverId, channelId, user.id, !user.serverDeafened);
+              onClose();
+            }}
+          >
+            {user.serverDeafened ? <Headphones size={14} /> : <HeadphonesOff size={14} />}
+            {user.serverDeafened ? t("Undeafen") : t("Server deafen")}
           </button>
         )}
         {canMove && isStage && (
@@ -1301,6 +1541,7 @@ function ChannelRow({
   canMoveMembers = false,
   canMuteMembers = false,
   draggable = false,
+  dragReorderTitle = "",
   dragging = false,
   dragOver = false,
   onDragStartChannel,
@@ -1318,9 +1559,16 @@ function ChannelRow({
 }) {
   const t = useT();
   const isVoiceLike = channel.type === "voice" || channel.type === "stage";
-  const Icon = channel.type === "stage" ? Radio : channel.type === "voice" ? Volume2 : Hash;
+  const Icon =
+    channel.type === "stage"
+      ? Radio
+      : channel.type === "voice"
+        ? Volume2
+        : channel.type === "announcement"
+          ? Megaphone
+          : Hash;
   const voiceMembers = isVoiceLike ? voiceState?.members || [] : [];
-  const showMenu = canManage || canManageRoles || channel.type === "text";
+  const showMenu = canManage || canManageRoles || channel.type === "text" || channel.type === "announcement";
   void muteTick;
   const unreadCount = Number(unread) || 0;
   const canModVoice = canMoveMembers || canMuteMembers;
@@ -1328,6 +1576,7 @@ function ChannelRow({
     <div
       className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""} ${muted ? "is-muted-channel" : ""} ${unreadCount > 0 ? "has-unread" : ""} ${dragging ? "is-dragging" : ""} ${dragOver ? "is-drag-over" : ""}`}
       draggable={Boolean(draggable)}
+      title={draggable ? dragReorderTitle : undefined}
       onDragStart={(e) => {
         if (!draggable) return;
         e.dataTransfer.effectAllowed = "move";

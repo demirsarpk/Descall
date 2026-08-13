@@ -20,7 +20,12 @@ import {
   updateChannel,
   deleteChannel,
   getChannelMessages,
+  getMyChannelUnread,
+  markChannelRead,
+  getMyServerFolders,
+  setServerFolder,
 } from "./api/servers";
+import { syncChannelMutesFromServer } from "./lib/serverChannelMutes";
 import { createSocket } from "./socket";
 import { API_BASE_URL } from "./config/api";
 import { preloadIceServers } from "./lib/iceConfig";
@@ -308,6 +313,7 @@ export default function App() {
   const [myGroups, setMyGroups] = useState([]);
   const [groupMessagesById, setGroupMessagesById] = useState({});
   const [myServers, setMyServers] = useState([]);
+  const [serverFolders, setServerFolders] = useState([]);
   const [serversLoaded, setServersLoaded] = useState(false);
   const [activeServer, setActiveServer] = useState(null);
   const [activeChannel, setActiveChannel] = useState(null);
@@ -529,6 +535,26 @@ export default function App() {
   }, []);
   const bumpChannelUnreadRef = useRef(bumpChannelUnread);
   bumpChannelUnreadRef.current = bumpChannelUnread;
+
+  const syncServerChannelMeta = useCallback(async () => {
+    try {
+      const [unreadRes, foldersRes] = await Promise.all([
+        getMyChannelUnread(),
+        getMyServerFolders(),
+      ]);
+      if (unreadRes?.unread && typeof unreadRes.unread === "object") {
+        setChannelUnread(unreadRes.unread);
+      }
+      setServerFolders(foldersRes?.folders || []);
+    } catch (err) {
+      console.warn("[App] server channel meta sync failed:", err?.message || err);
+    }
+    try {
+      await syncChannelMutesFromServer();
+    } catch (err) {
+      console.warn("[App] channel mutes sync failed:", err?.message || err);
+    }
+  }, []);
 
   /** Discord-like per-server notification level: all | mentions | muted */
   const getServerNotificationLevel = useCallback((serverId) => {
@@ -1049,6 +1075,7 @@ export default function App() {
           setOwnedServerCount(data?.ownedCount || 0);
           setMaxOwnedServers(data?.maxOwned || 10);
           setServersLoaded(true);
+          syncServerChannelMeta();
         })
         .catch((err) => {
           console.error("[App] load servers error:", err);
@@ -2674,16 +2701,21 @@ export default function App() {
       .finally(() => setMessagesLoading(false));
   }, [activeView, activeServer?.id, activeChannel?.id, activeChannel?.type]);
 
-  // Clear unread when opening a channel
+  // Clear unread when opening a channel + persist read state
   useEffect(() => {
-    if (!activeChannel?.id || activeChannel.type !== "text") return;
+    if (!activeChannel?.id || activeChannel.type !== "text" || !activeServer?.id) return;
     setChannelUnread((prev) => {
       if (!prev[activeChannel.id]) return prev;
       const next = { ...prev };
       delete next[activeChannel.id];
       return next;
     });
-  }, [activeChannel?.id, activeChannel?.type]);
+    const msgs = channelMessagesById[activeChannel.id];
+    const lastMsg = Array.isArray(msgs) && msgs.length ? msgs[msgs.length - 1] : null;
+    markChannelRead(activeServer.id, activeChannel.id, {
+      lastReadMessageId: lastMsg?.id || null,
+    }).catch((err) => console.warn("[App] mark channel read failed:", err?.message || err));
+  }, [activeChannel?.id, activeChannel?.type, activeServer?.id, channelMessagesById]);
 
   // Sync the "ongoing call" banner for whichever group is currently open.
   // The live push (group:call:banner-update) only reaches clients that were
@@ -3446,6 +3478,7 @@ export default function App() {
       setOwnedServerCount(data?.ownedCount || 0);
       setMaxOwnedServers(data?.maxOwned || 10);
       setServersLoaded(true);
+      await syncServerChannelMeta();
       if (activeServer?.id) {
         const updated = (data?.servers || []).find((s) => s.id === activeServer.id);
         if (!updated) {
@@ -3617,6 +3650,24 @@ export default function App() {
     }
   };
 
+  const handleMoveServerToFolder = async (serverId, folderId) => {
+    await setServerFolder(serverId, folderId);
+    setMyServers((prev) =>
+      prev.map((s) => (String(s.id) === String(serverId) ? { ...s, folderId: folderId || null } : s))
+    );
+    if (activeServer?.id && String(activeServer.id) === String(serverId)) {
+      setActiveServer((prev) => (prev ? { ...prev, folderId: folderId || null } : prev));
+    }
+  };
+    setMyServers(orderedServers);
+    try {
+      await reorderMyServers(orderedServers.map((s) => s.id));
+    } catch (err) {
+      setMyServers(previous);
+      throw err;
+    }
+  };
+
   const handleDeleteChannel = async (channelId) => {
     if (!activeServer?.id) return;
     await deleteChannel(activeServer.id, channelId);
@@ -3745,6 +3796,9 @@ export default function App() {
           groupsLoaded={groupsLoaded}
           servers={myServers}
           serversLoaded={serversLoaded}
+          serverFolders={serverFolders}
+          onServerFoldersChange={setServerFolders}
+          onMoveServerToFolder={handleMoveServerToFolder}
           activeServer={activeServer}
           activeChannel={activeChannel}
           channelUnread={channelUnread}
