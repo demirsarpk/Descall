@@ -1201,6 +1201,7 @@ export const phrases = {
   "Add members to this role…": "Bu role üye ekle…",
   "No members have this role yet.": "Bu role henüz kimse atanmadı.",
   "Remove role": "Rolü kaldır",
+  "Assign role": "Rol ver",
   "This member has an equal or higher role.": "Bu üyenin eşit veya daha yüksek bir rolü var.",
   "Create a role first, then assign it to members.": "Önce bir rol oluştur, sonra üyelere ata.",
   "You can own at most {max} servers.": "En fazla {max} sunucuya sahip olabilirsin.",

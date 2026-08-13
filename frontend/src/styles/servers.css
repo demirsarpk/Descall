@@ -1556,6 +1556,96 @@
   min-height: 0;
 }
 
+/* Inline role chips (members tab — primary mobile UX) */
+.server-role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border-3);
+  background: var(--surface-1);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.server-role-chip:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-0);
+}
+
+.server-role-chip.active {
+  background: color-mix(in srgb, var(--role-color, var(--primary)) 14%, transparent);
+  border-color: color-mix(in srgb, var(--role-color, var(--primary)) 55%, var(--border-3));
+}
+
+.server-role-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.server-role-chip.is-pending {
+  opacity: 0.7;
+}
+
+.sra-chip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding-right: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sra-chip-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-2);
+  background: var(--surface-1);
+}
+
+.sra-chip-row.is-locked {
+  opacity: 0.92;
+}
+
+.sra-chip-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sra-role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sra-chip-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.sra-busy-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
 /* Advanced member ↔ role assigner */
 .sra-root {
   display: flex;

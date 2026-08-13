@@ -11,7 +11,6 @@ import {
   Plus,
   Users,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { useT } from "../../context/LocaleContext";
 import { Avatar } from "../ui/Avatar";
 
@@ -25,7 +24,9 @@ function memberLabel(member) {
 }
 
 /**
- * Advanced member ↔ role assignment UI (Discord-style dual pane).
+ * Member ↔ role assignment UI.
+ * Primary interaction: inline role chips per member (works on mobile).
+ * Secondary: by-role view to add/remove members for one role.
  */
 export default function ServerMemberRoleAssign({
   server,
@@ -39,7 +40,6 @@ export default function ServerMemberRoleAssign({
   const [view, setView] = useState("members"); // members | roles
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [selectedRoleId, setSelectedRoleId] = useState(assignableRoles[0]?.id || null);
   const [addQuery, setAddQuery] = useState("");
   const [pendingId, setPendingId] = useState(null);
@@ -50,14 +50,15 @@ export default function ServerMemberRoleAssign({
     return map;
   }, [allRoles]);
 
+  const actorIsOwner = Boolean(server?.isOwner || server?.myPermissions?.isOwner);
+  const actorIsAdmin = Boolean(server?.myPermissions?.flags?.ADMINISTRATOR);
   const actorHighestPosition = Number(server?.myPermissions?.highestPosition) || 0;
 
-  const canManageMember = (member) =>
-    Boolean(
-      member &&
-        !member.isOwner &&
-        (server?.isOwner || actorHighestPosition > (Number(member.highestPosition) || 0))
-    );
+  const canManageMember = (member) => {
+    if (!member || member.isOwner) return false;
+    if (actorIsOwner || actorIsAdmin) return true;
+    return actorHighestPosition > (Number(member.highestPosition) || 0);
+  };
 
   const sortedMembers = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -68,14 +69,14 @@ export default function ServerMemberRoleAssign({
         const hay = `${m.displayName || ""} ${m.username || ""} ${m.nickname || ""}`.toLowerCase();
         return hay.includes(q);
       })
-      .sort((a, b) => memberLabel(a).localeCompare(memberLabel(b)));
-  }, [members, query, roleFilter]);
-
-  const selectedMember =
-    sortedMembers.find((m) => m.userId === selectedMemberId) ||
-    members.find((m) => m.userId === selectedMemberId) ||
-    sortedMembers[0] ||
-    null;
+      .sort((a, b) => {
+        // Manageable members first, then name — avoids defaulting to a locked owner row.
+        const am = canManageMember(a) ? 0 : 1;
+        const bm = canManageMember(b) ? 0 : 1;
+        if (am !== bm) return am - bm;
+        return memberLabel(a).localeCompare(memberLabel(b));
+      });
+  }, [members, query, roleFilter, actorIsOwner, actorIsAdmin, actorHighestPosition]);
 
   const selectedRole =
     assignableRoles.find((r) => r.id === selectedRoleId) || assignableRoles[0] || null;
@@ -98,7 +99,7 @@ export default function ServerMemberRoleAssign({
         return hay.includes(q);
       })
       .slice(0, 8);
-  }, [members, selectedRole, addQuery, server, actorHighestPosition]);
+  }, [members, selectedRole, addQuery, actorIsOwner, actorIsAdmin, actorHighestPosition]);
 
   const roleCounts = useMemo(() => {
     const counts = new Map();
@@ -112,9 +113,11 @@ export default function ServerMemberRoleAssign({
   }, [members, assignableRoles]);
 
   const toggle = async (member, role, hasRole) => {
-    if (!member || !role || busy) return;
+    if (!member || !role) return;
     if (!canManageMember(member)) return;
-    setPendingId(`${member.userId}:${role.id}`);
+    const key = `${member.userId}:${role.id}`;
+    if (pendingId === key) return;
+    setPendingId(key);
     try {
       await onToggleRole?.(member, role.id, hasRole);
     } finally {
@@ -192,30 +195,25 @@ export default function ServerMemberRoleAssign({
       </div>
 
       {view === "members" ? (
-        <div className="sra-layout">
-          <div className="sra-list">
-            {sortedMembers.length === 0 ? (
-              <p className="sra-list-empty">{t("No members match your filters.")}</p>
-            ) : (
-              sortedMembers.map((member) => {
-                const active = selectedMember?.userId === member.userId;
-                const pills = (member.roleIds || [])
-                  .map((id) => roleById.get(id))
-                  .filter((r) => r && !r.isEveryone)
-                  .sort((a, b) => (b.position || 0) - (a.position || 0))
-                  .slice(0, 3);
-                return (
-                  <button
-                    key={member.userId}
-                    type="button"
-                    className={`sra-member-row${active ? " active" : ""}${
-                      !canManageMember(member) ? " is-locked" : ""
-                    }`}
-                    onClick={() => setSelectedMemberId(member.userId)}
-                  >
+        <div className="sra-chip-list">
+          {sortedMembers.length === 0 ? (
+            <p className="sra-list-empty">{t("No members match your filters.")}</p>
+          ) : (
+            sortedMembers.map((member) => {
+              const locked = !canManageMember(member);
+              const assigned = (member.roleIds || [])
+                .map((id) => roleById.get(id))
+                .filter((r) => r && !r.isEveryone)
+                .sort((a, b) => (b.position || 0) - (a.position || 0));
+              return (
+                <div
+                  key={member.userId}
+                  className={`sra-chip-row${locked ? " is-locked" : ""}`}
+                >
+                  <div className="sra-chip-identity">
                     <Avatar
                       name={memberLabel(member)}
-                      size={36}
+                      size={40}
                       user={{
                         id: member.userId,
                         username: member.username,
@@ -224,146 +222,73 @@ export default function ServerMemberRoleAssign({
                       imageUrl={member.avatarUrl || undefined}
                     />
                     <div className="sra-member-meta">
-                      <strong style={{ color: pills[0] ? colorToHex(pills[0].color) : undefined }}>
+                      <strong
+                        style={{
+                          color: assigned[0] ? colorToHex(assigned[0].color) : undefined,
+                        }}
+                      >
                         {memberLabel(member)}
                         {member.isOwner ? (
                           <Crown size={12} className="sra-owner-icon" title={t("Owner")} />
                         ) : null}
+                        {locked ? <Lock size={12} className="sra-lock" /> : null}
                       </strong>
-                      <span>@{member.username || "—"}</span>
-                      <div className="sra-mini-pills">
-                        {pills.map((role) => (
-                          <em
-                            key={role.id}
-                            style={{
-                              borderColor: colorToHex(role.color),
-                              color: colorToHex(role.color),
-                            }}
-                          >
-                            {role.name}
-                          </em>
-                        ))}
-                        {(member.roleIds || []).filter((id) => {
-                          const r = roleById.get(id);
-                          return r && !r.isEveryone;
-                        }).length > 3 ? (
-                          <em className="more">
-                            +
-                            {(member.roleIds || []).filter((id) => {
-                              const r = roleById.get(id);
-                              return r && !r.isEveryone;
-                            }).length - 3}
-                          </em>
-                        ) : null}
-                      </div>
-                    </div>
-                    {!canManageMember(member) ? <Lock size={14} className="sra-lock" /> : null}
-                  </button>
-                );
-              })
-            )}
-          </div>
-
-          <div className="sra-detail">
-            {!selectedMember ? (
-              <div className="sra-empty">
-                <UserRound size={28} strokeWidth={1.5} />
-                <h4>{t("Select a member")}</h4>
-                <p>{t("Choose someone from the list to manage their roles.")}</p>
-              </div>
-            ) : (
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={selectedMember.userId}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.18 }}
-                  className="sra-detail-inner"
-                >
-                  <div className="sra-detail-head">
-                    <Avatar
-                      name={memberLabel(selectedMember)}
-                      size={56}
-                      user={{
-                        id: selectedMember.userId,
-                        username: selectedMember.username,
-                        avatarUrl: selectedMember.avatarUrl,
-                      }}
-                      imageUrl={selectedMember.avatarUrl || undefined}
-                    />
-                    <div>
-                      <h4>{memberLabel(selectedMember)}</h4>
-                      <p>
-                        @{selectedMember.username || "—"}
-                        {selectedMember.isOwner ? ` · ${t("Owner")}` : ""}
-                        {selectedMember.nickname ? ` · ${selectedMember.nickname}` : ""}
-                      </p>
-                    </div>
-                  </div>
-
-                  {!canManageMember(selectedMember) ? (
-                    <div className="sra-banner">
-                      <Lock size={14} />
                       <span>
-                        {selectedMember.isOwner
-                          ? t("Server owners manage their own roles.")
-                          : t("This member has an equal or higher role.")}
+                        @{member.username || "—"}
+                        {member.isOwner ? ` · ${t("Owner")}` : ""}
                       </span>
                     </div>
-                  ) : null}
-
-                  <div className="sra-section-label">
-                    <Shield size={13} />
-                    {t("Assigned roles")}
-                    <span>
-                      {
-                        (selectedMember.roleIds || []).filter((id) =>
-                          assignableRoles.some((r) => r.id === id)
-                        ).length
-                      }
-                      /{assignableRoles.length}
-                    </span>
                   </div>
 
-                  <ul className="sra-role-assign-list">
+                  {locked ? (
+                    <p className="sra-chip-hint">
+                      {member.isOwner
+                        ? t("Server owners manage their own roles.")
+                        : t("This member has an equal or higher role.")}
+                    </p>
+                  ) : null}
+
+                  <div className="sra-role-chips" role="group" aria-label={t("Assigned roles")}>
                     {assignableRoles.map((role) => {
-                      const has = (selectedMember.roleIds || []).includes(role.id);
-                      const locked = !canManageMember(selectedMember);
-                      const pending = pendingId === `${selectedMember.userId}:${role.id}`;
+                      const has = (member.roleIds || []).includes(role.id);
+                      const pending = pendingId === `${member.userId}:${role.id}`;
                       const hex = colorToHex(role.color);
                       return (
-                        <li key={role.id}>
-                          <button
-                            type="button"
-                            className={`sra-role-toggle${has ? " is-on" : ""}${
-                              locked ? " is-disabled" : ""
-                            }`}
-                            disabled={busy || locked || pending}
-                            onClick={() => toggle(selectedMember, role, has)}
-                            style={has ? { "--role-color": hex } : undefined}
-                          >
-                            <span className="sra-role-swatch" style={{ background: hex }} />
-                            <span className="sra-role-copy">
-                              <strong>{role.name}</strong>
-                              <small>
-                                {role.hoist ? t("Displayed separately") : t("Role")}
-                                {" · "}
-                                {roleCounts.get(role.id) || 0} {t("members")}
-                              </small>
-                            </span>
-                            <span className={`sra-switch${has ? " on" : ""}`} aria-hidden>
-                              {has ? <Check size={12} /> : null}
-                            </span>
-                          </button>
-                        </li>
+                        <button
+                          key={role.id}
+                          type="button"
+                          className={`server-role-chip${has ? " active" : ""}${
+                            pending ? " is-pending" : ""
+                          }`}
+                          style={
+                            has
+                              ? { borderColor: hex, color: hex, ["--role-color"]: hex }
+                              : undefined
+                          }
+                          disabled={locked || pending}
+                          title={
+                            locked
+                              ? t("This member has an equal or higher role.")
+                              : has
+                                ? t("Remove role")
+                                : t("Assign role")
+                          }
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void toggle(member, role, has);
+                          }}
+                        >
+                          {has ? <Check size={12} aria-hidden /> : null}
+                          {role.name}
+                        </button>
                       );
                     })}
-                  </ul>
-                </motion.div>
-              </AnimatePresence>
-            )}
-          </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       ) : (
         <div className="sra-layout">
@@ -430,7 +355,7 @@ export default function ServerMemberRoleAssign({
                         <li key={member.userId}>
                           <button
                             type="button"
-                            disabled={busy}
+                            disabled={Boolean(pendingId)}
                             onClick={async () => {
                               await toggle(member, selectedRole, false);
                               setAddQuery("");
@@ -469,6 +394,7 @@ export default function ServerMemberRoleAssign({
                   <ul className="sra-role-members">
                     {membersWithSelectedRole.map((member) => {
                       const locked = !canManageMember(member);
+                      const pending = pendingId === `${member.userId}:${selectedRole.id}`;
                       return (
                         <li key={member.userId}>
                           <Avatar
@@ -488,7 +414,7 @@ export default function ServerMemberRoleAssign({
                           <button
                             type="button"
                             className="sra-remove"
-                            disabled={busy || locked}
+                            disabled={locked || pending}
                             title={
                               locked
                                 ? t("This member has an equal or higher role.")
@@ -508,6 +434,8 @@ export default function ServerMemberRoleAssign({
           </div>
         </div>
       )}
+      {/* busy reserved for parent role CRUD; chips use pendingId only */}
+      {busy ? <span className="sra-busy-sr" aria-live="polite" /> : null}
     </div>
   );
 }
