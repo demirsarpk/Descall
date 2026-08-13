@@ -1214,6 +1214,7 @@ export const phrases = {
   "Owner": "Sahip",
   "No channels yet.": "Henüz kanal yok.",
   "Loading channels…": "Kanallar yükleniyor…",
+  "Connected (private channel)": "Bağlı (gizli kanal)",
   "Install Descall": "Descall’ı yükle",
   "Add Descall to your Home Screen": "Descall’ı Ana Ekrana Ekle",
   "In Safari tap Share": "Safari’de Paylaş’a dokun",

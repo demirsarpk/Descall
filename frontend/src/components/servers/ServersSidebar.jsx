@@ -328,6 +328,31 @@ export default function ServersSidebar({
   );
   const channelTree = useMemo(() => buildChannelTree(activeServer?.channels || []), [activeServer?.channels]);
 
+  // Discord parity: while force-moved into a private voice channel you cannot
+  // normally VIEW, show a temporary row. It vanishes again on leave.
+  const ghostVoiceChannel = useMemo(() => {
+    const channelId = serverVoice?.activeChannelId;
+    const serverId = serverVoice?.activeServerId;
+    if (!channelId || !serverId || !activeServer?.id) return null;
+    if (String(serverId) !== String(activeServer.id)) return null;
+    const visible = (activeServer.channels || []).some((c) => String(c.id) === String(channelId));
+    if (visible) return null;
+    return {
+      id: channelId,
+      name: serverVoice.channelName || t("Voice"),
+      type: serverVoice.channelType || "voice",
+      _ghostForced: true,
+    };
+  }, [
+    activeServer?.channels,
+    activeServer?.id,
+    serverVoice?.activeChannelId,
+    serverVoice?.activeServerId,
+    serverVoice?.channelName,
+    serverVoice?.channelType,
+    t,
+  ]);
+
   const groupedServers = useMemo(() => {
     const folderMap = new Map(
       (serverFolders || []).map((f) => [String(f.id), { ...f, servers: [] }])
@@ -921,7 +946,45 @@ export default function ServersSidebar({
                 />
               );
             }) : null}
-            {permissionsReady && channelTree.length === 0 && (
+            {permissionsReady && ghostVoiceChannel ? (
+              <div className="server-channel-ghost-wrap" key={`ghost-${ghostVoiceChannel.id}`}>
+                <p className="server-channel-ghost-label">{t("Connected (private channel)")}</p>
+                <ChannelRow
+                  channel={ghostVoiceChannel}
+                  active={false}
+                  canManage={false}
+                  menuOpen={false}
+                  voiceState={voiceStates[ghostVoiceChannel.id]}
+                  joinedHere
+                  participantStreams={participantStreams}
+                  localStream={localVoiceStream}
+                  myUserId={myVoiceUserId}
+                  muted={false}
+                  unread={0}
+                  muteTick={mutedChannelTick}
+                  canManageRoles={false}
+                  canMoveMembers={canMoveMembers}
+                  canMuteMembers={canMuteMembers}
+                  voiceChannels={(activeServer?.channels || []).filter(
+                    (c) => c.type === "voice" || c.type === "stage"
+                  )}
+                  serverVoice={serverVoice}
+                  draggable={false}
+                  onSelect={() => {}}
+                  onVoiceUserMenu={(user, channelId, event) => {
+                    event?.preventDefault?.();
+                    event?.stopPropagation?.();
+                    setVoiceMenu({
+                      user,
+                      channelId,
+                      x: event?.clientX || 0,
+                      y: event?.clientY || 0,
+                    });
+                  }}
+                />
+              </div>
+            ) : null}
+            {permissionsReady && channelTree.length === 0 && !ghostVoiceChannel && (
               <p className="server-empty-hint">{t("No channels yet.")}</p>
             )}
             {permissionsReady ? (

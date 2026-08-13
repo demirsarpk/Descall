@@ -1254,6 +1254,7 @@ export const phrases = {
   "Owner": "Owner",
   "No channels yet.": "No channels yet.",
   "Loading channels…": "Loading channels…",
+  "Connected (private channel)": "Connected (private channel)",
   "Install Descall": "Install Descall",
   "Add Descall to your Home Screen": "Add Descall to your Home Screen",
   "In Safari tap Share": "In Safari tap Share",

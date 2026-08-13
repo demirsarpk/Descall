@@ -65,7 +65,14 @@ function emitChannelState(io, serverId, channelId) {
   return payload;
 }
 
-async function assertVoiceAccess(userId, channelId) {
+/**
+ * Resolve voice/stage channel access.
+ * Discord parity: MOVE_MEMBERS can place a user into a channel they cannot
+ * VIEW/CONNECT. While they remain a participant they may re-join media
+ * (bypassConnectView). After leave, normal VIEW+CONNECT checks apply again
+ * so the channel stays hidden from their channel list.
+ */
+async function assertVoiceAccess(userId, channelId, { bypassConnectView = false } = {}) {
   const { data: channel, error } = await supabase
     .from("server_channels")
     .select("id, server_id, type, name")
@@ -93,17 +100,21 @@ async function assertVoiceAccess(userId, channelId) {
     err.code = "NOT_MEMBER";
     throw err;
   }
-  if (!hasPermission(resolved.bits, Permissions.VIEW_CHANNEL)) {
-    const err = new Error("Missing VIEW_CHANNEL permission.");
-    err.code = "MISSING_PERMISSION";
-    throw err;
+  const canView = hasPermission(resolved.bits, Permissions.VIEW_CHANNEL);
+  const canConnect = hasPermission(resolved.bits, Permissions.CONNECT);
+  if (!bypassConnectView) {
+    if (!canView) {
+      const err = new Error("Missing VIEW_CHANNEL permission.");
+      err.code = "MISSING_PERMISSION";
+      throw err;
+    }
+    if (!canConnect) {
+      const err = new Error("Missing CONNECT permission.");
+      err.code = "MISSING_PERMISSION";
+      throw err;
+    }
   }
-  if (!hasPermission(resolved.bits, Permissions.CONNECT)) {
-    const err = new Error("Missing CONNECT permission.");
-    err.code = "MISSING_PERMISSION";
-    throw err;
-  }
-  return { channel, resolved };
+  return { channel, resolved, canView, canConnect };
 }
 
 function canSpeakInChannel(channel, resolved, participant = null) {
@@ -290,7 +301,12 @@ function registerServerVoiceHandlers(io, socket) {
   socket.on("server:voice:join", async ({ serverId, channelId } = {}) => {
     if (!channelId) return;
     try {
-      const { channel, resolved } = await assertVoiceAccess(myId, channelId);
+      // Already seated by MOVE_MEMBERS (or AFK move): allow media rejoin without
+      // VIEW/CONNECT so private/staff voice channels work like Discord.
+      const alreadySeated = Boolean(findUserInChannel(channelId, myId));
+      const { channel, resolved } = await assertVoiceAccess(myId, channelId, {
+        bypassConnectView: alreadySeated,
+      });
       if (serverId && serverId !== channel.server_id) {
         socket.emit("server:voice:error", {
           channelId,
@@ -433,7 +449,12 @@ function registerServerVoiceHandlers(io, socket) {
       const destId = String(toChannelId);
       try {
         await assertVoiceMod(myId, serverId, Permissions.MOVE_MEMBERS);
-        const { channel: dest, resolved: destPerms } = await assertVoiceAccess(targetId, destId);
+        // Discord: movers can seat members into channels the member cannot see.
+        const { channel: dest, resolved: destPerms, canView } = await assertVoiceAccess(
+          targetId,
+          destId,
+          { bypassConnectView: true }
+        );
         if (dest.server_id !== serverId) {
           socket.emit("server:voice:error", { message: "Target channel is on another server." });
           return;
@@ -474,6 +495,8 @@ function registerServerVoiceHandlers(io, socket) {
         snapshot.serverMuted = dest.type === "stage" ? false : Boolean(snapshot.serverMuted);
         snapshot.cameraOn = false;
         snapshot.isScreenSharing = false;
+        // Session-only seat into a private channel (cleared on leave).
+        snapshot.forceMovedIn = !canView;
         setParticipant(destCall, targetId, snapshot);
 
         // Put every socket for the user into the destination voice room immediately
@@ -486,15 +509,16 @@ function registerServerVoiceHandlers(io, socket) {
         }
 
         emitChannelState(io, serverId, destId);
+        const seated = destCall.participants.get(targetId) || snapshot;
         io.to(`server-voice:${destId}`).emit("server:voice:member-joined", {
           serverId,
           channelId: destId,
-          user: destCall.participants.get(targetId),
+          user: seated,
         });
         io.to(`server:${serverId}`).emit("server:voice:member-joined", {
           serverId,
           channelId: destId,
-          user: destCall.participants.get(targetId),
+          user: seated,
         });
 
         io.to(`user:${targetId}`).emit("server:voice:force-moved", {
@@ -504,6 +528,7 @@ function registerServerVoiceHandlers(io, socket) {
           channelName: dest.name,
           channelType: dest.type,
           byUserId: myId,
+          hiddenChannel: !canView,
         });
         socket.emit("server:voice:mod-ok", {
           action: "move",
@@ -897,7 +922,9 @@ function registerServerVoiceHandlers(io, socket) {
 async function moveParticipantToChannel(io, serverId, userId, fromChannelId, toChannelId) {
   const targetId = String(userId);
   const destId = String(toChannelId);
-  const { channel: dest, resolved: destPerms } = await assertVoiceAccess(targetId, destId);
+  const { channel: dest, resolved: destPerms, canView } = await assertVoiceAccess(targetId, destId, {
+    bypassConnectView: true,
+  });
   if (dest.server_id !== serverId) return false;
 
   const found =
@@ -929,6 +956,7 @@ async function moveParticipantToChannel(io, serverId, userId, fromChannelId, toC
   snapshot.cameraOn = false;
   snapshot.isScreenSharing = false;
   snapshot.afkIdleSince = Date.now();
+  snapshot.forceMovedIn = !canView;
   setParticipant(destCall, targetId, snapshot);
 
   try {
@@ -947,6 +975,7 @@ async function moveParticipantToChannel(io, serverId, userId, fromChannelId, toC
     channelType: dest.type,
     byUserId: null,
     reason: "afk",
+    hiddenChannel: !canView,
   });
   return true;
 }

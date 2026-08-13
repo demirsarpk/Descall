@@ -61,6 +61,17 @@ function isTurnConfigured() {
   );
 }
 
+function isSeatedInVoiceChannel(userId, channelId) {
+  const call = activeServerVoiceCalls.get(String(channelId));
+  if (!call?.participants || userId == null) return false;
+  const uid = String(userId);
+  if (call.participants.has(userId) || call.participants.has(uid)) return true;
+  for (const [key, member] of call.participants.entries()) {
+    if (String(key) === uid || String(member?.id) === uid) return true;
+  }
+  return false;
+}
+
 async function resolveVoiceChannelAccess(userId, channelId) {
   const { data: channel, error } = await supabase
     .from("server_channels")
@@ -81,9 +92,13 @@ async function resolveVoiceChannelAccess(userId, channelId) {
     err.status = 403;
     throw err;
   }
+  // Discord parity: members force-moved into a private voice channel may mint
+  // LiveKit tokens while seated; after leave, VIEW+CONNECT are required again.
+  const seated = isSeatedInVoiceChannel(userId, channelId);
   if (
-    !hasPermission(resolved.bits, Permissions.VIEW_CHANNEL) ||
-    !hasPermission(resolved.bits, Permissions.CONNECT)
+    !seated &&
+    (!hasPermission(resolved.bits, Permissions.VIEW_CHANNEL) ||
+      !hasPermission(resolved.bits, Permissions.CONNECT))
   ) {
     const err = new Error("Missing voice channel permission.");
     err.code = "MISSING_PERMISSION";

@@ -533,6 +533,21 @@
   margin-right: 4px;
 }
 
+.server-channel-ghost-wrap {
+  margin: 10px 0 4px;
+  padding-top: 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--border-3, #3f4147) 80%, transparent);
+}
+
+.server-channel-ghost-label {
+  margin: 0 12px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #949ba4);
+}
+
 .server-channels-loading {
   display: flex;
   flex-direction: column;
