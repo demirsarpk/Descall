@@ -239,8 +239,6 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
   const assignableRoles = roles.filter(
     (r) => !r.isEveryone && (server?.isOwner || (Number(r.position) || 0) < actorHighestPosition)
   );
-  const canManageMember = (member) =>
-    Boolean(member && !member.isOwner && (server?.isOwner || actorHighestPosition > (Number(member.highestPosition) || 0)));
 
   const reorderCustomRoles = async (fromId, toId) => {
     if (!server?.id || !fromId || !toId || fromId === toId) return;
