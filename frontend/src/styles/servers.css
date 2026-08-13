@@ -254,6 +254,15 @@
   font-weight: 600;
 }
 
+.server-channel-row-wrap.is-dragging {
+  opacity: 0.55;
+}
+
+.server-channel-row-wrap.is-drag-over > .server-channel-row {
+  outline: 1px solid color-mix(in srgb, var(--accent, #5865f2) 70%, transparent);
+  background: color-mix(in srgb, var(--accent, #5865f2) 12%, transparent);
+}
+
 .server-channel-row-wrap {
   position: relative;
   width: calc(100% - 16px);

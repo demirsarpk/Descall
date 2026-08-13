@@ -59,10 +59,13 @@ export default function AppLayout({
   onRequestNotifPermission,
   typingDmUser,
   typingGroupUsers,
+  typingChannelUsers,
   onTypingDmStart,
   onTypingDmStop,
   onTypingGroupStart,
   onTypingGroupStop,
+  onTypingChannelStart,
+  onTypingChannelStop,
   dmUnread = {},
   groupUnread = {},
   myStatus = "online",
@@ -505,10 +508,13 @@ export default function AppLayout({
         friends={friends}
         typingDmUser={typingDmUser}
         typingGroupUsers={typingGroupUsers}
+        typingChannelUsers={typingChannelUsers}
         onTypingDmStart={onTypingDmStart}
         onTypingDmStop={onTypingDmStop}
         onTypingGroupStart={onTypingGroupStart}
         onTypingGroupStop={onTypingGroupStop}
+        onTypingChannelStart={onTypingChannelStart}
+        onTypingChannelStop={onTypingChannelStop}
         replyTo={replyTo}
         onClearReply={onClearReply}
         isMobile={isMobile}

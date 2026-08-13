@@ -61,6 +61,7 @@ import ServerModerationModal from "./ServerModerationModal";
 import ChannelPermissionsModal from "./ChannelPermissionsModal";
 import ServerCommunityModal from "./ServerCommunityModal";
 import ServerRulesModal from "./ServerRulesModal";
+import ServerSettingsModal from "./ServerSettingsModal";
 import { ServerListSkeleton } from "../ui/Skeleton";
 
 const TEMPLATE_ICONS = {
@@ -115,8 +116,11 @@ export default function ServersSidebar({
   const [showJoin, setShowJoin] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showCommunity, setShowCommunity] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showModeration, setShowModeration] = useState(null); // 'bans' | 'audit' | null
   const [menuOpen, setMenuOpen] = useState(false);
+  const [dragChannelId, setDragChannelId] = useState(null);
+  const [dragOverChannelId, setDragOverChannelId] = useState(null);
   const [notifBusy, setNotifBusy] = useState(false);
   const [confirm, setConfirm] = useState(null); // { mode: 'leave'|'delete', server }
   const [channelModal, setChannelModal] = useState(null); // { mode, channel?, defaultType?, parentId? }
@@ -141,6 +145,51 @@ export default function ServersSidebar({
       !activeServer?.isOwner
   );
   const canManageChannels = serverHasPermission(activeServer, "MANAGE_CHANNELS");
+
+  const reorderChannelDrop = async (targetChannel) => {
+    if (!canManageChannels || !dragChannelId || !targetChannel?.id) return;
+    if (dragChannelId === targetChannel.id) {
+      setDragChannelId(null);
+      setDragOverChannelId(null);
+      return;
+    }
+    const channels = activeServer?.channels || [];
+    const dragged = channels.find((c) => c.id === dragChannelId);
+    if (!dragged || dragged.type === "category") {
+      setDragChannelId(null);
+      setDragOverChannelId(null);
+      return;
+    }
+    const parentId = dragged.parentId || null;
+    if ((targetChannel.parentId || null) !== parentId) {
+      toast(t("Move channels within the same category."), "warning");
+      setDragChannelId(null);
+      setDragOverChannelId(null);
+      return;
+    }
+    const siblings = channels
+      .filter((c) => c.type !== "category" && (c.parentId || null) === parentId)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const without = siblings.filter((c) => c.id !== dragged.id);
+    const targetIdx = without.findIndex((c) => c.id === targetChannel.id);
+    if (targetIdx < 0) {
+      setDragChannelId(null);
+      setDragOverChannelId(null);
+      return;
+    }
+    without.splice(targetIdx, 0, dragged);
+    setDragChannelId(null);
+    setDragOverChannelId(null);
+    try {
+      await Promise.all(
+        without.map((ch, index) =>
+          ch.position === index ? Promise.resolve() : onUpdateChannel?.(ch.id, { position: index })
+        )
+      );
+    } catch (err) {
+      toast(err?.message || t("Failed to reorder channels."), "error");
+    }
+  };
 
   const pickServerIconFile = async (e) => {
     const file = e.target.files?.[0];
@@ -365,6 +414,19 @@ export default function ServersSidebar({
                     className="server-dropdown-item"
                     onClick={() => {
                       setMenuOpen(false);
+                      setShowSettings(true);
+                    }}
+                  >
+                    <Settings2 size={15} />
+                    {t("Server Settings")}
+                  </button>
+                )}
+                {canManageGuild && (
+                  <button
+                    type="button"
+                    className="server-dropdown-item"
+                    onClick={() => {
+                      setMenuOpen(false);
                       setShowCommunity(true);
                     }}
                   >
@@ -516,6 +578,16 @@ export default function ServersSidebar({
                           canMuteMembers={canMuteMembers}
                           voiceChannels={(activeServer?.channels || []).filter((c) => c.type === "voice" || c.type === "stage")}
                           serverVoice={serverVoice}
+                          draggable={canManageChannels}
+                          dragging={dragChannelId === ch.id}
+                          dragOver={dragOverChannelId === ch.id}
+                          onDragStartChannel={() => setDragChannelId(ch.id)}
+                          onDragOverChannel={() => setDragOverChannelId(ch.id)}
+                          onDragEndChannel={() => {
+                            setDragChannelId(null);
+                            setDragOverChannelId(null);
+                          }}
+                          onDropChannel={() => reorderChannelDrop(ch)}
                           onToggleMute={() => handleToggleChannelMute(ch.id)}
                           onOpenAccess={() => {
                             setChannelMenuId(null);
@@ -557,6 +629,16 @@ export default function ServersSidebar({
                   active={activeChannel?.id === node.id}
                   canManage={canManageChannels}
                   menuOpen={channelMenuId === node.id}
+                  draggable={canManageChannels}
+                  dragging={dragChannelId === node.id}
+                  dragOver={dragOverChannelId === node.id}
+                  onDragStartChannel={() => setDragChannelId(node.id)}
+                  onDragOverChannel={() => setDragOverChannelId(node.id)}
+                  onDragEndChannel={() => {
+                    setDragChannelId(null);
+                    setDragOverChannelId(null);
+                  }}
+                  onDropChannel={() => reorderChannelDrop(node)}
                   voiceState={voiceStates[node.id]}
                   joinedHere={serverVoice?.activeChannelId === node.id}
                   participantStreams={participantStreams}
@@ -693,6 +775,13 @@ export default function ServersSidebar({
             <ServerCommunityModal
               server={activeServer}
               onClose={() => setShowCommunity(false)}
+              onServerUpdated={(updated) => onServerUpdated?.(updated)}
+            />
+          )}
+          {showSettings && (
+            <ServerSettingsModal
+              server={activeServer}
+              onClose={() => setShowSettings(false)}
               onServerUpdated={(updated) => onServerUpdated?.(updated)}
             />
           )}
@@ -1111,6 +1200,13 @@ function ChannelRow({
   canManageRoles = false,
   canMoveMembers = false,
   canMuteMembers = false,
+  draggable = false,
+  dragging = false,
+  dragOver = false,
+  onDragStartChannel,
+  onDragOverChannel,
+  onDragEndChannel,
+  onDropChannel,
   onToggleMute,
   onOpenAccess,
   onOpenMenu,
@@ -1130,7 +1226,26 @@ function ChannelRow({
   const canModVoice = canMoveMembers || canMuteMembers;
   return (
     <div
-      className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""} ${muted ? "is-muted-channel" : ""} ${unreadCount > 0 ? "has-unread" : ""}`}
+      className={`server-channel-row-wrap ${active ? "active" : ""} ${joinedHere ? "is-joined-voice" : ""} ${muted ? "is-muted-channel" : ""} ${unreadCount > 0 ? "has-unread" : ""} ${dragging ? "is-dragging" : ""} ${dragOver ? "is-drag-over" : ""}`}
+      draggable={Boolean(draggable)}
+      onDragStart={(e) => {
+        if (!draggable) return;
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", channel.id);
+        onDragStartChannel?.();
+      }}
+      onDragOver={(e) => {
+        if (!draggable) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        onDragOverChannel?.();
+      }}
+      onDrop={(e) => {
+        if (!draggable) return;
+        e.preventDefault();
+        onDropChannel?.();
+      }}
+      onDragEnd={() => onDragEndChannel?.()}
     >
       <button
         type="button"
@@ -1140,6 +1255,11 @@ function ChannelRow({
       >
         <Icon size={16} />
         <span>{channel.name}</span>
+        {channel.nsfw ? (
+          <span className="server-channel-nsfw" title={t("NSFW")} style={{ fontSize: 10, opacity: 0.75 }}>
+            NSFW
+          </span>
+        ) : null}
         {muted ? <BellOff size={12} className="server-channel-mute-icon" aria-hidden /> : null}
         {isVoiceLike && voiceMembers.length > 0 && (
           <span className="server-voice-count">{voiceMembers.length}</span>
@@ -1253,6 +1373,7 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
   const [slowmodeSeconds, setSlowmodeSeconds] = useState(
     isEdit ? Number(channel.slowmodeSeconds) || 0 : 0
   );
+  const [nsfw, setNsfw] = useState(isEdit ? Boolean(channel.nsfw) : false);
   const [selectedParent, setSelectedParent] = useState(
     isEdit ? channel.parentId || "" : parentId || ""
   );
@@ -1280,12 +1401,14 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
       };
       if (showTopic) payload.topic = topic.trim() || null;
       if (showTopic) payload.slowmodeSeconds = Math.max(0, Math.min(21600, Math.floor(Number(slowmodeSeconds) || 0)));
+      if (showTopic) payload.nsfw = Boolean(nsfw);
       if (isEdit) {
         await onSubmit({
           name: payload.name,
           topic: showTopic ? payload.topic : undefined,
           parentId: showParent ? payload.parentId : undefined,
           slowmodeSeconds: showTopic ? payload.slowmodeSeconds : undefined,
+          nsfw: showTopic ? payload.nsfw : undefined,
         });
       } else {
         await onSubmit(payload);
@@ -1427,6 +1550,14 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
                   })
                 : t("Off — members can send freely.")}
             </p>
+            <label className="server-check-row">
+              <input
+                type="checkbox"
+                checked={Boolean(nsfw)}
+                onChange={(e) => setNsfw(e.target.checked)}
+              />
+              <span>{t("Age-restricted (NSFW) channel")}</span>
+            </label>
             <div className="server-slowmode-presets" role="group" aria-label={t("Slowmode presets")}>
               {[
                 [0, t("Off")],

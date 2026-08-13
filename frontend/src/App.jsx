@@ -193,6 +193,9 @@ function normalizeGroupMessage(m) {
     duration: voice.duration ?? m.duration ?? null,
     reactions: Array.isArray(m.reactions) ? m.reactions : [],
     replyTo: m.replyTo || m.reply_to || null,
+    editedAt: m.edited_at || m.editedAt || null,
+    pinnedAt: m.pinned_at || m.pinnedAt || null,
+    pinnedBy: m.pinned_by || m.pinnedBy || null,
   };
 }
 
@@ -294,6 +297,8 @@ export default function App() {
   const [typingDmUser, setTypingDmUser] = useState(null);
   // groupId -> Map<userId, {id, username}>
   const [typingGroupUsers, setTypingGroupUsers] = useState({});
+  // channelId -> Map<userId, {id, username}>
+  const [typingChannelUsers, setTypingChannelUsers] = useState({});
   const [dmHasMore, setDmHasMore] = useState(true);
   const [loadingOlderDm, setLoadingOlderDm] = useState(false);
   const [reconnectState, setReconnectState] = useState("idle");
@@ -328,6 +333,7 @@ export default function App() {
   const prevOnlineUsersRef = useRef([]);
   const typingDmTimeoutRef = useRef(null);
   const typingGroupTimeoutsRef = useRef(new Map());
+  const typingChannelTimeoutsRef = useRef(new Map());
   const channelUnreadBumpIdsRef = useRef(new Set());
   const callOccupancyRef = useRef({ dmMode: null, groupActive: false });
   const call = useCall(socketApi, callOccupancyRef);
@@ -1071,7 +1077,7 @@ export default function App() {
     });
 
     socket.on("typing:update", (payload = {}) => {
-      const { context, fromUser, typing, groupId } = payload;
+      const { context, fromUser, typing, groupId, channelId } = payload;
       if (!fromUser?.id || fromUser.id === myIdRef.current) return;
       if (context === "dm") {
         const peer = activeDmRef.current;
@@ -1114,6 +1120,34 @@ export default function App() {
             typingGroupTimeoutsRef.current.delete(key);
           }, 3500);
           typingGroupTimeoutsRef.current.set(key, t);
+        }
+      } else if (context === "server" && channelId) {
+        setTypingChannelUsers((prev) => {
+          const cur = prev[channelId];
+          const channelMap = cur instanceof Map ? new Map(cur) : new Map();
+          if (typing) {
+            channelMap.set(fromUser.id, fromUser);
+          } else {
+            channelMap.delete(fromUser.id);
+          }
+          return { ...prev, [channelId]: channelMap };
+        });
+        const key = `${channelId}:${fromUser.id}`;
+        if (typingChannelTimeoutsRef.current.has(key)) {
+          clearTimeout(typingChannelTimeoutsRef.current.get(key));
+          typingChannelTimeoutsRef.current.delete(key);
+        }
+        if (typing) {
+          const t = setTimeout(() => {
+            setTypingChannelUsers((prev) => {
+              const cur = prev[channelId];
+              const channelMap = cur instanceof Map ? new Map(cur) : new Map();
+              channelMap.delete(fromUser.id);
+              return { ...prev, [channelId]: channelMap };
+            });
+            typingChannelTimeoutsRef.current.delete(key);
+          }, 3500);
+          typingChannelTimeoutsRef.current.set(key, t);
         }
       }
     });
@@ -1497,6 +1531,10 @@ export default function App() {
         mediaType: voice.isVoice ? "voice" : message.media_type,
         duration: voice.duration ?? message.duration ?? null,
         replyTo: message.replyTo || message.reply_to || null,
+        editedAt: message.edited_at || message.editedAt || null,
+        pinnedAt: message.pinned_at || message.pinnedAt || null,
+        pinnedBy: message.pinned_by || message.pinnedBy || null,
+        reactions: Array.isArray(message.reactions) ? message.reactions : [],
       };
       setChannelMessagesById((prev) => {
         const cur = prev[channelId] ?? [];
@@ -1735,6 +1773,16 @@ export default function App() {
         return;
       }
 
+      if (conversationType === "server" && conversationId) {
+        setChannelMessagesById((prev) => {
+          const cur = prev[conversationId];
+          if (!cur) return prev;
+          const next = patchList(cur);
+          return next === cur ? prev : { ...prev, [conversationId]: next };
+        });
+        return;
+      }
+
       // DM: conversationId is "a::b" — update the peer bucket
       const selfId = myIdRef.current;
       let peerId = null;
@@ -1816,6 +1864,43 @@ export default function App() {
         if (!cur) return prev;
         const next = patchList(cur);
         return next === cur ? prev : { ...prev, [groupId]: next };
+      });
+    });
+
+    socket.on("server:channel:message:edited", ({ channelId, messageId, newText, editedAt } = {}) => {
+      if (!channelId || !messageId) return;
+      setChannelMessagesById((prev) => {
+        const cur = prev[channelId];
+        if (!cur?.length) return prev;
+        let changed = false;
+        const next = cur.map((m) => {
+          if (m.id !== messageId) return m;
+          changed = true;
+          return { ...m, text: newText, editedAt: editedAt || new Date().toISOString() };
+        });
+        return changed ? { ...prev, [channelId]: next } : prev;
+      });
+    });
+
+    socket.on("server:channel:message:pinned", ({ channelId, messageId, pinnedAt, pinnedBy } = {}) => {
+      if (!channelId || !messageId) return;
+      const patchList = patchPinState(messageId, pinnedAt, pinnedBy);
+      setChannelMessagesById((prev) => {
+        const cur = prev[channelId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [channelId]: next };
+      });
+    });
+
+    socket.on("server:channel:message:unpinned", ({ channelId, messageId } = {}) => {
+      if (!channelId || !messageId) return;
+      const patchList = patchPinState(messageId, null, null);
+      setChannelMessagesById((prev) => {
+        const cur = prev[channelId];
+        if (!cur) return prev;
+        const next = patchList(cur);
+        return next === cur ? prev : { ...prev, [channelId]: next };
       });
     });
 
@@ -3047,6 +3132,14 @@ export default function App() {
   const emitTypingDmStart = (toUserId) => {
     socketRef.current?.emit("typing:start", { context: "dm", toUserId });
   };
+  const emitTypingChannelStart = (channelId) => {
+    if (!channelId) return;
+    socketRef.current?.emit("typing:start", { context: "server", channelId });
+  };
+  const emitTypingChannelStop = (channelId) => {
+    if (!channelId) return;
+    socketRef.current?.emit("typing:stop", { context: "server", channelId });
+  };
   const emitTypingDmStop = (toUserId) => {
     socketRef.current?.emit("typing:stop", { context: "dm", toUserId });
   };
@@ -3942,10 +4035,13 @@ export default function App() {
           onRequestNotifPermission={handleRequestNotifPermission}
           typingDmUser={typingDmUser}
           typingGroupUsers={typingGroupUsers}
+          typingChannelUsers={typingChannelUsers}
           onTypingDmStart={emitTypingDmStart}
           onTypingDmStop={emitTypingDmStop}
           onTypingGroupStart={emitTypingGroupStart}
           onTypingGroupStop={emitTypingGroupStop}
+          onTypingChannelStart={emitTypingChannelStart}
+          onTypingChannelStop={emitTypingChannelStop}
         >
           <MessageList
             messages={dmMessages}
@@ -3963,6 +4059,14 @@ export default function App() {
             socket={socketRef.current}
             activeGroup={activeGroup}
             activeDmUser={activeDmUser}
+            activeChannel={activeView === "servers" ? activeChannel : null}
+            activeServer={activeView === "servers" ? activeServer : null}
+            canManageMessages={
+              activeView === "servers" &&
+              (activeServer?.isOwner ||
+                Boolean(activeServer?.myPermissions?.flags?.MANAGE_MESSAGES) ||
+                Boolean(activeServer?.myPermissions?.flags?.ADMINISTRATOR))
+            }
             loading={Boolean(
               messagesLoading &&
                 ((activeDmUser && dmByUserId[activeDmUser.id] === undefined) ||

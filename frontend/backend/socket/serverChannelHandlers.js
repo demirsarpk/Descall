@@ -231,6 +231,181 @@ function registerServerChannelHandlers(io, socket) {
     socket.leave(`server-channel:${channelId}`);
   });
 
+  /** Edit own channel message. */
+  socket.on("server:channel:message:edit", async ({ serverId, channelId, messageId, newText } = {}) => {
+    if (!channelId || !messageId || typeof newText !== "string") return;
+    const trimmed = newText.trim();
+    if (!trimmed) {
+      socket.emit("server:channel:message:error", {
+        channelId,
+        message: "Message cannot be empty.",
+      });
+      return;
+    }
+    try {
+      const { channel } = await assertTextChannelAccess(myId, channelId, Permissions.SEND_MESSAGES);
+      if (serverId && serverId !== channel.server_id) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "Channel does not belong to this server.",
+        });
+        return;
+      }
+      if (
+        await assertServerTimeout({
+          userId: myId,
+          serverId: channel.server_id,
+          channelId,
+          tempId: null,
+          socket,
+        })
+      ) {
+        return;
+      }
+      const { data: row, error } = await supabase
+        .from("server_messages")
+        .select("id, sender_id, channel_id, server_id")
+        .eq("id", messageId)
+        .eq("channel_id", channelId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!row) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "Message not found.",
+        });
+        return;
+      }
+      if (row.sender_id !== myId) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "You can only edit your own messages.",
+          code: "MISSING_PERMISSION",
+        });
+        return;
+      }
+      const editedAt = new Date().toISOString();
+      const { error: updErr } = await supabase
+        .from("server_messages")
+        .update({ content: trimmed, edited_at: editedAt, updated_at: editedAt })
+        .eq("id", messageId)
+        .eq("channel_id", channelId)
+        .eq("sender_id", myId);
+      if (updErr) throw updErr;
+      const payload = {
+        serverId: channel.server_id,
+        channelId,
+        messageId,
+        newText: trimmed,
+        editedAt,
+      };
+      io.to(`server-channel:${channelId}`).emit("server:channel:message:edited", payload);
+      socket.emit("server:channel:message:edited", payload);
+    } catch (err) {
+      socket.emit("server:channel:message:error", {
+        channelId,
+        message: err.message || "Failed to edit message.",
+        code: err.code || null,
+      });
+    }
+  });
+
+  /** Pin / unpin (MANAGE_MESSAGES). */
+  socket.on("server:channel:message:pin", async ({ serverId, channelId, messageId } = {}) => {
+    if (!channelId || !messageId) return;
+    try {
+      const { channel } = await assertTextChannelAccess(
+        myId,
+        channelId,
+        Permissions.MANAGE_MESSAGES
+      );
+      if (serverId && serverId !== channel.server_id) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "Channel does not belong to this server.",
+        });
+        return;
+      }
+      const pinnedAt = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("server_messages")
+        .update({ pinned_at: pinnedAt, pinned_by: myId })
+        .eq("id", messageId)
+        .eq("channel_id", channelId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "Message not found.",
+        });
+        return;
+      }
+      const payload = {
+        serverId: channel.server_id,
+        channelId,
+        messageId,
+        pinnedAt,
+        pinnedBy: myId,
+      };
+      io.to(`server-channel:${channelId}`).emit("server:channel:message:pinned", payload);
+      socket.emit("server:channel:message:pinned", payload);
+    } catch (err) {
+      socket.emit("server:channel:message:error", {
+        channelId,
+        message: err.message || "Failed to pin message.",
+        code: err.code || null,
+      });
+    }
+  });
+
+  socket.on("server:channel:message:unpin", async ({ serverId, channelId, messageId } = {}) => {
+    if (!channelId || !messageId) return;
+    try {
+      const { channel } = await assertTextChannelAccess(
+        myId,
+        channelId,
+        Permissions.MANAGE_MESSAGES
+      );
+      if (serverId && serverId !== channel.server_id) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "Channel does not belong to this server.",
+        });
+        return;
+      }
+      const { data, error } = await supabase
+        .from("server_messages")
+        .update({ pinned_at: null, pinned_by: null })
+        .eq("id", messageId)
+        .eq("channel_id", channelId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        socket.emit("server:channel:message:error", {
+          channelId,
+          message: "Message not found.",
+        });
+        return;
+      }
+      const payload = {
+        serverId: channel.server_id,
+        channelId,
+        messageId,
+      };
+      io.to(`server-channel:${channelId}`).emit("server:channel:message:unpinned", payload);
+      socket.emit("server:channel:message:unpinned", payload);
+    } catch (err) {
+      socket.emit("server:channel:message:error", {
+        channelId,
+        message: err.message || "Failed to unpin message.",
+        code: err.code || null,
+      });
+    }
+  });
+
   /** Delete a channel message (author or MANAGE_MESSAGES). */
   socket.on("server:channel:message:delete", async ({ serverId, channelId, messageId } = {}) => {
     if (!channelId || !messageId) return;

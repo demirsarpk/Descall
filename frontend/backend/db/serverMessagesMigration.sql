@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS public.server_messages (
   media_url TEXT,
   media_type TEXT,
   reply_to JSONB,
+  edited_at TIMESTAMPTZ,
+  pinned_at TIMESTAMPTZ,
+  pinned_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

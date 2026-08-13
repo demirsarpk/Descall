@@ -74,7 +74,7 @@ export function getServerMembers(serverId) {
 /** Create text | voice | category channel (owner only for now). */
 export function createChannel(
   serverId,
-  { name, type = "text", parentId, topic, position, slowmodeSeconds } = {}
+  { name, type = "text", parentId, topic, position, slowmodeSeconds, nsfw } = {}
 ) {
   return serversRequest(`/api/servers/${serverId}/channels`, {
     method: "POST",
@@ -85,6 +85,7 @@ export function createChannel(
       topic,
       position,
       ...(slowmodeSeconds !== undefined ? { slowmodeSeconds } : {}),
+      ...(nsfw !== undefined ? { nsfw: Boolean(nsfw) } : {}),
     },
   });
 }

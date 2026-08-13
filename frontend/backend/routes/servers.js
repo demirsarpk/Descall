@@ -415,6 +415,86 @@ function publicChannel(row) {
   };
 }
 
+/**
+ * Enforce server verification_level before allowing a new join.
+ * none → allow
+ * low → verified email
+ * medium → verified email + account age ≥ 5m
+ * high → verified email + account age ≥ 10m
+ * highest → verified email + account age ≥ 10m + 2FA enabled
+ */
+async function assertJoinVerification(serverOrLevel, userId) {
+  const level = String(
+    typeof serverOrLevel === "string"
+      ? serverOrLevel
+      : serverOrLevel?.verification_level || serverOrLevel?.verificationLevel || "none"
+  ).toLowerCase();
+  if (!level || level === "none") return;
+
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("email_confirmed_at, created_at, two_factor_enabled")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw error;
+
+  const emailOk = Boolean(user?.email_confirmed_at);
+  const ageMs = user?.created_at ? Date.now() - new Date(user.created_at).getTime() : 0;
+  const requirements = [];
+
+  if (!emailOk) requirements.push("verified_email");
+  if (level === "medium" && ageMs < 5 * 60 * 1000) requirements.push("account_age_5m");
+  if ((level === "high" || level === "highest") && ageMs < 10 * 60 * 1000) {
+    requirements.push("account_age_10m");
+  }
+  if (level === "highest" && !user?.two_factor_enabled) requirements.push("two_factor");
+
+  if (requirements.length) {
+    const err = new Error("Your account does not meet this server's verification requirements.");
+    err.status = 403;
+    err.code = "VERIFICATION_REQUIRED";
+    err.requirements = requirements;
+    err.verificationLevel = level;
+    throw err;
+  }
+}
+
+async function attachServerReactions(messages, channelId) {
+  if (!Array.isArray(messages) || !messages.length || !channelId) return messages;
+  try {
+    const ids = messages.map((m) => m.id).filter(Boolean);
+    if (!ids.length) return messages;
+    const { data, error } = await supabase
+      .from("reactions")
+      .select("message_id, emoji, user_id")
+      .eq("conversation_type", "server")
+      .eq("conversation_id", String(channelId))
+      .in("message_id", ids.map(String));
+    if (error) {
+      console.warn("[SERVERS] attach reactions failed:", error.message);
+      return messages;
+    }
+    const byMsg = new Map();
+    for (const r of data || []) {
+      const mid = String(r.message_id);
+      if (!byMsg.has(mid)) byMsg.set(mid, []);
+      byMsg.get(mid).push({
+        emoji: r.emoji,
+        userId: r.user_id,
+        username: null,
+        messageId: mid,
+      });
+    }
+    return messages.map((m) => ({
+      ...m,
+      reactions: byMsg.get(String(m.id)) || byMsg.get(m.id) || m.reactions || [],
+    }));
+  } catch (err) {
+    console.warn("[SERVERS] attach reactions error:", err?.message || err);
+    return messages;
+  }
+}
+
 function publicRole(row) {
   if (!row) return null;
   return {
@@ -1087,6 +1167,23 @@ router.post("/invites/:code/join", requireAuth, async (req, res) => {
       });
     }
 
+    const { data: inviteServer, error: inviteServerErr } = await supabase
+      .from("servers")
+      .select("id, verification_level")
+      .eq("id", invite.server_id)
+      .maybeSingle();
+    if (inviteServerErr) throw inviteServerErr;
+    try {
+      await assertJoinVerification(inviteServer, userId);
+    } catch (vErr) {
+      return res.status(vErr.status || 403).json({
+        error: vErr.message,
+        code: vErr.code || "VERIFICATION_REQUIRED",
+        requirements: vErr.requirements || [],
+        verificationLevel: vErr.verificationLevel || inviteServer?.verification_level || "none",
+      });
+    }
+
     const { count: existingPos } = await supabase
       .from("server_members")
       .select("server_id", { count: "exact", head: true })
@@ -1186,6 +1283,17 @@ router.post("/discover/:id/join", requireAuth, async (req, res) => {
           roles: bundle.roles.map(publicRole),
           myPermissions,
         }),
+      });
+    }
+
+    try {
+      await assertJoinVerification(server, userId);
+    } catch (vErr) {
+      return res.status(vErr.status || 403).json({
+        error: vErr.message,
+        code: vErr.code || "VERIFICATION_REQUIRED",
+        requirements: vErr.requirements || [],
+        verificationLevel: vErr.verificationLevel || server.verification_level || "none",
       });
     }
 
@@ -1472,7 +1580,9 @@ router.get("/:id/channels/:channelId/messages", requireAuth, async (req, res) =>
       console.warn("[SERVERS] cosmetics enrich failed:", err?.message || err);
     }
 
-    return res.json({ messages: (messages || []).reverse() });
+    const ordered = (messages || []).reverse();
+    const withReactions = await attachServerReactions(ordered, channelId);
+    return res.json({ messages: withReactions });
   } catch (err) {
     console.error("[SERVERS] GET channel messages error:", err);
     return res.status(500).json({ error: "Failed to load messages." });
@@ -2458,6 +2568,7 @@ router.post("/:id/channels", requireAuth, async (req, res) => {
       typeof req.body?.position === "number" && Number.isFinite(req.body.position)
         ? Math.max(0, Math.floor(req.body.position))
         : await nextChannelPosition(serverId);
+    const nsfw = type === "text" ? Boolean(req.body?.nsfw) : false;
 
     const { data: channel, error } = await supabase
       .from("server_channels")
@@ -2469,7 +2580,7 @@ router.post("/:id/channels", requireAuth, async (req, res) => {
         position,
         parent_id: type === "category" ? null : parentId,
         slowmode_seconds: slowmodeSeconds,
-        nsfw: false,
+        nsfw,
       })
       .select("*")
       .single();
@@ -2850,6 +2961,9 @@ router.patch("/:id", requireAuth, async (req, res) => {
     }
     if (req.body?.iconUrl !== undefined) {
       patch.icon_url = req.body.iconUrl ? String(req.body.iconUrl).trim().slice(0, 500) : null;
+    }
+    if (req.body?.bannerUrl !== undefined) {
+      patch.banner_url = req.body.bannerUrl ? String(req.body.bannerUrl).trim().slice(0, 500) : null;
     }
     if (req.body?.description !== undefined) {
       patch.description = req.body.description

@@ -52,6 +52,8 @@ export default function MessageComposer({
   onTypingDmStop,
   onTypingGroupStart,
   onTypingGroupStop,
+  onTypingChannelStart,
+  onTypingChannelStop,
   replyTo = null,
   onClearReply,
 }) {
@@ -136,17 +138,34 @@ export default function MessageComposer({
     isTypingRef.current = false;
     if (activeDmUser) onTypingDmStop?.(activeDmUser.id);
     else if (activeGroup) onTypingGroupStop?.(activeGroup.id);
-  }, [activeDmUser, activeGroup, onTypingDmStop, onTypingGroupStop]);
+    else if (activeChannel?.id) onTypingChannelStop?.(activeChannel.id);
+  }, [
+    activeDmUser,
+    activeGroup,
+    activeChannel?.id,
+    onTypingDmStop,
+    onTypingGroupStop,
+    onTypingChannelStop,
+  ]);
 
   const emitTypingStart = useCallback(() => {
     if (!isTypingRef.current) {
       isTypingRef.current = true;
       if (activeDmUser) onTypingDmStart?.(activeDmUser.id);
       else if (activeGroup) onTypingGroupStart?.(activeGroup.id);
+      else if (activeChannel?.id) onTypingChannelStart?.(activeChannel.id);
     }
     clearTimeout(typingTimerRef.current);
     typingTimerRef.current = setTimeout(emitTypingStop, 3000);
-  }, [activeDmUser, activeGroup, onTypingDmStart, onTypingGroupStart, emitTypingStop]);
+  }, [
+    activeDmUser,
+    activeGroup,
+    activeChannel?.id,
+    onTypingDmStart,
+    onTypingGroupStart,
+    onTypingChannelStart,
+    emitTypingStop,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -156,7 +175,7 @@ export default function MessageComposer({
       try { audioCtxRef.current?.close(); } catch { /* ignore */ }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeDmUser?.id, activeGroup?.id]);
+  }, [activeDmUser?.id, activeGroup?.id, activeChannel?.id]);
 
   const slashCommands = useMemo(
     () =>

@@ -1018,22 +1018,30 @@ function registerSocketHandlers(io) {
     });
 
     socket.on("typing:start", (payload = {}) => {
-      const { context = "dm", toUserId, groupId } = payload;
+      const { context = "dm", toUserId, groupId, channelId } = payload;
       const fromUser = { id: myId, username: me.username };
       if (context === "dm" && typeof toUserId === "string") {
         emitToUser(io, toUserId, "typing:update", { context: "dm", fromUser, typing: true });
       } else if (context === "group" && typeof groupId === "string") {
         socket.to(`group:${groupId}`).emit("typing:update", { context: "group", groupId, fromUser, typing: true });
+      } else if (context === "server" && typeof channelId === "string") {
+        socket
+          .to(`server-channel:${channelId}`)
+          .emit("typing:update", { context: "server", channelId, fromUser, typing: true });
       }
     });
 
     socket.on("typing:stop", (payload = {}) => {
-      const { context = "dm", toUserId, groupId } = payload;
+      const { context = "dm", toUserId, groupId, channelId } = payload;
       const fromUser = { id: myId, username: me.username };
       if (context === "dm" && typeof toUserId === "string") {
         emitToUser(io, toUserId, "typing:update", { context: "dm", fromUser, typing: false });
       } else if (context === "group" && typeof groupId === "string") {
         socket.to(`group:${groupId}`).emit("typing:update", { context: "group", groupId, fromUser, typing: false });
+      } else if (context === "server" && typeof channelId === "string") {
+        socket
+          .to(`server-channel:${channelId}`)
+          .emit("typing:update", { context: "server", channelId, fromUser, typing: false });
       }
     });
 
@@ -1536,6 +1544,20 @@ function registerSocketHandlers(io) {
             return;
           }
         }
+      } else if (conversationType === "server") {
+        // conversationId is the text channel id
+        try {
+          const { assertTextChannelAccess } = require("./serverChannelHandlers");
+          const { Permissions } = require("../lib/serverPermissions");
+          await assertTextChannelAccess(myId, conversationId, Permissions.ADD_REACTIONS);
+          socket.join(`server-channel:${conversationId}`);
+        } catch (err) {
+          console.log("[reaction:add] Server channel access denied:", err?.message || err);
+          return;
+        }
+      } else {
+        console.log("[reaction:add] Unknown conversationType:", conversationType);
+        return;
       }
 
       try {
@@ -1574,6 +1596,8 @@ function registerSocketHandlers(io) {
           console.log("[reaction:add] Other user presence:", otherPresence);
           emitToUser(io, otherId, "reaction:update", reactionData);
           console.log("[reaction:add] Emitted to other user:", otherId);
+        } else if (conversationType === "server") {
+          io.to(`server-channel:${conversationId}`).emit("reaction:update", reactionData);
         } else {
           io.to(`group:${conversationId}`).emit("reaction:update", reactionData);
           console.log("[reaction:add] Emitted to group room:", `group:${conversationId}`);
@@ -1601,6 +1625,14 @@ function registerSocketHandlers(io) {
           otherId = conversationId;
           conversationId = convKey(myId, otherId);
         }
+      } else if (conversationType === "server") {
+        try {
+          const { assertTextChannelAccess } = require("./serverChannelHandlers");
+          const { Permissions } = require("../lib/serverPermissions");
+          await assertTextChannelAccess(myId, conversationId, Permissions.ADD_REACTIONS);
+        } catch {
+          return;
+        }
       }
 
       try {
@@ -1625,6 +1657,8 @@ function registerSocketHandlers(io) {
 
         if (conversationType === "dm" && otherId) {
           emitToUser(io, otherId, "reaction:update", reactionData);
+        } else if (conversationType === "server") {
+          io.to(`server-channel:${conversationId}`).emit("reaction:update", reactionData);
         } else {
           io.to(`group:${conversationId}`).emit("reaction:update", reactionData);
         }

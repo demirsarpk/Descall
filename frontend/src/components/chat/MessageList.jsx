@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
-import { FileText, Download, Smile, Reply, X, Pin, PinOff } from "lucide-react";
+import { FileText, Download, Smile, Reply, X, Pin, PinOff, Pencil, Trash2 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
 import StatusBadge from "../ui/StatusBadge";
 import CallSummaryBubble from "./CallSummaryBubble";
@@ -88,6 +88,9 @@ export default function MessageList({
   socket,
   activeGroup,
   activeDmUser = null,
+  activeChannel = null,
+  activeServer = null,
+  canManageMessages = false,
   loading = false,
   unreadCount = 0,
   onReply,
@@ -99,9 +102,15 @@ export default function MessageList({
   const [hoverUser, setHoverUser] = useState(null);
   const [hoverPos, setHoverPos] = useState(null);
 
-  const conversationType = activeGroup ? "group" : "dm";
-  const conversationId = activeGroup?.id
+  const conversationType = activeChannel?.id
+    ? "server"
+    : activeGroup
+      ? "group"
+      : "dm";
+  const conversationId = activeChannel?.id
+    || activeGroup?.id
     || dmConversationId(currentUser?.id || me?.id, activeDmUser?.id);
+  const serverId = activeServer?.id || activeChannel?.serverId || null;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -369,6 +378,8 @@ export default function MessageList({
                   socket={socket}
                   conversationType={conversationType}
                   conversationId={conversationId}
+                  serverId={serverId}
+                  canManageMessages={canManageMessages}
                   onReply={onReply}
                   highlight={trimmedSearch}
                   chatBubbleKey={
@@ -418,6 +429,8 @@ function MessageBubble({
   socket,
   conversationType,
   conversationId,
+  serverId = null,
+  canManageMessages = false,
   onReply,
   highlight = "",
   chatBubbleKey = null,
@@ -428,6 +441,8 @@ function MessageBubble({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [swiping, setSwiping] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState(message.text || "");
   const hideTimer = useRef(null);
   const mediaTypeNorm = String(message.mediaType || "").toLowerCase();
   const mediaUrl = message.mediaUrl || message.media_url || "";
@@ -454,7 +469,14 @@ function MessageBubble({
 
   const togglePin = useCallback(() => {
     if (!message?.id || String(message.id).startsWith("temp-")) return;
-    if (conversationType === "group") {
+    if (conversationType === "server") {
+      if (!canManageMessages) return;
+      socket?.emit(isPinned ? "server:channel:message:unpin" : "server:channel:message:pin", {
+        serverId,
+        channelId: conversationId,
+        messageId: message.id,
+      });
+    } else if (conversationType === "group") {
       socket?.emit(isPinned ? "group:message:unpin" : "group:message:pin", {
         messageId: message.id,
         groupId: conversationId,
@@ -464,7 +486,82 @@ function MessageBubble({
       const toUserId = a === currentUserId ? b : a;
       socket?.emit(isPinned ? "dm:message:unpin" : "dm:message:pin", { messageId: message.id, toUserId });
     }
-  }, [message?.id, isPinned, conversationType, conversationId, currentUserId, socket]);
+  }, [
+    message?.id,
+    isPinned,
+    conversationType,
+    conversationId,
+    currentUserId,
+    socket,
+    serverId,
+    canManageMessages,
+  ]);
+
+  const saveEdit = useCallback(() => {
+    const next = editDraft.trim();
+    if (!next || !message?.id || String(message.id).startsWith("temp-")) {
+      setEditing(false);
+      return;
+    }
+    if (next === (message.text || "")) {
+      setEditing(false);
+      return;
+    }
+    if (conversationType === "server") {
+      socket?.emit("server:channel:message:edit", {
+        serverId,
+        channelId: conversationId,
+        messageId: message.id,
+        newText: next,
+      });
+    } else if (conversationType === "group") {
+      socket?.emit("group:message:edit", {
+        messageId: message.id,
+        newText: next,
+        groupId: conversationId,
+      });
+    } else if (conversationId) {
+      const [a, b] = String(conversationId).split("::");
+      const toUserId = a === currentUserId ? b : a;
+      socket?.emit("dm:message:edit", { messageId: message.id, newText: next, toUserId });
+    }
+    setEditing(false);
+  }, [
+    editDraft,
+    message?.id,
+    message?.text,
+    conversationType,
+    conversationId,
+    currentUserId,
+    socket,
+    serverId,
+  ]);
+
+  const deleteMessage = useCallback(() => {
+    if (!message?.id || String(message.id).startsWith("temp-")) return;
+    if (conversationType === "server") {
+      socket?.emit("server:channel:message:delete", {
+        serverId,
+        channelId: conversationId,
+        messageId: message.id,
+      });
+    } else if (conversationType === "group") {
+      socket?.emit("group:message:delete", {
+        messageId: message.id,
+        groupId: conversationId,
+      });
+    } else if (conversationId) {
+      const [a, b] = String(conversationId).split("::");
+      const toUserId = a === currentUserId ? b : a;
+      socket?.emit("dm:message:delete", { messageId: message.id, toUserId });
+    }
+    setMenuOpen(false);
+  }, [message?.id, conversationType, conversationId, currentUserId, socket, serverId]);
+
+  const canDelete = isOwn || (conversationType === "server" && canManageMessages);
+  const canEdit = isOwn && Boolean(String(message.text || "").trim());
+  const canPin =
+    conversationType === "server" ? canManageMessages : Boolean(conversationId);
 
   const resetSwipe = useCallback(() => {
     setSwiping(false);
@@ -611,7 +708,49 @@ function MessageBubble({
           </div>
         )}
 
-        {message.text && <MessageContent text={message.text} highlight={highlight} />}
+        {editing ? (
+          <div className="msg-edit-box" onClick={(e) => e.stopPropagation()}>
+            <input
+              className="msg-edit-input"
+              value={editDraft}
+              onChange={(e) => setEditDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveEdit();
+                if (e.key === "Escape") {
+                  setEditDraft(message.text || "");
+                  setEditing(false);
+                }
+              }}
+              autoFocus
+            />
+            <div className="msg-edit-actions">
+              <button type="button" className="btn-ghost sm" onClick={saveEdit}>
+                {t("Save")}
+              </button>
+              <button
+                type="button"
+                className="btn-ghost sm"
+                onClick={() => {
+                  setEditDraft(message.text || "");
+                  setEditing(false);
+                }}
+              >
+                {t("Cancel")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          message.text && (
+            <>
+              <MessageContent text={message.text} highlight={highlight} />
+              {message.editedAt ? (
+                <span className="msg-edited" style={{ fontSize: 11, opacity: 0.65, marginLeft: 4 }}>
+                  ({t("edited")})
+                </span>
+              ) : null}
+            </>
+          )
+        )}
 
         {mediaUrl && (
           <div className={`message-media${isVisualMedia ? " is-visual" : ""}`}>
@@ -716,7 +855,7 @@ function MessageBubble({
         )}
 
         <AnimatePresence>
-          {menuOpen && (
+          {menuOpen && !editing && (
             <motion.div
               className={`message-hover-bar ${isOwn ? "own" : "other"}`}
               initial={{ opacity: 0, y: 6, scale: 0.96 }}
@@ -765,17 +904,48 @@ function MessageBubble({
               >
                 <Reply size={14} />
               </button>
-              <button
-                type="button"
-                className={`hover-bar-btn ${isPinned ? "active" : ""}`}
-                title={isPinned ? t("Unpin") : t("Pin")}
-                onClick={(ev) => {
-                  ev.stopPropagation();
-                  togglePin();
-                }}
-              >
-                {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
-              </button>
+              {canPin && (
+                <button
+                  type="button"
+                  className={`hover-bar-btn ${isPinned ? "active" : ""}`}
+                  title={isPinned ? t("Unpin") : t("Pin")}
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    togglePin();
+                  }}
+                >
+                  {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  className="hover-bar-btn"
+                  title={t("Edit")}
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    setEditDraft(message.text || "");
+                    setEditing(true);
+                    setMenuOpen(false);
+                    setPickerOpen(false);
+                  }}
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  type="button"
+                  className="hover-bar-btn danger"
+                  title={t("Delete")}
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    deleteMessage();
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
 
               <AnimatePresence>
                 {pickerOpen && (

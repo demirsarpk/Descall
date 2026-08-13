@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS public.reactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   message_id TEXT NOT NULL,
   conversation_type TEXT NOT NULL
-    CHECK (conversation_type IN ('dm', 'group')),
+    CHECK (conversation_type IN ('dm', 'group', 'server')),
   conversation_id TEXT NOT NULL,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   emoji TEXT NOT NULL,

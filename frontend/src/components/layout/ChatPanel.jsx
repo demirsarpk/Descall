@@ -53,10 +53,13 @@ export default function ChatPanel({
   friends,
   typingDmUser,
   typingGroupUsers,
+  typingChannelUsers,
   onTypingDmStart,
   onTypingDmStop,
   onTypingGroupStart,
   onTypingGroupStop,
+  onTypingChannelStart,
+  onTypingChannelStop,
   replyTo = null,
   onClearReply,
   isMobile = false,
@@ -150,12 +153,28 @@ export default function ChatPanel({
   };
 
   const typingNames = useMemo(() => {
-    if (!activeDmUser && !activeGroup) return [];
     if (activeDmUser) return typingDmUser ? [resolveDisplayName(typingDmUser)] : [];
-    const groupMap = typingGroupUsers?.[activeGroup.id];
-    if (!(groupMap instanceof Map)) return [];
-    return Array.from(groupMap.values()).map((u) => resolveDisplayName(u));
-  }, [activeDmUser, activeGroup, typingDmUser, typingGroupUsers]);
+    if (activeGroup) {
+      const groupMap = typingGroupUsers?.[activeGroup.id];
+      if (!(groupMap instanceof Map)) return [];
+      return Array.from(groupMap.values()).map((u) => resolveDisplayName(u));
+    }
+    if (activeView === "servers" && activeChannel?.type === "text" && activeChannel?.id) {
+      const channelMap = typingChannelUsers?.[activeChannel.id];
+      if (!(channelMap instanceof Map)) return [];
+      return Array.from(channelMap.values()).map((u) => resolveDisplayName(u));
+    }
+    return [];
+  }, [
+    activeDmUser,
+    activeGroup,
+    activeView,
+    activeChannel?.id,
+    activeChannel?.type,
+    typingDmUser,
+    typingGroupUsers,
+    typingChannelUsers,
+  ]);
 
   const scrollToBottom = () => {
     if (messagesRef.current) {
@@ -612,6 +631,8 @@ export default function ChatPanel({
               onTypingDmStop={onTypingDmStop}
               onTypingGroupStart={onTypingGroupStart}
               onTypingGroupStop={onTypingGroupStop}
+              onTypingChannelStart={onTypingChannelStart}
+              onTypingChannelStop={onTypingChannelStop}
               replyTo={replyTo}
               onClearReply={onClearReply}
             />
