@@ -5,7 +5,8 @@ import { API_BASE_URL } from "../config/api";
 import { getToken, getUser } from "../lib/storage";
 import {
   GROUP_SCREEN_DEFAULT_QUALITY,
-  getDisplayMediaStream,
+  captureScreenShareStream,
+  showElectronScreenPicker,
   optimizeScreenShareTrack,
   optimizeScreenShareSender,
   ensureScreenShareAudioTrack,
@@ -765,31 +766,16 @@ export function useServerVoice(socket) {
       return;
     }
     try {
-      if (!navigator.mediaDevices?.getDisplayMedia && !window.electronAPI?.isElectron) {
-        setError("Screen sharing is not available in this browser.");
-        return;
-      }
       const { width, height, fps: frameRate } = resolveScreenCaptureSize(screenQuality);
       const peerCount = Math.max(1, pcMapRef.current.size);
       const maxBitrate = screenBitrateForPeerCount(peerCount, screenQuality.resolution || "720p");
-      let stream;
-      if (window.electronAPI?.isElectron) {
-        const sources = await window.electronAPI.getScreenSources();
-        if (!sources?.length) return;
-        // Prefer entire screen source
-        const source = sources.find((s) => s.id?.startsWith("screen:")) || sources[0];
-        const { buildElectronDesktopConstraints } = await import("../lib/webrtcScreenShare");
-        stream = await navigator.mediaDevices.getUserMedia(
-          buildElectronDesktopConstraints(source.id, { width, height, fps: frameRate })
-        );
-      } else {
-        stream = await getDisplayMediaStream({
-          width,
-          height,
-          fps: frameRate,
-          preferTab: !isMobileScreenCapture(),
-        });
-      }
+      const stream = await captureScreenShareStream({
+        width,
+        height,
+        fps: frameRate,
+        preferTab: !isMobileScreenCapture(),
+        pickSource: showElectronScreenPicker,
+      });
       const screenTrack = stream.getVideoTracks()[0];
       await optimizeScreenShareTrack(screenTrack, {
         width,
@@ -847,9 +833,9 @@ export function useServerVoice(socket) {
       };
       setIsScreenSharing(true);
     } catch (err) {
-      if (err?.name !== "NotAllowedError") {
-        setError(err?.message || "Could not start screen share.");
-      }
+      if (err?.name === "AbortError" || err?.name === "NotAllowedError") return;
+      console.error("[ServerVoice] screen share failed:", err);
+      setError(err?.message || "Could not start screen share.");
     }
   }, [canPublishVideo, isScreenSharing, renegotiateWithPeer, screenQuality, socket]);
 

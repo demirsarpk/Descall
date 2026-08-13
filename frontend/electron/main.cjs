@@ -412,6 +412,39 @@ function createMainWindow() {
     return allowed.includes(permission);
   });
 
+  // Make navigator.mediaDevices.getDisplayMedia work in Electron (DM/group/server).
+  // Without this handler Chromium reports screen share as unsupported.
+  try {
+    mainWindow.webContents.session.setDisplayMediaRequestHandler(
+      async (request, callback) => {
+        try {
+          const sources = await desktopCapturer.getSources({
+            types: ['screen', 'window'],
+            thumbnailSize: { width: 1, height: 1 },
+          });
+          if (!sources.length) {
+            callback({});
+            return;
+          }
+          const screen =
+            sources.find((s) => String(s.id || '').startsWith('screen:')) || sources[0];
+          callback({
+            video: screen,
+            // Windows loopback carries system audio with the share when requested.
+            ...(request.enableLocalEcho !== false ? { audio: 'loopback' } : {}),
+          });
+        } catch (err) {
+          log.error('setDisplayMediaRequestHandler error:', err);
+          callback({});
+        }
+      },
+      // Prefer the OS picker when the platform supports it (macOS/Windows).
+      { useSystemPicker: true }
+    );
+  } catch (err) {
+    log.warn('setDisplayMediaRequestHandler unavailable:', err?.message || err);
+  }
+
   // Right-click context menu for DevTools
   mainWindow.webContents.on('context-menu', () => {
     const menu = new Menu();

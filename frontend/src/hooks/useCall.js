@@ -3,7 +3,6 @@ import { patchUserAvatar, pickEquippedCosmetics } from "../lib/userProfile";
 import audioManager from "../lib/audioManager";
 import notificationService from "../lib/notificationService";
 import {
-  buildElectronDesktopConstraints,
   optimizeScreenShareSender,
   optimizeScreenShareTrack,
   resolveScreenCaptureSize,
@@ -12,7 +11,8 @@ import {
   isRemoteScreenVideoTrack,
   ensureScreenShareAudioTrack,
   isMobileScreenCapture,
-  getDisplayMediaStream,
+  captureScreenShareStream,
+  showElectronScreenPicker,
 } from "../lib/webrtcScreenShare";
 import { useToast } from "../context/ToastContext";
 import { t as tRuntime } from "../i18n/runtime";
@@ -26,135 +26,6 @@ import useConnectionStats from "./useConnectionStats";
 import { applyAdaptiveVideoEncoding, applyAdaptiveAudioEncoding } from "../lib/adaptiveBitrate";
 import { acquireCallWakeLock, releaseCallWakeLock, pulseCallWakeLock } from "../lib/callWakeLock";
 import { startDesCoinHeartbeat } from "../lib/descoinHeartbeat";
-
-// Helper: show a screen-picker for Electron with fully inline styles (no CSS dep)
-function showElectronScreenPicker(sources) {
-  return new Promise((resolve) => {
-    let resolved = false;
-    const done = (id) => {
-      if (resolved) return;
-      resolved = true;
-      if (document.body.contains(overlay)) document.body.removeChild(overlay);
-      resolve(id);
-    };
-
-    // Inject keyframes once
-    const STYLE_ID = '__esp_anim__';
-    if (!document.getElementById(STYLE_ID)) {
-      const style = document.createElement('style');
-      style.id = STYLE_ID;
-      style.textContent = `
-        @keyframes _esp_overlay { from { opacity:0 } to { opacity:1 } }
-        @keyframes _esp_modal { from { opacity:0; transform:scale(0.9) translateY(16px) } to { opacity:1; transform:scale(1) translateY(0) } }
-      `;
-      document.head.appendChild(style);
-    }
-
-    const overlay = document.createElement('div');
-    Object.assign(overlay.style, {
-      position: 'fixed', inset: '0', zIndex: '2147483647',
-      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      animation: '_esp_overlay 0.2s ease',
-    });
-
-    const modal = document.createElement('div');
-    Object.assign(modal.style, {
-      background: '#1a1a1f', border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: '16px', width: '720px', maxWidth: '90vw',
-      maxHeight: '82vh', display: 'flex', flexDirection: 'column',
-      overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
-      animation: '_esp_modal 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-    });
-
-    const header = document.createElement('div');
-    Object.assign(header.style, {
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)',
-      flexShrink: '0',
-    });
-
-    const title = document.createElement('h3');
-    title.textContent = 'Share your screen';
-    Object.assign(title.style, { margin: '0', fontSize: '16px', fontWeight: '600', color: '#f0f0f5' });
-
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '×';
-    Object.assign(closeBtn.style, {
-      width: '32px', height: '32px', border: 'none', borderRadius: '8px',
-      background: 'transparent', color: '#8a8a93', fontSize: '24px',
-      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      lineHeight: '1',
-    });
-    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = 'rgba(255,255,255,0.08)'; closeBtn.style.color = '#f0f0f5'; });
-    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'transparent'; closeBtn.style.color = '#8a8a93'; });
-    closeBtn.addEventListener('click', () => done(null));
-
-    header.appendChild(title);
-    header.appendChild(closeBtn);
-
-    const tip = document.createElement('div');
-    tip.textContent = 'Choose the screen, window, or browser tab you want to share.';
-    Object.assign(tip.style, {
-      padding: '10px 24px', fontSize: '12px', color: '#949ba4',
-      borderBottom: '1px solid rgba(255,255,255,0.07)', lineHeight: '1.4',
-    });
-
-    const grid = document.createElement('div');
-    Object.assign(grid.style, {
-      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-      gap: '12px', padding: '20px 24px 24px', overflowY: 'auto',
-    });
-
-    sources.forEach((source) => {
-      const item = document.createElement('div');
-      Object.assign(item.style, {
-        display: 'flex', flexDirection: 'column', gap: '8px',
-        background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.07)',
-        borderRadius: '12px', padding: '10px', cursor: 'pointer',
-        transition: 'all 0.15s',
-      });
-      item.addEventListener('mouseenter', () => {
-        item.style.background = 'rgba(88,101,242,0.15)';
-        item.style.borderColor = '#5865f2';
-      });
-      item.addEventListener('mouseleave', () => {
-        item.style.background = 'rgba(255,255,255,0.04)';
-        item.style.borderColor = 'rgba(255,255,255,0.07)';
-      });
-
-      const thumb = document.createElement('img');
-      thumb.src = source.thumbnailDataURL;
-      thumb.alt = source.name;
-      thumb.draggable = false;
-      Object.assign(thumb.style, {
-        width: '100%', aspectRatio: '16/9', objectFit: 'cover',
-        borderRadius: '8px', background: '#111',
-      });
-
-      const label = document.createElement('span');
-      label.textContent = source.name;
-      Object.assign(label.style, {
-        fontSize: '12px', fontWeight: '500', color: '#c0c0c8',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        textAlign: 'center',
-      });
-
-      item.appendChild(thumb);
-      item.appendChild(label);
-      item.addEventListener('click', () => done(source.id));
-      grid.appendChild(item);
-    });
-
-    modal.appendChild(header);
-    modal.appendChild(tip);
-    modal.appendChild(grid);
-    overlay.appendChild(modal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
-    document.body.appendChild(overlay);
-  });
-}
 
 /**
  * Unified WebRTC call hook supporting:
@@ -1185,36 +1056,15 @@ export function useCall(socket, callOccupancyRef = null) {
       const { width, height, fps } = resolveScreenCaptureSize(effectiveQuality);
       let screenStream;
 
-      if (window.electronAPI?.isElectron) {
-        console.log('[ScreenShare] Electron detected, fetching sources...');
-        const sources = await window.electronAPI.getScreenSources();
-        console.log('[ScreenShare] sources:', sources?.length);
-        if (!sources || sources.length === 0) {
-          console.warn('[ScreenShare] no sources');
-          return;
-        }
-        console.log('[ScreenShare] opening picker...');
-        const sourceId = await showElectronScreenPicker(sources);
-        console.log('[ScreenShare] picked sourceId:', sourceId);
-        if (!sourceId) return;
-        screenStream = await navigator.mediaDevices.getUserMedia(
-          buildElectronDesktopConstraints(sourceId, { width, height, fps })
-        );
-      } else {
-        if (!navigator.mediaDevices?.getDisplayMedia) {
-          toast("Screen sharing is not available in this browser.", "error");
-          return;
-        }
-        console.log('[ScreenShare] web path — getDisplayMedia');
-        // Mobile: entire screen (preferTab false) so switching to YouTube/Safari
-        // home does not end a Descall-tab-only capture.
-        screenStream = await getDisplayMediaStream({
-          width,
-          height,
-          fps,
-          preferTab: !isMobileScreenCapture(),
-        });
-      }
+      console.log('[ScreenShare] capturing display media…');
+      // Electron desktopCapturer or browser getDisplayMedia (multi-sharer OK).
+      screenStream = await captureScreenShareStream({
+        width,
+        height,
+        fps,
+        preferTab: !isMobileScreenCapture(),
+        pickSource: showElectronScreenPicker,
+      });
 
       const screenTrack = screenStream.getVideoTracks()[0];
       await optimizeScreenShareTrack(screenTrack, {
@@ -1295,6 +1145,9 @@ export function useCall(socket, callOccupancyRef = null) {
 
       setScreenSharing(true);
     } catch (err) {
+      if (err?.name === "AbortError" || err?.name === "NotAllowedError") return;
+      console.error("[ScreenShare] failed:", err);
+      toast(tRuntime(err?.message || "Could not start screen share."), "error");
     }
   }, [toast]);
 

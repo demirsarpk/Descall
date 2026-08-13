@@ -2436,6 +2436,12 @@ export const phrases = {
     "Screen share ended while Descall was in the background.",
   "Share your entire screen so switching apps keeps the broadcast alive.":
     "Share your entire screen so switching apps keeps the broadcast alive.",
+  "Screen sharing is not available in this browser.":
+    "Screen sharing is not available in this browser.",
+  "Screen sharing requires a secure connection (HTTPS).":
+    "Screen sharing requires a secure connection (HTTPS).",
+  "Could not start screen share.": "Could not start screen share.",
+  "getDisplayMedia unsupported": "Screen sharing is not available in this browser.",
   "Community & Discovery": "Community & Discovery",
   "Enable community features, public discovery, and a rules screen for new members.":
     "Enable community features, public discovery, and a rules screen for new members.",

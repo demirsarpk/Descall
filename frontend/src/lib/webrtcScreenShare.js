@@ -113,27 +113,275 @@ export function buildDisplayMediaConstraints({ width, height, fps, preferTab } =
   };
 }
 
+export function isElectronRuntime() {
+  return typeof window !== "undefined" && Boolean(window.electronAPI?.isElectron);
+}
+
+/** True when we have at least one viable capture path (Electron desktopCapturer or getDisplayMedia). */
+export function canCaptureScreen() {
+  if (typeof window === "undefined") return false;
+  if (isElectronRuntime() && typeof window.electronAPI?.getScreenSources === "function") return true;
+  if (typeof navigator !== "undefined" && typeof navigator.mediaDevices?.getDisplayMedia === "function") {
+    return true;
+  }
+  return false;
+}
+
+function screenShareUnsupportedError() {
+  const secure = typeof window === "undefined" ? true : Boolean(window.isSecureContext);
+  const err = new Error(
+    secure
+      ? "Screen sharing is not available in this browser."
+      : "Screen sharing requires a secure connection (HTTPS)."
+  );
+  err.name = "NotSupportedError";
+  err.code = "SCREEN_SHARE_UNSUPPORTED";
+  return err;
+}
+
 /**
- * getDisplayMedia with progressive audio fallbacks.
- * Some mobile/WebView builds reject audio constraints entirely — retry so
- * video share still starts, then callers can attach mic-fallback audio.
+ * getDisplayMedia with progressive constraint fallbacks.
+ * Firefox/Safari reject Chromium-only fields (displaySurface, systemAudio, …);
+ * some mobile/WebViews reject audio constraints entirely.
  */
 export async function getDisplayMediaStream(opts = {}) {
-  if (!navigator.mediaDevices?.getDisplayMedia) {
-    throw new Error("getDisplayMedia unsupported");
+  if (typeof navigator === "undefined" || typeof navigator.mediaDevices?.getDisplayMedia !== "function") {
+    throw screenShareUnsupportedError();
   }
+
   const primary = buildDisplayMediaConstraints(opts);
-  try {
-    return await navigator.mediaDevices.getDisplayMedia(primary);
-  } catch (err) {
-    if (err?.name === "NotAllowedError" || err?.name === "AbortError") throw err;
+  const attempts = [
+    primary,
+    { ...primary, audio: true },
+    { ...primary, audio: false },
+    {
+      video: {
+        cursor: "motion",
+        frameRate: primary.video?.frameRate,
+      },
+      audio: true,
+    },
+    {
+      video: true,
+      audio: true,
+    },
+    {
+      video: true,
+      audio: false,
+    },
+  ];
+
+  let lastErr = null;
+  for (const constraints of attempts) {
+    try {
+      return await navigator.mediaDevices.getDisplayMedia(constraints);
+    } catch (err) {
+      lastErr = err;
+      if (err?.name === "NotAllowedError" || err?.name === "AbortError") throw err;
+    }
   }
-  try {
-    return await navigator.mediaDevices.getDisplayMedia({ ...primary, audio: true });
-  } catch (err) {
-    if (err?.name === "NotAllowedError" || err?.name === "AbortError") throw err;
+  throw lastErr || screenShareUnsupportedError();
+}
+
+/**
+ * Electron source picker (inline overlay — no CSS dependency).
+ * @returns {Promise<string|null>} source id or null if cancelled
+ */
+export function showElectronScreenPicker(sources = []) {
+  return new Promise((resolve) => {
+    let resolved = false;
+    const done = (id) => {
+      if (resolved) return;
+      resolved = true;
+      if (document.body.contains(overlay)) document.body.removeChild(overlay);
+      resolve(id);
+    };
+
+    const STYLE_ID = "__esp_anim__";
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = `
+        @keyframes _esp_overlay { from { opacity:0 } to { opacity:1 } }
+        @keyframes _esp_modal { from { opacity:0; transform:scale(0.9) translateY(16px) } to { opacity:1; transform:scale(1) translateY(0) } }
+      `;
+      document.head.appendChild(style);
+    }
+
+    const overlay = document.createElement("div");
+    Object.assign(overlay.style, {
+      position: "fixed",
+      inset: "0",
+      zIndex: "2147483647",
+      background: "rgba(0,0,0,0.75)",
+      backdropFilter: "blur(8px)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontFamily: "system-ui, -apple-system, sans-serif",
+      animation: "_esp_overlay 0.2s ease",
+    });
+
+    const modal = document.createElement("div");
+    Object.assign(modal.style, {
+      background: "#1a1a1f",
+      border: "1px solid rgba(255,255,255,0.1)",
+      borderRadius: "16px",
+      width: "720px",
+      maxWidth: "90vw",
+      maxHeight: "82vh",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+      boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+      animation: "_esp_modal 0.28s cubic-bezier(0.16, 1, 0.3, 1)",
+    });
+
+    const header = document.createElement("div");
+    Object.assign(header.style, {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "18px 24px",
+      borderBottom: "1px solid rgba(255,255,255,0.07)",
+      flexShrink: "0",
+    });
+
+    const title = document.createElement("h3");
+    title.textContent = "Share your screen";
+    Object.assign(title.style, {
+      margin: "0",
+      fontSize: "16px",
+      fontWeight: "600",
+      color: "#f0f0f5",
+    });
+
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "×";
+    Object.assign(closeBtn.style, {
+      width: "32px",
+      height: "32px",
+      border: "none",
+      borderRadius: "8px",
+      background: "transparent",
+      color: "#8a8a93",
+      fontSize: "24px",
+      cursor: "pointer",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      lineHeight: "1",
+    });
+    closeBtn.addEventListener("click", () => done(null));
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    const tip = document.createElement("div");
+    tip.textContent = "Choose the screen, window, or browser tab you want to share.";
+    Object.assign(tip.style, {
+      padding: "10px 24px",
+      fontSize: "12px",
+      color: "#949ba4",
+      borderBottom: "1px solid rgba(255,255,255,0.07)",
+      lineHeight: "1.4",
+    });
+
+    const grid = document.createElement("div");
+    Object.assign(grid.style, {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+      gap: "12px",
+      padding: "20px 24px 24px",
+      overflowY: "auto",
+    });
+
+    (sources || []).forEach((source) => {
+      const item = document.createElement("div");
+      Object.assign(item.style, {
+        display: "flex",
+        flexDirection: "column",
+        gap: "8px",
+        background: "rgba(255,255,255,0.04)",
+        border: "1.5px solid rgba(255,255,255,0.07)",
+        borderRadius: "12px",
+        padding: "10px",
+        cursor: "pointer",
+        transition: "all 0.15s",
+      });
+      const thumb = document.createElement("img");
+      thumb.src = source.thumbnailDataURL || "";
+      thumb.alt = source.name || "Screen";
+      thumb.draggable = false;
+      Object.assign(thumb.style, {
+        width: "100%",
+        aspectRatio: "16/9",
+        objectFit: "cover",
+        borderRadius: "8px",
+        background: "#111",
+      });
+      const label = document.createElement("span");
+      label.textContent = source.name || "Screen";
+      Object.assign(label.style, {
+        fontSize: "12px",
+        fontWeight: "500",
+        color: "#c0c0c8",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        textAlign: "center",
+      });
+      item.appendChild(thumb);
+      item.appendChild(label);
+      item.addEventListener("click", () => done(source.id));
+      grid.appendChild(item);
+    });
+
+    modal.appendChild(header);
+    modal.appendChild(tip);
+    modal.appendChild(grid);
+    overlay.appendChild(modal);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) done(null);
+    });
+    document.body.appendChild(overlay);
+  });
+}
+
+/**
+ * Unified screen capture for DM / group / server voice.
+ * Electron → desktopCapturer picker; web → getDisplayMedia with soft fallbacks.
+ * Multiple participants may call this concurrently — there is no single-sharer lock.
+ */
+export async function captureScreenShareStream(opts = {}) {
+  const { width, height, fps, preferTab, pickSource = showElectronScreenPicker } = opts;
+
+  if (isElectronRuntime() && typeof window.electronAPI?.getScreenSources === "function") {
+    try {
+      const sources = await window.electronAPI.getScreenSources();
+      if (Array.isArray(sources) && sources.length > 0) {
+        const sourceId = await pickSource(sources);
+        if (!sourceId) {
+          const err = new Error("Screen share cancelled");
+          err.name = "AbortError";
+          throw err;
+        }
+        return await navigator.mediaDevices.getUserMedia(
+          buildElectronDesktopConstraints(sourceId, { width, height, fps })
+        );
+      }
+      // Empty sources (macOS Screen Recording denied) — try getDisplayMedia next.
+    } catch (err) {
+      if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
+      console.warn("[ScreenShare] Electron desktopCapturer path failed, trying getDisplayMedia:", err);
+    }
   }
-  return navigator.mediaDevices.getDisplayMedia({ ...primary, audio: false });
+
+  if (typeof navigator?.mediaDevices?.getDisplayMedia === "function") {
+    return getDisplayMediaStream({ width, height, fps, preferTab });
+  }
+
+  throw screenShareUnsupportedError();
 }
 
 /**

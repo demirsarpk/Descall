@@ -2720,6 +2720,12 @@ export const phrases = {
     "Descall arka plandayken ekran paylaşımı sonlandı.",
   "Share your entire screen so switching apps keeps the broadcast alive.":
     "Uygulama değiştirince yayın kopmasın diye tüm ekranı paylaş.",
+  "Screen sharing is not available in this browser.":
+    "Bu tarayıcıda ekran paylaşımı kullanılamıyor.",
+  "Screen sharing requires a secure connection (HTTPS).":
+    "Ekran paylaşımı için güvenli bağlantı (HTTPS) gerekir.",
+  "Could not start screen share.": "Ekran paylaşımı başlatılamadı.",
+  "getDisplayMedia unsupported": "Bu tarayıcıda ekran paylaşımı kullanılamıyor.",
   "Community & Discovery": "Topluluk ve Keşif",
   "Enable community features, public discovery, and a rules screen for new members.":
     "Topluluk özelliklerini, genel keşfi ve yeni üyeler için kurallar ekranını aç.",
