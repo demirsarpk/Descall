@@ -92,7 +92,9 @@ export default function ChatPanel({
     ? { kind: "group", groupId: activeGroup.id }
     : activeDmUser?.id
       ? { kind: "dm", withUserId: activeDmUser.id }
-      : null;
+      : activeView === "servers" && activeChannel?.type === "text" && activeChannel?.id
+        ? { kind: "server", channelId: activeChannel.id, serverId: activeServer?.id }
+        : null;
 
   useEffect(() => {
     if (!socket) return undefined;
@@ -106,31 +108,43 @@ export default function ChatPanel({
         setPinnedMessages(pinned || []);
       }
     };
+    const onServerPinned = ({ channelId, pinned } = {}) => {
+      if (conversationKey?.kind === "server" && channelId === conversationKey.channelId) {
+        setPinnedMessages(pinned || []);
+      }
+    };
     const refresh = () => {
       if (!conversationKey) return;
       if (conversationKey.kind === "dm") socket.emit("dm:pinned:list", { withUserId: conversationKey.withUserId });
-      else socket.emit("group:pinned:list", { groupId: conversationKey.groupId });
+      else if (conversationKey.kind === "group") socket.emit("group:pinned:list", { groupId: conversationKey.groupId });
+      else if (conversationKey.kind === "server") socket.emit("server:channel:pinned:list", { channelId: conversationKey.channelId });
     };
     socket.on("dm:pinned:list", onDmPinned);
     socket.on("group:pinned:list", onGroupPinned);
+    socket.on("server:channel:pinned:list", onServerPinned);
     socket.on("dm:message:pinned", refresh);
     socket.on("dm:message:unpinned", refresh);
     socket.on("group:message:pinned", refresh);
     socket.on("group:message:unpinned", refresh);
+    socket.on("server:channel:message:pinned", refresh);
+    socket.on("server:channel:message:unpinned", refresh);
     return () => {
       socket.off("dm:pinned:list", onDmPinned);
       socket.off("group:pinned:list", onGroupPinned);
+      socket.off("server:channel:pinned:list", onServerPinned);
       socket.off("dm:message:pinned", refresh);
       socket.off("dm:message:unpinned", refresh);
       socket.off("group:message:pinned", refresh);
       socket.off("group:message:unpinned", refresh);
+      socket.off("server:channel:message:pinned", refresh);
+      socket.off("server:channel:message:unpinned", refresh);
     };
-  }, [socket, conversationKey?.kind, conversationKey?.withUserId, conversationKey?.groupId]);
+  }, [socket, conversationKey?.kind, conversationKey?.withUserId, conversationKey?.groupId, conversationKey?.channelId]);
 
   useEffect(() => {
     setPinnedMessages([]);
     setShowPinned(false);
-  }, [activeDmUser?.id, activeGroup?.id]);
+  }, [activeDmUser?.id, activeGroup?.id, activeChannel?.id]);
 
   const togglePinnedPanel = () => {
     const next = !showPinned;
@@ -139,7 +153,8 @@ export default function ChatPanel({
     setShowSearch(false);
     if (next && socket && conversationKey) {
       if (conversationKey.kind === "dm") socket.emit("dm:pinned:list", { withUserId: conversationKey.withUserId });
-      else socket.emit("group:pinned:list", { groupId: conversationKey.groupId });
+      else if (conversationKey.kind === "group") socket.emit("group:pinned:list", { groupId: conversationKey.groupId });
+      else if (conversationKey.kind === "server") socket.emit("server:channel:pinned:list", { channelId: conversationKey.channelId });
     }
   };
 
@@ -147,8 +162,14 @@ export default function ChatPanel({
     if (!socket || !conversationKey) return;
     if (conversationKey.kind === "dm") {
       socket.emit("dm:message:unpin", { messageId, toUserId: conversationKey.withUserId });
-    } else {
+    } else if (conversationKey.kind === "group") {
       socket.emit("group:message:unpin", { messageId, groupId: conversationKey.groupId });
+    } else if (conversationKey.kind === "server") {
+      socket.emit("server:channel:message:unpin", {
+        serverId: conversationKey.serverId,
+        channelId: conversationKey.channelId,
+        messageId,
+      });
     }
   };
 
@@ -396,7 +417,7 @@ export default function ChatPanel({
           >
             <Users size={20} />
           </button>
-          {(activeDmUser || activeGroup) && (
+          {(activeDmUser || activeGroup || (activeView === "servers" && activeChannel?.type === "text")) && (
             <button
               className={`icon-btn ${showPinned ? "active" : ""}`}
               title={t("Pinned messages")}

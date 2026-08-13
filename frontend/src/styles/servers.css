@@ -1245,6 +1245,34 @@
   color: var(--text-0);
 }
 
+.server-role-row-wrap {
+  list-style: none;
+  border-radius: 8px;
+}
+
+.server-role-row-wrap[draggable="true"] {
+  cursor: grab;
+}
+
+.server-role-row-wrap[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.server-role-row-wrap.is-dragging {
+  opacity: 0.55;
+}
+
+.server-role-row-wrap.is-drag-over > .server-role-item {
+  outline: 1px solid color-mix(in srgb, var(--accent, #5865f2) 70%, transparent);
+  background: color-mix(in srgb, var(--accent, #5865f2) 12%, transparent);
+}
+
+.server-role-everyone {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-2);
+}
+
 .server-role-dot {
   width: 10px;
   height: 10px;

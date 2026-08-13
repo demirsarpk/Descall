@@ -72,6 +72,16 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [draft, setDraft] = useState(null);
+  const [dragRoleId, setDragRoleId] = useState(null);
+  const [dragOverRoleId, setDragOverRoleId] = useState(null);
+
+  const { customRoles, everyoneRole } = useMemo(() => {
+    const sorted = [...roles].sort((a, b) => (b.position || 0) - (a.position || 0));
+    return {
+      customRoles: sorted.filter((r) => !r.isEveryone),
+      everyoneRole: sorted.find((r) => r.isEveryone) || null,
+    };
+  }, [roles]);
 
   const selected = useMemo(
     () => roles.find((r) => r.id === selectedId) || null,
@@ -231,6 +241,43 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
   const canManageMember = (member) =>
     Boolean(member && !member.isOwner && (server?.isOwner || actorHighestPosition > (Number(member.highestPosition) || 0)));
 
+  const reorderCustomRoles = async (fromId, toId) => {
+    if (!server?.id || !fromId || !toId || fromId === toId) return;
+    const list = customRoles.slice();
+    const fromIdx = list.findIndex((r) => r.id === fromId);
+    const toIdx = list.findIndex((r) => r.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+
+    const [moved] = list.splice(fromIdx, 1);
+    list.splice(toIdx, 0, moved);
+
+    const prevById = new Map(customRoles.map((r) => [r.id, r.position || 0]));
+    const nextCustom = list.map((role, index) => ({
+      ...role,
+      position: list.length - index,
+    }));
+    const nextRoles = everyoneRole ? [...nextCustom, everyoneRole] : nextCustom;
+
+    setRoles(nextRoles);
+    onRolesChanged?.(nextRoles);
+
+    const changed = nextCustom.filter((role) => (prevById.get(role.id) || 0) !== role.position);
+    if (!changed.length) return;
+
+    setBusy(true);
+    setError("");
+    try {
+      await Promise.all(
+        changed.map((role) => updateServerRole(server.id, role.id, { position: role.position }))
+      );
+    } catch (err) {
+      setError(err?.message || t("Something went wrong."));
+      load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <motion.div
       className="server-modal-overlay"
@@ -287,24 +334,63 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
                 {t("Create role")}
               </button>
               <ul>
-                {roles
-                  .slice()
-                  .sort((a, b) => (b.position || 0) - (a.position || 0))
-                  .map((role) => (
-                    <li key={role.id}>
-                      <button
-                        type="button"
-                        className={`server-role-item ${selectedId === role.id && !draft?.isNew ? "active" : ""}`}
-                        onClick={() => {
-                          setSelectedId(role.id);
-                          setDraft(null);
-                        }}
-                      >
-                        <span className="server-role-dot" style={{ background: colorToHex(role.color) }} />
-                        <span>{role.name}</span>
-                      </button>
-                    </li>
-                  ))}
+                {customRoles.map((role) => (
+                  <li
+                    key={role.id}
+                    className={`server-role-row-wrap${dragRoleId === role.id ? " is-dragging" : ""}${dragOverRoleId === role.id ? " is-drag-over" : ""}`}
+                    draggable={!busy}
+                    onDragStart={(e) => {
+                      setDragRoleId(role.id);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", role.id);
+                    }}
+                    onDragEnd={() => {
+                      setDragRoleId(null);
+                      setDragOverRoleId(null);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragRoleId && dragRoleId !== role.id) setDragOverRoleId(role.id);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverRoleId === role.id) setDragOverRoleId(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const fromId = e.dataTransfer.getData("text/plain") || dragRoleId;
+                      setDragRoleId(null);
+                      setDragOverRoleId(null);
+                      reorderCustomRoles(fromId, role.id);
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={`server-role-item ${selectedId === role.id && !draft?.isNew ? "active" : ""}`}
+                      onClick={() => {
+                        setSelectedId(role.id);
+                        setDraft(null);
+                      }}
+                    >
+                      <span className="server-role-dot" style={{ background: colorToHex(role.color) }} />
+                      <span>{role.name}</span>
+                    </button>
+                  </li>
+                ))}
+                {everyoneRole && (
+                  <li key={everyoneRole.id} className="server-role-row-wrap server-role-everyone">
+                    <button
+                      type="button"
+                      className={`server-role-item ${selectedId === everyoneRole.id && !draft?.isNew ? "active" : ""}`}
+                      onClick={() => {
+                        setSelectedId(everyoneRole.id);
+                        setDraft(null);
+                      }}
+                    >
+                      <span className="server-role-dot" style={{ background: colorToHex(everyoneRole.color) }} />
+                      <span>{everyoneRole.name}</span>
+                    </button>
+                  </li>
+                )}
               </ul>
             </div>
 

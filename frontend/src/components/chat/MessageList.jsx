@@ -120,6 +120,38 @@ export default function MessageList({
 
   const trimmedSearch = searchQuery.trim();
   const isSearching = trimmedSearch.length > 0;
+  const [serverSearchResults, setServerSearchResults] = useState(null);
+
+  useEffect(() => {
+    if (conversationType !== "server" || !socket || !activeChannel?.id) {
+      setServerSearchResults(null);
+      return undefined;
+    }
+    if (trimmedSearch.length < 2) {
+      setServerSearchResults(null);
+      return undefined;
+    }
+
+    const onResults = ({ channelId, messages: results } = {}) => {
+      if (channelId === activeChannel.id) {
+        setServerSearchResults(Array.isArray(results) ? results : []);
+      }
+    };
+
+    socket.on("server:channel:message:search", onResults);
+    const timer = setTimeout(() => {
+      socket.emit("server:channel:message:search", {
+        channelId: activeChannel.id,
+        q: trimmedSearch,
+        limit: 50,
+      });
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      socket.off("server:channel:message:search", onResults);
+    };
+  }, [conversationType, socket, activeChannel?.id, trimmedSearch]);
 
   useEffect(() => {
     if (!loading && !isSearching) scrollToBottom();
@@ -128,9 +160,14 @@ export default function MessageList({
   const searchedMessages = useMemo(() => {
     const msgs = Array.isArray(messages) ? messages : [];
     if (!isSearching) return msgs;
+
+    if (conversationType === "server" && trimmedSearch.length >= 2 && serverSearchResults?.length) {
+      return serverSearchResults;
+    }
+
     const needle = trimmedSearch.toLowerCase();
     return msgs.filter((m) => typeof m?.text === "string" && m.text.toLowerCase().includes(needle));
-  }, [messages, isSearching, trimmedSearch]);
+  }, [messages, isSearching, trimmedSearch, conversationType, serverSearchResults]);
 
   const groupedMessages = useMemo(() => {
     const msgs = searchedMessages;

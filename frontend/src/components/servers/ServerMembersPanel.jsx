@@ -220,12 +220,71 @@ export default function ServerMembersPanel({
       });
   }, [members, onlineUsers, query, roles]);
 
-  const online = decorated
-    .filter((m) => m._online)
-    .sort((a, b) => Number(b.isOwner) - Number(a.isOwner) || a._name.localeCompare(b._name));
-  const offline = decorated
-    .filter((m) => !m._online)
-    .sort((a, b) => Number(b.isOwner) - Number(a.isOwner) || a._name.localeCompare(b._name));
+  const hoistRoles = useMemo(
+    () =>
+      (roles || [])
+        .filter((r) => r.hoist && !r.isEveryone)
+        .sort((a, b) => (b.position || 0) - (a.position || 0)),
+    [roles]
+  );
+
+  const memberSections = useMemo(() => {
+    const sortMembers = (list) =>
+      [...list].sort((a, b) => Number(b.isOwner) - Number(a.isOwner) || a._name.localeCompare(b._name));
+
+    const onlineList = sortMembers(decorated.filter((m) => m._online));
+    const offlineList = sortMembers(decorated.filter((m) => !m._online));
+
+    const getHighestHoistRole = (member) => {
+      const ids = new Set((member.roleIds || []).map(String));
+      return hoistRoles.find((r) => ids.has(String(r.id))) || null;
+    };
+
+    const byRole = new Map();
+    const noHoist = [];
+    for (const m of onlineList) {
+      const role = getHighestHoistRole(m);
+      if (role) {
+        if (!byRole.has(role.id)) byRole.set(role.id, []);
+        byRole.get(role.id).push(m);
+      } else {
+        noHoist.push(m);
+      }
+    }
+
+    const sections = [];
+    const hasHoistGroups = hoistRoles.length > 0 && byRole.size > 0;
+
+    if (!hasHoistGroups) {
+      if (onlineList.length) {
+        sections.push({
+          key: "online",
+          label: t("Online — {count}", { count: onlineList.length }),
+          members: onlineList,
+        });
+      }
+    } else {
+      for (const role of hoistRoles) {
+        const membersInRole = byRole.get(role.id);
+        if (!membersInRole?.length) continue;
+        sections.push({
+          key: role.id,
+          label: role.name,
+          members: membersInRole,
+          roleColor: colorToHex(role.color),
+        });
+      }
+      if (noHoist.length) {
+        sections.push({
+          key: "online-no-hoist",
+          label: t("Online — {count}", { count: noHoist.length }),
+          members: noHoist,
+        });
+      }
+    }
+
+    return { sections, offline: offlineList };
+  }, [decorated, hoistRoles, t]);
 
   const openMenu = (e, member) => {
     e.preventDefault();
@@ -475,20 +534,23 @@ export default function ServerMembersPanel({
           <p className="members-empty">{t("Loading…")}</p>
         ) : (
           <>
-            {online.length > 0 && (
-              <section className="members-section">
-                <h5 className="members-section-label">
-                  {t("Online — {count}", { count: online.length })}
+            {memberSections.sections.map((section) => (
+              <section key={section.key} className="members-section">
+                <h5
+                  className="members-section-label"
+                  style={section.roleColor ? { color: section.roleColor } : undefined}
+                >
+                  {section.label}
                 </h5>
-                <div className="members-section-list">{online.map(renderRow)}</div>
+                <div className="members-section-list">{section.members.map(renderRow)}</div>
               </section>
-            )}
-            {offline.length > 0 && (
+            ))}
+            {memberSections.offline.length > 0 && (
               <section className="members-section">
                 <h5 className="members-section-label">
-                  {t("Offline — {count}", { count: offline.length })}
+                  {t("Offline — {count}", { count: memberSections.offline.length })}
                 </h5>
-                <div className="members-section-list">{offline.map(renderRow)}</div>
+                <div className="members-section-list">{memberSections.offline.map(renderRow)}</div>
               </section>
             )}
             {decorated.length === 0 && <p className="members-empty">{t("No members")}</p>}

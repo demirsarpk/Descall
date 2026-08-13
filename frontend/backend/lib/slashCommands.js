@@ -119,6 +119,36 @@ const slashCommands = [
     permission: "MODERATE_MEMBERS",
     handler: handleTimeoutCommand,
   }),
+  defineCommand({
+    name: "kick",
+    description: "Kick a member from the server.",
+    contexts: ["server"],
+    options: [
+      option("user", "Member mention, username, or id.", { required: true }),
+      option("reason", "Optional audit reason."),
+    ],
+    permission: "KICK_MEMBERS",
+    handler: handleKickCommand,
+  }),
+  defineCommand({
+    name: "ban",
+    description: "Ban a member from the server.",
+    contexts: ["server"],
+    options: [
+      option("user", "Member mention, username, or id.", { required: true }),
+      option("reason", "Optional audit reason."),
+    ],
+    permission: "BAN_MEMBERS",
+    handler: handleBanCommand,
+  }),
+  defineCommand({
+    name: "purge",
+    description: "Delete the last N messages in this channel (1–100).",
+    contexts: ["server"],
+    options: [option("count", "Number of messages to delete (1–100).", { required: true })],
+    permission: "MANAGE_MESSAGES",
+    handler: handlePurgeCommand,
+  }),
 ];
 
 const registry = new Map(slashCommands.map((cmd) => [cmd.name, cmd]));
@@ -558,6 +588,404 @@ async function handleTimeoutCommand(ctx) {
           field("Until", new Date(timeout.until).toLocaleString("en-US"), true),
           reason ? field("Reason", reason, false) : null,
         ],
+      }),
+    }),
+  };
+}
+
+async function writeServerAudit({ serverId, actorId, action, targetType, targetId, reason }) {
+  const { error } = await supabase.from("server_audit_logs").insert({
+    server_id: serverId,
+    actor_id: actorId || null,
+    action,
+    target_type: targetType || null,
+    target_id: targetId ? String(targetId) : null,
+    reason: reason || null,
+  });
+  if (error) console.warn("[slashCommands] audit log insert failed:", error.message);
+}
+
+function notifyServerMemberRemoved(io, {
+  serverId,
+  serverName,
+  targetUserId,
+  action,
+  reason,
+  actorId,
+}) {
+  if (!io || !serverId || !targetUserId) return;
+  const payload = {
+    serverId,
+    serverName: serverName || null,
+    userId: targetUserId,
+    action: action === "ban" ? "ban" : "kick",
+    reason: reason || null,
+    actorId: actorId || null,
+  };
+  io.to(`user:${targetUserId}`).emit("server:member:removed", payload);
+  io.to(`server:${serverId}`).emit("server:member:removed", payload);
+  try {
+    const userRoom = io.sockets?.adapter?.rooms?.get(`user:${targetUserId}`);
+    if (userRoom) {
+      for (const sockId of userRoom) {
+        const sock = io.sockets.sockets.get(sockId);
+        if (!sock) continue;
+        sock.leave(`server:${serverId}`);
+        for (const roomName of [...sock.rooms]) {
+          if (typeof roomName === "string" && roomName.startsWith("server-channel:")) {
+            sock.leave(roomName);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[slashCommands] leave rooms after remove failed:", err?.message || err);
+  }
+  try {
+    const { removeUserFromAllServerVoice } = require("../socket/serverVoiceHandlers");
+    removeUserFromAllServerVoice(io, targetUserId);
+  } catch (err) {
+    console.warn("[slashCommands] voice cleanup after remove failed:", err?.message || err);
+  }
+}
+
+async function kickServerMember({ io, serverId, actorId, targetUserId, reason }) {
+  if (String(actorId) === String(targetUserId)) {
+    const err = new Error("You cannot kick yourself.");
+    err.status = 400;
+    throw err;
+  }
+  const { data: server, error: sErr } = await supabase
+    .from("servers")
+    .select("id, name, owner_id")
+    .eq("id", serverId)
+    .maybeSingle();
+  if (sErr) throw sErr;
+  if (!server) {
+    const err = new Error("Server not found.");
+    err.status = 404;
+    throw err;
+  }
+  if (server.owner_id === targetUserId) {
+    const err = new Error("Cannot kick the server owner.");
+    err.status = 403;
+    throw err;
+  }
+  const { data: membership, error: mErr } = await supabase
+    .from("server_members")
+    .select("user_id")
+    .eq("server_id", serverId)
+    .eq("user_id", targetUserId)
+    .maybeSingle();
+  if (mErr) throw mErr;
+  if (!membership) {
+    const err = new Error("Member not found in this server.");
+    err.status = 404;
+    throw err;
+  }
+  await assertHierarchy(supabase, serverId, actorId, targetUserId);
+
+  const { error: delErr } = await supabase
+    .from("server_members")
+    .delete()
+    .eq("server_id", serverId)
+    .eq("user_id", targetUserId);
+  if (delErr) throw delErr;
+  await supabase
+    .from("server_member_roles")
+    .delete()
+    .eq("server_id", serverId)
+    .eq("user_id", targetUserId);
+
+  const trimmedReason = reason ? String(reason).slice(0, 200) : null;
+  await writeServerAudit({
+    serverId,
+    actorId,
+    action: "MEMBER_KICK",
+    targetType: "member",
+    targetId: targetUserId,
+    reason: trimmedReason,
+  });
+  notifyServerMemberRemoved(io, {
+    serverId,
+    serverName: server.name,
+    targetUserId,
+    action: "kick",
+    reason: trimmedReason,
+    actorId,
+  });
+  return { server, reason: trimmedReason };
+}
+
+async function banServerMember({ io, serverId, actorId, targetUserId, reason }) {
+  if (String(actorId) === String(targetUserId)) {
+    const err = new Error("You cannot ban yourself.");
+    err.status = 400;
+    throw err;
+  }
+  const { data: server, error: sErr } = await supabase
+    .from("servers")
+    .select("id, name, owner_id")
+    .eq("id", serverId)
+    .maybeSingle();
+  if (sErr) throw sErr;
+  if (!server) {
+    const err = new Error("Server not found.");
+    err.status = 404;
+    throw err;
+  }
+  if (server.owner_id === targetUserId) {
+    const err = new Error("Cannot ban the server owner.");
+    err.status = 403;
+    throw err;
+  }
+  const { data: membership } = await supabase
+    .from("server_members")
+    .select("user_id")
+    .eq("server_id", serverId)
+    .eq("user_id", targetUserId)
+    .maybeSingle();
+  if (membership) {
+    await assertHierarchy(supabase, serverId, actorId, targetUserId);
+  }
+
+  const trimmedReason = reason ? String(reason).trim().slice(0, 200) : null;
+  const { error: banErr } = await supabase.from("server_bans").upsert(
+    {
+      server_id: serverId,
+      user_id: targetUserId,
+      moderator_id: actorId,
+      reason: trimmedReason,
+      created_at: new Date().toISOString(),
+    },
+    { onConflict: "server_id,user_id" }
+  );
+  if (banErr) throw banErr;
+
+  await supabase.from("server_members").delete().eq("server_id", serverId).eq("user_id", targetUserId);
+  await supabase
+    .from("server_member_roles")
+    .delete()
+    .eq("server_id", serverId)
+    .eq("user_id", targetUserId);
+
+  await writeServerAudit({
+    serverId,
+    actorId,
+    action: "MEMBER_BAN",
+    targetType: "member",
+    targetId: targetUserId,
+    reason: trimmedReason,
+  });
+  notifyServerMemberRemoved(io, {
+    serverId,
+    serverName: server.name,
+    targetUserId,
+    action: "ban",
+    reason: trimmedReason,
+    actorId,
+  });
+  return { server, reason: trimmedReason };
+}
+
+async function handleKickCommand(ctx) {
+  const [targetRaw, ...reasonParts] = ctx.parsed.args.split(/\s+/).filter(Boolean);
+  if (!targetRaw) {
+    return {
+      message: createContextMessage(ctx, {
+        content: "Usage: /kick @user [reason]",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Kick usage",
+          description: "Use: `/kick @user [reason]`",
+          color: EMBED_COLORS.warn,
+        }),
+      }),
+    };
+  }
+  const target = await resolveUserArg(ctx, targetRaw);
+  if (!target?.id || !target.member) {
+    return {
+      message: createContextMessage(ctx, {
+        content: "Member not found.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Member not found",
+          color: EMBED_COLORS.danger,
+          description: "No member matched that lookup.",
+        }),
+      }),
+    };
+  }
+  const reason = reasonParts.join(" ").trim().slice(0, 200) || null;
+  try {
+    await kickServerMember({
+      io: ctx.io,
+      serverId: ctx.serverId,
+      actorId: ctx.userId,
+      targetUserId: target.id,
+      reason,
+    });
+  } catch (err) {
+    return {
+      message: createContextMessage(ctx, {
+        content: err.message || "Failed to kick member.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Kick failed",
+          description: err.message || "Failed to kick member.",
+          color: EMBED_COLORS.danger,
+        }),
+      }),
+    };
+  }
+  const display = target.display_name || target.username || "member";
+  return {
+    message: createContextMessage(ctx, {
+      content: `Kicked ${display}`,
+      type: "app_kick",
+      embed: makeEmbed({
+        title: "Member kicked",
+        color: EMBED_COLORS.danger,
+        thumbnail: target.avatar_url ? { url: target.avatar_url } : null,
+        fields: [
+          field("Member", userFieldValue(target), true),
+          reason ? field("Reason", reason, false) : null,
+        ],
+      }),
+    }),
+  };
+}
+
+async function handleBanCommand(ctx) {
+  const [targetRaw, ...reasonParts] = ctx.parsed.args.split(/\s+/).filter(Boolean);
+  if (!targetRaw) {
+    return {
+      message: createContextMessage(ctx, {
+        content: "Usage: /ban @user [reason]",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Ban usage",
+          description: "Use: `/ban @user [reason]`",
+          color: EMBED_COLORS.warn,
+        }),
+      }),
+    };
+  }
+  const target = await resolveUserArg(ctx, targetRaw);
+  if (!target?.id) {
+    return {
+      message: createContextMessage(ctx, {
+        content: "Member not found.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Member not found",
+          color: EMBED_COLORS.danger,
+          description: "No member matched that lookup.",
+        }),
+      }),
+    };
+  }
+  const reason = reasonParts.join(" ").trim().slice(0, 200) || null;
+  try {
+    await banServerMember({
+      io: ctx.io,
+      serverId: ctx.serverId,
+      actorId: ctx.userId,
+      targetUserId: target.id,
+      reason,
+    });
+  } catch (err) {
+    return {
+      message: createContextMessage(ctx, {
+        content: err.message || "Failed to ban member.",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Ban failed",
+          description: err.message || "Failed to ban member.",
+          color: EMBED_COLORS.danger,
+        }),
+      }),
+    };
+  }
+  const display = target.display_name || target.username || "member";
+  return {
+    message: createContextMessage(ctx, {
+      content: `Banned ${display}`,
+      type: "app_ban",
+      embed: makeEmbed({
+        title: "Member banned",
+        color: EMBED_COLORS.danger,
+        thumbnail: target.avatar_url ? { url: target.avatar_url } : null,
+        fields: [
+          field("Member", userFieldValue(target), true),
+          reason ? field("Reason", reason, false) : null,
+        ],
+      }),
+    }),
+  };
+}
+
+async function handlePurgeCommand(ctx) {
+  const count = Math.max(0, Math.floor(Number(ctx.parsed.args) || 0));
+  if (!count || count > 100) {
+    return {
+      message: createContextMessage(ctx, {
+        content: "Usage: /purge N (1–100)",
+        type: "app_error",
+        embed: makeEmbed({
+          title: "Purge usage",
+          description: "Use: `/purge N` where N is between 1 and 100.",
+          color: EMBED_COLORS.warn,
+        }),
+      }),
+    };
+  }
+
+  const { data: rows, error } = await supabase
+    .from("server_messages")
+    .select("id")
+    .eq("channel_id", ctx.channelId)
+    .eq("server_id", ctx.serverId)
+    .order("created_at", { ascending: false })
+    .limit(count);
+  if (error) throw error;
+
+  const ids = (rows || []).map((r) => r.id);
+  if (!ids.length) {
+    return {
+      message: createContextMessage(ctx, {
+        content: "No messages to purge.",
+        type: "app_purge",
+        embed: makeEmbed({
+          title: "Nothing to purge",
+          description: "This channel has no messages to delete.",
+          color: EMBED_COLORS.warn,
+        }),
+      }),
+    };
+  }
+
+  const { error: delErr } = await supabase.from("server_messages").delete().in("id", ids);
+  if (delErr) throw delErr;
+
+  for (const messageId of ids) {
+    ctx.io.to(`server-channel:${ctx.channelId}`).emit("server:channel:message:deleted", {
+      serverId: ctx.serverId,
+      channelId: ctx.channelId,
+      messageId,
+    });
+  }
+
+  return {
+    message: createContextMessage(ctx, {
+      content: `Purged ${ids.length} message(s).`,
+      type: "app_purge",
+      embed: makeEmbed({
+        title: "Messages purged",
+        description: `Deleted **${ids.length}** message(s) from this channel.`,
+        color: EMBED_COLORS.success,
+        footer: { text: "Channel purge" },
       }),
     }),
   };
