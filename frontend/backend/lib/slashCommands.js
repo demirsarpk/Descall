@@ -373,7 +373,6 @@ async function handleUserCommand(ctx) {
           name: display,
           iconUrl: user.avatar_url || null,
         },
-        title: display,
         color: EMBED_COLORS.success,
         thumbnail: user.avatar_url ? { url: user.avatar_url } : null,
         fields,
