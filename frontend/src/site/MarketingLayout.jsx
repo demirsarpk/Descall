@@ -3,6 +3,7 @@ import { NavLink, Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useLocale, useT } from "../context/LocaleContext";
 import { Funnel } from "./analytics";
+import { SITE_OPERATOR } from "./siteIdentity";
 import "./site.css";
 
 const NAV = [
@@ -74,21 +75,44 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
 
       <header className="mkt-header">
         <Link to="/" className="mkt-brand" aria-label="Descall home">
-          <img src="/icon.png" alt="" width={32} height={32} />
+          <img
+            src="/icon-192.png"
+            alt="Descall logo"
+            width={32}
+            height={32}
+            decoding="async"
+          />
           <span>Descall</span>
+          <span className="mkt-header-beta" title={t(SITE_OPERATOR.statusNote)}>
+            {t("Beta")}
+          </span>
         </Link>
         {nav}
         <div className="mkt-header-actions">
           <div className="mkt-desktop-language">
             <LanguageToggle locale={locale} setLocale={setLocale} />
           </div>
-          <button type="button" className="mkt-btn mkt-btn-ghost" onClick={openLogin}>
+          <button
+            type="button"
+            className="mkt-btn mkt-btn-ghost"
+            onClick={openLogin}
+            aria-label={t("Sign In")}
+          >
             {t("Sign In")}
           </button>
-          <button type="button" className="mkt-btn mkt-btn-primary" onClick={openRegister}>
+          <button
+            type="button"
+            className="mkt-btn mkt-btn-primary"
+            onClick={openRegister}
+            aria-label={t("Start free")}
+          >
             {t("Start free")}
           </button>
-          <Link to="/download" className="mkt-btn mkt-btn-soft mkt-header-download">
+          <Link
+            to="/download"
+            className="mkt-btn mkt-btn-soft mkt-header-download"
+            aria-label={t("Download Descall")}
+          >
             {t("Download")}
           </Link>
           <button
@@ -99,27 +123,53 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
             aria-controls="marketing-navigation"
             aria-label={menuOpen ? t("Close menu") : t("Open menu")}
           >
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            {menuOpen ? <X size={20} aria-hidden /> : <Menu size={20} aria-hidden />}
           </button>
         </div>
       </header>
 
-      <main className="mkt-main">{children}</main>
+      <main className="mkt-main" id="main-content">
+        {children}
+      </main>
 
       <footer className="mkt-footer">
         <div className="mkt-footer-brand">
-          <img src="/icon.png" alt="" width={24} height={24} />
-          <strong>Descall</strong>
+          <img
+            src="/icon-192.png"
+            alt=""
+            width={24}
+            height={24}
+            decoding="async"
+            loading="lazy"
+          />
+          <div>
+            <strong>Descall</strong>
+            <span className="mkt-footer-beta">{t("Beta")}</span>
+            <p className="mkt-footer-operator">
+              {SITE_OPERATOR.operatorName} · {SITE_OPERATOR.country}
+            </p>
+          </div>
         </div>
         <div className="mkt-footer-links">
+          <Link to="/about">{t("About")}</Link>
+          <Link to="/features">{t("Features")}</Link>
+          <Link to="/faq">{t("FAQ")}</Link>
+          <Link to="/blog">{t("Blog")}</Link>
+          <Link to="/security">{t("Security")}</Link>
           <Link to="/privacy">{t("Privacy Policy")}</Link>
           <Link to="/terms">{t("Terms")}</Link>
           <Link to="/contact">{t("Contact")}</Link>
           <Link to="/compare/discord">vs Discord</Link>
           <Link to="/discord-alternative-turkey">{t("Turkey")}</Link>
-          <a href="/sitemap.html">Sitemap</a>
+          <a href="/sitemap.html">{t("Sitemap")}</a>
         </div>
-        <p className="mkt-footer-copy">{t("© 2026 Descall. All rights reserved.")}</p>
+        <p className="mkt-footer-contact">
+          <a href={`mailto:${SITE_OPERATOR.supportEmail}`}>{SITE_OPERATOR.supportEmail}</a>
+        </p>
+        <p className="mkt-footer-copy">
+          © {SITE_OPERATOR.copyrightYear} Descall. {t("All rights reserved.")}{" "}
+          {t("Last updated")}: {SITE_OPERATOR.lastUpdatedLabel}.
+        </p>
       </footer>
     </div>
   );
@@ -128,12 +178,13 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
 function LanguageToggle({ locale, setLocale }) {
   const t = useT();
   return (
-    <div className="mkt-language-toggle" aria-label={t("Language")}>
+    <div className="mkt-language-toggle" role="group" aria-label={t("Language")}>
       <button
         type="button"
         className={locale === "tr" ? "is-active" : ""}
         onClick={() => setLocale("tr")}
         aria-pressed={locale === "tr"}
+        aria-label="Türkçe"
       >
         TR
       </button>
@@ -142,6 +193,7 @@ function LanguageToggle({ locale, setLocale }) {
         className={locale === "en" ? "is-active" : ""}
         onClick={() => setLocale("en")}
         aria-pressed={locale === "en"}
+        aria-label="English"
       >
         EN
       </button>

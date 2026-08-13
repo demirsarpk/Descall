@@ -99,6 +99,8 @@ export default function HomePage({ onSignIn, onSignUp }) {
       <JsonLd data={[buildOrganizationLd(), buildWebSiteLd(), buildSoftwareApplicationLd()]} />
       <section className="mkt-hero">
         <div className="mkt-kicker">
+          <span className="mkt-header-beta">{t("Beta")}</span>
+          {" · "}
           {t("Servers")} · {t("Messages")} · {t("Voice")} · {t("Screen share")}
         </div>
         <h1>

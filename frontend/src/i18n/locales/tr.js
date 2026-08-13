@@ -1470,6 +1470,37 @@ export const phrases = {
   "Installing…": "Kuruluyor…",
   "Downloading…": "İndiriliyor…",
   "About": "Hakkında",
+  "About Descall": "Descall Hakkında",
+  "Operator": "İşleten",
+  "Product": "Ürün",
+  "Based in": "Ülke",
+  "Support": "Destek",
+  "Source": "Kaynak",
+  "What we build": "Ne inşa ediyoruz",
+  "All rights reserved.": "Tüm hakları saklıdır.",
+  "Security at Descall": "Descall Güvenliği",
+  "Transport encryption (not default E2E)": "Aktarım şifrelemesi (varsayılan E2E değil)",
+  "Voice & video": "Ses ve görüntü",
+  "Report an issue": "Sorun bildir",
+  "Download Descall": "Descall indir",
+  "Sitemap": "Site haritası",
+  "Beta": "Beta",
+  "Descall is an independent beta product. Core chat, servers, and voice are free while we grow with real communities.":
+    "Descall bağımsız bir beta üründür. Temel sohbet, sunucular ve ses ücretsizdir; gerçek topluluklarla büyüyoruz.",
+  "Descall is an independent messaging and voice platform for friends, gaming squads, and small communities who want Discord-style servers without Nitro paywalls on core chat and calls.":
+    "Descall; arkadaşlar, oyun ekipleri ve küçük topluluklar için Discord tarzı sunucular isteyen bağımsız bir mesajlaşma ve ses platformudur — temel sohbet ve aramalarda Nitro duvarı yoktur.",
+  "Real-time messaging, Discord-style servers, WebRTC voice/video, screen share, and Valorant LFG — with privacy policies and security docs you can actually read.":
+    "Gerçek zamanlı mesajlaşma, Discord tarzı sunucular, WebRTC ses/görüntü, ekran paylaşımı ve Valorant LFG — okunabilir gizlilik ve güvenlik dokümanlarıyla.",
+  "How Descall protects your chats and calls — encryption in transit, account security, and honest limits about what we do not claim.":
+    "Descall sohbet ve aramaları nasıl korur — aktarımda şifreleme, hesap güvenliği ve iddia etmediğimiz konular hakkında dürüst sınırlar.",
+  "Web and API traffic use HTTPS/TLS. Real-time media uses WebRTC with DTLS/SRTP between peers when a call is established. Descall does not claim default end-to-end encryption for all message history stored on the server — messages are encrypted in transit and stored so your devices can load chat history.":
+    "Web ve API trafiği HTTPS/TLS kullanır. Gerçek zamanlı medya, görüşme kurulduğunda peer'lar arasında WebRTC DTLS/SRTP kullanır. Descall, sunucuda saklanan tüm mesaj geçmişi için varsayılan uçtan uca şifreleme iddiasında bulunmaz — mesajlar aktarımda şifrelenir ve cihazlarınızın geçmişi yükleyebilmesi için saklanır.",
+  "Call media is transmitted with WebRTC security (DTLS/SRTP). Descall does not record or store call audio/video by default. If a participant records locally on their device, that recording is outside Descall's control.":
+    "Arama medyası WebRTC güvenliği (DTLS/SRTP) ile iletilir. Descall varsayılan olarak arama ses/görüntüsünü kaydetmez veya saklamaz. Bir katılımcı kendi cihazında kayıt alırsa bu Descall'ın kontrolü dışındadır.",
+  "Passwords are hashed with bcrypt. Optional email 2FA and Google sign-in are available where configured. Session management lets you revoke devices. Keep credentials private on shared computers.":
+    "Parolalar bcrypt ile hashlenir. İsteğe bağlı e-posta 2FA ve Google ile giriş yapılandırıldığı yerlerde kullanılabilir. Oturum yönetimi cihazları iptal etmenizi sağlar. Paylaşılan bilgisayarlarda kimlik bilgilerinizi gizli tutun.",
+  "or open an issue on GitHub. Include enough detail for a safe investigation.":
+    "veya GitHub'da bir issue açın. Güvenli inceleme için yeterli ayrıntı ekleyin.",
   "Help": "Yardım",
   "Support": "Destek",
   "Terms": "Şartlar",

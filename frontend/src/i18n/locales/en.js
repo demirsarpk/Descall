@@ -1515,6 +1515,37 @@ export const phrases = {
   "Installing…": "Installing…",
   "Downloading…": "Downloading…",
   "About": "About",
+  "About Descall": "About Descall",
+  "Operator": "Operator",
+  "Product": "Product",
+  "Based in": "Based in",
+  "Support": "Support",
+  "Source": "Source",
+  "What we build": "What we build",
+  "All rights reserved.": "All rights reserved.",
+  "Security at Descall": "Security at Descall",
+  "Transport encryption (not default E2E)": "Transport encryption (not default E2E)",
+  "Voice & video": "Voice & video",
+  "Report an issue": "Report an issue",
+  "Download Descall": "Download Descall",
+  "Descall is an independent beta product. Core chat, servers, and voice are free while we grow with real communities.":
+    "Descall is an independent beta product. Core chat, servers, and voice are free while we grow with real communities.",
+  "Descall is an independent messaging and voice platform for friends, gaming squads, and small communities who want Discord-style servers without Nitro paywalls on core chat and calls.":
+    "Descall is an independent messaging and voice platform for friends, gaming squads, and small communities who want Discord-style servers without Nitro paywalls on core chat and calls.",
+  "Real-time messaging, Discord-style servers, WebRTC voice/video, screen share, and Valorant LFG — with privacy policies and security docs you can actually read.":
+    "Real-time messaging, Discord-style servers, WebRTC voice/video, screen share, and Valorant LFG — with privacy policies and security docs you can actually read.",
+  "How Descall protects your chats and calls — encryption in transit, account security, and honest limits about what we do not claim.":
+    "How Descall protects your chats and calls — encryption in transit, account security, and honest limits about what we do not claim.",
+  "Web and API traffic use HTTPS/TLS. Real-time media uses WebRTC with DTLS/SRTP between peers when a call is established. Descall does not claim default end-to-end encryption for all message history stored on the server — messages are encrypted in transit and stored so your devices can load chat history.":
+    "Web and API traffic use HTTPS/TLS. Real-time media uses WebRTC with DTLS/SRTP between peers when a call is established. Descall does not claim default end-to-end encryption for all message history stored on the server — messages are encrypted in transit and stored so your devices can load chat history.",
+  "Call media is transmitted with WebRTC security (DTLS/SRTP). Descall does not record or store call audio/video by default. If a participant records locally on their device, that recording is outside Descall's control.":
+    "Call media is transmitted with WebRTC security (DTLS/SRTP). Descall does not record or store call audio/video by default. If a participant records locally on their device, that recording is outside Descall's control.",
+  "Passwords are hashed with bcrypt. Optional email 2FA and Google sign-in are available where configured. Session management lets you revoke devices. Keep credentials private on shared computers.":
+    "Passwords are hashed with bcrypt. Optional email 2FA and Google sign-in are available where configured. Session management lets you revoke devices. Keep credentials private on shared computers.",
+  "or open an issue on GitHub. Include enough detail for a safe investigation.":
+    "or open an issue on GitHub. Include enough detail for a safe investigation.",
+  "Sitemap": "Sitemap",
+  "Beta": "Beta",
   "Help": "Help",
   "Support": "Support",
   "Terms": "Terms",

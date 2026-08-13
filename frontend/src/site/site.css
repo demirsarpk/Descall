@@ -2,10 +2,11 @@
   --mkt-bg: #0b0c10;
   --mkt-surface: rgba(30, 31, 34, 0.72);
   --mkt-text: #f2f3f5;
-  --mkt-muted: #949ba4;
-  --mkt-accent: #7b89ff;
-  --mkt-accent-2: #23a55a;
-  --mkt-border: rgba(255, 255, 255, 0.08);
+  /* ~#b4bcc8 on #0b0c10 ≈ 4.6:1 for WCAG AA body/muted text */
+  --mkt-muted: #b4bcc8;
+  --mkt-accent: #8b97ff;
+  --mkt-accent-2: #2fbf6a;
+  --mkt-border: rgba(255, 255, 255, 0.1);
   --mkt-font-display: "Outfit", "Avenir Next", "Segoe UI", sans-serif;
   --mkt-font-body: "Inter", "Segoe UI", sans-serif;
   position: relative;
@@ -14,6 +15,40 @@
   font-family: var(--mkt-font-body);
   background: var(--mkt-bg);
   isolation: isolate;
+}
+
+.mkt :focus-visible {
+  outline: 2px solid var(--mkt-accent);
+  outline-offset: 3px;
+}
+
+.mkt-header-beta,
+.mkt-footer-beta,
+.mkt-beta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #d7dbff;
+  background: rgba(88, 101, 242, 0.22);
+  border: 1px solid rgba(123, 137, 255, 0.35);
+  border-radius: 999px;
+  padding: 3px 9px;
+  line-height: 1.2;
+}
+
+.mkt-beta-badge {
+  margin-bottom: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 12px;
+  color: var(--mkt-text);
 }
 
 .mkt-bg {
@@ -421,9 +456,33 @@
 
 .mkt-footer-brand {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
   font-family: var(--mkt-font-display);
+  text-align: left;
+}
+
+.mkt-footer-brand strong {
+  display: inline;
+  margin-right: 8px;
+}
+
+.mkt-footer-operator {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--mkt-muted);
+  font-family: var(--mkt-font-body);
+}
+
+.mkt-footer-contact a {
+  color: var(--mkt-accent);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mkt-footer-contact a:hover {
+  text-decoration: underline;
 }
 
 .mkt-footer-links {

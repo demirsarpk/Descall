@@ -254,23 +254,25 @@ export const PUBLIC_ROUTES = [
   },
   {
     path: "/security",
-    title: "Descall Security",
+    title: "Descall Security — TLS, WebRTC DTLS/SRTP & Accounts",
     description:
-      "How Descall protects your chats and calls — encryption in transit, account security, and responsible practices.",
+      "Descall security: HTTPS/TLS for web, WebRTC DTLS/SRTP for calls, bcrypt passwords, and honest limits — no default E2E claim for stored chat history.",
     changefreq: "monthly",
     priority: "0.6",
   },
   {
     path: "/privacy",
-    title: "Descall Privacy Policy",
-    description: "Privacy Policy for Descall — what we collect, how we use data, and your choices.",
+    title: "Descall Privacy Policy — GDPR/KVKK data practices",
+    description:
+      "Descall Privacy Policy: what we collect (account, messages, IP, call metadata), how long we keep it, processors (Supabase, Resend, FCM), and your access/deletion rights.",
     changefreq: "monthly",
     priority: "0.5",
   },
   {
     path: "/terms",
-    title: "Descall Terms of Service",
-    description: "Terms of Service for using Descall web and desktop apps.",
+    title: "Descall Terms of Service — Age, Acceptable Use & Accounts",
+    description:
+      "Terms of Service for Descall web and desktop apps: age requirements (13+), acceptable use, account suspension, DesCoin cosmetics, and liability limits.",
     changefreq: "monthly",
     priority: "0.5",
   },
@@ -278,14 +280,15 @@ export const PUBLIC_ROUTES = [
     path: "/about",
     title: "About Descall — Building a lighter Discord alternative",
     description:
-      "Descall is building a fast, modern Discord alternative for chat, calls, screen share, and gamer LFG.",
+      "Descall is an independent beta Discord alternative by Demir Sarp Kurtlar (Türkiye). Contact contact@descall.com for support.",
     changefreq: "monthly",
     priority: "0.65",
   },
   {
     path: "/contact",
-    title: "Contact Descall",
-    description: "Get in touch with the Descall team — support, feedback, and press.",
+    title: "Contact Descall Support — Email & Security Reports",
+    description:
+      "Email contact@descall.com for Descall support, feedback, press, or security reports. Operated by Demir Sarp Kurtlar in Türkiye.",
     changefreq: "monthly",
     priority: "0.5",
   },

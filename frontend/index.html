@@ -59,7 +59,11 @@
     <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    </noscript>
     <style>
       /* Critical boot splash — paints before JS bundle */
       html, body {
@@ -238,15 +242,15 @@
         <a href="/contact">Contact</a>
       </nav>
     </noscript>
-    <div id="boot-splash" data-shown-at="" role="progressbar" aria-busy="true" aria-label="Loading Descall">
+    <div id="boot-splash" data-shown-at="" role="progressbar" aria-busy="true" aria-label="Starting Descall">
       <div class="boot-orb boot-orb--a" aria-hidden="true"></div>
       <div class="boot-orb boot-orb--b" aria-hidden="true"></div>
       <div class="boot-card">
         <div class="boot-mark" aria-hidden="true"><span>D</span></div>
-        <h1 class="boot-title">Descall</h1>
+        <div class="boot-title">Descall</div>
         <p class="boot-sub">Messages · voice · screen share</p>
         <div class="boot-bar" aria-hidden="true"><i></i></div>
-        <p class="boot-status" id="boot-status">Loading</p>
+        <p class="boot-status" id="boot-status">Starting</p>
       </div>
     </div>
     <script>

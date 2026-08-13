@@ -214,6 +214,23 @@ if (checkDist) {
       if (!html.includes("<title>")) fail(`No <title> in ${rel}`);
       if (!html.includes('rel="canonical"')) fail(`No canonical in ${rel}`);
       if (!html.includes("<h1")) fail(`No <h1> crawl content in ${rel}`);
+      if (/\bLoading\b/i.test(html)) fail(`Loading placeholder found in ${rel}`);
+      const mainMatch = html.match(/<main[\s\S]*?<\/main>/i);
+      if (!mainMatch || mainMatch[0].length < 400) {
+        fail(`Thin crawl <main> in ${rel} (${mainMatch ? mainMatch[0].length : 0} chars)`);
+      }
+      if (route.path === "/faq" && !html.includes('"@type":"FAQPage"') && !html.includes('"@type": "FAQPage"')) {
+        fail(`FAQPage JSON-LD missing in ${rel}`);
+      }
+      if (
+        (route.path === "/" || route.path === "/features") &&
+        !html.includes("SoftwareApplication")
+      ) {
+        fail(`SoftwareApplication JSON-LD missing in ${rel}`);
+      }
+      if (route.path.startsWith("/blog/") && route.path !== "/blog" && !html.includes('"@type":"Article"') && !html.includes('"@type": "Article"')) {
+        warn(`Article JSON-LD missing in ${rel}`);
+      }
       if (/rel="canonical"[^>]*http:\/\//i.test(html)) fail(`HTTP canonical in ${rel}`);
       if (/rel="canonical"[^>]*(onrender\.com|vercel\.app|localhost)/i.test(html)) {
         fail(`Non-production canonical in ${rel}`);
