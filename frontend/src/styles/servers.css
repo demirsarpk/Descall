@@ -856,6 +856,216 @@
   margin-top: 8px;
 }
 
+/* —— Server Settings modal —— */
+.server-modal.server-settings-modal {
+  width: min(480px, 100%);
+  padding: 0;
+  overflow: hidden;
+}
+
+.server-settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px 8px;
+}
+
+.server-settings-head-copy h3 {
+  margin: 0 0 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.server-settings-head .server-modal-lead {
+  margin: 0;
+}
+
+.server-settings-identity {
+  position: relative;
+  margin: 8px 22px 0;
+}
+
+.server-settings-banner-btn {
+  display: block;
+  width: 100%;
+  height: 118px;
+  border: 1px solid var(--border-3);
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 0;
+  background:
+    radial-gradient(120% 90% at 10% 0%, color-mix(in srgb, var(--primary) 28%, transparent), transparent 55%),
+    linear-gradient(135deg, var(--surface-1), var(--surface-3));
+  cursor: pointer;
+  position: relative;
+}
+
+.server-settings-banner-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.server-settings-banner-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.server-settings-banner-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.server-settings-media-chip {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.server-settings-icon-btn {
+  position: absolute;
+  left: 14px;
+  bottom: -28px;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  border: 4px solid var(--surface-2);
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface-1);
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+}
+
+.server-settings-icon-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.server-settings-icon-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--text-0);
+  background: color-mix(in srgb, var(--primary) 35%, var(--surface-1));
+}
+
+.server-settings-icon-camera {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.server-settings-icon-btn:hover .server-settings-icon-camera,
+.server-settings-icon-btn:focus-visible .server-settings-icon-camera {
+  opacity: 1;
+}
+
+.server-settings-media-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 40px 22px 6px;
+}
+
+.server-settings-modal .server-field {
+  margin-left: 22px;
+  margin-right: 22px;
+}
+
+.server-settings-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 16px 22px 20px;
+  border-top: 1px solid var(--border-3);
+  background: color-mix(in srgb, var(--surface-1) 65%, var(--surface-2));
+}
+
+.server-settings-cancel {
+  min-width: 96px;
+  border: 1px solid var(--border-3) !important;
+  background: var(--surface-1) !important;
+  color: var(--text-1) !important;
+}
+
+.server-settings-cancel:hover:not(:disabled) {
+  background: var(--surface-3) !important;
+  color: var(--text-0) !important;
+}
+
+.server-settings-save {
+  min-width: 132px;
+  padding: 11px 18px !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.server-settings-save:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.server-ghost-btn.is-danger-ghost {
+  color: var(--danger, #ed4245) !important;
+  border-color: color-mix(in srgb, var(--danger, #ed4245) 35%, var(--border-3)) !important;
+}
+
+@media (max-width: 480px) {
+  .server-settings-banner-btn {
+    height: 104px;
+  }
+
+  .server-settings-icon-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    bottom: -24px;
+  }
+
+  .server-settings-footer {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .server-settings-cancel,
+  .server-settings-save {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
 .server-primary-btn,
 .server-ghost-btn,
 .server-danger-btn {

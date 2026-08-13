@@ -441,7 +441,8 @@ export default function ServersSidebar({
                     disabled={serverIconBusy}
                     onClick={() => {
                       setMenuOpen(false);
-                      serverIconFileRef.current?.click();
+                      // Defer so the dropdown unmount doesn't swallow the file-picker gesture.
+                      window.setTimeout(() => serverIconFileRef.current?.click(), 0);
                     }}
                   >
                     <Camera size={15} />
@@ -820,6 +821,34 @@ export default function ServersSidebar({
             onClose={() => setVoiceMenu(null)}
           />
         )}
+
+        {/* Must live in the in-server tree — early return above skips the list-view inputs. */}
+        <AnimatePresence>
+          {serverIconCropSrc ? (
+            <ImageCropModal
+              key="edit-server-icon-crop-active"
+              imageSrc={serverIconCropSrc}
+              aspect={1}
+              cropShape="rect"
+              title={t("Adjust server icon")}
+              confirmLabel={serverIconBusy ? t("Please wait...") : t("Save icon")}
+              outputMimeType="image/jpeg"
+              outputFileName="server-icon.jpg"
+              maxOutputSize={512}
+              onCancel={() => !serverIconBusy && setServerIconCropSrc("")}
+              onConfirm={saveServerIconCrop}
+            />
+          ) : null}
+        </AnimatePresence>
+        <input
+          ref={serverIconFileRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="server-hidden-file"
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={pickServerIconFile}
+        />
       </aside>
     );
   }

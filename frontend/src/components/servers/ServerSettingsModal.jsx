@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Settings2, Camera, ImagePlus } from "lucide-react";
+import { Settings2, Camera, ImagePlus, Trash2, X } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
 import { useToast } from "../../context/ToastContext";
 import { updateServer } from "../../api/servers";
@@ -20,6 +20,7 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
   const [iconUrl, setIconUrl] = useState(server?.iconUrl || "");
   const [bannerUrl, setBannerUrl] = useState(server?.bannerUrl || "");
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [cropSrc, setCropSrc] = useState("");
   const [cropKind, setCropKind] = useState(null); // 'icon' | 'banner'
   const iconRef = useRef(null);
@@ -33,6 +34,19 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
   }, [server?.id, server?.name, server?.description, server?.iconUrl, server?.bannerUrl]);
 
   const canManage = serverHasPermission(server, "MANAGE_GUILD");
+  const initials = String(name || server?.name || "?")
+    .split(/\s+/)
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const openPicker = (kind) => {
+    if (!canManage || busy || uploading) return;
+    const ref = kind === "icon" ? iconRef : bannerRef;
+    // Keep the user gesture → file dialog chain intact on mobile.
+    window.setTimeout(() => ref.current?.click(), 0);
+  };
 
   const pickImage = async (e, kind) => {
     const file = e.target.files?.[0];
@@ -61,7 +75,7 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
       setCropKind(null);
       return;
     }
-    setBusy(true);
+    setUploading(true);
     try {
       const uploaded = await uploadFile(file);
       const url = uploaded?.url || uploaded?.mediaUrl || null;
@@ -70,16 +84,20 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
       else setBannerUrl(url);
       setCropSrc("");
       setCropKind(null);
+      toast(
+        cropKind === "icon" ? t("Icon ready — tap Save to apply.") : t("Banner ready — tap Save to apply."),
+        "success"
+      );
     } catch (err) {
       toast(err?.message || t("Upload failed."), "error");
     } finally {
-      setBusy(false);
+      setUploading(false);
     }
   };
 
   const save = async (e) => {
     e?.preventDefault?.();
-    if (!server?.id || !canManage) return;
+    if (!server?.id || !canManage || busy || uploading) return;
     const trimmed = name.trim();
     if (trimmed.length < 2) {
       toast(t("Server name must be at least 2 characters."), "error");
@@ -118,73 +136,105 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={onClose}
+        onClick={() => !busy && !uploading && !cropSrc && onClose?.()}
       >
         <motion.form
           className="server-modal server-settings-modal"
-          initial={{ scale: 0.94, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.94, opacity: 0 }}
+          initial={{ scale: 0.94, opacity: 0, y: 10 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.96, opacity: 0, y: 8 }}
+          transition={{ type: "spring", stiffness: 420, damping: 32 }}
           onClick={(e) => e.stopPropagation()}
           onSubmit={save}
         >
-          <h3>
-            <Settings2 size={18} />
-            {t("Server Settings")}
-          </h3>
-          <p className="server-modal-lead">
-            {t("Update your server name, description, icon, and banner.")}
-          </p>
-
-          {bannerUrl ? (
-            <div
-              className="server-settings-banner"
-              style={{
-                backgroundImage: `url(${bannerUrl})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-                height: 96,
-                borderRadius: 10,
-                marginBottom: 12,
-              }}
-            />
-          ) : null}
-
-          <div className="server-settings-media-row" style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-            {iconUrl ? (
-              <img
-                src={iconUrl}
-                alt=""
-                width={40}
-                height={40}
-                style={{ borderRadius: 10, objectFit: "cover" }}
-              />
-            ) : null}
+          <header className="server-settings-head">
+            <div className="server-settings-head-copy">
+              <h3>
+                <Settings2 size={18} />
+                {t("Server Settings")}
+              </h3>
+              <p className="server-modal-lead">
+                {t("Update your server name, description, icon, and banner.")}
+              </p>
+            </div>
             <button
               type="button"
-              className="btn-ghost"
-              disabled={!canManage || busy}
-              onClick={() => iconRef.current?.click()}
+              className="server-icon-btn"
+              onClick={onClose}
+              disabled={busy || uploading}
+              aria-label={t("Close")}
             >
-              <Camera size={14} />
-              {t("Icon")}
+              <X size={16} />
+            </button>
+          </header>
+
+          <div className="server-settings-identity">
+            <button
+              type="button"
+              className={`server-settings-banner-btn${bannerUrl ? " has-image" : ""}`}
+              disabled={!canManage || busy || uploading}
+              onClick={() => openPicker("banner")}
+              aria-label={t("Banner")}
+            >
+              {bannerUrl ? (
+                <img src={bannerUrl} alt="" className="server-settings-banner-img" />
+              ) : (
+                <div className="server-settings-banner-empty">
+                  <ImagePlus size={22} />
+                  <span>{t("Upload banner")}</span>
+                </div>
+              )}
+              <span className="server-settings-media-chip">
+                <ImagePlus size={12} />
+                {t("Banner")}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={`server-settings-icon-btn${iconUrl ? " has-image" : ""}`}
+              disabled={!canManage || busy || uploading}
+              onClick={() => openPicker("icon")}
+              aria-label={t("Icon")}
+            >
+              {iconUrl ? (
+                <img src={iconUrl} alt="" />
+              ) : (
+                <span className="server-settings-icon-fallback">{initials}</span>
+              )}
+              <span className="server-settings-icon-camera" aria-hidden>
+                <Camera size={14} />
+              </span>
+            </button>
+          </div>
+
+          <div className="server-settings-media-actions">
+            <button
+              type="button"
+              className="server-ghost-btn"
+              disabled={!canManage || busy || uploading}
+              onClick={() => openPicker("icon")}
+            >
+              <Camera size={15} />
+              {t("Change icon")}
             </button>
             <button
               type="button"
-              className="btn-ghost"
-              disabled={!canManage || busy}
-              onClick={() => bannerRef.current?.click()}
+              className="server-ghost-btn"
+              disabled={!canManage || busy || uploading}
+              onClick={() => openPicker("banner")}
             >
-              <ImagePlus size={14} />
-              {t("Banner")}
+              <ImagePlus size={15} />
+              {bannerUrl ? t("Change banner") : t("Add banner")}
             </button>
             {bannerUrl ? (
               <button
                 type="button"
-                className="btn-ghost"
-                disabled={!canManage || busy}
+                className="server-ghost-btn is-danger-ghost"
+                disabled={!canManage || busy || uploading}
                 onClick={() => setBannerUrl("")}
               >
+                <Trash2 size={15} />
                 {t("Remove banner")}
               </button>
             ) : null}
@@ -194,14 +244,18 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
             ref={iconRef}
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
-            hidden
+            className="server-hidden-file"
+            tabIndex={-1}
+            aria-hidden="true"
             onChange={(e) => pickImage(e, "icon")}
           />
           <input
             ref={bannerRef}
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
-            hidden
+            className="server-hidden-file"
+            tabIndex={-1}
+            aria-hidden="true"
             onChange={(e) => pickImage(e, "banner")}
           />
 
@@ -228,12 +282,21 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
             />
           </label>
 
-          <div className="server-modal-actions">
-            <button type="button" className="btn-ghost" onClick={onClose} disabled={busy}>
+          <div className="server-settings-footer">
+            <button
+              type="button"
+              className="server-ghost-btn server-settings-cancel"
+              onClick={onClose}
+              disabled={busy || uploading}
+            >
               {t("Cancel")}
             </button>
-            <button type="submit" className="btn-primary" disabled={!canManage || busy}>
-              {busy ? t("Saving…") : t("Save")}
+            <button
+              type="submit"
+              className="server-primary-btn server-settings-save"
+              disabled={!canManage || busy || uploading}
+            >
+              {busy || uploading ? t("Saving…") : t("Save Changes")}
             </button>
           </div>
         </motion.form>
@@ -247,12 +310,12 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
             aspect={cropKind === "banner" ? 16 / 9 : 1}
             cropShape="rect"
             title={cropKind === "banner" ? t("Adjust banner") : t("Adjust server icon")}
-            confirmLabel={busy ? t("Please wait...") : t("Use photo")}
+            confirmLabel={uploading ? t("Please wait...") : t("Use photo")}
             outputMimeType="image/jpeg"
             outputFileName={cropKind === "banner" ? "server-banner.jpg" : "server-icon.jpg"}
             maxOutputSize={cropKind === "banner" ? 1280 : 512}
             onCancel={() => {
-              if (!busy) {
+              if (!uploading) {
                 setCropSrc("");
                 setCropKind(null);
               }
