@@ -2847,6 +2847,34 @@ button.member-row.server-member-row {
   color: #3ba55d;
 }
 
+.server-voice-screen-quality-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.server-voice-quality-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text-1, #e8e8ec);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.server-voice-quality-btn.is-open {
+  background: color-mix(in srgb, var(--primary, #5865f2) 35%, rgba(0, 0, 0, 0.28));
+  border-color: color-mix(in srgb, var(--primary, #5865f2) 55%, transparent);
+}
+
 .server-voice-btn.leave,
 .server-voice-btn.is-off {
   background: color-mix(in srgb, var(--danger, #ed4245) 18%, var(--surface-2));

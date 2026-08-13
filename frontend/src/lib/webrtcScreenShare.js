@@ -15,6 +15,13 @@ export const DM_SCREEN_DEFAULT_QUALITY = {
   contentHint: "motion",
 };
 
+/** Server voice channels (esp. SFU): start sharper — user can lower in the picker. */
+export const SERVER_SCREEN_DEFAULT_QUALITY = {
+  resolution: "1080p",
+  fps: 30,
+  contentHint: "motion",
+};
+
 /** Named presets for the quality panel (resolution + fps + contentHint). */
 export const SCREEN_QUALITY_PRESETS = {
   smooth: {
@@ -455,16 +462,40 @@ export function resolveScreenCaptureSize(quality = {}, opts = {}) {
 
 export function screenBitrateForPeerCount(peerCount, resolution = "720p") {
   const n = Math.max(1, peerCount || 1);
-  let base = 2_200_000;
-  if (resolution === "480p") base = 900_000;
-  else if (resolution === "720p") base = n <= 2 ? 2_200_000 : 1_400_000;
-  else if (resolution === "1080p") base = n <= 2 ? 3_500_000 : 2_200_000;
-  else if (resolution === "1440p") base = n <= 2 ? 6_000_000 : 3_000_000;
-  else if (resolution === "2160p") base = n <= 2 ? 10_000_000 : 4_000_000;
+  // Raised ceilings — previous defaults looked soft/blocky on modern links.
+  let base = 3_500_000;
+  if (resolution === "480p") base = 1_400_000;
+  else if (resolution === "720p") base = n <= 2 ? 3_500_000 : 2_200_000;
+  else if (resolution === "1080p") base = n <= 2 ? 5_500_000 : 3_200_000;
+  else if (resolution === "1440p") base = n <= 2 ? 8_500_000 : 4_500_000;
+  else if (resolution === "2160p") base = n <= 2 ? 14_000_000 : 6_000_000;
 
-  if (n >= 5) return Math.min(base, 900_000);
-  if (n >= 3) return Math.min(base, 1_600_000);
+  // Mesh N-way still needs caps; SFU callers should pass peerCount=1.
+  if (n >= 5) return Math.min(base, 1_600_000);
+  if (n >= 3) return Math.min(base, 2_800_000);
   return base;
+}
+
+/** Build LiveKit publish options for a crisp screen share. */
+export function liveKitScreenSharePublishOptions({
+  maxBitrate = 5_500_000,
+  maxFramerate = 30,
+} = {}) {
+  return {
+    source: "screen_share",
+    // Single high-quality layer — simulcast softens text for screen content.
+    simulcast: false,
+    videoCodec: "vp8",
+    degradationPreference: "maintain-resolution",
+    screenShareEncoding: {
+      maxBitrate,
+      maxFramerate,
+    },
+    videoEncoding: {
+      maxBitrate,
+      maxFramerate,
+    },
+  };
 }
 
 /** Human-readable Mbps estimate for the quality panel. */

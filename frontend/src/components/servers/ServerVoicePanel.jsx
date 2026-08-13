@@ -8,12 +8,14 @@ import {
   Monitor,
   MonitorOff,
   Radio,
+  SlidersHorizontal,
   Users,
   Video,
   VideoOff,
   Volume2,
 } from "lucide-react";
 import { Avatar } from "../ui/Avatar";
+import ScreenShareQualityPanel from "../voice/ScreenShareQualityPanel";
 import { useT } from "../../context/LocaleContext";
 import { resolveDisplayName } from "../../lib/userProfile";
 import { serverHasPermission } from "../../lib/serverPermissions";
@@ -371,6 +373,8 @@ export default function ServerVoicePanel({
   serverVoice,
 }) {
   const t = useT();
+  const [showScreenQuality, setShowScreenQuality] = useState(false);
+  const screenQualityAnchorRef = useRef(null);
   const inThis =
     serverVoice?.isInVoice &&
     serverVoice.activeChannelId === channel?.id;
@@ -384,6 +388,10 @@ export default function ServerVoicePanel({
   const count = inThis
     ? (serverVoice.participants?.length || 0) + 1
     : state?.memberCount || 0;
+  const isSfuVoice = serverVoice?.mediaMode === "sfu";
+  const screenShareParticipantCount = isSfuVoice
+    ? 2
+    : Math.max(2, (serverVoice?.participants?.length || 0) + 1);
 
   const canConnect = serverHasPermission(server, "CONNECT");
   const canStream = serverHasPermission(server, "STREAM");
@@ -449,16 +457,22 @@ export default function ServerVoicePanel({
   const onToggleScreen = async () => {
     if (!canVideo) return;
     if (serverVoice?.isScreenSharing) {
+      setShowScreenQuality(false);
       await serverVoice.stopScreenShare?.();
-    } else {
-      await serverVoice.startScreenShare?.();
+      return;
     }
+    // Same flow as group/DM CallOverlay: open quality picker first.
+    setShowScreenQuality((v) => !v);
   };
 
   const onToggleCamera = async () => {
     if (!canVideo) return;
     await serverVoice?.toggleCamera?.();
   };
+
+  useEffect(() => {
+    if (!inThis) setShowScreenQuality(false);
+  }, [inThis]);
 
   return (
     <div className="server-voice-panel">
@@ -536,22 +550,53 @@ export default function ServerVoicePanel({
               {serverVoice.isCameraOn ? <VideoOff size={16} /> : <Video size={16} />}
               {serverVoice.isCameraOn ? t("Camera Off") : t("Camera")}
             </button>
-            <button
-              type="button"
-              className={`server-voice-btn ${serverVoice.isScreenSharing ? "is-screen-on" : ""}`}
-              onClick={onToggleScreen}
-              disabled={!canVideo}
-              title={
-                !canVideo
-                  ? t("Permission denied")
-                  : serverVoice.isScreenSharing
-                    ? t("Stop Screen Share")
-                    : t("Share Screen")
-              }
+            <div
+              ref={screenQualityAnchorRef}
+              className="server-voice-screen-quality-wrap"
             >
-              {serverVoice.isScreenSharing ? <MonitorOff size={16} /> : <Monitor size={16} />}
-              {serverVoice.isScreenSharing ? t("Stop Screen Share") : t("Share Screen")}
-            </button>
+              <button
+                type="button"
+                className={`server-voice-btn ${serverVoice.isScreenSharing ? "is-screen-on" : ""}`}
+                onClick={onToggleScreen}
+                disabled={!canVideo}
+                title={
+                  !canVideo
+                    ? t("Permission denied")
+                    : serverVoice.isScreenSharing
+                      ? t("Stop Screen Share")
+                      : t("Share Screen")
+                }
+              >
+                {serverVoice.isScreenSharing ? <MonitorOff size={16} /> : <Monitor size={16} />}
+                {serverVoice.isScreenSharing ? t("Stop Screen Share") : t("Share Screen")}
+              </button>
+              {(serverVoice.isScreenSharing || showScreenQuality) && canVideo ? (
+                <button
+                  type="button"
+                  className={`server-voice-quality-btn${showScreenQuality ? " is-open" : ""}`}
+                  title={t("Screen quality")}
+                  onClick={() => setShowScreenQuality((v) => !v)}
+                >
+                  <SlidersHorizontal size={14} />
+                </button>
+              ) : null}
+              <ScreenShareQualityPanel
+                open={showScreenQuality}
+                onClose={() => setShowScreenQuality(false)}
+                anchorRef={screenQualityAnchorRef}
+                isGroupCall={!isSfuVoice}
+                participantCount={screenShareParticipantCount}
+                screenQuality={serverVoice.screenQuality}
+                setScreenQuality={serverVoice.setScreenQuality}
+                isScreenSharing={Boolean(serverVoice.isScreenSharing)}
+                onStartWithQuality={async (q) => {
+                  await serverVoice.startScreenShare?.(q);
+                }}
+                onRestartWithQuality={async (q) => {
+                  await serverVoice.restartScreenShareWithQuality?.(q);
+                }}
+              />
+            </div>
             <button
               type="button"
               className="server-voice-btn leave"

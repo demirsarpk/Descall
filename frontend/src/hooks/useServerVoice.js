@@ -5,7 +5,7 @@ import { createPeerConnection, attachLocalTracks, safeClosePeer } from "../lib/w
 import { API_BASE_URL } from "../config/api";
 import { getToken, getUser } from "../lib/storage";
 import {
-  GROUP_SCREEN_DEFAULT_QUALITY,
+  SERVER_SCREEN_DEFAULT_QUALITY,
   captureScreenShareStream,
   showElectronScreenPicker,
   optimizeScreenShareTrack,
@@ -13,6 +13,8 @@ import {
   ensureScreenShareAudioTrack,
   resolveScreenCaptureSize,
   screenBitrateForPeerCount,
+  liveKitScreenSharePublishOptions,
+  preferScreenCodecs,
   isMobileScreenCapture,
   isRemoteScreenVideoTrack,
 } from "../lib/webrtcScreenShare";
@@ -83,7 +85,12 @@ export function useServerVoice(socket) {
   const sfuModeRef = useRef(false);
   const liveKitRoomRef = useRef(null);
   const liveKitConfigRef = useRef(null);
-  const screenQuality = GROUP_SCREEN_DEFAULT_QUALITY;
+  const [screenQuality, setScreenQuality] = useState(SERVER_SCREEN_DEFAULT_QUALITY);
+  const screenQualityRef = useRef(SERVER_SCREEN_DEFAULT_QUALITY);
+
+  useEffect(() => {
+    screenQualityRef.current = screenQuality;
+  }, [screenQuality]);
 
   useEffect(() => {
     preloadIceServers().catch(() => {});
@@ -804,16 +811,29 @@ export function useServerVoice(socket) {
     }
   }, [isScreenSharing, renegotiateWithPeer, socket]);
 
-  const startScreenShare = useCallback(async () => {
+  const startScreenShare = useCallback(async (qualityOverride) => {
     if (isScreenSharing || !activeChannelIdRef.current) return;
     if (!canPublishVideo()) {
       setError("You need SPEAK and STREAM permission to share media.");
       return;
     }
     try {
-      const { width, height, fps: frameRate } = resolveScreenCaptureSize(screenQuality);
-      const peerCount = Math.max(1, pcMapRef.current.size);
-      const maxBitrate = screenBitrateForPeerCount(peerCount, screenQuality.resolution || "720p");
+      const effectiveQuality = qualityOverride || screenQualityRef.current || SERVER_SCREEN_DEFAULT_QUALITY;
+      if (qualityOverride) {
+        setScreenQuality(effectiveQuality);
+        screenQualityRef.current = effectiveQuality;
+      }
+      const { width, height, fps: frameRate } = resolveScreenCaptureSize(effectiveQuality, {
+        // SFU uploads once; mesh still cares about peer fan-out.
+        peerCount: sfuModeRef.current ? 1 : Math.max(1, pcMapRef.current.size),
+        maxFps: 60,
+      });
+      // SFU: encode once at full quality. Mesh: scale with peer count.
+      const peerCountForBitrate = sfuModeRef.current ? 1 : Math.max(1, pcMapRef.current.size);
+      const maxBitrate = screenBitrateForPeerCount(
+        peerCountForBitrate,
+        effectiveQuality.resolution || "1080p"
+      );
       const stream = await captureScreenShareStream({
         width,
         height,
@@ -826,7 +846,7 @@ export function useServerVoice(socket) {
         width,
         height,
         fps: frameRate,
-        contentHint: screenQuality.contentHint || "motion",
+        contentHint: effectiveQuality.contentHint || "motion",
       });
       if (screenTrack.readyState !== "live") {
         stream.getTracks().forEach((t) => t.stop());
@@ -842,12 +862,19 @@ export function useServerVoice(socket) {
       }
 
       if (sfuModeRef.current && liveKitRoomRef.current) {
+        const publishOpts = liveKitScreenSharePublishOptions({
+          maxBitrate,
+          maxFramerate: frameRate,
+        });
         await liveKitRoomRef.current.localParticipant.publishTrack(screenTrack, {
+          ...publishOpts,
           source: Track.Source.ScreenShare,
         });
         if (screenAudioTrack) {
           await liveKitRoomRef.current.localParticipant.publishTrack(screenAudioTrack, {
             source: Track.Source.ScreenShareAudio,
+            dtx: false,
+            red: false,
           });
         }
         screenTrack.onended = () => {
@@ -863,6 +890,7 @@ export function useServerVoice(socket) {
           if (screenAudioTrack) {
             peerData.screenAudioSender = peerData.pc.addTrack(screenAudioTrack, stream);
           }
+          preferScreenCodecs(peerData.pc, peerData.screenSender);
           await optimizeScreenShareSender(peerData.screenSender, {
             maxBitrate,
             maxFramerate: frameRate,
@@ -882,11 +910,27 @@ export function useServerVoice(socket) {
       console.error("[ServerVoice] screen share failed:", err);
       setError(err?.message || "Could not start screen share.");
     }
-  }, [canPublishVideo, isScreenSharing, renegotiateWithPeer, screenQuality, socket]);
+  }, [canPublishVideo, isScreenSharing, renegotiateWithPeer, socket]);
 
   useEffect(() => {
     stopScreenShareRef.current = stopScreenShare;
   }, [stopScreenShare]);
+
+  const restartScreenShareWithQuality = useCallback(
+    async (nextQuality) => {
+      if (!isScreenSharing) {
+        setScreenQuality(nextQuality);
+        screenQualityRef.current = nextQuality;
+        return;
+      }
+      await stopScreenShare();
+      await new Promise((r) => setTimeout(r, 150));
+      setScreenQuality(nextQuality);
+      screenQualityRef.current = nextQuality;
+      await startScreenShare(nextQuality);
+    },
+    [isScreenSharing, startScreenShare, stopScreenShare]
+  );
 
   const stopCamera = useCallback(async () => {
     if (!isCameraOn && !cameraStreamRef.current) return;
@@ -1497,8 +1541,11 @@ export function useServerVoice(socket) {
     toggleCamera,
     startCamera,
     stopCamera,
+    screenQuality,
+    setScreenQuality,
     startScreenShare,
     stopScreenShare,
+    restartScreenShareWithQuality,
     requestToSpeak,
     subscribeServer,
     checkChannel,
