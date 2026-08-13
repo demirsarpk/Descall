@@ -49,7 +49,7 @@ import { Avatar } from "../ui/Avatar";
 import ImageCropModal from "../ui/ImageCropModal";
 import useSpeaking from "../../hooks/useSpeaking";
 import { isChannelMuted, toggleChannelMute } from "../../lib/serverChannelMutes";
-import { serverHasPermission } from "../../lib/serverPermissions";
+import { serverHasPermission, serverPermissionsLoaded } from "../../lib/serverPermissions";
 import { updateServerNotificationLevel, updateServer } from "../../api/servers";
 import { uploadFile } from "../../api/media";
 import { readFileAsDataUrl } from "../../lib/cropImage";
@@ -134,10 +134,12 @@ export default function ServersSidebar({
   const [mutedChannelTick, setMutedChannelTick] = useState(0);
   const [serverIconCropSrc, setServerIconCropSrc] = useState("");
   const [serverIconBusy, setServerIconBusy] = useState(false);
+  const [rulesPrompt, setRulesPrompt] = useState(false);
   const serverIconFileRef = useRef(null);
 
   const canCreate = ownedCount < maxOwned;
-  const canManageGuild = serverHasPermission(activeServer, "MANAGE_GUILD");
+  const permissionsReady = serverPermissionsLoaded(activeServer) || Boolean(activeServer?.isOwner);
+  const canManageGuild = permissionsReady && serverHasPermission(activeServer, "MANAGE_GUILD");
   const notifLevel = ["all", "mentions", "muted"].includes(activeServer?.notificationLevel)
     ? activeServer.notificationLevel
     : "all";
@@ -147,7 +149,7 @@ export default function ServersSidebar({
       !activeServer?.rulesAcceptedAt &&
       !activeServer?.isOwner
   );
-  const canManageChannels = serverHasPermission(activeServer, "MANAGE_CHANNELS");
+  const canManageChannels = permissionsReady && serverHasPermission(activeServer, "MANAGE_CHANNELS");
 
   const reorderServerDrop = async (targetServer) => {
     if (!dragServerId || !targetServer?.id || !Array.isArray(servers)) return;
@@ -278,12 +280,12 @@ export default function ServersSidebar({
       setMenuOpen(false);
     }
   };
-  const canManageRoles = serverHasPermission(activeServer, "MANAGE_ROLES");
-  const canCreateInvite = serverHasPermission(activeServer, "CREATE_INSTANT_INVITE");
-  const canBanMembers = serverHasPermission(activeServer, "BAN_MEMBERS");
-  const canViewAudit = serverHasPermission(activeServer, "VIEW_AUDIT_LOG");
-  const canMoveMembers = serverHasPermission(activeServer, "MOVE_MEMBERS");
-  const canMuteMembers = serverHasPermission(activeServer, "MUTE_MEMBERS");
+  const canManageRoles = permissionsReady && serverHasPermission(activeServer, "MANAGE_ROLES");
+  const canCreateInvite = permissionsReady && serverHasPermission(activeServer, "CREATE_INSTANT_INVITE");
+  const canBanMembers = permissionsReady && serverHasPermission(activeServer, "BAN_MEMBERS");
+  const canViewAudit = permissionsReady && serverHasPermission(activeServer, "VIEW_AUDIT_LOG");
+  const canMoveMembers = permissionsReady && serverHasPermission(activeServer, "MOVE_MEMBERS");
+  const canMuteMembers = permissionsReady && serverHasPermission(activeServer, "MUTE_MEMBERS");
   const [channelAccess, setChannelAccess] = useState(null); // channel
   const [voiceMenu, setVoiceMenu] = useState(null); // { user, channelId, x, y }
   const voiceStates = serverVoice?.voiceStatesByServer?.[activeServer?.id] || {};
@@ -312,7 +314,14 @@ export default function ServersSidebar({
     setMenuOpen(false);
     setChannelMenuId(null);
     setCollapsedCats({});
+    setRulesPrompt(false);
   }, [activeServer?.id]);
+
+  useEffect(() => {
+    const onRulesRequired = () => setRulesPrompt(true);
+    window.addEventListener("descall:server-rules-required", onRulesRequired);
+    return () => window.removeEventListener("descall:server-rules-required", onRulesRequired);
+  }, []);
 
   const openConfirm = (mode) => {
     if (!activeServer) return;
@@ -822,12 +831,13 @@ export default function ServersSidebar({
               onServerUpdated={(updated) => onServerUpdated?.(updated)}
             />
           )}
-          {needsRulesAccept && (
+          {(needsRulesAccept || rulesPrompt) && (
             <ServerRulesModal
               server={activeServer}
-              onAccepted={(rulesAcceptedAt) =>
-                onServerUpdated?.({ ...activeServer, rulesAcceptedAt })
-              }
+              onAccepted={(rulesAcceptedAt) => {
+                setRulesPrompt(false);
+                onServerUpdated?.({ ...activeServer, rulesAcceptedAt });
+              }}
             />
           )}
           {showModeration && (

@@ -1611,6 +1611,9 @@ export default function App() {
             detail: { channelId, retryAfterSeconds: wait },
           })
         );
+      } else if (code === "RULES_REQUIRED") {
+        toast(message || "You must accept the server rules before continuing.", "warning");
+        window.dispatchEvent(new CustomEvent("descall:server-rules-required"));
       } else if (message) {
         toast(message, "error");
       }

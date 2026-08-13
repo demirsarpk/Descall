@@ -14,6 +14,7 @@ const {
   resolveMemberPermissions,
   resolveChannelPermissions,
 } = require("../lib/serverPermissions");
+const { needsRulesAcceptance } = require("../lib/serverRulesGate");
 
 function resolvePublicUser(socket) {
   const myId = socket.user?.id;
@@ -294,6 +295,19 @@ function registerServerVoiceHandlers(io, socket) {
           channelId,
           message: "Server mismatch.",
           code: "SERVER_MISMATCH",
+        });
+        return;
+      }
+
+      if (
+        await needsRulesAcceptance(supabase, channel.server_id, myId, {
+          isOwner: resolved?.isOwner,
+        })
+      ) {
+        socket.emit("server:voice:error", {
+          channelId,
+          message: "You must accept the server rules before joining voice.",
+          code: "RULES_REQUIRED",
         });
         return;
       }

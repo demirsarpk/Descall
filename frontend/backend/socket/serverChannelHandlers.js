@@ -22,6 +22,7 @@ const {
   parseSlashCommand,
   isCasinoCommand,
 } = require("../lib/slashCommands");
+const { needsRulesAcceptance } = require("../lib/serverRulesGate");
 
 const slowmodeLastSend = new Map();
 
@@ -176,6 +177,43 @@ async function assertSlowmode({ userId, channel, channelId, channelBits, tempId,
 
 function markSlowmodeSend(channelId, userId) {
   slowmodeLastSend.set(slowmodeKey(channelId, userId), Date.now());
+}
+
+function mapPinnedServerMessage(row, senderProfile) {
+  const sender = senderProfile
+    ? {
+        id: senderProfile.id,
+        username: senderProfile.username || "Unknown",
+        displayName: senderProfile.display_name || senderProfile.displayName || null,
+        display_name: senderProfile.display_name || senderProfile.displayName || null,
+        avatar_url: senderProfile.avatar_url || senderProfile.avatarUrl || null,
+        avatarUrl: senderProfile.avatar_url || senderProfile.avatarUrl || null,
+      }
+    : { id: row.sender_id, username: "Unknown" };
+  return {
+    id: row.id,
+    channelId: row.channel_id,
+    serverId: row.server_id,
+    sender,
+    from: sender,
+    text: row.content || "",
+    mediaUrl: row.media_url || null,
+    mediaType: row.media_type || null,
+    originalName: row.original_name || null,
+    pinnedAt: row.pinned_at,
+    pinnedBy: row.pinned_by,
+    timestamp: toUtcIso(row.created_at) || row.created_at,
+  };
+}
+
+async function loadSenderProfiles(senderIds) {
+  if (!senderIds.length) return new Map();
+  const { data: profiles, error } = await supabase
+    .from("users")
+    .select("id, username, display_name, avatar_url")
+    .in("id", senderIds);
+  if (error) throw error;
+  return new Map((profiles || []).map((p) => [p.id, p]));
 }
 
 function registerServerChannelHandlers(io, socket) {
@@ -407,6 +445,96 @@ function registerServerChannelHandlers(io, socket) {
   });
 
   /** Delete a channel message (author or MANAGE_MESSAGES). */
+  socket.on("server:channel:pinned:list", async ({ channelId } = {}) => {
+    if (!channelId) return socket.emit("server:channel:pinned:list", { channelId, pinned: [] });
+    try {
+      const { channel } = await assertTextChannelAccess(
+        myId,
+        channelId,
+        Permissions.VIEW_CHANNEL
+      );
+      const resolved = await resolveChannelPermissions(
+        supabase,
+        channel.server_id,
+        myId,
+        channelId
+      );
+      if (!hasPermission(resolved.bits, Permissions.READ_MESSAGE_HISTORY)) {
+        return socket.emit("server:channel:pinned:list", { channelId, pinned: [] });
+      }
+
+      const { data: rows, error } = await supabase
+        .from("server_messages")
+        .select(
+          "id, server_id, channel_id, sender_id, content, media_url, media_type, original_name, pinned_at, pinned_by, created_at"
+        )
+        .eq("channel_id", channelId)
+        .eq("server_id", channel.server_id)
+        .not("pinned_at", "is", null)
+        .order("pinned_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+
+      const senderIds = [...new Set((rows || []).map((r) => r.sender_id).filter(Boolean))];
+      const usersById = await loadSenderProfiles(senderIds);
+      const pinned = (rows || []).map((row) =>
+        mapPinnedServerMessage(row, usersById.get(row.sender_id))
+      );
+      socket.emit("server:channel:pinned:list", { channelId, pinned });
+    } catch (err) {
+      console.error("[ServerChannel] pinned list failed:", err?.message || err);
+      socket.emit("server:channel:pinned:list", { channelId, pinned: [] });
+    }
+  });
+
+  socket.on("server:channel:message:search", async ({ channelId, q, limit = 50 } = {}) => {
+    const query = String(q || "").trim();
+    if (!channelId || query.length < 2) {
+      return socket.emit("server:channel:message:search", { channelId, q: query, messages: [] });
+    }
+    try {
+      const { channel } = await assertTextChannelAccess(
+        myId,
+        channelId,
+        Permissions.VIEW_CHANNEL
+      );
+      const resolved = await resolveChannelPermissions(
+        supabase,
+        channel.server_id,
+        myId,
+        channelId
+      );
+      if (!hasPermission(resolved.bits, Permissions.READ_MESSAGE_HISTORY)) {
+        return socket.emit("server:channel:message:search", { channelId, q: query, messages: [] });
+      }
+
+      const capped = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+      const { data: rows, error } = await supabase
+        .from("server_messages")
+        .select(
+          "id, server_id, channel_id, sender_id, content, media_url, media_type, original_name, pinned_at, pinned_by, created_at, edited_at"
+        )
+        .eq("channel_id", channelId)
+        .eq("server_id", channel.server_id)
+        .ilike("content", `%${query.replace(/[%_\\]/g, "\\$&")}%`)
+        .order("created_at", { ascending: false })
+        .limit(capped);
+      if (error) throw error;
+
+      const senderIds = [...new Set((rows || []).map((r) => r.sender_id).filter(Boolean))];
+      const usersById = await loadSenderProfiles(senderIds);
+      const messages = (rows || []).map((row) => {
+        const mapped = mapPinnedServerMessage(row, usersById.get(row.sender_id));
+        mapped.editedAt = row.edited_at || null;
+        return mapped;
+      });
+      socket.emit("server:channel:message:search", { channelId, q: query, messages });
+    } catch (err) {
+      console.error("[ServerChannel] message search failed:", err?.message || err);
+      socket.emit("server:channel:message:search", { channelId, q: query, messages: [] });
+    }
+  });
+
   socket.on("server:channel:message:delete", async ({ serverId, channelId, messageId } = {}) => {
     if (!channelId || !messageId) return;
     try {
@@ -495,7 +623,7 @@ function registerServerChannelHandlers(io, socket) {
           return;
         }
 
-        const { channel, permissions: channelBits } = await assertTextChannelAccess(
+        const { channel, permissions: channelBits, resolved } = await assertTextChannelAccess(
           myId,
           channelId,
           Permissions.SEND_MESSAGES
@@ -506,6 +634,20 @@ function registerServerChannelHandlers(io, socket) {
             tempId: tempId || null,
             message: "Missing permission.",
             code: "MISSING_PERMISSION",
+          });
+          return;
+        }
+
+        if (
+          await needsRulesAcceptance(supabase, channel.server_id, myId, {
+            isOwner: resolved?.isOwner,
+          })
+        ) {
+          socket.emit("server:channel:message:error", {
+            channelId,
+            tempId: tempId || null,
+            message: "You must accept the server rules before sending messages.",
+            code: "RULES_REQUIRED",
           });
           return;
         }

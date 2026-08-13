@@ -1208,6 +1208,11 @@ export function useServerVoice(socket) {
       const isJoinContext =
         Boolean(channelId) &&
         (!activeChannelIdRef.current || String(channelId) === String(activeChannelIdRef.current));
+      if (code === "RULES_REQUIRED") {
+        window.dispatchEvent(new CustomEvent("descall:server-rules-required"));
+        if (isJoinContext) cleanupAll();
+        return;
+      }
       if (!isJoinContext && message) {
         window.dispatchEvent(
           new CustomEvent("descall:server-voice-mod-error", {

@@ -61,14 +61,14 @@ export function permissionsToFlagMap(permissions, keys) {
 /**
  * Effective permission check for the open server payload.
  * - Owner always allowed
- * - Missing myPermissions → treat as unknown (allow) so UI isn't stuck after reload
+ * - Missing myPermissions.flags → deny (fail-closed); use serverPermissionsLoaded() to detect
  * - ADMINISTRATOR grants all
  */
 export function serverHasPermission(server, key) {
   if (!server) return false;
   if (server.isOwner || server?.myPermissions?.isOwner) return true;
   const flags = server?.myPermissions?.flags;
-  if (!flags || typeof flags !== "object") return true;
+  if (!flags || typeof flags !== "object") return false;
   if (flags.ADMINISTRATOR) return true;
   return Boolean(flags[key]);
 }
