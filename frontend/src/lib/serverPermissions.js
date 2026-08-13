@@ -21,6 +21,7 @@ export const PERM_BITS = {
   ATTACH_FILES: 1n << 15n,
   READ_MESSAGE_HISTORY: 1n << 16n,
   MENTION_EVERYONE: 1n << 17n,
+  VIEW_GUILD_INSIGHTS: 1n << 19n,
   CONNECT: 1n << 20n,
   SPEAK: 1n << 21n,
   MUTE_MEMBERS: 1n << 22n,

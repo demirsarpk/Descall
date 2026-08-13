@@ -32,6 +32,7 @@ const PERM_LABELS = {
   CHANGE_NICKNAME: "Change own nickname",
   MANAGE_NICKNAMES: "Manage nicknames",
   VIEW_AUDIT_LOG: "View audit log",
+  VIEW_GUILD_INSIGHTS: "View Server Insights",
   CREATE_INSTANT_INVITE: "Create invite",
   MENTION_EVERYONE: "Mention @everyone",
   ATTACH_FILES: "Attach files",

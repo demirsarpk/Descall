@@ -230,6 +230,14 @@ export function getServerAuditLogs(serverId, { limit = 40 } = {}) {
   return serversRequest(`/api/servers/${serverId}/audit-logs${qs ? `?${qs}` : ""}`);
 }
 
+/** Server activity insights (VIEW_GUILD_INSIGHTS). */
+export function getServerInsights(serverId, { days = 7 } = {}) {
+  const q = new URLSearchParams();
+  if (days) q.set("days", String(days));
+  const qs = q.toString();
+  return serversRequest(`/api/servers/${serverId}/insights${qs ? `?${qs}` : ""}`);
+}
+
 /** Create a shareable server invite (CREATE_INSTANT_INVITE). */
 export function createServerInvite(serverId, { maxUses, maxAgeSeconds, channelId, temporary } = {}) {
   return serversRequest(`/api/servers/${serverId}/invites`, {

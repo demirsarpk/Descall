@@ -21,6 +21,7 @@ import {
   LogIn,
   Ban,
   ScrollText,
+  BarChart3,
   MicOff,
   BellOff,
   Bell,
@@ -68,6 +69,7 @@ import ServerRolesModal from "./ServerRolesModal";
 import ServerInviteModal from "./ServerInviteModal";
 import JoinServerModal from "./JoinServerModal";
 import ServerModerationModal from "./ServerModerationModal";
+import ServerInsightsModal from "./ServerInsightsModal";
 import ChannelPermissionsModal from "./ChannelPermissionsModal";
 import ServerCommunityModal from "./ServerCommunityModal";
 import ServerRulesModal from "./ServerRulesModal";
@@ -132,6 +134,7 @@ export default function ServersSidebar({
   const [showCommunity, setShowCommunity] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showModeration, setShowModeration] = useState(null); // 'bans' | 'audit' | null
+  const [showInsights, setShowInsights] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dragChannelId, setDragChannelId] = useState(null);
   const [dragOverChannelId, setDragOverChannelId] = useState(null);
@@ -301,6 +304,8 @@ export default function ServersSidebar({
   const canCreateInvite = permissionsReady && serverHasPermission(activeServer, "CREATE_INSTANT_INVITE");
   const canBanMembers = permissionsReady && serverHasPermission(activeServer, "BAN_MEMBERS");
   const canViewAudit = permissionsReady && serverHasPermission(activeServer, "VIEW_AUDIT_LOG");
+  const canViewInsights =
+    permissionsReady && serverHasPermission(activeServer, "VIEW_GUILD_INSIGHTS");
   const canMoveMembers = permissionsReady && serverHasPermission(activeServer, "MOVE_MEMBERS");
   const canMuteMembers = permissionsReady && serverHasPermission(activeServer, "MUTE_MEMBERS");
   const canDeafenMembers = permissionsReady && serverHasPermission(activeServer, "DEAFEN_MEMBERS");
@@ -744,6 +749,19 @@ export default function ServersSidebar({
                     {t("Audit log")}
                   </button>
                 )}
+                {canViewInsights && (
+                  <button
+                    type="button"
+                    className="server-dropdown-item"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowInsights(true);
+                    }}
+                  >
+                    <BarChart3 size={15} />
+                    {t("Server Insights")}
+                  </button>
+                )}
                 {activeServer.isOwner ? (
                   <button type="button" className="server-dropdown-item danger" onClick={() => openConfirm("delete")}>
                     <Trash2 size={15} />
@@ -1101,6 +1119,12 @@ export default function ServersSidebar({
               server={activeServer}
               initialTab={showModeration}
               onClose={() => setShowModeration(null)}
+            />
+          )}
+          {showInsights && (
+            <ServerInsightsModal
+              server={activeServer}
+              onClose={() => setShowInsights(false)}
             />
           )}
           {channelAccess && (

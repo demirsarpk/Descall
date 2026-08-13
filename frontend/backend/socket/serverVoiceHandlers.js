@@ -15,6 +15,7 @@ const {
   resolveChannelPermissions,
 } = require("../lib/serverPermissions");
 const { needsRulesAcceptance } = require("../lib/serverRulesGate");
+const { recordVoiceSession } = require("../lib/serverInsights");
 
 function resolvePublicUser(socket) {
   const myId = socket.user?.id;
@@ -171,7 +172,12 @@ function setParticipant(call, userId, member) {
   if (existing && existing.key !== uid) {
     call.participants.delete(existing.key);
   }
+  const prev = existing?.member || null;
   const next = { ...(member || {}), id: uid };
+  // Track session start for Insights voice minutes (preserve across mute/state updates).
+  if (!next.joinedAt) {
+    next.joinedAt = prev?.joinedAt || Date.now();
+  }
   call.participants.set(uid, next);
   return next;
 }
@@ -181,10 +187,20 @@ function removeFromVoice(io, channelId, userId) {
   if (!call) return null;
   const uid = String(userId);
   const entry = getParticipantEntry(call, uid);
+  const leftMember = entry?.member || null;
   if (entry) call.participants.delete(entry.key);
   // Also drop string/uuid key variants if present
   if (call.participants.has(uid)) call.participants.delete(uid);
   if (call.participants.has(userId)) call.participants.delete(userId);
+  if (leftMember?.joinedAt && call.serverId) {
+    void recordVoiceSession({
+      serverId: call.serverId,
+      channelId,
+      userId: uid,
+      joinedAtMs: leftMember.joinedAt,
+      leftAtMs: Date.now(),
+    });
+  }
   const leavePayload = {
     serverId: call.serverId,
     channelId,
@@ -495,6 +511,8 @@ function registerServerVoiceHandlers(io, socket) {
         snapshot.serverMuted = dest.type === "stage" ? false : Boolean(snapshot.serverMuted);
         snapshot.cameraOn = false;
         snapshot.isScreenSharing = false;
+        // Fresh voice-minute session in the destination channel.
+        snapshot.joinedAt = Date.now();
         // Session-only seat into a private channel (cleared on leave).
         snapshot.forceMovedIn = !canView;
         setParticipant(destCall, targetId, snapshot);
