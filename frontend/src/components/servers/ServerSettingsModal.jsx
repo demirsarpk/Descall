@@ -175,10 +175,10 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
       >
         <motion.form
           className="server-modal server-settings-modal"
-          initial={{ scale: 0.94, opacity: 0, y: 10 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.96, opacity: 0, y: 8 }}
-          transition={{ type: "spring", stiffness: 420, damping: 32 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
           onClick={(e) => e.stopPropagation()}
           onSubmit={save}
         >
@@ -203,6 +203,7 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
             </button>
           </header>
 
+          <div className="server-settings-body">
           <div className="server-settings-identity">
             <button
               type="button"
@@ -378,6 +379,7 @@ export default function ServerSettingsModal({ server, onClose, onServerUpdated }
               </label>
             </div>
           )}
+          </div>
 
           <div className="server-settings-footer">
             <button

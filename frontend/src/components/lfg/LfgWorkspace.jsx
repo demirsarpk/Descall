@@ -595,113 +595,116 @@ function CreateLobbyModal({ meta, ranks, busy, defaultHostRank, defaultRegion, o
     >
       <motion.div
         className="lfg-modal"
-        initial={{ y: 16, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 12, opacity: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
       >
         <header>
           <h3>{t("Create Valorant lobby")}</h3>
           <button type="button" className="icon-btn" onClick={onClose}><X size={18} /></button>
         </header>
 
-        <div className="lfg-form-grid">
-          <label>
-            {t("Mode")}
-            <select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
-              {(meta.modes || []).map((m) => (
-                <option key={m.id} value={m.id}>{trLabel(t, m.label)}</option>
+        <div className="lfg-modal-body">
+          <div className="lfg-form-grid">
+            <label>
+              {t("Mode")}
+              <select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value })}>
+                {(meta.modes || []).map((m) => (
+                  <option key={m.id} value={m.id}>{trLabel(t, m.label)}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("Region")}
+              <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
+                {(meta.regions || []).map((r) => (
+                  <option key={r.id} value={r.id}>{trLabel(t, r.label)}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t("Your rank")}
+              <select value={form.hostRank} onChange={(e) => setForm({ ...form, hostRank: e.target.value })}>
+                {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </label>
+            <label>
+              {t("Looking for (min)")}
+              <select value={form.rankMin} onChange={(e) => setForm({ ...form, rankMin: e.target.value })}>
+                {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </label>
+            <label>
+              {t("Looking for (max)")}
+              <select value={form.rankMax} onChange={(e) => setForm({ ...form, rankMax: e.target.value })}>
+                {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </label>
+            <label>
+              {t("We are (players already)")}
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={form.partySizeCurrent}
+                onChange={(e) => setForm({ ...form, partySizeCurrent: Number(e.target.value) || 1 })}
+              />
+            </label>
+            <label>
+              {t("Party max")}
+              <input
+                type="number"
+                min={2}
+                max={5}
+                value={form.partySizeMax}
+                onChange={(e) => setForm({ ...form, partySizeMax: Number(e.target.value) || 5 })}
+              />
+            </label>
+            <label className="lfg-check">
+              <input
+                type="checkbox"
+                checked={form.micRequired}
+                onChange={(e) => setForm({ ...form, micRequired: e.target.checked })}
+              />
+              {t("Mic required")}
+            </label>
+          </div>
+
+          <label className="lfg-full">
+            {t("Valorant party code (optional — can add later)")}
+            <input
+              value={form.partyCode}
+              onChange={(e) => setForm({ ...form, partyCode: e.target.value })}
+              placeholder={t("Players reveal this after joining")}
+              maxLength={32}
+            />
+          </label>
+
+          <label className="lfg-full">
+            {t("Note")}
+            <input
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+              placeholder={t("chill / rank push / TR only…")}
+              maxLength={160}
+            />
+          </label>
+
+          <div className="lfg-roles">
+            <span>{t("Need roles")}</span>
+            <div>
+              {(meta.roles || []).map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  className={form.needRoles.includes(role) ? "active" : ""}
+                  onClick={() => toggleRole(role)}
+                >
+                  {role}
+                </button>
               ))}
-            </select>
-          </label>
-          <label>
-            {t("Region")}
-            <select value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })}>
-              {(meta.regions || []).map((r) => (
-                <option key={r.id} value={r.id}>{trLabel(t, r.label)}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            {t("Your rank")}
-            <select value={form.hostRank} onChange={(e) => setForm({ ...form, hostRank: e.target.value })}>
-              {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </label>
-          <label>
-            {t("Looking for (min)")}
-            <select value={form.rankMin} onChange={(e) => setForm({ ...form, rankMin: e.target.value })}>
-              {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </label>
-          <label>
-            {t("Looking for (max)")}
-            <select value={form.rankMax} onChange={(e) => setForm({ ...form, rankMax: e.target.value })}>
-              {ranks.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </label>
-          <label>
-            {t("We are (players already)")}
-            <input
-              type="number"
-              min={1}
-              max={5}
-              value={form.partySizeCurrent}
-              onChange={(e) => setForm({ ...form, partySizeCurrent: Number(e.target.value) || 1 })}
-            />
-          </label>
-          <label>
-            {t("Party max")}
-            <input
-              type="number"
-              min={2}
-              max={5}
-              value={form.partySizeMax}
-              onChange={(e) => setForm({ ...form, partySizeMax: Number(e.target.value) || 5 })}
-            />
-          </label>
-          <label className="lfg-check">
-            <input
-              type="checkbox"
-              checked={form.micRequired}
-              onChange={(e) => setForm({ ...form, micRequired: e.target.checked })}
-            />
-            {t("Mic required")}
-          </label>
-        </div>
-
-        <label className="lfg-full">
-          {t("Valorant party code (optional — can add later)")}
-          <input
-            value={form.partyCode}
-            onChange={(e) => setForm({ ...form, partyCode: e.target.value })}
-            placeholder={t("Players reveal this after joining")}
-            maxLength={32}
-          />
-        </label>
-
-        <label className="lfg-full">
-          {t("Note")}
-          <input
-            value={form.note}
-            onChange={(e) => setForm({ ...form, note: e.target.value })}
-            placeholder={t("chill / rank push / TR only…")}
-            maxLength={160}
-          />
-        </label>
-
-        <div className="lfg-roles">
-          <span>{t("Need roles")}</span>
-          <div>
-            {(meta.roles || []).map((role) => (
-              <button
-                key={role}
-                type="button"
-                className={form.needRoles.includes(role) ? "active" : ""}
-                onClick={() => toggleRole(role)}
-              >
-                {role}
-              </button>
-            ))}
+            </div>
           </div>
         </div>
 

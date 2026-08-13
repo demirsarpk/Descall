@@ -401,26 +401,47 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
+  padding:
+    max(12px, env(safe-area-inset-top, 0px))
+    16px
+    max(12px, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  overscroll-behavior: contain;
 }
 .lfg-modal {
   width: min(520px, 100%);
   max-height: min(90vh, 760px);
-  overflow-y: auto;
+  max-height: min(90dvh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: #1e1f22;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  padding: 18px;
+  padding: 0;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
 }
 .lfg-modal header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
+  padding: 18px 18px 0;
   margin-bottom: 14px;
 }
 .lfg-modal h3 {
   margin: 0;
   font-size: 18px;
+}
+.lfg-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 0 18px;
 }
 .lfg-form-grid {
   display: grid;
@@ -484,6 +505,10 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-shrink: 0;
+  padding: 14px 18px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: #1e1f22;
 }
 
 .lfg-mobile-detail-back {
@@ -508,9 +533,13 @@
   .lfg-sidebar-header {
     padding: 12px 12px 8px;
     align-items: center;
+    flex-shrink: 0;
   }
   .lfg-sidebar-header h2 {
     font-size: 16px;
+  }
+  .lfg-filters-bar {
+    flex-shrink: 0;
   }
   .lfg-filters-toggle {
     display: inline-flex;
@@ -547,6 +576,27 @@
     grid-column: 1 / -1;
     padding: 4px 2px;
   }
+  /* Empty state: top-aligned — vertical centering left a huge dead zone under the CTA */
+  .lfg-lobby-list {
+    padding: 0 12px 12px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    justify-content: flex-start;
+  }
+  .lfg-empty {
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 12px 12px;
+    min-height: 0;
+    flex: 0 0 auto;
+    width: 100%;
+  }
+  .lfg-empty .lfg-btn {
+    align-self: center;
+    min-width: min(220px, 100%);
+  }
   .lfg-main {
     display: none;
     position: absolute;
@@ -554,6 +604,7 @@
     z-index: 5;
     background: var(--surface-0, #1e1f22);
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .lfg-main.is-open {
     display: block;
@@ -580,6 +631,32 @@
   }
   .lfg-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* Create lobby sheet: body scrolls; footer stays visible (iOS Safari safe) */
+  .lfg-modal-overlay {
+    align-items: flex-end;
+    justify-content: stretch;
+    padding: 0;
+    height: 100%;
+    height: 100dvh;
+  }
+  .lfg-modal {
+    width: 100%;
+    max-width: none;
+    max-height: min(92dvh, 100%);
+    border-radius: 16px 16px 0 0;
+    /* Framer / any transform breaks nested overflow scroll on iOS */
+    transform: none !important;
+  }
+  .lfg-modal header {
+    padding: 16px 16px 0;
+  }
+  .lfg-modal-body {
+    padding: 0 16px 8px;
+  }
+  .lfg-modal footer {
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
   }
 }
 

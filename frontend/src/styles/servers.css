@@ -1036,8 +1036,12 @@
 /* —— Server Settings modal —— */
 .server-modal.server-settings-modal {
   width: min(480px, 100%);
+  max-height: min(90vh, 820px);
+  max-height: min(90dvh, 820px);
   padding: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .server-settings-head {
@@ -1046,6 +1050,31 @@
   justify-content: space-between;
   gap: 12px;
   padding: 20px 22px 8px;
+  flex-shrink: 0;
+}
+
+.server-settings-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding-bottom: 8px;
+}
+
+.server-settings-channels {
+  margin: 4px 0 8px;
+}
+
+.server-settings-channels h4 {
+  margin: 12px 22px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .server-settings-head-copy h3 {
@@ -1186,10 +1215,11 @@
   justify-content: flex-end;
   align-items: center;
   gap: 10px;
-  margin-top: 8px;
-  padding: 16px 22px 20px;
+  margin-top: 0;
+  padding: 16px 22px max(16px, env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border-3);
   background: color-mix(in srgb, var(--surface-1) 65%, var(--surface-2));
+  flex-shrink: 0;
 }
 
 .server-settings-cancel {
@@ -1217,6 +1247,40 @@
 .server-ghost-btn.is-danger-ghost {
   color: var(--danger, #ed4245) !important;
   border-color: color-mix(in srgb, var(--danger, #ed4245) 35%, var(--border-3)) !important;
+}
+
+@media (max-width: 720px) {
+  .server-modal-overlay:has(.server-settings-modal) {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+    height: 100%;
+    height: 100dvh;
+    overscroll-behavior: contain;
+  }
+
+  .server-modal.server-settings-modal {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    border: 0;
+    /* Framer transform breaks nested overflow scroll on iOS Safari */
+    transform: none !important;
+  }
+
+  .server-settings-head {
+    padding-top: max(14px, env(safe-area-inset-top, 0px));
+  }
+
+  .server-settings-body {
+    padding-bottom: 12px;
+  }
+
+  .server-settings-footer {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
 }
 
 @media (max-width: 480px) {

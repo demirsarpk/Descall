@@ -226,8 +226,25 @@
     min-width: 0;
     height: 100%;
     max-height: var(--vv-height, 100dvh);
-    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    /* Clear fixed mobile tab bar without leaving a giant empty void in the list */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
     box-sizing: border-box;
+  }
+
+  .app-root.is-mobile[data-view="play"] .lfg-sidebar {
+    min-height: 0;
+  }
+
+  .app-root.is-mobile[data-view="play"] .lfg-lobby-list {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .app-root.is-mobile[data-view="play"] .lfg-empty {
+    justify-content: flex-start;
+    align-items: center;
+    padding-top: 20px;
+    padding-bottom: 8px;
   }
 
   /* Keep overflow hidden so expand/collapse height animation clips cleanly.
