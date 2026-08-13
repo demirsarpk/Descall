@@ -19,6 +19,7 @@ const {
   resolveMemberPermissions,
   resolveChannelPermissions,
   permissionsToFlags,
+  applyOverwrites,
   assertHierarchy,
   assertCanManageRole,
   getMemberHighestPosition,
@@ -133,25 +134,89 @@ const CHANNEL_OVERRIDE_KEYS = {
   ],
 };
 
+/**
+ * Return only channels the member can VIEW_CHANNEL.
+ * Supports raw DB rows (parent_id) and publicChannel objects (parentId).
+ * Category overwrites apply to children (Discord-like). Empty categories are hidden.
+ */
 async function filterChannelsForMember(serverId, userId, channels) {
+  const list = Array.isArray(channels) ? channels : [];
   const base = await resolveMemberPermissions(supabase, serverId, userId);
   if (!base.isMember) return [];
   if (base.isOwner || hasPermission(base.bits, Permissions.ADMINISTRATOR)) {
-    return channels;
+    return list;
   }
-  const out = [];
-  for (const ch of channels || []) {
-    if (ch.type === "category") {
-      out.push(ch);
-      continue;
+
+  const parentIds = [
+    ...new Set(list.map((c) => c.parent_id || c.parentId || null).filter(Boolean)),
+  ];
+  const overrideIds = [...new Set([...list.map((c) => c.id).filter(Boolean), ...parentIds])];
+
+  const [{ data: overrides, error: oErr }, { data: roles, error: rErr }, { data: assigned, error: aErr }] =
+    await Promise.all([
+      overrideIds.length
+        ? supabase
+            .from("server_channel_overrides")
+            .select("id, channel_id, target_type, target_id, allow_permissions, deny_permissions")
+            .in("channel_id", overrideIds)
+        : Promise.resolve({ data: [], error: null }),
+      supabase.from("server_roles").select("id, position, is_everyone").eq("server_id", serverId),
+      supabase
+        .from("server_member_roles")
+        .select("role_id")
+        .eq("server_id", serverId)
+        .eq("user_id", userId),
+    ]);
+  if (oErr) throw oErr;
+  if (rErr) throw rErr;
+  if (aErr) throw aErr;
+
+  const everyoneRoleId = (roles || []).find((r) => r.is_everyone)?.id || null;
+  const rolePos = new Map((roles || []).map((r) => [String(r.id), Number(r.position) || 0]));
+  const memberRoleIds = new Set((assigned || []).map((r) => String(r.role_id)));
+  if (everyoneRoleId) memberRoleIds.add(String(everyoneRoleId));
+
+  const byChannel = new Map();
+  for (const o of overrides || []) {
+    const key = String(o.channel_id);
+    if (!byChannel.has(key)) byChannel.set(key, []);
+    byChannel.get(key).push({
+      ...o,
+      _position: o.target_type === "role" ? rolePos.get(String(o.target_id)) || 0 : 0,
+    });
+  }
+
+  const ctx = { everyoneRoleId, memberRoleIds, userId };
+  const canView = new Map();
+  for (const ch of list) {
+    let bits = base.bits;
+    const parentId = ch.parent_id || ch.parentId || null;
+    if (parentId) {
+      bits = applyOverwrites(bits, byChannel.get(String(parentId)) || [], ctx);
     }
-    const resolved = await resolveChannelPermissions(supabase, serverId, userId, ch.id);
-    if (hasPermission(resolved.bits, Permissions.VIEW_CHANNEL)) out.push(ch);
+    bits = applyOverwrites(bits, byChannel.get(String(ch.id)) || [], ctx);
+    canView.set(ch.id, hasPermission(bits, Permissions.VIEW_CHANNEL));
   }
-  const visibleNonCat = new Set(out.filter((c) => c.type !== "category").map((c) => c.id));
-  const hasVisibleChild = (catId) =>
-    (channels || []).some((c) => c.parent_id === catId && visibleNonCat.has(c.id));
-  return out.filter((c) => c.type !== "category" || hasVisibleChild(c.id));
+
+  const visibleChildParents = new Set();
+  for (const ch of list) {
+    const type = String(ch.type || "").toLowerCase();
+    if (type === "category") continue;
+    if (!canView.get(ch.id)) continue;
+    const pid = ch.parent_id || ch.parentId || null;
+    if (pid) visibleChildParents.add(pid);
+  }
+
+  return list.filter((ch) => {
+    const type = String(ch.type || "").toLowerCase();
+    if (type === "category") return visibleChildParents.has(ch.id);
+    return Boolean(canView.get(ch.id));
+  });
+}
+
+async function publicVisibleChannels(serverId, userId, channels) {
+  const visible = await filterChannelsForMember(serverId, userId, channels || []);
+  return visible.map(publicChannel);
 }
 
 function parseAllowDenyFlags(raw, allowedKeys) {
@@ -642,6 +707,45 @@ function emitToServer(req, serverId, event, payload) {
   }
 }
 
+/** Emit channel create/update only to members who can VIEW_CHANNEL (no private channel leaks). */
+async function emitChannelToViewers(req, serverId, event, channel, extra = {}) {
+  const io = getIo(req);
+  if (!io || !serverId || !event || !channel?.id) return;
+  const pub = publicChannel(channel);
+  const payload = { serverId, channel: pub, ...extra };
+
+  try {
+    const { data: members, error } = await supabase
+      .from("server_members")
+      .select("user_id")
+      .eq("server_id", serverId);
+    if (error) throw error;
+
+    const { data: serverRow } = await supabase
+      .from("servers")
+      .select("owner_id")
+      .eq("id", serverId)
+      .maybeSingle();
+
+    const userIds = new Set((members || []).map((m) => m.user_id));
+    if (serverRow?.owner_id) userIds.add(serverRow.owner_id);
+
+    await Promise.all(
+      [...userIds].map(async (uid) => {
+        try {
+          const visible = await filterChannelsForMember(serverId, uid, [channel]);
+          if (!visible.length) return;
+          io.to(`user:${uid}`).emit(event, payload);
+        } catch (err) {
+          console.warn("[SERVERS] emitChannelToViewers member skip:", uid, err?.message || err);
+        }
+      })
+    );
+  } catch (err) {
+    console.warn("[SERVERS] emitChannelToViewers failed:", event, err?.message || err);
+  }
+}
+
 function getIo(req) {
   return req.app?.get?.("io") || null;
 }
@@ -801,18 +905,25 @@ router.get("/my", requireAuth, async (req, res) => {
       .in("server_id", ids)
       .order("position", { ascending: true });
 
-    const channelsByServer = new Map();
+    const rawChannelsByServer = new Map();
     for (const ch of channels || []) {
-      if (!channelsByServer.has(ch.server_id)) channelsByServer.set(ch.server_id, []);
-      channelsByServer.get(ch.server_id).push(publicChannel(ch));
+      if (!rawChannelsByServer.has(ch.server_id)) rawChannelsByServer.set(ch.server_id, []);
+      rawChannelsByServer.get(ch.server_id).push(ch);
     }
 
     // Attach resolved permissions so clients don't need a separate GET /:id
     // before CONNECT / manage UI works (reload + list hydration path).
-    const permEntries = await Promise.all(
-      ids.map(async (id) => [id, await buildMyPermissionsPayload(id, userId)])
+    // Channel lists are VIEW_CHANNEL-filtered so @everyone never sees staff/private channels.
+    const metaEntries = await Promise.all(
+      ids.map(async (id) => {
+        const [myPermissions, visibleChannels] = await Promise.all([
+          buildMyPermissionsPayload(id, userId),
+          publicVisibleChannels(id, userId, rawChannelsByServer.get(id) || []),
+        ]);
+        return [id, { myPermissions, channels: visibleChannels }];
+      })
     );
-    const permsByServer = new Map(permEntries);
+    const metaByServer = new Map(metaEntries);
 
     const list = (memberships || [])
       .map((m) => {
@@ -830,8 +941,8 @@ router.get("/my", requireAuth, async (req, res) => {
           folderId: m.folder_id || null,
           isOwner: row.owner_id === userId,
           memberCount: counts.get(row.id) || 0,
-          channels: channelsByServer.get(row.id) || [],
-          myPermissions: permsByServer.get(row.id) || null,
+          channels: metaByServer.get(row.id)?.channels || [],
+          myPermissions: metaByServer.get(row.id)?.myPermissions || null,
         });
       })
       .filter(Boolean);
@@ -1666,6 +1777,7 @@ router.post("/invites/:code/join", requireAuth, async (req, res) => {
     if (existing) {
       const bundle = await loadServerBundle(invite.server_id);
       const myPermissions = await buildMyPermissionsPayload(invite.server_id, userId);
+      const channels = await publicVisibleChannels(invite.server_id, userId, bundle.channels);
       return res.json({
         alreadyMember: true,
         server: publicServer(bundle.server, {
@@ -1674,7 +1786,7 @@ router.post("/invites/:code/join", requireAuth, async (req, res) => {
           nickname: existing.nickname || null,
           listPosition: existing.list_position ?? 0,
           joinedAt: existing.joined_at,
-          channels: bundle.channels.map(publicChannel),
+          channels,
           roles: bundle.roles.map(publicRole),
           myPermissions,
         }),
@@ -1734,6 +1846,7 @@ router.post("/invites/:code/join", requireAuth, async (req, res) => {
       userId,
       invite.server_id
     );
+    const channels = await publicVisibleChannels(invite.server_id, userId, bundle.channels);
 
     return res.status(201).json({
       alreadyMember: false,
@@ -1742,7 +1855,7 @@ router.post("/invites/:code/join", requireAuth, async (req, res) => {
         memberCount: bundle.memberCount,
         nickname: null,
         listPosition,
-        channels: bundle.channels.map(publicChannel),
+        channels,
         roles: bundle.roles.map(publicRole),
         myPermissions,
       }),
@@ -1841,6 +1954,7 @@ router.post("/vanity/:slug/join", requireAuth, async (req, res) => {
     if (existing) {
       const bundle = await loadServerBundle(server.id);
       const myPermissions = await buildMyPermissionsPayload(server.id, userId);
+      const channels = await publicVisibleChannels(server.id, userId, bundle.channels);
       return res.json({
         alreadyMember: true,
         server: publicServer(bundle.server, {
@@ -1849,7 +1963,7 @@ router.post("/vanity/:slug/join", requireAuth, async (req, res) => {
           nickname: existing.nickname || null,
           listPosition: existing.list_position ?? 0,
           joinedAt: existing.joined_at,
-          channels: bundle.channels.map(publicChannel),
+          channels,
           roles: bundle.roles.map(publicRole),
           myPermissions,
         }),
@@ -1891,6 +2005,7 @@ router.post("/vanity/:slug/join", requireAuth, async (req, res) => {
     });
 
     const { bundle, myPermissions } = await afterMemberJoined(req, server, userId, server.id);
+    const channels = await publicVisibleChannels(server.id, userId, bundle.channels);
 
     return res.status(201).json({
       alreadyMember: false,
@@ -1899,7 +2014,7 @@ router.post("/vanity/:slug/join", requireAuth, async (req, res) => {
         memberCount: bundle.memberCount,
         nickname: null,
         listPosition,
-        channels: bundle.channels.map(publicChannel),
+        channels,
         roles: bundle.roles.map(publicRole),
         myPermissions,
       }),
@@ -1943,6 +2058,7 @@ router.post("/discover/:id/join", requireAuth, async (req, res) => {
     if (existing) {
       const bundle = await loadServerBundle(serverId);
       const myPermissions = await buildMyPermissionsPayload(serverId, userId);
+      const channels = await publicVisibleChannels(serverId, userId, bundle.channels);
       return res.json({
         alreadyMember: true,
         server: publicServer(bundle.server, {
@@ -1950,7 +2066,7 @@ router.post("/discover/:id/join", requireAuth, async (req, res) => {
           memberCount: bundle.memberCount,
           nickname: existing.nickname || null,
           listPosition: existing.list_position ?? 0,
-          channels: bundle.channels.map(publicChannel),
+          channels,
           roles: bundle.roles.map(publicRole),
           myPermissions,
         }),
@@ -1990,13 +2106,14 @@ router.post("/discover/:id/join", requireAuth, async (req, res) => {
     });
 
     const { bundle, myPermissions } = await afterMemberJoined(req, server, userId, serverId);
+    const channels = await publicVisibleChannels(serverId, userId, bundle.channels);
 
     return res.status(201).json({
       alreadyMember: false,
       server: publicServer(bundle.server, {
         isOwner: false,
         memberCount: bundle.memberCount,
-        channels: bundle.channels.map(publicChannel),
+        channels,
         roles: bundle.roles.map(publicRole),
         myPermissions,
       }),
@@ -3265,7 +3382,7 @@ router.post("/:id/channels", requireAuth, async (req, res) => {
     });
 
     const pub = publicChannel(channel);
-    emitToServer(req, serverId, "server:channel:created", { channel: pub });
+    await emitChannelToViewers(req, serverId, "server:channel:created", channel);
     return res.status(201).json({ channel: pub });
   } catch (err) {
     const status = err.status || 500;
@@ -3349,7 +3466,7 @@ router.patch("/:id/channels/:channelId", requireAuth, async (req, res) => {
     });
 
     const pub = publicChannel(channel);
-    emitToServer(req, serverId, "server:channel:updated", { channel: pub });
+    await emitChannelToViewers(req, serverId, "server:channel:updated", channel);
     return res.json({ channel: pub });
   } catch (err) {
     const status = err.status || 500;
@@ -3515,6 +3632,7 @@ router.put("/:id/channels/:channelId/overrides", requireAuth, async (req, res) =
         targetId: channelId,
         changes: { targetType, targetId },
       });
+      emitToServer(req, serverId, "server:channels:resync", { channelId });
       return res.json({ cleared: true, channelId, targetType, targetId });
     }
 
@@ -3548,6 +3666,7 @@ router.put("/:id/channels/:channelId/overrides", requireAuth, async (req, res) =
       },
     });
 
+    emitToServer(req, serverId, "server:channels:resync", { channelId });
     return res.json({
       override: {
         id: row.id,
@@ -3596,6 +3715,7 @@ router.delete(
         changes: { targetType, targetId },
       });
 
+      emitToServer(req, serverId, "server:channels:resync", { channelId });
       return res.json({ deleted: true });
     } catch (err) {
       const status = err.status || 500;
@@ -3741,6 +3861,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
     const membership = await getMembership(serverId, req.user.id);
     const bundle = await loadServerBundle(serverId);
     const myPermissions = await buildMyPermissionsPayload(serverId, req.user.id);
+    const channels = await publicVisibleChannels(serverId, req.user.id, bundle.channels);
 
     return res.json({
       server: publicServer(updated || server, {
@@ -3748,7 +3869,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
         memberCount: bundle.memberCount,
         nickname: membership?.nickname || null,
         listPosition: membership?.list_position ?? 0,
-        channels: bundle.channels.map(publicChannel),
+        channels,
         roles: bundle.roles.map(publicRole),
         myPermissions,
       }),
