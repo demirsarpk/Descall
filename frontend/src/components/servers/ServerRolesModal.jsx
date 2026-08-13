@@ -12,6 +12,7 @@ import {
   removeMemberRole,
 } from "../../api/servers";
 import { permissionsToFlagMap } from "../../lib/serverPermissions";
+import ServerMemberRoleAssign from "./ServerMemberRoleAssign";
 
 const PRESET_COLORS = [
   0x5865f2, 0x57f287, 0xfee75c, 0xed4245, 0xeb459e, 0xf47b67, 0x3ba55d, 0x3498db, 0x9b59b6, 0x95a5a6,
@@ -287,7 +288,7 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
       onClick={onClose}
     >
       <motion.div
-        className="server-modal server-roles-modal"
+        className={`server-modal server-roles-modal${tab === "members" ? " is-members" : ""}`}
         initial={{ scale: 0.94, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.94, opacity: 0 }}
@@ -499,44 +500,14 @@ export default function ServerRolesModal({ server, onClose, onRolesChanged }) {
             </div>
           </div>
         ) : (
-          <div className="server-roles-members">
-            {assignableRoles.length === 0 ? (
-              <p className="server-empty-hint">{t("Create a role first, then assign it to members.")}</p>
-            ) : (
-              <ul className="server-member-role-list">
-                {members.map((member) => (
-                  <li key={member.userId} className="server-member-role-row">
-                    <div className="server-member-role-identity">
-                      <strong>{member.displayName || member.username || member.userId}</strong>
-                      <span>
-                        @{member.username || "—"}
-                        {member.isOwner ? ` · ${t("Owner")}` : ""}
-                      </span>
-                    </div>
-                    <div className="server-member-role-chips">
-                      {assignableRoles.map((role) => {
-                        const has = (member.roleIds || []).includes(role.id);
-                        const memberLocked = !canManageMember(member);
-                        return (
-                          <button
-                            key={role.id}
-                            type="button"
-                            className={`server-role-chip ${has ? "active" : ""}`}
-                            style={has ? { borderColor: colorToHex(role.color), color: colorToHex(role.color) } : undefined}
-                            disabled={busy || memberLocked}
-                            title={memberLocked ? t("This member has an equal or higher role.") : undefined}
-                            onClick={() => toggleMemberRole(member, role.id, has)}
-                          >
-                            {role.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <ServerMemberRoleAssign
+            server={server}
+            members={members}
+            assignableRoles={assignableRoles}
+            allRoles={roles}
+            busy={busy}
+            onToggleRole={toggleMemberRole}
+          />
         )}
       </motion.div>
     </motion.div>
