@@ -4,6 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import AuthView from "./components/AuthView";
 import AppLayout from "./components/layout/AppLayout";
 import GroupInviteLanding from "./components/groups/GroupInviteLanding";
+import ServerVanityLanding from "./components/servers/ServerVanityLanding";
 import MarketingApp from "./site/MarketingApp";
 import SeoHead from "./site/SeoHead";
 import { getMe, login, loginWithGoogle, register, verify2faLogin } from "./api/auth";
@@ -86,6 +87,44 @@ function normalizeGroups(payload) {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.groups)) return payload.groups;
   return [];
+}
+
+function parseServerVanityFromLocation() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    const fromQuery = (params.get("sv") || params.get("server") || "").trim().toLowerCase();
+    if (fromQuery && /^[a-z0-9][a-z0-9-]{2,31}$/.test(fromQuery)) return fromQuery;
+    const path = window.location.pathname || "";
+    const match = path.match(/^\/s\/([a-z0-9][a-z0-9-]{2,31})\/?$/i);
+    return match?.[1]?.toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
+
+function clearServerVanityPath() {
+  try {
+    const path = window.location.pathname || "";
+    const params = new URLSearchParams(window.location.search || "");
+    const hasQuery = params.has("sv") || params.has("server");
+    const hasPath = /^\/s\//i.test(path);
+    if (!hasQuery && !hasPath) return;
+    window.history.replaceState({}, "", "/");
+  } catch {
+    /* ignore */
+  }
+}
+
+function writeServerVanityPath(slug) {
+  try {
+    if (!slug) return;
+    const next = `/?sv=${encodeURIComponent(slug)}`;
+    if (`${window.location.pathname}${window.location.search}` !== next) {
+      window.history.replaceState({}, "", next);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 function parseInviteCodeFromLocation() {
@@ -265,6 +304,8 @@ export default function App() {
   const [me, setMe] = useState(() => normalizeUser(getUser()));
   const [inviteCode, setInviteCode] = useState(() => parseInviteCodeFromLocation());
   const [inviteAuthOpen, setInviteAuthOpen] = useState(false);
+  const [serverVanitySlug, setServerVanitySlug] = useState(() => parseServerVanityFromLocation());
+  const [serverVanityAuthOpen, setServerVanityAuthOpen] = useState(false);
   const [activeTimeout, setActiveTimeout] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [myStatus, setMyStatus] = useState(() => {
@@ -2710,12 +2751,10 @@ export default function App() {
       delete next[activeChannel.id];
       return next;
     });
-    const msgs = channelMessagesById[activeChannel.id];
-    const lastMsg = Array.isArray(msgs) && msgs.length ? msgs[msgs.length - 1] : null;
-    markChannelRead(activeServer.id, activeChannel.id, {
-      lastReadMessageId: lastMsg?.id || null,
-    }).catch((err) => console.warn("[App] mark channel read failed:", err?.message || err));
-  }, [activeChannel?.id, activeChannel?.type, activeServer?.id, channelMessagesById]);
+    markChannelRead(activeServer.id, activeChannel.id).catch((err) =>
+      console.warn("[App] mark channel read failed:", err?.message || err)
+    );
+  }, [activeChannel?.id, activeChannel?.type, activeServer?.id]);
 
   // Sync the "ongoing call" banner for whichever group is currently open.
   // The live push (group:call:banner-update) only reaches clients that were
@@ -3294,10 +3333,18 @@ export default function App() {
     }
   }, [sessionChecked]);
 
-  // After login, resume a pending Discord-style group invite
+  // After login, resume a pending group invite or server vanity link
   useEffect(() => {
     if (!me?.id) return;
     try {
+      const pendingVanity = sessionStorage.getItem("descall:pendingServerVanity");
+      if (pendingVanity) {
+        sessionStorage.removeItem("descall:pendingServerVanity");
+        setServerVanitySlug(pendingVanity);
+        setServerVanityAuthOpen(false);
+        writeServerVanityPath(pendingVanity);
+        return;
+      }
       const pending = sessionStorage.getItem("descall:pendingInvite");
       if (!pending) return;
       sessionStorage.removeItem("descall:pendingInvite");
@@ -3308,6 +3355,40 @@ export default function App() {
       /* ignore */
     }
   }, [me?.id]);
+
+  const handleServerVanityJoined = useCallback(
+    (server) => {
+      if (server?.id) {
+        setMyServers((prev) => {
+          const list = Array.isArray(prev) ? prev : [];
+          if (list.some((s) => s.id === server.id)) {
+            return list.map((s) => (s.id === server.id ? { ...s, ...server } : s));
+          }
+          return [...list, server];
+        });
+        setActiveDmUser(null);
+        setActiveGroup(null);
+        setActiveServer(server);
+        setActiveChannel(null);
+        setActiveView("servers");
+        try {
+          const nextPath = serverPath(server);
+          if (location.pathname !== nextPath) navigate(nextPath);
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        sessionStorage.removeItem("descall:pendingServerVanity");
+      } catch {
+        /* ignore */
+      }
+      clearServerVanityPath();
+      setServerVanitySlug(null);
+      setServerVanityAuthOpen(false);
+    },
+    [location.pathname, navigate]
+  );
 
   const handleInviteJoined = useCallback((group) => {
     if (group?.id) {
@@ -3386,6 +3467,17 @@ export default function App() {
     };
   }, [handleInviteJoined, location.pathname, navigate]);
 
+  const dismissServerVanity = useCallback(() => {
+    try {
+      sessionStorage.removeItem("descall:pendingServerVanity");
+    } catch {
+      /* ignore */
+    }
+    clearServerVanityPath();
+    setServerVanitySlug(null);
+    setServerVanityAuthOpen(false);
+  }, []);
+
   const dismissInvite = useCallback(() => {
     try {
       sessionStorage.removeItem("descall:pendingInvite");
@@ -3399,6 +3491,23 @@ export default function App() {
 
   if (!sessionChecked) {
     return <TitleBar />;
+  }
+
+  // Server vanity URL landing (/s/:slug)
+  if (serverVanitySlug && !(serverVanityAuthOpen && !me)) {
+    return (
+      <>
+        <SeoHead forceNoindex title="Server invite — Descall" description="Join a Descall server" />
+        <TitleBar />
+        <ServerVanityLanding
+          slug={serverVanitySlug}
+          me={me}
+          onJoined={handleServerVanityJoined}
+          onNeedLogin={() => setServerVanityAuthOpen(true)}
+          onDismiss={dismissServerVanity}
+        />
+      </>
+    );
   }
 
   // Discord-style invite landing (works logged out + logged in)

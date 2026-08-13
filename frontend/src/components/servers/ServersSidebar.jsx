@@ -795,8 +795,8 @@ export default function ServersSidebar({
                           participantStreams={participantStreams}
                           localStream={localVoiceStream}
                           myUserId={myVoiceUserId}
-                          muted={ch.type === "text" ? isChannelMuted(ch.id) : false}
-                          unread={ch.type === "text" ? channelUnread[ch.id] || 0 : 0}
+                          muted={ch.type === "text" || ch.type === "announcement" ? isChannelMuted(ch.id) : false}
+                          unread={ch.type === "text" || ch.type === "announcement" ? channelUnread[ch.id] || 0 : 0}
                           muteTick={mutedChannelTick}
                           canManageRoles={canManageRoles}
                           canMoveMembers={canMoveMembers}
@@ -871,8 +871,8 @@ export default function ServersSidebar({
                   participantStreams={participantStreams}
                   localStream={localVoiceStream}
                   myUserId={myVoiceUserId}
-                  muted={node.type === "text" ? isChannelMuted(node.id) : false}
-                  unread={node.type === "text" ? channelUnread[node.id] || 0 : 0}
+                  muted={node.type === "text" || node.type === "announcement" ? isChannelMuted(node.id) : false}
+                  unread={node.type === "text" || node.type === "announcement" ? channelUnread[node.id] || 0 : 0}
                   muteTick={mutedChannelTick}
                   canManageRoles={canManageRoles}
                   canMoveMembers={canMoveMembers}
@@ -1609,11 +1609,16 @@ function ChannelRow({
             NSFW
           </span>
         ) : null}
+        {channel.type === "announcement" ? (
+          <span className="server-channel-nsfw" title={t("Announcement")} style={{ fontSize: 10, opacity: 0.75 }}>
+            ANN
+          </span>
+        ) : null}
         {muted ? <BellOff size={12} className="server-channel-mute-icon" aria-hidden /> : null}
         {isVoiceLike && voiceMembers.length > 0 && (
           <span className="server-voice-count">{voiceMembers.length}</span>
         )}
-        {channel.type === "text" && unreadCount > 0 ? (
+        {(channel.type === "text" || channel.type === "announcement") && unreadCount > 0 ? (
           <ServerUnreadBadge count={unreadCount} />
         ) : null}
       </button>
@@ -1639,7 +1644,7 @@ function ChannelRow({
                 exit={{ opacity: 0, y: -4 }}
                 onMouseLeave={onCloseMenu}
               >
-                {channel.type === "text" && (
+                {(channel.type === "text" || channel.type === "announcement") && (
                   <button type="button" className="server-dropdown-item" onClick={onToggleMute}>
                     {muted ? <Bell size={14} /> : <BellOff size={14} />}
                     {muted ? t("Unmute channel") : t("Mute channel")}
@@ -1731,7 +1736,7 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
 
   const typeLocked = isEdit;
   const showParent = type !== "category";
-  const showTopic = type === "text";
+  const showTopic = type === "text" || type === "announcement";
 
   const submit = async (e) => {
     e.preventDefault();
@@ -1807,6 +1812,7 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
           <div className="server-type-toggle" role="group" aria-label={t("Channel type")}>
             {[
               { id: "text", label: t("Text"), Icon: Hash },
+              { id: "announcement", label: t("Announcement"), Icon: Megaphone },
               { id: "voice", label: t("Voice"), Icon: Volume2 },
               { id: "stage", label: t("Stage"), Icon: Radio },
               { id: "category", label: t("Category"), Icon: Folder },
@@ -1831,8 +1837,10 @@ function ChannelFormModal({ mode, channel, defaultType = "text", parentId = null
             onChange={(e) => setName(e.target.value)}
             maxLength={100}
             placeholder={
-              type === "text"
-                ? "general"
+              type === "text" || type === "announcement"
+                ? type === "announcement"
+                  ? "announcements"
+                  : "general"
                 : type === "stage"
                   ? t("Town hall")
                   : type === "voice"

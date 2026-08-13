@@ -40,10 +40,8 @@ const PERM_LABELS = {
   CONNECT: "Connect (voice)",
   SPEAK: "Speak",
   REQUEST_TO_SPEAK: "Request to Speak",
-  PRIORITY_SPEAKER: "Priority speaker",
   STREAM: "Video / stream",
   MUTE_MEMBERS: "Mute members",
-  DEAFEN_MEMBERS: "Deafen members",
   MOVE_MEMBERS: "Move members",
   ADMINISTRATOR: "Administrator",
 };
