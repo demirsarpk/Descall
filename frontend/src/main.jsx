@@ -6,18 +6,34 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ToastProvider } from "./context/ToastContext";
 import { LocaleProvider } from "./context/LocaleContext";
 import { resolveInitialLocale, translate } from "./i18n";
-import { initAnalytics } from "./site/analytics";
 import { isPublicMarketingPath } from "./site/marketingPaths";
 import { getToken } from "./lib/storage";
-/* DESCALL v2.0 — Complete UI rebuild - New modular CSS system */
-import "./styles.css";
-
-// Boot PostHog (and optional GA/Clarity) for marketing + authenticated SPA.
-initAnalytics();
 
 const path = typeof window !== "undefined" ? window.location.pathname || "/" : "/";
 const hasSession = Boolean(getToken());
 const preferMarketingShell = !hasSession && isPublicMarketingPath(path);
+
+/**
+ * Defer third-party analytics until engagement (or a long idle timeout) so
+ * marketing LCP is not blocked by PostHog / gtag / Clarity.
+ */
+function scheduleAnalytics({ delayMs }) {
+  let started = false;
+  const start = () => {
+    if (started) return;
+    started = true;
+    import("./site/analytics")
+      .then((m) => m.initAnalytics())
+      .catch(() => {});
+  };
+  const onEngage = () => start();
+  for (const evt of ["pointerdown", "keydown", "touchstart", "scroll"]) {
+    window.addEventListener(evt, onEngage, { once: true, passive: true });
+  }
+  window.setTimeout(start, delayMs);
+}
+
+scheduleAnalytics({ delayMs: preferMarketingShell ? 10000 : 2500 });
 
 // Only warm noise-suppression WASM when the user is likely to open voice (app paths).
 if (!preferMarketingShell) {
@@ -85,25 +101,38 @@ const bootLocale = resolveInitialLocale();
 const statusEl = document.getElementById("boot-status");
 if (statusEl) statusEl.textContent = translate(bootLocale, "Starting app");
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <ToastProvider>
-        <LocaleProvider>
-          <Router>
-            <Suspense fallback={null}>
-              <RootApp />
-            </Suspense>
-            {!preferMarketingShell ? <IosPwaInstallBanner /> : null}
-            <Suspense fallback={null}>
-              <AnalyticsLazy />
-            </Suspense>
-          </Router>
-        </LocaleProvider>
-      </ToastProvider>
-    </ErrorBoundary>
-  </React.StrictMode>
-);
+async function boot() {
+  // Marketing stays on a slim stylesheet; the authenticated app loads the full UI system.
+  if (preferMarketingShell) {
+    await import("./site/marketing-entry.css");
+  } else {
+    await import("./styles.css");
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <ToastProvider>
+          <LocaleProvider>
+            <Router>
+              <Suspense fallback={null}>
+                <RootApp />
+              </Suspense>
+              {!preferMarketingShell ? <IosPwaInstallBanner /> : null}
+              <Suspense fallback={null}>
+                <AnalyticsLazy />
+              </Suspense>
+            </Router>
+          </LocaleProvider>
+        </ToastProvider>
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
+}
+
+boot().catch((err) => {
+  console.error("[boot] failed", err);
+});
 
 // Safety: never leave splash stuck if boot hangs
 window.setTimeout(() => {

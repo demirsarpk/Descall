@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import MarketingApp from "./MarketingApp";
 import {
   login as apiLogin,
@@ -15,6 +15,21 @@ import { setToken, setUser } from "../lib/storage";
 export default function MarketingBoot() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
+
+  useEffect(() => {
+    // Reveal the React shell and retire the static SEO copy (already painted for LCP).
+    document.documentElement.setAttribute("data-react-ready", "1");
+    const seo = document.getElementById("seo-static");
+    if (seo) {
+      seo.setAttribute("hidden", "");
+      seo.setAttribute("aria-hidden", "true");
+    }
+    try {
+      window.__descallDismissBootSplash?.({ minMs: 0 });
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const enterApp = useCallback(() => {
     window.location.assign("/");

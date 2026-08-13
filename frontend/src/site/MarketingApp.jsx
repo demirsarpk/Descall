@@ -1,39 +1,37 @@
-import { useEffect, useState, useCallback } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { X, ArrowLeft } from "lucide-react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import GoogleSignInButton from "../components/auth/GoogleSignInButton";
 import ForgotPasswordFlow from "../components/auth/ForgotPasswordFlow";
 import LegalContentModal from "../components/legal/LegalContentModal";
-import DownloadPage from "../components/download/DownloadPage";
-import "../components/download/DownloadPage.css";
-import "../styles/auth-splash.css";
 import { useT } from "../context/LocaleContext";
 import {
   persistInviteRef,
   peekInviteRef,
   readInviteRefFromLocation,
 } from "../lib/referral";
-import { Funnel, initAnalytics, trackPageView } from "./analytics";
+import { Funnel, trackPageView } from "./analytics";
 import MarketingLayout from "./MarketingLayout";
 import SeoHead from "./SeoHead";
-import HomePage from "./pages/HomePage";
-import FeaturesPage from "./pages/FeaturesPage";
-import FaqPage from "./pages/FaqPage";
-import SecurityPage from "./pages/SecurityPage";
-import PrivacyPage from "./pages/PrivacyPage";
-import TermsPage from "./pages/TermsPage";
-import AboutPage from "./pages/AboutPage";
-import ContactPage from "./pages/ContactPage";
-import CompareDiscordPage from "./pages/CompareDiscordPage";
-import DiscordAlternativePage from "./pages/DiscordAlternativePage";
-import AlternativesPage from "./pages/AlternativesPage";
-import DiscordAlternativeGamersPage from "./pages/DiscordAlternativeGamersPage";
-import DiscordAlternativeTurkeyPage from "./pages/DiscordAlternativeTurkeyPage";
-import DiscordAlternativeNichePage from "./pages/DiscordAlternativeNichePage";
-import BlogIndexPage from "./pages/BlogIndexPage";
-import BlogPostPage from "./pages/BlogPostPage";
-import NotFoundPage from "./pages/NotFoundPage";
+
+const DownloadPage = lazy(() => import("../components/download/DownloadPage"));
+const HomePage = lazy(() => import("./pages/HomePage"));
+const FeaturesPage = lazy(() => import("./pages/FeaturesPage"));
+const FaqPage = lazy(() => import("./pages/FaqPage"));
+const SecurityPage = lazy(() => import("./pages/SecurityPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const TermsPage = lazy(() => import("./pages/TermsPage"));
+const AboutPage = lazy(() => import("./pages/AboutPage"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
+const CompareDiscordPage = lazy(() => import("./pages/CompareDiscordPage"));
+const DiscordAlternativePage = lazy(() => import("./pages/DiscordAlternativePage"));
+const AlternativesPage = lazy(() => import("./pages/AlternativesPage"));
+const DiscordAlternativeGamersPage = lazy(() => import("./pages/DiscordAlternativeGamersPage"));
+const DiscordAlternativeTurkeyPage = lazy(() => import("./pages/DiscordAlternativeTurkeyPage"));
+const DiscordAlternativeNichePage = lazy(() => import("./pages/DiscordAlternativeNichePage"));
+const BlogIndexPage = lazy(() => import("./pages/BlogIndexPage"));
+const BlogPostPage = lazy(() => import("./pages/BlogPostPage"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
 function enableMarketingScroll() {
   const html = document.documentElement;
@@ -167,23 +165,21 @@ function AuthModal({
     }
   };
 
+  if (!open) return null;
+
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
+        <div
           className="login-modal-overlay"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
           onClick={onClose}
           style={{ zIndex: 10000 }}
+          role="presentation"
         >
-          <motion.div
+          <div
             className="login-modal"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={isRegistering ? t("Create account") : t("Sign in")}
           >
             <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
               <X size={20} />
@@ -344,23 +340,23 @@ function AuthModal({
                 </button>
               </>
             )}
-          </motion.div>
+          </div>
           <LegalContentModal open={legalModal === "terms"} type="terms" onClose={() => setLegalModal(null)} />
           <LegalContentModal open={legalModal === "privacy"} type="privacy" onClose={() => setLegalModal(null)} />
-        </motion.div>
-      )}
-    </AnimatePresence>
+        </div>
   );
 }
 
 function withLayout(Page, openAuth, pageProps = {}) {
   return (
     <MarketingLayout onSignIn={openAuth} onSignUp={(opts) => openAuth({ mode: "register", ...opts })}>
-      <Page
-        onSignIn={openAuth}
-        onSignUp={(opts) => openAuth({ mode: "register", ...opts })}
-        {...pageProps}
-      />
+      <Suspense fallback={null}>
+        <Page
+          onSignIn={openAuth}
+          onSignUp={(opts) => openAuth({ mode: "register", ...opts })}
+          {...pageProps}
+        />
+      </Suspense>
     </MarketingLayout>
   );
 }
@@ -383,10 +379,6 @@ export default function MarketingApp({
   const [authMode, setAuthMode] = useState("login");
   const [authSource, setAuthSource] = useState("modal");
   const [inviteRef, setInviteRef] = useState(() => peekInviteRef());
-
-  useEffect(() => {
-    initAnalytics();
-  }, []);
 
   useEffect(() => {
     trackPageView(location.pathname + location.search);

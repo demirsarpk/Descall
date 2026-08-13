@@ -72,6 +72,12 @@
         background: #0b0c10;
         overflow: hidden;
       }
+      html:has(#seo-static main),
+      html:has(#seo-static main) body {
+        overflow: auto;
+        height: auto;
+        min-height: 100%;
+      }
       #boot-splash {
         position: fixed;
         inset: 0;
@@ -94,6 +100,28 @@
         transform: scale(1.03);
         pointer-events: none;
       }
+      /* Static SEO shell stays visible until React marketing UI mounts (protects LCP). */
+      #seo-static {
+        color: #e8eaed;
+        background: #0b0c10;
+        font-family: Inter, system-ui, sans-serif;
+        line-height: 1.55;
+        max-width: 52rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 3rem;
+        min-height: 100vh;
+        box-sizing: border-box;
+      }
+      #seo-static h1 {
+        font-family: Outfit, Inter, system-ui, sans-serif;
+        font-size: clamp(1.75rem, 4vw, 2.5rem);
+        line-height: 1.15;
+        margin: 0 0 0.75rem;
+        color: #f4f6f8;
+      }
+      #seo-static p { margin: 0 0 1rem; color: #c5ccd6; }
+      #seo-static a { color: #8eb6ff; }
+      html[data-react-ready="1"] #seo-static { display: none !important; }
       #boot-splash * {
         font-family: inherit !important;
         box-sizing: border-box;
@@ -242,6 +270,7 @@
         <a href="/contact">Contact</a>
       </nav>
     </noscript>
+    <div id="seo-static" aria-hidden="false"></div>
     <div id="boot-splash" data-shown-at="" role="progressbar" aria-busy="true" aria-label="Starting Descall">
       <div class="boot-orb boot-orb--a" aria-hidden="true"></div>
       <div class="boot-orb boot-orb--b" aria-hidden="true"></div>
@@ -260,7 +289,7 @@
         window.__descallDismissBootSplash = function (opts) {
           var root = document.getElementById("boot-splash");
           if (!root || root.classList.contains("boot-splash--hide")) return;
-          var minMs = (opts && opts.minMs) || 1100;
+          var minMs = (opts && typeof opts.minMs === "number") ? opts.minMs : 1100;
           var shownAt = Number(root.getAttribute("data-shown-at") || Date.now());
           var wait = Math.max(0, minMs - (Date.now() - shownAt));
           var status = document.getElementById("boot-status");
@@ -272,6 +301,11 @@
             }, 600);
           }, wait);
         };
+        // Prerendered marketing HTML: keep #seo-static visible and skip the splash overlay.
+        var seo = document.getElementById("seo-static");
+        if (seo && seo.childElementCount > 0) {
+          if (el && el.parentNode) el.parentNode.removeChild(el);
+        }
       })();
     </script>
     <div id="root"></div>

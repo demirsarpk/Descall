@@ -33,8 +33,9 @@ export default defineConfig({
                 if (id.includes("posthog")) return "vendor-analytics";
                 if (id.includes("@sapphi-red") || id.includes("rnnoise")) return "vendor-noise";
                 if (id.includes("react-dom") || id.includes("/react/")) return "vendor-react";
+                if (id.includes("lucide-react")) return "vendor-icons";
               }
-              if (id.includes("/src/site/")) return "marketing";
+              // Do not force all /src/site into one chunk — route lazy() splits pages.
               return undefined;
             },
           },

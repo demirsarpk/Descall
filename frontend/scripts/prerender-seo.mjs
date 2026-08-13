@@ -262,10 +262,27 @@ function injectMeta(html, route) {
   out = out.replace(/<\/title>/i, `</title>\n    ${metaBlock}`);
 
   const body = crawlBody(route);
-  if (/<div id="root"><\/div>/i.test(out)) {
-    out = out.replace(/<div id="root"><\/div>/i, `<div id="root">${body}</div>`);
+  if (/<div id="seo-static"><\/div>/i.test(out)) {
+    out = out.replace(
+      /<div id="seo-static"><\/div>/i,
+      `<div id="seo-static" aria-hidden="false">${body}</div>`
+    );
+  } else if (/<div id="seo-static"[^>]*>[\s\S]*?<\/div>/i.test(out)) {
+    out = out.replace(
+      /<div id="seo-static"[^>]*>[\s\S]*?<\/div>/i,
+      `<div id="seo-static" aria-hidden="false">${body}</div>`
+    );
+  } else if (/<div id="root"><\/div>/i.test(out)) {
+    // Backward compatible fallback for older templates
+    out = out.replace(
+      /<div id="root"><\/div>/i,
+      `<div id="seo-static" aria-hidden="false">${body}</div><div id="root"></div>`
+    );
   } else if (/<div id="root">[\s\S]*?<\/div>/i.test(out)) {
-    out = out.replace(/<div id="root">[\s\S]*?<\/div>/i, `<div id="root">${body}</div>`);
+    out = out.replace(
+      /<div id="root">[\s\S]*?<\/div>/i,
+      `<div id="seo-static" aria-hidden="false">${body}</div><div id="root"></div>`
+    );
   }
 
   const noscript = `<noscript>
