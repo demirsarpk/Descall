@@ -140,6 +140,25 @@ function scheduleMarketingHydration(run) {
 }
 
 async function bootApp() {
+  // Authenticated (or non-marketing) boot: never leave prerendered marketing HTML
+  // visible above the React app — that stacks Privacy / Valorant LFG links over /play.
+  try {
+    document.documentElement.setAttribute("data-react-ready", "1");
+    const seo = document.getElementById("seo-static");
+    if (seo) {
+      seo.setAttribute("hidden", "");
+      seo.setAttribute("aria-hidden", "true");
+      seo.style.display = "none";
+    }
+    const consent = document.getElementById("mkt-consent-static");
+    if (consent) {
+      consent.hidden = true;
+      consent.style.display = "none";
+    }
+  } catch {
+    /* ignore */
+  }
+
   const [{ ToastProvider }, { LocaleProvider }, { default: IosPwaInstallBanner }] =
     await Promise.all([
       import("./context/ToastContext"),
