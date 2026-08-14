@@ -2678,6 +2678,22 @@ export const phrases = {
   "Copy link": "Linki kopyala",
   "Share": "Paylaş",
   "Rewards land when they register with your link": "Ödül, linkinle kayıt olduklarında düşer",
+  "Get started": "Başla",
+  "Get started on Descall": "Descall’da ilk adımlar",
+  "{done} of {total} complete": "{done} / {total} tamam",
+  "Invite a friend": "Bir arkadaş davet et",
+  "Share your link — you both earn DesCoin when they join.":
+    "Linkini paylaş — katıldıklarında ikiniz de DesCoin kazanırsınız.",
+  "Add your first friend": "İlk arkadaşını ekle",
+  "Quick Add someone you know, or accept an incoming request.":
+    "Tanıdığını Hızlı Ekle, ya da gelen isteği kabul et.",
+  "Start a voice call": "Sesli arama başlat",
+  "Hop on a free HD call — the moment Descall feels real.":
+    "Ücretsiz HD aramaya geç — Descall’ın hissi burada başlar.",
+  "Add": "Ekle",
+  "Call": "Ara",
+  "You're ready": "Hazırsın",
+  "Invite, friend, and first call — done.": "Davet, arkadaş ve ilk arama — tamam.",
   "Daily reward": "Günlük ödül",
   "Streak": "Seri",
   "Claimed": "Alındı",

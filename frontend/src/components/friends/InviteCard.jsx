@@ -7,7 +7,7 @@ import { useT } from "../../context/LocaleContext";
 /**
  * Shareable personal invite card with DesCoin reward copy.
  */
-export default function InviteCard({ username, compact = false }) {
+export default function InviteCard({ username, compact = false, onCopied, onShared }) {
   const t = useT();
   const [copied, setCopied] = useState(false);
   const url = useMemo(() => buildFriendInviteUrl(username), [username]);
@@ -19,6 +19,11 @@ export default function InviteCard({ username, compact = false }) {
       await navigator.clipboard.writeText(url);
       Funnel.inviteGenerated({ method: "invite_card", username });
       setCopied(true);
+      try {
+        onCopied?.({ method: "clipboard", kind: "link" });
+      } catch {
+        /* ignore */
+      }
       setTimeout(() => setCopied(false), 2200);
     } catch {
       /* ignore */
@@ -34,12 +39,22 @@ export default function InviteCard({ username, compact = false }) {
           url,
         });
         Funnel.inviteGenerated({ method: "native_share", username });
+        try {
+          onShared?.({ method: "native_share" });
+        } catch {
+          /* ignore */
+        }
         return;
       }
     } catch {
       /* fall through to copy */
     }
     await copy();
+    try {
+      onShared?.({ method: "clipboard_fallback" });
+    } catch {
+      /* ignore */
+    }
   };
 
   return (

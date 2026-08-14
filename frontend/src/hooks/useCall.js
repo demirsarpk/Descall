@@ -1065,7 +1065,8 @@ export function useCall(socket, callOccupancyRef = null) {
         width,
         height,
         fps,
-        preferTab: !isMobileScreenCapture(),
+        // Full OS picker on desktop (window / screen / tab) — DES-10.
+        preferTab: false,
         pickSource: showElectronScreenPicker,
       });
 

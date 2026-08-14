@@ -2394,6 +2394,22 @@ export const phrases = {
   "Copy link": "Copy link",
   "Share": "Share",
   "Rewards land when they register with your link": "Rewards land when they register with your link",
+  "Get started": "Get started",
+  "Get started on Descall": "Get started on Descall",
+  "{done} of {total} complete": "{done} of {total} complete",
+  "Invite a friend": "Invite a friend",
+  "Share your link — you both earn DesCoin when they join.":
+    "Share your link — you both earn DesCoin when they join.",
+  "Add your first friend": "Add your first friend",
+  "Quick Add someone you know, or accept an incoming request.":
+    "Quick Add someone you know, or accept an incoming request.",
+  "Start a voice call": "Start a voice call",
+  "Hop on a free HD call — the moment Descall feels real.":
+    "Hop on a free HD call — the moment Descall feels real.",
+  "Add": "Add",
+  "Call": "Call",
+  "You're ready": "You're ready",
+  "Invite, friend, and first call — done.": "Invite, friend, and first call — done.",
   "Daily reward": "Daily reward",
   "Streak": "Streak",
   "Claimed": "Claimed",
