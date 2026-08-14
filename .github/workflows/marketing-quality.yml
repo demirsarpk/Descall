@@ -34,8 +34,20 @@ jobs:
       - name: Production build + SEO validate + perf budget
         run: npm run build:prod
 
-      - name: Install Chrome for axe
-        run: npx --yes @puppeteer/browsers install chrome@stable
+      - name: Install Chrome + matching ChromeDriver
+        run: |
+          npx --yes browser-driver-manager install chrome@stable | tee /tmp/bdm-out.txt
+          # Export paths printed by browser-driver-manager for later steps
+          eval "$(grep -E '^(CHROME_TEST_PATH|CHROMEDRIVER_TEST_PATH)=' /tmp/bdm-out.txt | sed 's/TEST_PATH=/PATH=/')"
+          echo "CHROME_PATH=${CHROME_PATH:-}" >> "$GITHUB_ENV"
+          echo "CHROMEDRIVER_PATH=${CHROMEDRIVER_PATH:-}" >> "$GITHUB_ENV"
+          # Fallback parse if env names differ
+          if [ -z "${CHROME_PATH:-}" ]; then
+            CHROME_PATH=$(sed -n 's/.*CHROME_TEST_PATH="\([^"]*\)".*/\1/p' /tmp/bdm-out.txt | head -1)
+            CHROMEDRIVER_PATH=$(sed -n 's/.*CHROMEDRIVER_TEST_PATH="\([^"]*\)".*/\1/p' /tmp/bdm-out.txt | head -1)
+            echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+            echo "CHROMEDRIVER_PATH=$CHROMEDRIVER_PATH" >> "$GITHUB_ENV"
+          fi
 
       - name: Serve dist + axe smoke
         run: |
@@ -44,6 +56,13 @@ jobs:
             curl -sf http://127.0.0.1:4173/features >/dev/null && break
             sleep 1
           done
-          npx --yes @axe-core/cli http://127.0.0.1:4173/features --exit --tags wcag2a,wcag2aa
-          npx --yes @axe-core/cli http://127.0.0.1:4173/ --exit --tags wcag2a,wcag2aa
-          npx --yes @axe-core/cli http://127.0.0.1:4173/faq --exit --tags wcag2a,wcag2aa
+          AXE_ARGS="--exit --tags wcag2a,wcag2aa"
+          if [ -n "${CHROMEDRIVER_PATH:-}" ]; then
+            AXE_ARGS="$AXE_ARGS --chromedriver-path $CHROMEDRIVER_PATH"
+          fi
+          if [ -n "${CHROME_PATH:-}" ]; then
+            AXE_ARGS="$AXE_ARGS --chrome-path $CHROME_PATH"
+          fi
+          npx --yes @axe-core/cli http://127.0.0.1:4173/features $AXE_ARGS
+          npx --yes @axe-core/cli http://127.0.0.1:4173/ $AXE_ARGS
+          npx --yes @axe-core/cli http://127.0.0.1:4173/faq $AXE_ARGS
