@@ -125,7 +125,7 @@
         line-height: 1.55;
         max-width: 42rem;
         margin: 0 auto;
-        padding: 1.25rem 1.1rem 4.5rem;
+        padding: 1.35rem 1.25rem 5rem;
         min-height: 100vh;
         box-sizing: border-box;
       }
@@ -195,7 +195,7 @@
         padding-left: 1.15rem;
         color: var(--seo-muted);
       }
-      #seo-static li { margin: 0.4rem 0; }
+      #seo-static li { margin: 0.55rem 0; }
       #seo-static a {
         color: var(--seo-link);
         text-decoration: none;
@@ -344,14 +344,14 @@
         top: auto !important;
         max-width: 560px;
         margin: 0 auto;
-        padding: 14px 16px;
+        padding: 12px 14px;
         border-radius: 14px;
         border: 1px solid rgba(255,255,255,0.12);
         background: rgba(14, 16, 22, 0.96);
         color: #e8eaed;
         font-family: Inter, system-ui, sans-serif;
-        font-size: 13px;
-        line-height: 1.45;
+        font-size: 12.5px;
+        line-height: 1.4;
         display: block;
       }
       html[data-has-consent="1"] #mkt-consent-static,
@@ -361,12 +361,12 @@
       /* Keep footer / seo-static nav clear of the fixed consent bar (esp. mobile).
          Without this, taps on “Valorant LFG” can hit the banner’s Privacy Policy link. */
       html:not([data-has-consent="1"]):not([data-react-ready="1"]) body {
-        padding-bottom: 168px;
+        padding-bottom: 200px;
       }
       html:not([data-has-consent="1"]):not([data-react-ready="1"]) #seo-static {
-        padding-bottom: 24px;
+        padding-bottom: 48px;
       }
-      #mkt-consent-static p { margin: 0 0 12px; color: #c5ccd6; }
+      #mkt-consent-static p { margin: 0 0 10px; color: #c5ccd6; }
       #mkt-consent-static a { color: #8eb6ff; }
       #mkt-consent-static .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
       #mkt-consent-static .actions a.privacy {
@@ -374,17 +374,17 @@
         text-decoration: underline;
         text-underline-offset: 2px;
         font-size: 12px;
-        padding: 0.45rem 0;
+        padding: 0.35rem 0;
       }
       #mkt-consent-static button {
         appearance: none;
         border: 0;
         border-radius: 10px;
-        padding: 0.55rem 0.9rem;
+        padding: 0.45rem 0.8rem;
         font: inherit;
         font-weight: 600;
         cursor: pointer;
-        min-height: 44px;
+        min-height: 40px;
       }
       #mkt-consent-static .accept { background: #5865f2; color: #fff; }
       #mkt-consent-static .reject { background: transparent; color: #c5ccd6; border: 1px solid rgba(255,255,255,0.18); }
