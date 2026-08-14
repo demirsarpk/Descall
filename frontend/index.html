@@ -178,9 +178,24 @@
       #mkt-consent-static[hidden] {
         display: none !important;
       }
+      /* Keep footer / seo-static nav clear of the fixed consent bar (esp. mobile).
+         Without this, taps on “Valorant LFG” can hit the banner’s Privacy Policy link. */
+      html:not([data-has-consent="1"]):not([data-react-ready="1"]) body {
+        padding-bottom: 168px;
+      }
+      html:not([data-has-consent="1"]):not([data-react-ready="1"]) #seo-static {
+        padding-bottom: 24px;
+      }
       #mkt-consent-static p { margin: 0 0 12px; color: #c5ccd6; }
       #mkt-consent-static a { color: #8eb6ff; }
-      #mkt-consent-static .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+      #mkt-consent-static .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+      #mkt-consent-static .actions a.privacy {
+        margin-right: auto;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        font-size: 12px;
+        padding: 0.45rem 0;
+      }
       #mkt-consent-static button {
         appearance: none;
         border: 0;
@@ -347,9 +362,9 @@
     <div id="mkt-consent-static" role="dialog" aria-label="Cookie preferences">
       <p>
         We use optional analytics cookies to improve Descall. Essential cookies keep the site working.
-        See our <a href="/privacy">Privacy Policy</a>.
       </p>
       <div class="actions">
+        <a class="privacy" href="/privacy">Privacy Policy</a>
         <button type="button" class="reject" data-consent="rejected">Reject analytics</button>
         <button type="button" class="accept" data-consent="accepted">Accept analytics</button>
       </div>

@@ -28,11 +28,13 @@ export default function CookieConsentBanner() {
     <div className="mkt-consent" role="dialog" aria-label={t("Cookie preferences")}>
       <p>
         {t(
-          "We use optional analytics cookies to improve Descall. Essential cookies keep the site working. See our"
-        )}{" "}
-        <Link to="/privacy">{t("Privacy Policy")}</Link>.
+          "We use optional analytics cookies to improve Descall. Essential cookies keep the site working."
+        )}
       </p>
       <div className="mkt-consent-actions">
+        <Link to="/privacy" className="mkt-consent-privacy">
+          {t("Privacy Policy")}
+        </Link>
         <button type="button" className="mkt-btn mkt-btn-ghost" onClick={() => decide("rejected")}>
           {t("Reject analytics")}
         </button>

@@ -15,6 +15,8 @@ function escapeHtml(s) {
 }
 
 function navBlock() {
+  // Product / niche links stay above legal so the fixed cookie banner cannot
+  // steal taps meant for “Valorant LFG” onto an adjacent Privacy link.
   return `<nav aria-label="Descall">
     <a href="/">Home</a>
     <a href="/features">Features</a>
@@ -30,10 +32,12 @@ function navBlock() {
     <a href="/about">About</a>
     <a href="/security">Security</a>
     <a href="/status">Status</a>
-    <a href="/privacy">Privacy</a>
-    <a href="/terms">Terms</a>
     <a href="/contact">Contact</a>
     <a href="/tr">Türkçe</a>
+  </nav>
+  <nav class="seo-legal-nav" aria-label="Legal">
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
   </nav>
   <p class="seo-hydrate-row">
     <button type="button" data-hydrate data-auth="register">Start free</button>
