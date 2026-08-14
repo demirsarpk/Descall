@@ -29,8 +29,9 @@ const html = await get("/features");
 if (html.status !== 200) fail(`/features status ${html.status}`);
 else ok(`/features ${html.status}`);
 
-if (/\bLoading\b/i.test(html.text)) fail("/features still contains Loading");
-else ok("/features has no Loading placeholder");
+if (/\bLoading\b/i.test(html.text.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<script[\s\S]*?<\/script>/gi, ""))) {
+  fail("/features still contains Loading");
+} else ok("/features has no Loading placeholder");
 
 if (!/id="seo-static"[\s\S]*?<main/i.test(html.text)) fail("/features missing seo-static main");
 else ok("/features has seo-static <main>");
@@ -39,8 +40,26 @@ if (!/<h1[\s\S]*?<\/h1>/i.test(html.text)) fail("/features missing h1");
 else ok("/features has h1");
 
 const home = await get("/");
+if (home.status !== 200) fail(`/ status ${home.status}`);
+else ok(`/ ${home.status}`);
+if (/\bLoading\b/i.test(home.text.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<script[\s\S]*?<\/script>/gi, ""))) {
+  fail("/ still contains Loading in body");
+} else ok("/ has no Loading placeholder in body");
 if (!/<h1[\s\S]*?Descall/i.test(home.text)) fail("home missing Descall h1");
 else ok("home has Descall h1");
+if (!/id="seo-static"[\s\S]*?<main/i.test(home.text)) fail("/ missing seo-static main");
+else ok("/ has seo-static <main>");
+
+for (const p of ["/about", "/contact", "/privacy"]) {
+  const page = await get(p);
+  if (page.status !== 200) fail(`${p} status ${page.status}`);
+  else ok(`${p} ${page.status}`);
+  const body = page.text.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<script[\s\S]*?<\/script>/gi, "");
+  if (/\bLoading\b/i.test(body)) fail(`${p} contains Loading in body`);
+  else ok(`${p} has no Loading placeholder in body`);
+  if (!/<h1[\s\S]*?<\/h1>/i.test(page.text)) fail(`${p} missing h1`);
+  else ok(`${p} has h1`);
+}
 
 const robots = await get("/robots.txt");
 if (!/Sitemap:\s*https:\/\/descall\.com\/sitemap\.xml/i.test(robots.text)) fail("robots missing sitemap");

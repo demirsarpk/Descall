@@ -90,6 +90,8 @@ function descallHtmlSeoPlugin() {
 
 export default defineConfig({
   plugins: [react(), descallHtmlSeoPlugin()],
+  // Serve prerendered dist/<route>/index.html shells in preview (not SPA fallback to /).
+  appType: "mpa",
   base: electronBase ? "./" : "/",
   publicDir: "public",
   assetsInclude: ["**/*.wasm"],

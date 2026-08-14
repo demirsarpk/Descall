@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, lazy, Suspense } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, lazy, Suspense } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   persistInviteRef,
@@ -31,6 +31,22 @@ const DiscordAlternativeNichePage = lazy(() => import("./pages/DiscordAlternativ
 const BlogIndexPage = lazy(() => import("./pages/BlogIndexPage"));
 const BlogPostPage = lazy(() => import("./pages/BlogPostPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
+
+/**
+ * Hide #seo-static only after the lazy page has committed — keeps crawlable H1
+ * visible through the Suspense gap (no blank / "Loading" flash).
+ */
+function RevealMarketingShell() {
+  useLayoutEffect(() => {
+    document.documentElement.setAttribute("data-marketing-ready", "1");
+    const seo = document.getElementById("seo-static");
+    if (seo) {
+      seo.setAttribute("hidden", "");
+      seo.setAttribute("aria-hidden", "true");
+    }
+  }, []);
+  return null;
+}
 
 function enableMarketingScroll() {
   const html = document.documentElement;
@@ -66,16 +82,19 @@ function enableMarketingScroll() {
 
 
 function withLayout(Page, openAuth, pageProps = {}) {
+  // Suspend the whole layout (not just the page) so #root stays empty while the
+  // chunk loads and #seo-static remains the only visible H1/body.
   return (
-    <MarketingLayout onSignIn={openAuth} onSignUp={(opts) => openAuth({ mode: "register", ...opts })}>
-      <Suspense fallback={null}>
+    <Suspense fallback={null}>
+      <MarketingLayout onSignIn={openAuth} onSignUp={(opts) => openAuth({ mode: "register", ...opts })}>
         <Page
           onSignIn={openAuth}
           onSignUp={(opts) => openAuth({ mode: "register", ...opts })}
           {...pageProps}
         />
-      </Suspense>
-    </MarketingLayout>
+        <RevealMarketingShell />
+      </MarketingLayout>
+    </Suspense>
   );
 }
 

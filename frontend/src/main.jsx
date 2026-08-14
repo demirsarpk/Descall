@@ -150,6 +150,7 @@ async function bootApp() {
   try {
     document.documentElement.setAttribute("data-react-ready", "1");
     document.documentElement.setAttribute("data-app-shell", "1");
+    document.documentElement.setAttribute("data-marketing-ready", "1");
     const seo = document.getElementById("seo-static");
     if (seo) {
       seo.setAttribute("hidden", "");

@@ -411,7 +411,9 @@
       }
       #mkt-consent-static .accept { background: #5865f2; color: #fff; }
       #mkt-consent-static .reject { background: transparent; color: #c5ccd6; border: 1px solid rgba(255,255,255,0.18); }
-      html[data-react-ready="1"] #seo-static { display: none !important; }
+      /* Hide prerendered SEO shell only after the lazy marketing page commits
+         (data-marketing-ready). data-react-ready alone used to blank H1 during Suspense. */
+      html[data-marketing-ready="1"] #seo-static { display: none !important; }
       html[data-react-ready="1"] #mkt-consent-static { display: none !important; }
       #boot-splash * {
         font-family: inherit !important;
