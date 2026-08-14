@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 import { FAQ_ITEMS } from "../faqData";
 import JsonLd, { buildFaqLd } from "../JsonLd";
 
@@ -9,7 +9,7 @@ export default function FaqPage() {
     <>
       <JsonLd data={buildFaqLd(FAQ_ITEMS)} />
       <section className="mkt-section" style={{ marginTop: 12 }}>
-        <h2>{t("FAQ")}</h2>
+        <h1>{t("FAQ")}</h1>
         <p className="lead">
           {t("Frequently asked questions about Descall — accounts, desktop download, calls, screen share, and privacy.")}
         </p>

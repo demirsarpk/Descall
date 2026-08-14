@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 
 export default function NotFoundPage() {
   const t = useT();

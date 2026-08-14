@@ -1,5 +1,3 @@
-import en from "./locales/en.js";
-import tr from "./locales/tr.js";
 import { detectDefaultLocale, normalizeLocale } from "./detect.js";
 import { applyDocumentLang, readStoredLanguage, writeStoredLanguage } from "./storage.js";
 
@@ -8,7 +6,38 @@ export const SUPPORTED_LOCALES = [
   { id: "tr", labelKey: "settings.turkish", nativeLabel: "Türkçe" },
 ];
 
-const catalogs = { en, tr };
+/** Placeholders until `loadI18nCatalogs()` resolves (app boot). */
+let catalogs = {
+  en: { phrases: {}, nested: {} },
+  tr: { phrases: {}, nested: {} },
+};
+let catalogsReady = false;
+let loadPromise = null;
+
+/**
+ * Load full EN/TR catalogs. Marketing entry must NOT call this — use slim phrases instead.
+ */
+export function loadI18nCatalogs() {
+  if (catalogsReady) return Promise.resolve();
+  if (loadPromise) return loadPromise;
+  loadPromise = Promise.all([
+    import("./locales/en.js"),
+    import("./locales/tr.js"),
+  ])
+    .then(([enMod, trMod]) => {
+      catalogs = { en: enMod.default, tr: trMod.default };
+      catalogsReady = true;
+    })
+    .catch((err) => {
+      loadPromise = null;
+      console.warn("[i18n] catalog load failed", err);
+    });
+  return loadPromise;
+}
+
+export function i18nCatalogsReady() {
+  return catalogsReady;
+}
 
 function getByPath(obj, path) {
   if (!obj || !path) return undefined;
@@ -43,7 +72,6 @@ export function translate(locale, key, vars) {
   const phraseHit = cat.phrases?.[k];
   if (phraseHit != null) return interpolate(phraseHit, vars);
 
-  // If asking for nested in English catalog and missing, try phrases
   const enNested = getByPath(catalogs.en.nested, k);
   if (enNested != null) {
     const fromPhrase = cat.phrases?.[enNested];
@@ -69,7 +97,6 @@ export function persistLocale(locale) {
   return normalized;
 }
 
-// Eager boot lang attribute (before React mounts)
 try {
   applyDocumentLang(resolveInitialLocale());
 } catch {

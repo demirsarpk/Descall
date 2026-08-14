@@ -9,11 +9,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/prerender-seo.mjs && node scripts/generate-seo-files.mjs",
-    "build:prod": "npx vite build && node scripts/prerender-seo.mjs && node scripts/generate-seo-files.mjs && node scripts/seo-validate.mjs --dist",
+    "build:prod": "npx vite build && node scripts/prerender-seo.mjs && node scripts/generate-seo-files.mjs && node scripts/seo-validate.mjs --dist && node scripts/perf-budget.mjs",
     "prerender:seo": "node scripts/prerender-seo.mjs",
     "seo:files": "node scripts/generate-seo-files.mjs",
     "seo:validate": "node scripts/seo-validate.mjs",
     "seo:validate:dist": "node scripts/seo-validate.mjs --dist",
+    "perf:budget": "node scripts/perf-budget.mjs",
     "seo:index": "node scripts/request-indexing.mjs",
     "seo:index:dry": "node scripts/request-indexing.mjs --dry-run",
     "preview": "vite preview",

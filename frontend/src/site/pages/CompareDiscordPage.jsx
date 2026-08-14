@@ -4,7 +4,7 @@ import SeoRelatedLinks from "../components/SeoRelatedLinks";
 import SeoProductPreview from "../components/SeoProductPreview";
 import { buildBreadcrumbLd, buildFaqLd, buildDiscordAlternativeAppLd } from "../JsonLd";
 import { COMPARE_FAQ, COMPARE_ROWS } from "../content/discordSeoContent";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 
 const crumbs = [
   { label: "Home", to: "/" },

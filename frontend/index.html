@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -59,7 +59,11 @@
     <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&family=Inter:wght@400;600&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+    </noscript>
     <style>
       /* Critical boot splash — paints before JS bundle */
       html, body {
@@ -67,6 +71,12 @@
         height: 100%;
         background: #0b0c10;
         overflow: hidden;
+      }
+      html:has(#seo-static main),
+      html:has(#seo-static main) body {
+        overflow: auto;
+        height: auto;
+        min-height: 100%;
       }
       #boot-splash {
         position: fixed;
@@ -90,6 +100,41 @@
         transform: scale(1.03);
         pointer-events: none;
       }
+      /* Static SEO shell stays visible until React marketing UI mounts (protects LCP). */
+      #seo-static {
+        color: #e8eaed;
+        background: #0b0c10;
+        font-family: Inter, system-ui, sans-serif;
+        line-height: 1.55;
+        max-width: 52rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 3rem;
+        min-height: 100vh;
+        box-sizing: border-box;
+      }
+      #seo-static h1 {
+        font-family: Outfit, Inter, system-ui, sans-serif;
+        font-size: clamp(1.75rem, 4vw, 2.5rem);
+        line-height: 1.15;
+        margin: 0 0 0.75rem;
+        color: #f4f6f8;
+      }
+      #seo-static p { margin: 0 0 1rem; color: #c5ccd6; }
+      #seo-static a { color: #8eb6ff; }
+      #seo-static a[href="/download"],
+      #seo-static a[href="/register"] {
+        display: inline-block;
+        margin: 0.25rem 0.5rem 0.25rem 0;
+        padding: 0.55rem 0.95rem;
+        border-radius: 10px;
+        background: #5865f2;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      #seo-static ul { padding-left: 1.2rem; color: #c5ccd6; }
+      #seo-static li { margin: 0.35rem 0; }
+      html[data-react-ready="1"] #seo-static { display: none !important; }
       #boot-splash * {
         font-family: inherit !important;
         box-sizing: border-box;
@@ -238,15 +283,16 @@
         <a href="/contact">Contact</a>
       </nav>
     </noscript>
-    <div id="boot-splash" data-shown-at="" role="progressbar" aria-busy="true" aria-label="Loading Descall">
+    <div id="seo-static" aria-hidden="false"></div>
+    <div id="boot-splash" data-shown-at="" role="progressbar" aria-busy="true" aria-label="Starting Descall">
       <div class="boot-orb boot-orb--a" aria-hidden="true"></div>
       <div class="boot-orb boot-orb--b" aria-hidden="true"></div>
       <div class="boot-card">
         <div class="boot-mark" aria-hidden="true"><span>D</span></div>
-        <h1 class="boot-title">Descall</h1>
+        <div class="boot-title">Descall</div>
         <p class="boot-sub">Messages · voice · screen share</p>
         <div class="boot-bar" aria-hidden="true"><i></i></div>
-        <p class="boot-status" id="boot-status">Loading</p>
+        <p class="boot-status" id="boot-status">Starting</p>
       </div>
     </div>
     <script>
@@ -256,7 +302,7 @@
         window.__descallDismissBootSplash = function (opts) {
           var root = document.getElementById("boot-splash");
           if (!root || root.classList.contains("boot-splash--hide")) return;
-          var minMs = (opts && opts.minMs) || 1100;
+          var minMs = (opts && typeof opts.minMs === "number") ? opts.minMs : 1100;
           var shownAt = Number(root.getAttribute("data-shown-at") || Date.now());
           var wait = Math.max(0, minMs - (Date.now() - shownAt));
           var status = document.getElementById("boot-status");
@@ -268,6 +314,11 @@
             }, 600);
           }, wait);
         };
+        // Prerendered marketing HTML: keep #seo-static visible and skip the splash overlay.
+        var seo = document.getElementById("seo-static");
+        if (seo && seo.childElementCount > 0) {
+          if (el && el.parentNode) el.parentNode.removeChild(el);
+        }
       })();
     </script>
     <div id="root"></div>

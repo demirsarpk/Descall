@@ -1,13 +1,20 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
-import { ChevronRight } from "lucide-react";
 import JsonLd from "../JsonLd";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 import { Funnel } from "../analytics";
+
+function Chevron() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 /**
  * Premium long-form SEO landing shell: breadcrumbs, H1, lead, sections, FAQ, CTA.
+ * No framer-motion — keeps niche landings off the motion vendor chunk until needed elsewhere.
  */
 export default function SeoLandingShell({
   breadcrumbs = [],
@@ -37,7 +44,7 @@ export default function SeoLandingShell({
           <ol>
             {breadcrumbs.map((crumb, i) => (
               <li key={crumb.to || crumb.label}>
-                {i > 0 && <ChevronRight size={12} aria-hidden />}
+                {i > 0 && <Chevron />}
                 {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : <span aria-current="page">{crumb.label}</span>}
               </li>
             ))}
@@ -45,12 +52,7 @@ export default function SeoLandingShell({
         </nav>
       )}
 
-      <motion.header
-        className="seo-hero"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-      >
+      <header className="seo-hero">
         {kicker && <div className="mkt-kicker">{kicker}</div>}
         <h1>{title}</h1>
         {lead && <p className="seo-lead">{lead}</p>}
@@ -61,7 +63,7 @@ export default function SeoLandingShell({
           </div>
         )}
         {heroExtra}
-      </motion.header>
+      </header>
 
       <div className="seo-body">{children}</div>
 

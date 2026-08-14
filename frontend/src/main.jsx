@@ -1,52 +1,74 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, HashRouter } from "react-router-dom";
-import { Analytics } from "@vercel/analytics/react";
-import App from "./App";
-import IosPwaInstallBanner from "./components/IosPwaInstallBanner";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { ToastProvider } from "./context/ToastContext";
-import { LocaleProvider } from "./context/LocaleContext";
-import { resolveInitialLocale, translate } from "./i18n";
-import { initAnalytics } from "./site/analytics";
-import { preloadNoiseSuppression } from "./lib/noiseSuppression";
-/* DESCALL v2.0 — Complete UI rebuild - New modular CSS system */
-import "./styles.css";
-import "./styles/blackjack.css";
+import { resolveInitialLocale, translate, loadI18nCatalogs } from "./i18n";
+import { isPublicMarketingPath } from "./site/marketingPaths";
+import { getToken } from "./lib/storage";
+import { isAnalyticsAllowed, markAnalyticsAllowed } from "./site/analyticsGate";
 
-// Boot PostHog (and optional GA/Clarity) for marketing + authenticated SPA.
-initAnalytics();
-// Warm AI noise-suppression WASM/worklets in the background (group + server voice).
-try {
-  preloadNoiseSuppression();
-} catch {
-  /* ignore */
+const path = typeof window !== "undefined" ? window.location.pathname || "/" : "/";
+const hasSession = Boolean(getToken());
+const preferMarketingShell = !hasSession && isPublicMarketingPath(path);
+
+/**
+ * Schedule third-party analytics. Marketing waits for CTA/engage gate;
+ * authenticated app can warm sooner after idle.
+ */
+function scheduleAnalytics({ preferMarketing }) {
+  let started = false;
+  const start = () => {
+    if (started) return;
+    if (preferMarketing && !isAnalyticsAllowed()) return;
+    started = true;
+    import("./site/analytics")
+      .then((m) => m.initAnalytics())
+      .catch(() => {});
+  };
+
+  if (preferMarketing) {
+    window.addEventListener("descall:analytics-allowed", start, { once: true });
+    window.setTimeout(() => {
+      markAnalyticsAllowed();
+      start();
+    }, 20000);
+    return;
+  }
+
+  const onEngage = () => {
+    markAnalyticsAllowed();
+    start();
+  };
+  for (const evt of ["pointerdown", "keydown", "touchstart"]) {
+    window.addEventListener(evt, onEngage, { once: true, passive: true });
+  }
+  window.setTimeout(onEngage, 2500);
 }
 
-// Electron loadFile() uses file:// — BrowserRouter cannot deep-link there.
-const Router = typeof window !== "undefined" && window.location.protocol === "file:"
-  ? HashRouter
-  : BrowserRouter;
+scheduleAnalytics({ preferMarketing: preferMarketingShell });
 
-// Apply saved theme / accent / chat font before first paint to avoid flash
+if (!preferMarketingShell) {
+  import("./lib/noiseSuppression")
+    .then((m) => m.preloadNoiseSuppression?.())
+    .catch(() => {});
+  import("./styles/blackjack.css").catch(() => {});
+}
+
+const Router =
+  typeof window !== "undefined" && window.location.protocol === "file:"
+    ? HashRouter
+    : BrowserRouter;
+
 try {
   const raw =
     localStorage.getItem("descall_user_settings") ||
     localStorage.getItem("descall_settings") ||
     "{}";
   const settings = JSON.parse(raw);
-  // A cached premium theme (set the last time UserPanel resolved it from
-  // /auth/me) wins over the plain dark/light choice — this also lets us
-  // paint the correct theme before first paint instead of flashing dark
-  // mode and then swapping once the server response lands.
   document.documentElement.setAttribute(
     "data-theme",
     settings.premiumThemeKey || (settings.darkMode === false ? "light" : "dark")
   );
-  // Only force the custom "Accent Color" swatch inline when the user has
-  // actually picked one AND no premium theme is equipped — a premium
-  // theme's own [data-theme="…"] CSS must be free to set --primary itself,
-  // since inline styles otherwise always win over any stylesheet rule.
   const accent = settings.accentColor;
   if (accent && !settings.premiumThemeKey) {
     const hex = String(accent).replace("#", "");
@@ -79,23 +101,89 @@ const bootLocale = resolveInitialLocale();
 const statusEl = document.getElementById("boot-status");
 if (statusEl) statusEl.textContent = translate(bootLocale, "Starting app");
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <ToastProvider>
-        <LocaleProvider>
-          <Router>
-            <App />
-            <IosPwaInstallBanner />
-            <Analytics />
-          </Router>
-        </LocaleProvider>
-      </ToastProvider>
-    </ErrorBoundary>
-  </React.StrictMode>,
-);
+/**
+ * Progressive marketing hydration: keep #seo-static visible and interactive
+ * (native links work) until idle / engagement, then mount the React shell.
+ */
+function scheduleMarketingHydration(run) {
+  let started = false;
+  const start = () => {
+    if (started) return;
+    started = true;
+    cleanup();
+    run();
+  };
+  const onEngage = (e) => {
+    const t = e?.target;
+    if (t && typeof t.closest === "function" && t.closest("#seo-static a[href]")) return;
+    start();
+  };
+  const cleanup = () => {
+    for (const evt of ["pointerdown", "keydown", "touchstart"]) {
+      window.removeEventListener(evt, onEngage);
+    }
+  };
+  for (const evt of ["pointerdown", "keydown", "touchstart"]) {
+    window.addEventListener(evt, onEngage, { passive: true });
+  }
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(() => start(), { timeout: 4000 });
+  }
+  window.setTimeout(start, 3500);
+}
 
-// Safety: never leave splash stuck if boot hangs
+async function bootApp() {
+  const [{ ToastProvider }, { LocaleProvider }, { default: IosPwaInstallBanner }] =
+    await Promise.all([
+      import("./context/ToastContext"),
+      import("./context/LocaleContext"),
+      import("./components/IosPwaInstallBanner"),
+      import("./styles.css"),
+      loadI18nCatalogs(),
+    ]);
+
+  const RootApp = lazy(() => import("./App.jsx"));
+  const AnalyticsLazy = lazy(() =>
+    import("@vercel/analytics/react").then((m) => ({ default: m.Analytics }))
+  );
+
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <ToastProvider>
+          <LocaleProvider>
+            <Router>
+              <Suspense fallback={null}>
+                <RootApp />
+              </Suspense>
+              <IosPwaInstallBanner />
+              <Suspense fallback={null}>
+                <AnalyticsLazy />
+              </Suspense>
+            </Router>
+          </LocaleProvider>
+        </ToastProvider>
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
+}
+
+async function boot() {
+  if (preferMarketingShell) {
+    scheduleMarketingHydration(() => {
+      import("./site/hydrateMarketing.jsx")
+        .then((m) => m.hydrateMarketing())
+        .catch((err) => console.error("[boot] marketing hydrate failed", err));
+    });
+    return;
+  }
+  await bootApp();
+}
+
+boot().catch((err) => {
+  console.error("[boot] failed", err);
+});
+
 window.setTimeout(() => {
   try {
     window.__descallDismissBootSplash?.({ minMs: 0 });

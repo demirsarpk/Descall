@@ -15,12 +15,47 @@
  * Dashboard env wiring. Local/dev can leave the key empty to no-op.
  */
 
-import posthog from "posthog-js";
+import { isAnalyticsAllowed } from "./analyticsGate";
+
+/** Lazily loaded PostHog SDK — keep marketing entry free of the ~80KB vendor chunk. */
+let posthog = null;
+let posthogLoadPromise = null;
 
 let booted = false;
 let posthogReady = false;
 let gtagJsBooted = false;
 const gtagConfiguredIds = new Set();
+const pendingEvents = [];
+
+function loadPosthog() {
+  if (posthog) return Promise.resolve(posthog);
+  if (posthogLoadPromise) return posthogLoadPromise;
+  posthogLoadPromise = import("posthog-js")
+    .then((mod) => {
+      posthog = mod.default;
+      return posthog;
+    })
+    .catch((err) => {
+      console.warn("[analytics] PostHog load failed", err);
+      posthogLoadPromise = null;
+      return null;
+    });
+  return posthogLoadPromise;
+}
+
+function flushPendingEvents() {
+  if (!posthogReady || !posthog || !pendingEvents.length) return;
+  const queue = pendingEvents.splice(0, pendingEvents.length);
+  for (const item of queue) {
+    try {
+      if (item.type === "capture") posthog.capture(item.event, item.properties);
+      else if (item.type === "identify") posthog.identify(item.id, item.props);
+      else if (item.type === "reset") posthog.reset();
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 /** Descall EU project — public `phc_` key (not a secret). */
 const DESCALL_POSTHOG_KEY = "phc_ztiuFNjFuPcfrCV6ANXunnYaZh4yH99ZhxFZf2cryacQ";
@@ -142,46 +177,53 @@ export function trackGoogleAdsSignUpConversion(properties = {}) {
 
 export function initAnalytics() {
   if (booted || typeof window === "undefined") return;
+  // Stay cold until marketing CTA / engage unlock (or app idle schedule).
+  if (!isAnalyticsAllowed()) return;
   booted = true;
 
   const phKey = posthogKey();
   if (phKey) {
-    try {
-      posthog.init(phKey, {
-        api_host: posthogHost(),
-        ui_host: "https://eu.posthog.com",
-        person_profiles: "identified_only",
-        capture_pageview: false, // we send $pageview ourselves with SPA routes
-        capture_pageleave: true,
-        capture_exceptions: true,
-        persistence: "localStorage+cookie",
-        // Project settings enable replay/surveys; keep client aligned.
-        disable_session_recording: false,
-        session_recording: {
-          maskAllInputs: true,
-          recordCrossOriginIframes: false,
-        },
-        advanced_disable_feature_flags_on_first_load: false,
-        loaded: (ph) => {
-          posthogReady = true;
-          // Attach UTM / ref once for session correlation
-          try {
-            const params = new URLSearchParams(window.location.search);
-            const utm = {};
-            for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref"]) {
-              const v = params.get(key);
-              if (v) utm[key] = v;
+    loadPosthog().then((ph) => {
+      if (!ph) return;
+      try {
+        ph.init(phKey, {
+          api_host: posthogHost(),
+          ui_host: "https://eu.posthog.com",
+          person_profiles: "identified_only",
+          capture_pageview: false, // we send $pageview ourselves with SPA routes
+          capture_pageleave: true,
+          capture_exceptions: true,
+          persistence: "localStorage+cookie",
+          // Project settings enable replay/surveys; keep client aligned.
+          disable_session_recording: false,
+          session_recording: {
+            maskAllInputs: true,
+            recordCrossOriginIframes: false,
+          },
+          advanced_disable_feature_flags_on_first_load: false,
+          loaded: (instance) => {
+            posthogReady = true;
+            flushPendingEvents();
+            // Attach UTM / ref once for session correlation
+            try {
+              const params = new URLSearchParams(window.location.search);
+              const utm = {};
+              for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref"]) {
+                const v = params.get(key);
+                if (v) utm[key] = v;
+              }
+              if (Object.keys(utm).length) instance.register(utm);
+            } catch {
+              /* ignore */
             }
-            if (Object.keys(utm).length) ph.register(utm);
-          } catch {
-            /* ignore */
-          }
-        },
-      });
-      posthogReady = true;
-    } catch (err) {
-      console.warn("[analytics] PostHog init failed", err);
-    }
+          },
+        });
+        posthogReady = true;
+        flushPendingEvents();
+      } catch (err) {
+        console.warn("[analytics] PostHog init failed", err);
+      }
+    });
   }
 
   const gaId = String(import.meta.env.VITE_GA_MEASUREMENT_ID || "").trim();
@@ -213,8 +255,14 @@ export function initAnalytics() {
 export function trackPageView(path) {
   const page = path || (typeof window !== "undefined" ? window.location.pathname + window.location.search : "/");
   try {
-    if (posthogReady || posthogKey()) {
+    if (posthogReady && posthog) {
       posthog.capture("$pageview", { $current_url: typeof window !== "undefined" ? window.location.href : page, path: page });
+    } else if (posthogKey()) {
+      pendingEvents.push({
+        type: "capture",
+        event: "$pageview",
+        properties: { $current_url: typeof window !== "undefined" ? window.location.href : page, path: page },
+      });
     }
   } catch {
     /* ignore */
@@ -236,8 +284,10 @@ export function trackPageView(path) {
 export function trackEvent(event, properties = {}) {
   if (!event) return;
   try {
-    if (posthogReady || posthogKey()) {
+    if (posthogReady && posthog) {
       posthog.capture(event, properties);
+    } else if (posthogKey()) {
+      pendingEvents.push({ type: "capture", event, properties });
     }
   } catch {
     /* ignore */
@@ -254,11 +304,14 @@ export function trackEvent(event, properties = {}) {
 export function identifyUser(user) {
   if (!user?.id) return;
   try {
-    if (posthogReady || posthogKey()) {
-      posthog.identify(String(user.id), {
-        username: user.username || undefined,
-        email: user.email || undefined,
-      });
+    const props = {
+      username: user.username || undefined,
+      email: user.email || undefined,
+    };
+    if (posthogReady && posthog) {
+      posthog.identify(String(user.id), props);
+    } else if (posthogKey()) {
+      pendingEvents.push({ type: "identify", id: String(user.id), props });
     }
   } catch {
     /* ignore */
@@ -267,7 +320,8 @@ export function identifyUser(user) {
 
 export function resetAnalyticsUser() {
   try {
-    if (posthogReady || posthogKey()) posthog.reset();
+    if (posthogReady && posthog) posthog.reset();
+    else if (posthogKey()) pendingEvents.push({ type: "reset" });
   } catch {
     /* ignore */
   }
@@ -277,7 +331,7 @@ export function resetAnalyticsUser() {
 export function getFeatureFlag(key, fallback = false) {
   if (!key) return fallback;
   try {
-    if (!(posthogReady || posthogKey())) return fallback;
+    if (!posthogReady || !posthog) return fallback;
     const value = posthog.getFeatureFlag(key);
     return value == null ? fallback : value;
   } catch {
@@ -288,7 +342,7 @@ export function getFeatureFlag(key, fallback = false) {
 export function getFeatureFlagPayload(key, fallback = null) {
   if (!key) return fallback;
   try {
-    if (!(posthogReady || posthogKey())) return fallback;
+    if (!posthogReady || !posthog) return fallback;
     const payload = posthog.getFeatureFlagPayload(key);
     if (payload == null) return fallback;
     if (typeof payload === "string") {

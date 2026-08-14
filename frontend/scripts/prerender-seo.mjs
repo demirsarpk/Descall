@@ -2,6 +2,8 @@
  * Post-build SEO HTML shells for crawlers.
  * - Route meta from src/site/seoConfig.js (single source of truth)
  * - Injects crawlable <main> into #root so HTML responses aren't empty SPA shells
+ * - Strips boot splash "Loading" chrome from SEO shells (bots must not see Loading)
+ * - Injects route-specific JSON-LD (FAQPage, SoftwareApplication, Organization, Article)
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -21,6 +23,16 @@ const { BLOG_POSTS } = await import(
   pathToFileURL(path.join(root, "src/site/content/discordSeoContent.js")).href
 );
 const { BLOG_BODIES } = await import(pathToFileURL(path.join(root, "src/site/seo/blogBodies.js")).href);
+const { corePageBody } = await import(pathToFileURL(path.join(root, "src/site/seo/corePageBodies.js")).href);
+const { FAQ_ITEMS } = await import(pathToFileURL(path.join(root, "src/site/faqData.js")).href);
+const {
+  buildOrganizationLd,
+  buildWebSiteLd,
+  buildSoftwareApplicationLd,
+  buildFaqLd,
+  buildArticleLd,
+  buildBreadcrumbLd,
+} = await import(pathToFileURL(path.join(root, "src/site/jsonLdBuilders.js")).href);
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -30,7 +42,20 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+function stripBootSplash(html) {
+  // Nested divs — remove the whole splash block + its dismiss script.
+  return html
+    .replace(
+      /<div id="boot-splash"[\s\S]*?<\/div>\s*<script>\s*\(function \(\) \{\s*var el = document\.getElementById\("boot-splash"\)[\s\S]*?<\/script>\s*/i,
+      ""
+    )
+    .replace(/<div id="boot-splash"[\s\S]*?data-shown-at=""[\s\S]*?<\/script>\s*/i, "");
+}
+
 function crawlBody(route) {
+  const core = corePageBody(route.path);
+  if (core) return core;
+
   const niche = NICHE_LANDINGS[route.path];
   if (niche) {
     const sections = niche.sections
@@ -39,6 +64,12 @@ function crawlBody(route) {
     const links = niche.related
       .map((l) => `<li><a href="${escapeHtml(l.to)}">${escapeHtml(l.label)}</a></li>`)
       .join("");
+    const faq =
+      Array.isArray(niche.faqs) && niche.faqs.length
+        ? `<h2>FAQ</h2>${niche.faqs
+            .map((f) => `<h3>${escapeHtml(f.q)}</h3><p>${escapeHtml(f.a)}</p>`)
+            .join("\n")}`
+        : "";
     return `
 <main>
   <h1>${escapeHtml(niche.h1)}</h1>
@@ -48,6 +79,7 @@ function crawlBody(route) {
   <p>${escapeHtml(niche.answer)}</p>
   <ul>${niche.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>
   ${sections}
+  ${faq}
   <nav aria-label="Related"><ul>${links}</ul></nav>
 </main>`;
   }
@@ -72,6 +104,25 @@ function crawlBody(route) {
     }
   }
 
+  if (route.path === "/blog") {
+    const posts = BLOG_POSTS.map(
+      (p) =>
+        `<li><a href="/blog/${escapeHtml(p.slug)}"><strong>${escapeHtml(p.title)}</strong></a> — ${escapeHtml(p.description)}</li>`
+    ).join("");
+    return `
+<main>
+  <h1>Descall Blog</h1>
+  <p>Guides on Discord alternatives, servers, voice chat, and gaming LFG.</p>
+  <ul>${posts}</ul>
+  <nav aria-label="Descall">
+    <a href="/">Home</a>
+    <a href="/discord-alternative">Discord alternative</a>
+    <a href="/features">Features</a>
+    <a href="/download">Download</a>
+  </nav>
+</main>`;
+  }
+
   const h1 = route.h1 || route.title.replace(/\s*\|\s*Descall\s*$/i, "").replace(/\s*—\s*Descall\s*$/i, "");
   return `
 <main>
@@ -87,8 +138,54 @@ function crawlBody(route) {
     <a href="/download">Download</a>
     <a href="/blog">Blog</a>
     <a href="/faq">FAQ</a>
+    <a href="/about">About</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+    <a href="/contact">Contact</a>
   </nav>
 </main>`;
+}
+
+function jsonLdForRoute(route) {
+  const graphs = [buildWebSiteLd(), buildOrganizationLd()];
+
+  if (route.path === "/" || route.path === "/features" || route.path === "/download") {
+    graphs.push(buildSoftwareApplicationLd());
+  }
+
+  if (route.path === "/faq") {
+    graphs.push(buildFaqLd(FAQ_ITEMS));
+  }
+
+  const niche = NICHE_LANDINGS[route.path];
+  if (niche?.faqs?.length) {
+    graphs.push(buildFaqLd(niche.faqs));
+  }
+
+  if (route.path.startsWith("/blog/") && route.path !== "/blog") {
+    const slug = route.path.replace("/blog/", "");
+    const post = BLOG_POSTS.find((p) => p.slug === slug);
+    if (post && typeof buildArticleLd === "function") {
+      graphs.push(
+        buildArticleLd({
+          title: post.title,
+          description: post.description,
+          path: route.path,
+          datePublished: post.date || post.publishedAt || "2026-01-01",
+          dateModified: post.updatedAt || post.date || "2026-01-01",
+        })
+      );
+    }
+    graphs.push(
+      buildBreadcrumbLd([
+        { name: "Home", path: "/" },
+        { name: "Blog", path: "/blog" },
+        { name: post?.title || slug, path: route.path },
+      ])
+    );
+  }
+
+  return graphs;
 }
 
 function stripStaleHeadSeo(html) {
@@ -99,7 +196,8 @@ function stripStaleHeadSeo(html) {
     .replace(/<link\s+rel="canonical"[^>]*>\s*/gi, "")
     .replace(/<link\s+rel="alternate"[^>]*hreflang="[^"]*"[^>]*>\s*/gi, "")
     .replace(/<meta\s+property="og:[^"]*"[^>]*>\s*/gi, "")
-    .replace(/<meta\s+name="twitter:[^"]*"[^>]*>\s*/gi, "");
+    .replace(/<meta\s+name="twitter:[^"]*"[^>]*>\s*/gi, "")
+    .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*/gi, "");
 }
 
 function injectMeta(html, route) {
@@ -110,7 +208,8 @@ function injectMeta(html, route) {
   const lang = route.lang || "en";
   const ogType = route.ogType || "website";
 
-  let out = stripStaleHeadSeo(html);
+  let out = stripBootSplash(html);
+  out = stripStaleHeadSeo(out);
   out = out.replace(/<html\s+lang="[^"]*"/i, `<html lang="${lang}"`);
   out = out.replace(/<title>[^<]*<\/title>/i, `<title>${title}</title>`);
 
@@ -128,6 +227,13 @@ function injectMeta(html, route) {
           ? `<link rel="alternate" hreflang="tr" href="${SITE}/discord-alternative-turkey" />`
           : "",
       ];
+
+  const ldScripts = jsonLdForRoute(route)
+    .map(
+      (data) =>
+        `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>`
+    )
+    .join("\n    ");
 
   const metaBlock = [
     `<meta name="description" content="${desc}" />`,
@@ -148,38 +254,47 @@ function injectMeta(html, route) {
     `<meta name="twitter:title" content="${title}" />`,
     `<meta name="twitter:description" content="${desc}" />`,
     `<meta name="twitter:image" content="${OG}" />`,
+    ldScripts,
   ]
     .filter(Boolean)
     .join("\n    ");
 
   out = out.replace(/<\/title>/i, `</title>\n    ${metaBlock}`);
 
-  // Boot splash uses an <h1> for the brand mark — demote so the page keeps a single H1.
-  out = out.replace(
-    /<h1 class="boot-title">Descall<\/h1>/i,
-    '<div class="boot-title">Descall</div>'
-  );
-
   const body = crawlBody(route);
-  // Prefer injecting into #root so crawlers see content before SPA mount.
-  if (/<div id="root"><\/div>/i.test(out)) {
-    out = out.replace(/<div id="root"><\/div>/i, `<div id="root">${body}</div>`);
+  if (/<div id="seo-static"><\/div>/i.test(out)) {
+    out = out.replace(
+      /<div id="seo-static"><\/div>/i,
+      `<div id="seo-static" aria-hidden="false">${body}</div>`
+    );
+  } else if (/<div id="seo-static"[^>]*>[\s\S]*?<\/div>/i.test(out)) {
+    out = out.replace(
+      /<div id="seo-static"[^>]*>[\s\S]*?<\/div>/i,
+      `<div id="seo-static" aria-hidden="false">${body}</div>`
+    );
+  } else if (/<div id="root"><\/div>/i.test(out)) {
+    // Backward compatible fallback for older templates
+    out = out.replace(
+      /<div id="root"><\/div>/i,
+      `<div id="seo-static" aria-hidden="false">${body}</div><div id="root"></div>`
+    );
   } else if (/<div id="root">[\s\S]*?<\/div>/i.test(out)) {
-    out = out.replace(/<div id="root">[\s\S]*?<\/div>/i, `<div id="root">${body}</div>`);
+    out = out.replace(
+      /<div id="root">[\s\S]*?<\/div>/i,
+      `<div id="seo-static" aria-hidden="false">${body}</div><div id="root"></div>`
+    );
   }
 
-  // Noscript nav only — full crawl body already lives in #root (avoid duplicate H1).
   const noscript = `<noscript>
       <nav aria-label="Descall">
         <a href="/">Descall</a>
         <a href="/discord-alternative">Discord alternative</a>
-        <a href="/alternatives">Alternatives</a>
-        <a href="/compare/discord">vs Discord</a>
-        <a href="/apps-like-discord">Apps like Discord</a>
         <a href="/features">Features</a>
         <a href="/download">Download</a>
-        <a href="/blog">Blog</a>
         <a href="/faq">FAQ</a>
+        <a href="/about">About</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
         <a href="/contact">Contact</a>
       </nav>
     </noscript>`;

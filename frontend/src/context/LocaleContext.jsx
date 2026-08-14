@@ -1,25 +1,29 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   persistLocale,
   resolveInitialLocale,
   translate,
   SUPPORTED_LOCALES,
   normalizeLocale,
+  loadI18nCatalogs,
 } from "../i18n/index.js";
 import { API_BASE_URL } from "../config/api";
-
-const LocaleContext = createContext({
-  locale: "en",
-  setLocale: () => {},
-  t: (key, vars) => String(key ?? ""),
-  locales: SUPPORTED_LOCALES,
-});
+import { LocaleContext, useLocale, useT } from "./localeContextInstance";
 
 export function LocaleProvider({ children, meLanguage = null }) {
   const [locale, setLocaleState] = useState(() => resolveInitialLocale({ meLanguage }));
+  const [ready, setReady] = useState(false);
 
-  // When server profile language arrives and user has no explicit local override,
-  // prefer account language. Explicit localStorage language always wins.
+  useEffect(() => {
+    let cancelled = false;
+    loadI18nCatalogs().then(() => {
+      if (!cancelled) setReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     const fromMe = normalizeLocale(meLanguage);
     if (!fromMe) return;
@@ -43,7 +47,6 @@ export function LocaleProvider({ children, meLanguage = null }) {
     setLocaleState(normalized);
     persistLocale(normalized);
 
-    // Best-effort sync to account regional settings when logged in
     try {
       const token = localStorage.getItem("descall_token");
       if (token) {
@@ -60,7 +63,6 @@ export function LocaleProvider({ children, meLanguage = null }) {
       /* ignore */
     }
 
-    // Notify non-React listeners (notifications, electron helpers)
     try {
       window.dispatchEvent(new CustomEvent("descall:locale", { detail: { locale: normalized } }));
     } catch {
@@ -68,7 +70,7 @@ export function LocaleProvider({ children, meLanguage = null }) {
     }
   }, []);
 
-  const t = useCallback((key, vars) => translate(locale, key, vars), [locale]);
+  const t = useCallback((key, vars) => translate(locale, key, vars), [locale, ready]);
 
   const value = useMemo(
     () => ({ locale, setLocale, t, locales: SUPPORTED_LOCALES }),
@@ -78,12 +80,5 @@ export function LocaleProvider({ children, meLanguage = null }) {
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
-export function useLocale() {
-  return useContext(LocaleContext);
-}
-
-export function useT() {
-  return useContext(LocaleContext).t;
-}
-
+export { LocaleContext, useLocale, useT };
 export default LocaleContext;

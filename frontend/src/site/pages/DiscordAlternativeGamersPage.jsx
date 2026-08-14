@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import SeoLandingShell from "../components/SeoLandingShell";
 import { buildBreadcrumbLd, buildFaqLd, buildDiscordAlternativeAppLd } from "../JsonLd";
 import { GAMER_FAQ } from "../content/discordSeoContent";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 
 const crumbs = [
   { label: "Home", to: "/" },

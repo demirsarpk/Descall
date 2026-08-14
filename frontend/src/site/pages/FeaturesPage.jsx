@@ -13,8 +13,7 @@ import {
   ScrollText,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
-import { useT } from "../../context/LocaleContext";
+import { useT } from "../../context/localeContextInstance";
 import JsonLd, { buildBreadcrumbLd, buildSoftwareApplicationLd } from "../JsonLd";
 import SeoRelatedLinks from "../components/SeoRelatedLinks";
 
@@ -100,21 +99,14 @@ export default function FeaturesPage() {
           )}
         </p>
         <div className="mkt-feature-grid">
-          {FEATURES.map((f, i) => (
-            <motion.article
-              key={f.title}
-              className="mkt-feature"
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-40px" }}
-              transition={{ duration: 0.4, delay: i * 0.04 }}
-            >
+          {FEATURES.map((f) => (
+            <article key={f.title} className="mkt-feature">
               <div className="mkt-icon">
                 <f.icon size={20} />
               </div>
-              <h3>{t(f.title)}</h3>
+              <h2 className="mkt-feature-title">{t(f.title)}</h2>
               <p>{t(f.desc)}</p>
-            </motion.article>
+            </article>
           ))}
         </div>
         <div className="mkt-cta-row" style={{ marginTop: 28 }}>
