@@ -1,4 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useT } from "../context/localeContextInstance";
 import { peekInviteRef } from "../lib/referral";
 import { Funnel } from "./analytics";
@@ -74,6 +75,15 @@ function AuthModal({
     });
   }, [open, initialMode, authSource, inviteRef]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   const withInvite = (payload = {}) => {
     const ref = inviteRef || peekInviteRef();
     if (ref) return { ...payload, invitedBy: ref };
@@ -124,12 +134,12 @@ function AuthModal({
   };
 
   if (!open) return null;
+  if (typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
         <div
           className="login-modal-overlay"
           onClick={onClose}
-          style={{ zIndex: 10000 }}
           role="presentation"
         >
           <div
@@ -304,7 +314,8 @@ function AuthModal({
             <LegalContentModal open={legalModal === "terms"} type="terms" onClose={() => setLegalModal(null)} />
             <LegalContentModal open={legalModal === "privacy"} type="privacy" onClose={() => setLegalModal(null)} />
           </Suspense>
-        </div>
+        </div>,
+    document.body
   );
 }
 
