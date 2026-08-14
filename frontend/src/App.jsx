@@ -68,8 +68,14 @@ import MessageList from "./components/chat/MessageList";
 import MessageComposer from "./components/chat/MessageComposer";
 import CallOverlay from "./components/CallOverlay";
 import GroupCallIncomingModal from "./components/GroupCallIncomingModal";
+import ActivationChecklist from "./components/activation/ActivationChecklist";
 import { requestFeedbackNudge } from "./components/feedback/FeedbackNudgeBanner";
 import { parseVoiceMeta, encodeVoiceContent } from "./lib/voiceMessage";
+import {
+  ACTIVATION_EVENTS,
+  emitActivationEvent,
+  openActivation,
+} from "./lib/activationProgress";
 
 function mergeById(existing, incoming) {
   const ids = new Set(existing.map((m) => m.id));
@@ -366,6 +372,8 @@ export default function App() {
   // Electron silent auto-update state: null | 'downloading' | 'installing'
   const [updateState, setUpdateState] = useState(null);
   const [updateVersion, setUpdateVersion] = useState(null);
+  /** Sticky first-run flag for activation checklist (survives friends redirect). */
+  const [justRegisteredBoot, setJustRegisteredBoot] = useState(false);
 
   const socketRef = useRef(null);
   const serverSocketUnbindRef = useRef(null);
@@ -2431,6 +2439,8 @@ export default function App() {
       const pendingGroupInvite = Boolean(inviteCode) || Boolean(sessionStorage.getItem("descall:pendingInvite"));
       if (justRegistered && !pendingGroupInvite) {
         sessionStorage.removeItem("descall:justRegistered");
+        setJustRegisteredBoot(true);
+        if (me?.id) openActivation(me.id);
         navigate("/friends", { replace: true });
         setActiveView("friends");
         return;
@@ -2774,6 +2784,7 @@ export default function App() {
     const socket = socketRef.current;
     // Optimistic remove — restored via friend:error → friend:list if it fails
     setFriendRequests((prev) => prev.filter((r) => r.id !== id));
+    emitActivationEvent(ACTIVATION_EVENTS.PROGRESS, { step: "friend", source: "accept" });
     if (socket?.connected) {
       socket.emit("friend:accept", { fromUserId: id });
       return;
@@ -3949,6 +3960,29 @@ export default function App() {
           />
         </AppLayout>
         <CallOverlay call={call} groupCall={groupCall} me={me} />
+        <ActivationChecklist
+          me={me}
+          friends={friends}
+          onlineUsers={onlineUsers}
+          justRegistered={justRegisteredBoot}
+          isInCall={Boolean(call?.isInCall || groupCall?.isInCall)}
+          onNavigateFriends={() => {
+            navigate("/friends");
+            setActiveView("friends");
+          }}
+          onNavigateCalls={() => {
+            navigate("/calls");
+            setActiveView("calls");
+          }}
+          onStartVoiceWithFriend={(friend) => {
+            if (!friend?.id || !call?.startCall) return;
+            if (groupCall?.isInCall) return;
+            setActiveDmUser(friend);
+            navigate(directPath(friend));
+            setActiveView("chat");
+            window.setTimeout(() => call.startCall(friend, "voice"), 60);
+          }}
+        />
         <GroupCallIncomingModal
           incomingCall={groupCall?.incomingCall}
           onAccept={(groupId, callType, fromUser) => groupCall?.acceptGroupCall(groupId, callType, fromUser)}

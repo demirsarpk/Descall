@@ -456,4 +456,9 @@ export const Funnel = {
       }
     }
   },
+  /** Post-register activation checklist (invite → friend → first voice). */
+  activationShown: (props) => trackEvent("activation_shown", props),
+  activationStepComplete: (props) => trackEvent("activation_step_complete", props),
+  activationComplete: (props) => trackEvent("activation_complete", props),
+  activationDismissed: (props) => trackEvent("activation_dismissed", props),
 };
