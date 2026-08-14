@@ -17,6 +17,7 @@ export const SEO_NICHES = [
   { to: "/discord-alternative-for-friends", label: "Friends" },
   { to: "/best-discord-alternative-for-gamers", label: "Gamers" },
   { to: "/apps-like-discord", label: "Apps like Discord" },
+  { to: "/discord-replacement", label: "Discord replacement" },
   { to: "/discord-alternative-turkey", label: "Türkiye" },
   { to: "/alternatives", label: "Alternatives list" },
 ];
@@ -24,10 +25,13 @@ export const SEO_NICHES = [
 export const SEO_COMPANY = [
   { to: "/about", label: "About" },
   { to: "/security", label: "Security & encryption" },
+  { to: "/status", label: "Status" },
   { to: "/privacy", label: "Privacy" },
   { to: "/terms", label: "Terms" },
   { to: "/contact", label: "Contact" },
   { to: "/blog", label: "Blog" },
+  { to: "/blog/migrate-from-discord-to-descall", label: "Migrate from Discord" },
+  { to: "/tr", label: "Türkçe" },
 ];
 
 /** Default related set for any marketing page missing a custom cluster. */

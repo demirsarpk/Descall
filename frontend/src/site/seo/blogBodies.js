@@ -149,4 +149,28 @@ export const BLOG_BODIES = {
       },
     ],
   },
+  "migrate-from-discord-to-descall": {
+    sections: [
+      {
+        h: "Day 0 — decide what you actually need",
+        p: "List the Discord features your group uses every week: DMs, a private server, voice nights, LFG. Descall covers those without Nitro. Skip trying to clone every bot on day one.",
+      },
+      {
+        h: "Day 1 — create accounts and invite friends",
+        p: "Register on Descall, install Windows or Android if you want, then send friend invites. Keep Discord open for a week as a safety net — migrations fail when people feel stranded.",
+      },
+      {
+        h: "Day 2 — recreate your server with a template",
+        p: "Pick Gaming, Valorant, Friends, or Community templates so roles and staff rooms appear ready. Invite codes replace Discord’s invite links.",
+      },
+      {
+        h: "Day 3 — move voice habit + LFG",
+        p: "Schedule one voice hangout on Descall. Valorant squads should try the Play tab once so LFG does not pull everyone back to Discord bots.",
+      },
+      {
+        h: "What stays on Discord (honestly)",
+        p: "Huge public servers and bot ecosystems can stay on Discord. Friend groups and squads that wanted a lighter Discord alternative usually finish the move in under a week.",
+      },
+    ],
+  },
 };

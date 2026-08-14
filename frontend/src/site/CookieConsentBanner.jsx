@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getCookieConsent, setCookieConsent } from "./analyticsGate";
+import { Funnel } from "./analytics";
 import { useT } from "../context/localeContextInstance";
 
 /**
@@ -17,6 +18,12 @@ export default function CookieConsentBanner() {
 
   if (!visible) return null;
 
+  const decide = (choice) => {
+    setCookieConsent(choice);
+    Funnel.consentDecision({ choice, surface: "react_banner" });
+    setVisible(false);
+  };
+
   return (
     <div className="mkt-consent" role="dialog" aria-label={t("Cookie preferences")}>
       <p>
@@ -26,24 +33,10 @@ export default function CookieConsentBanner() {
         <Link to="/privacy">{t("Privacy Policy")}</Link>.
       </p>
       <div className="mkt-consent-actions">
-        <button
-          type="button"
-          className="mkt-btn mkt-btn-ghost"
-          onClick={() => {
-            setCookieConsent("rejected");
-            setVisible(false);
-          }}
-        >
+        <button type="button" className="mkt-btn mkt-btn-ghost" onClick={() => decide("rejected")}>
           {t("Reject analytics")}
         </button>
-        <button
-          type="button"
-          className="mkt-btn mkt-btn-primary"
-          onClick={() => {
-            setCookieConsent("accepted");
-            setVisible(false);
-          }}
-        >
+        <button type="button" className="mkt-btn mkt-btn-primary" onClick={() => decide("accepted")}>
           {t("Accept analytics")}
         </button>
       </div>

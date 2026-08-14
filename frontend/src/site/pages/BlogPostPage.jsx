@@ -16,6 +16,7 @@ const FAQ_BY_SLUG = {
   "discord-competitors": COMPARE_FAQ.slice(0, 3),
   "discord-alternative-for-communities-guide": COMPARE_FAQ.slice(0, 3),
   "voice-chat-alternative-to-discord": GAMER_FAQ,
+  "migrate-from-discord-to-descall": COMPARE_FAQ.slice(0, 4),
 };
 
 export default function BlogPostPage({ onSignIn }) {
@@ -47,6 +48,7 @@ export default function BlogPostPage({ onSignIn }) {
           description: post.description,
           path: post.path,
           datePublished: post.date,
+          dateModified: post.updated || post.date,
         }),
       ]}
       primaryCta={
@@ -60,6 +62,10 @@ export default function BlogPostPage({ onSignIn }) {
         </Link>
       }
     >
+      <p className="seo-note">
+        {t("Published")}: {post.date}
+        {post.updated && post.updated !== post.date ? ` · ${t("Updated")}: ${post.updated}` : ""}
+      </p>
       {body.sections.map((s) => (
         <section className="seo-section" key={s.h}>
           <h2>{t(s.h)}</h2>

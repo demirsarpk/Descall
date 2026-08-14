@@ -16,6 +16,7 @@
     "seo:validate:dist": "node scripts/seo-validate.mjs --dist",
     "perf:budget": "node scripts/perf-budget.mjs",
     "seo:prod-check": "node scripts/seo-prod-check.mjs",
+    "seo:link-audit": "node scripts/seo-link-audit.mjs",
     "seo:index": "node scripts/request-indexing.mjs",
     "seo:index:dry": "node scripts/request-indexing.mjs --dry-run",
     "preview": "vite preview",
@@ -66,7 +67,8 @@
     "react-router-dom": "^6.22.0",
     "socket.io": "^4.7.4",
     "socket.io-client": "^4.8.1",
-    "vite": "^5.4.10"
+    "vite": "^5.4.10",
+    "web-vitals": "^4.2.4"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.0",

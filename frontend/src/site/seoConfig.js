@@ -245,6 +245,15 @@ export const PUBLIC_ROUTES = [
     ogType: "article",
   },
   {
+    path: "/blog/migrate-from-discord-to-descall",
+    title: "Migrate from Discord to Descall — practical checklist",
+    description:
+      "Step-by-step migration from Discord to Descall: invite friends, recreate servers with templates, move LFG, and keep voice nights free.",
+    changefreq: "monthly",
+    priority: "0.85",
+    ogType: "article",
+  },
+  {
     path: "/faq",
     title: "Descall FAQ — Discord alternative questions answered",
     description:
@@ -259,6 +268,14 @@ export const PUBLIC_ROUTES = [
       "Descall security: HTTPS/TLS for web, WebRTC DTLS/SRTP for calls, bcrypt passwords, and honest limits — no default E2E claim for stored chat history.",
     changefreq: "monthly",
     priority: "0.6",
+  },
+  {
+    path: "/status",
+    title: "Descall Status — Beta service & API health",
+    description:
+      "Descall public status: Beta product stage, API health probe, transport security, and how to reach support.",
+    changefreq: "daily",
+    priority: "0.55",
   },
   {
     path: "/privacy",
@@ -289,6 +306,69 @@ export const PUBLIC_ROUTES = [
     title: "Contact Descall Support — Email & Security Reports",
     description:
       "Email contact@descall.com for Descall support, feedback, press, or security reports. Operated by Demir Sarp Kurtlar in Türkiye.",
+    changefreq: "monthly",
+    priority: "0.5",
+  },
+  {
+    path: "/tr",
+    title: "Descall — Ücretsiz Discord Alternatifi (TR)",
+    description:
+      "Descall, sunucu, sohbet, ses/görüntü ve Valorant LFG sunan ücretsiz bir Discord alternatifidir. Türkçe arayüz.",
+    changefreq: "weekly",
+    priority: "0.9",
+  },
+  {
+    path: "/tr/features",
+    title: "Descall Özellikleri — Sunucu, sohbet, arama (TR)",
+    description:
+      "Descall özellikleri: roller, kanallar, şablonlar, mesajlaşma, ses/görüntü, ekran paylaşımı ve Valorant LFG.",
+    changefreq: "weekly",
+    priority: "0.8",
+  },
+  {
+    path: "/tr/download",
+    title: "Descall İndir — Windows & Android (TR)",
+    description:
+      "Descall masaüstü Windows kurucusu ve Android APK indirme. Ücretsiz Discord alternatifi — sohbet, ses ve sunucular.",
+    changefreq: "weekly",
+    priority: "0.85",
+  },
+  {
+    path: "/tr/faq",
+    title: "Descall SSS — Discord alternatifi soruları (TR)",
+    description: "Descall hakkında sık sorulan sorular: hesap, indirme, arama, LFG, gizlilik.",
+    changefreq: "weekly",
+    priority: "0.7",
+  },
+  {
+    path: "/tr/discord-alternative",
+    title: "En İyi Ücretsiz Discord Alternatifi | Descall (TR)",
+    description:
+      "Descall: sunucular, roller, ses, ekran paylaşımı ve LFG ile ücretsiz Discord alternatifi.",
+    changefreq: "weekly",
+    priority: "0.9",
+  },
+  {
+    path: "/tr/about",
+    title: "Descall Hakkında (TR)",
+    description:
+      "Descall, Demir Sarp Kurtlar tarafından Türkiye’de geliştirilen bağımsız bir beta Discord alternatifidir.",
+    changefreq: "monthly",
+    priority: "0.55",
+  },
+  {
+    path: "/tr/contact",
+    title: "Descall İletişim (TR)",
+    description:
+      "Descall destek, geri bildirim ve güvenlik bildirimleri için contact@descall.com adresine yazın.",
+    changefreq: "monthly",
+    priority: "0.45",
+  },
+  {
+    path: "/tr/security",
+    title: "Descall Güvenlik (TR)",
+    description:
+      "Descall güvenlik özeti: HTTPS/TLS, WebRTC DTLS/SRTP, hesap koruması ve dürüst sınırlar.",
     changefreq: "monthly",
     priority: "0.5",
   },
