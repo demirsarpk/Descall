@@ -137,6 +137,11 @@ function scheduleMarketingHydration(run) {
   if (/^\/(login|register)\/?$/.test(path) || /[?&]auth=/.test(window.location.search || "")) {
     start();
   }
+  // Niche / SEO shells: hydrate shortly so visitors are not stuck on the static first paint.
+  // Keep delay short — CSS already makes the shell readable.
+  else if (isPublicMarketingPath(path) && path !== "/") {
+    window.setTimeout(start, 900);
+  }
 }
 
 async function bootApp() {

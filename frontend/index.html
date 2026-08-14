@@ -110,50 +110,213 @@
         transform: scale(1.03);
         pointer-events: none;
       }
-      /* Static SEO shell stays visible until React marketing UI mounts (protects LCP). */
+      /* Static SEO shell — readable first paint before React hydrate (all niche pages). */
       #seo-static {
-        color: #e8eaed;
-        background: #0b0c10;
-        font-family: Inter, system-ui, sans-serif;
+        --seo-bg: #0b0c10;
+        --seo-text: #f2f3f5;
+        --seo-muted: #b4bcc8;
+        --seo-link: #9eb6ff;
+        --seo-accent: #5865f2;
+        --seo-border: rgba(255, 255, 255, 0.1);
+        --seo-surface: rgba(30, 31, 34, 0.72);
+        color: var(--seo-text);
+        background: var(--seo-bg);
+        font-family: "Inter", "Segoe UI", system-ui, sans-serif;
         line-height: 1.55;
-        max-width: 52rem;
+        max-width: 42rem;
         margin: 0 auto;
-        padding: 1.5rem 1rem 3rem;
+        padding: 1.25rem 1.1rem 4.5rem;
         min-height: 100vh;
         box-sizing: border-box;
       }
+      #seo-static main {
+        display: block;
+      }
+      #seo-static .seo-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin: 0 0 1.35rem;
+        text-decoration: none;
+        color: var(--seo-text);
+        font-family: "Outfit", "Avenir Next", "Segoe UI", sans-serif;
+        font-weight: 700;
+        font-size: 1.15rem;
+        letter-spacing: -0.02em;
+      }
+      #seo-static .seo-brand-mark {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: var(--seo-accent);
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85rem;
+        font-weight: 700;
+      }
+      #seo-static .seo-brand-beta {
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #c5c9ff;
+        border: 1px solid rgba(139, 151, 255, 0.35);
+        border-radius: 999px;
+        padding: 0.15rem 0.45rem;
+      }
       #seo-static h1 {
-        font-family: Outfit, Inter, system-ui, sans-serif;
-        font-size: clamp(1.75rem, 4vw, 2.5rem);
+        font-family: "Outfit", "Avenir Next", "Segoe UI", sans-serif;
+        font-size: clamp(1.65rem, 5.5vw, 2.35rem);
+        font-weight: 700;
+        letter-spacing: -0.03em;
         line-height: 1.15;
-        margin: 0 0 0.75rem;
+        margin: 0 0 0.85rem;
         color: #f4f6f8;
       }
-      #seo-static p { margin: 0 0 1rem; color: #c5ccd6; }
-      #seo-static a { color: #8eb6ff; }
-      #seo-static a[href="/download"],
-      #seo-static a[href="/register"] {
-        display: inline-block;
-        margin: 0.25rem 0.5rem 0.25rem 0;
-        padding: 0.55rem 0.95rem;
-        border-radius: 10px;
-        background: #5865f2;
-        color: #fff;
-        text-decoration: none;
-        font-weight: 600;
+      #seo-static h2 {
+        font-family: "Outfit", "Avenir Next", "Segoe UI", sans-serif;
+        font-size: 1.2rem;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        margin: 1.6rem 0 0.55rem;
+        color: #f4f6f8;
       }
-      #seo-static ul { padding-left: 1.2rem; color: #c5ccd6; }
-      #seo-static li { margin: 0.35rem 0; }
-      #seo-static .seo-hydrate-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 0; }
+      #seo-static h3 {
+        font-size: 1rem;
+        font-weight: 650;
+        margin: 1rem 0 0.35rem;
+        color: #e8eaed;
+      }
+      #seo-static p { margin: 0 0 0.9rem; color: var(--seo-muted); }
+      #seo-static ul {
+        margin: 0 0 1.1rem;
+        padding-left: 1.15rem;
+        color: var(--seo-muted);
+      }
+      #seo-static li { margin: 0.4rem 0; }
+      #seo-static a {
+        color: var(--seo-link);
+        text-decoration: none;
+      }
+      #seo-static a:hover { text-decoration: underline; text-underline-offset: 2px; }
+      /* Primary CTAs — never style mid-nav Download as a purple chip inside the link cloud */
+      #seo-static .seo-cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin: 1rem 0 1.35rem;
+      }
+      #seo-static .seo-cta-row a,
+      #seo-static a.seo-cta-primary,
+      #seo-static a.seo-cta-soft {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 0.55rem 1rem;
+        border-radius: 11px;
+        font-weight: 650;
+        text-decoration: none !important;
+        box-sizing: border-box;
+      }
+      #seo-static .seo-cta-row a[href="/download"],
+      #seo-static .seo-cta-row a[href="/register"],
+      #seo-static a.seo-cta-primary {
+        background: var(--seo-accent);
+        color: #fff !important;
+        border: 1px solid transparent;
+      }
+      #seo-static .seo-cta-row a.seo-cta-soft,
+      #seo-static a.seo-cta-soft {
+        background: transparent;
+        color: #d7dbe3 !important;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+      }
+      /* Site nav — chip grid, not a blue underline soup */
+      #seo-static nav[aria-label="Descall"],
+      #seo-static nav[aria-label="Related"],
+      #seo-static nav.seo-legal-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        margin: 1.35rem 0 0;
+        padding: 0.9rem 0 0;
+        border-top: 1px solid var(--seo-border);
+      }
+      #seo-static nav[aria-label="Related"] {
+        border-top: 0;
+        padding-top: 0.35rem;
+      }
+      #seo-static nav[aria-label="Related"] ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        width: 100%;
+      }
+      #seo-static nav[aria-label="Related"] li {
+        margin: 0;
+      }
+      #seo-static nav a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 36px;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid var(--seo-border);
+        background: var(--seo-surface);
+        color: #dce2ee !important;
+        font-size: 0.86rem;
+        font-weight: 550;
+        text-decoration: none !important;
+        line-height: 1.2;
+      }
+      #seo-static nav a:hover {
+        border-color: rgba(158, 182, 255, 0.45);
+        color: #fff !important;
+      }
+      #seo-static nav.seo-legal-nav {
+        margin-top: 0.65rem;
+        padding-top: 0.65rem;
+        border-top: 0;
+      }
+      #seo-static nav.seo-legal-nav a {
+        background: transparent;
+        color: var(--seo-muted) !important;
+        font-size: 0.8rem;
+      }
+      #seo-static .seo-explore-label {
+        margin: 1.5rem 0 0.45rem;
+        color: #8b93a7;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      #seo-static nav[aria-label="Descall"] {
+        margin-top: 0.35rem;
+        padding-top: 0;
+        border-top: 0;
+      }
+      #seo-static .seo-hydrate-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin: 1rem 0 0;
+      }
       #seo-static .seo-hydrate-row button {
         appearance: none;
         border: 0;
-        border-radius: 10px;
+        border-radius: 11px;
         padding: 0.6rem 1rem;
         font: inherit;
-        font-weight: 600;
+        font-weight: 650;
         cursor: pointer;
-        background: #5865f2;
+        background: var(--seo-accent);
         color: #fff;
         min-height: 44px;
       }
@@ -161,6 +324,16 @@
         background: transparent;
         color: #c5ccd6;
         border: 1px solid rgba(255,255,255,0.18);
+      }
+      /* Do NOT turn bare /download links inside nav into purple buttons */
+      #seo-static nav a[href="/download"],
+      #seo-static nav a[href="/register"] {
+        background: var(--seo-surface);
+        color: #dce2ee !important;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        font-weight: 550;
+        min-height: 36px;
       }
       #mkt-consent-static {
         position: fixed !important;
@@ -350,7 +523,7 @@
   </head>
   <body>
     <noscript>
-      <nav aria-label="Descall">
+      <nav aria-label="Descall" style="display:flex;flex-wrap:wrap;gap:8px;padding:16px;font-family:system-ui,sans-serif">
         <a href="/">Descall</a>
         <a href="/discord-alternative">Discord alternative</a>
         <a href="/alternatives">Alternatives</a>
