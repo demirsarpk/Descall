@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Check } from "lucide-react";
+import { IconCheck as Check } from "../icons";
 import SeoLandingShell from "../components/SeoLandingShell";
 import { buildBreadcrumbLd, buildFaqLd, buildDiscordAlternativeAppLd } from "../JsonLd";
 import { GAMER_FAQ } from "../content/discordSeoContent";

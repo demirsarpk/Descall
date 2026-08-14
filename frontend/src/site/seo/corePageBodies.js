@@ -20,6 +20,8 @@ function navBlock() {
     <a href="/features">Features</a>
     <a href="/discord-alternative">Discord alternative</a>
     <a href="/compare/discord">vs Discord</a>
+    <a href="/apps-like-discord">Apps like Discord</a>
+    <a href="/discord-alternative-for-lfg">Valorant LFG</a>
     <a href="/download">Download</a>
     <a href="/faq">FAQ</a>
     <a href="/blog">Blog</a>
@@ -28,7 +30,11 @@ function navBlock() {
     <a href="/privacy">Privacy</a>
     <a href="/terms">Terms</a>
     <a href="/contact">Contact</a>
-  </nav>`;
+  </nav>
+  <p class="seo-hydrate-row">
+    <button type="button" data-hydrate data-auth="register">Start free</button>
+    <button type="button" data-hydrate data-auth="login">Sign in</button>
+  </p>`;
 }
 
 function legalHtml(data) {

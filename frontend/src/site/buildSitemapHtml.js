@@ -105,9 +105,6 @@ ${cards}
   <meta name="robots" content="index,follow" />
   <link rel="canonical" href="${xmlEscape(site)}/sitemap.html" />
   <link rel="icon" href="/icon.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
       color-scheme: dark;
@@ -118,8 +115,8 @@ ${cards}
       --accent: #8b9cff;
       --accent-2: #3dd68c;
       --border: rgba(255,255,255,0.08);
-      --font-display: "Outfit", "Avenir Next", sans-serif;
-      --font-body: "Source Sans 3", "Segoe UI", sans-serif;
+      --font-display: "Avenir Next", "Segoe UI", sans-serif;
+      --font-body: "Segoe UI", system-ui, sans-serif;
     }
     * { box-sizing: border-box; }
     body {
@@ -304,15 +301,13 @@ export const SITEMAP_XSL = `<?xml version="1.0" encoding="UTF-8"?>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1"/>
         <title>Descall Sitemap (XML)</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com"/>
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700&amp;family=Source+Sans+3:wght@400;600&amp;display=swap" rel="stylesheet"/>
         <style>
           :root { color-scheme: dark; }
-          body { margin:0; font-family:"Source Sans 3",system-ui,sans-serif; background:#0b0c10; color:#f2f3f5;
+          body { margin:0; font-family:system-ui,"Segoe UI",sans-serif; background:#0b0c10; color:#f2f3f5;
             background-image: radial-gradient(80% 50% at 50% -10%, rgba(88,101,242,.28), transparent 55%);
             padding: 32px 20px 64px; }
           .wrap { max-width: 960px; margin: 0 auto; }
-          h1 { font-family: Outfit, sans-serif; font-size: clamp(28px, 5vw, 40px); letter-spacing:-.03em; margin:0 0 8px; }
+          h1 { font-family:"Avenir Next",system-ui,sans-serif; font-size: clamp(28px, 5vw, 40px); letter-spacing:-.03em; margin:0 0 8px; }
           p { color:#949ba4; margin:0 0 22px; }
           .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px; }
           .chips a { color:#8b9cff; text-decoration:none; font-weight:600; font-size:13px;

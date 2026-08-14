@@ -1,5 +1,5 @@
 import { Link, Navigate, useLocation } from "react-router-dom";
-import { Check } from "lucide-react";
+import { IconCheck as Check } from "../icons";
 import SeoLandingShell from "../components/SeoLandingShell";
 import SeoRelatedLinks from "../components/SeoRelatedLinks";
 import SeoProductPreview from "../components/SeoProductPreview";

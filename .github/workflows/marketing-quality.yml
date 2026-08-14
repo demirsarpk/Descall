@@ -1,0 +1,49 @@
+name: Marketing quality gates
+
+# Fails the PR/push when SEO shells, first-paint JS budget, or axe a11y smoke regress.
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/marketing-quality.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/marketing-quality.yml"
+  workflow_dispatch:
+
+jobs:
+  marketing-quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --include=dev
+
+      - name: Production build + SEO validate + perf budget
+        run: npm run build:prod
+
+      - name: Install Chrome for axe
+        run: npx --yes @puppeteer/browsers install chrome@stable
+
+      - name: Serve dist + axe smoke
+        run: |
+          npx --yes serve -l 4173 dist >/tmp/serve-quality.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/features >/dev/null && break
+            sleep 1
+          done
+          npx --yes @axe-core/cli http://127.0.0.1:4173/features --exit --tags wcag2a,wcag2aa
+          npx --yes @axe-core/cli http://127.0.0.1:4173/ --exit --tags wcag2a,wcag2aa
+          npx --yes @axe-core/cli http://127.0.0.1:4173/faq --exit --tags wcag2a,wcag2aa

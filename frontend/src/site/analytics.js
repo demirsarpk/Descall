@@ -16,6 +16,16 @@
  */
 
 import { isAnalyticsAllowed } from "./analyticsGate";
+import { isPublicMarketingPath } from "./marketingPaths";
+
+function preferMarketingAnalyticsCold() {
+  try {
+    const path = typeof window !== "undefined" ? window.location.pathname || "/" : "/";
+    return isPublicMarketingPath(path);
+  } catch {
+    return false;
+  }
+}
 
 /** Lazily loaded PostHog SDK — keep marketing entry free of the ~80KB vendor chunk. */
 let posthog = null;
@@ -194,8 +204,9 @@ export function initAnalytics() {
           capture_pageleave: true,
           capture_exceptions: true,
           persistence: "localStorage+cookie",
-          // Project settings enable replay/surveys; keep client aligned.
-          disable_session_recording: false,
+          // Marketing path: never load session replay / surveys by default.
+          disable_session_recording: preferMarketingAnalyticsCold(),
+          disable_surveys: preferMarketingAnalyticsCold(),
           session_recording: {
             maskAllInputs: true,
             recordCrossOriginIframes: false,
@@ -229,14 +240,18 @@ export function initAnalytics() {
   const gaId = String(import.meta.env.VITE_GA_MEASUREMENT_ID || "").trim();
   const adsId = googleAdsId();
   const clarityId = import.meta.env.VITE_CLARITY_ID || "";
+  const marketingCold = preferMarketingAnalyticsCold();
 
-  // Single gtag.js load — config Google Ads + optional GA4 without duplicates.
+  // Marketing: do not boot Google Ads / Clarity until a conversion helper needs gtag.
+  // Authenticated app may still config Ads + optional GA4.
   const gtagIds = [];
-  if (adsId) gtagIds.push(adsId);
+  if (!marketingCold && adsId) gtagIds.push(adsId);
   if (gaId) gtagIds.push(gaId);
-  ensureGtagConfigs(gtagIds, { anonymizeIpIds: new Set(gaId ? [gaId] : []) });
+  if (gtagIds.length) {
+    ensureGtagConfigs(gtagIds, { anonymizeIpIds: new Set(gaId ? [gaId] : []) });
+  }
 
-  if (clarityId) {
+  if (clarityId && !marketingCold) {
     (function (c, l, a, r, i, t, y) {
       c[a] =
         c[a] ||

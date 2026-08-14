@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  MessageCircle,
-  Mic,
-  MonitorUp,
-  Server,
-  Shield,
-  Layers,
-  Hash,
-} from "lucide-react";
+  IconMessage,
+  IconMic,
+  IconMonitor,
+  IconServer,
+  IconShield,
+  IconLayers,
+  IconHash,
+} from "../icons";
 import { useT } from "../../context/localeContextInstance";
 import { Funnel, getFeatureFlag, getFeatureFlagPayload } from "../analytics";
 import JsonLd, {
@@ -16,35 +16,37 @@ import JsonLd, {
   buildSoftwareApplicationLd,
   buildWebSiteLd,
 } from "../JsonLd";
+import SeoRelatedLinks from "../components/SeoRelatedLinks";
+import { SEO_DEFAULT_RELATED } from "../seoHubLinks";
 
 const HIGHLIGHTS = [
   {
-    icon: Server,
+    icon: IconServer,
     title: "Servers & channels",
     desc: "Text, voice, and stage channels with categories — Discord-style structure, lighter feel",
   },
   {
-    icon: Shield,
+    icon: IconShield,
     title: "Roles & permissions",
     desc: "Role hierarchy, staff rooms, and per-channel overrides ready for real communities",
   },
   {
-    icon: Layers,
+    icon: IconLayers,
     title: "Advanced templates",
     desc: "Gaming, Valorant, friends, community, study & streaming — roles and channels pre-built",
   },
   {
-    icon: MessageCircle,
+    icon: IconMessage,
     title: "Real-time Chat",
     desc: "Instant DMs and server chat with typing indicators",
   },
   {
-    icon: Mic,
+    icon: IconMic,
     title: "Voice & video",
     desc: "Crystal-clear group and server calls",
   },
   {
-    icon: MonitorUp,
+    icon: IconMonitor,
     title: "Screen share",
     desc: "Share your screen in calls with quality presets",
   },
@@ -52,17 +54,17 @@ const HIGHLIGHTS = [
 
 const SERVER_POINTS = [
   {
-    icon: Hash,
+    icon: IconHash,
     title: "Channels that match the job",
     desc: "Announcements, LFG, clips, VIP lounges, staff ops — topics and slowmode included in templates.",
   },
   {
-    icon: Shield,
+    icon: IconShield,
     title: "Roles that actually work",
     desc: "Admin, Moderator, Helper, VIP and more — with kick, ban, timeout, and audit logs.",
   },
   {
-    icon: Mic,
+    icon: IconMic,
     title: "Voice built into the server",
     desc: "Lobby, scrim, focus, and stage rooms so your crew can hop in without leaving the app.",
   },
@@ -204,6 +206,7 @@ export default function HomePage({ onSignIn, onSignUp }) {
           </Link>
         </div>
       </section>
+      <SeoRelatedLinks title="Keep exploring" links={SEO_DEFAULT_RELATED} />
     </>
   );
 }

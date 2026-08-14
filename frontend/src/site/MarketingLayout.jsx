@@ -178,8 +178,15 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
           <Link to="/contact">{t("Contact")}</Link>
           <Link to="/compare/discord">vs Discord</Link>
           <Link to="/discord-alternative-turkey">{t("Turkey")}</Link>
+          <a href={SITE_OPERATOR.githubUrl} rel="noopener noreferrer" target="_blank">
+            GitHub
+          </a>
           <a href="/sitemap.html">{t("Sitemap")}</a>
         </div>
+        <p className="mkt-footer-trust">
+          {t("Status")}: {t("Beta")} · {t("Transport security")}: TLS / DTLS-SRTP ·{" "}
+          <Link to="/security">{t("Security details")}</Link>
+        </p>
         <p className="mkt-footer-contact">
           <a href={`mailto:${SITE_OPERATOR.supportEmail}`}>{SITE_OPERATOR.supportEmail}</a>
         </p>

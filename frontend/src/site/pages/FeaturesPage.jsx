@@ -1,82 +1,83 @@
-import {
-  MessageCircle,
-  Mic,
-  Video,
-  Users,
-  MonitorUp,
-  Shield,
-  Gamepad2,
-  Sparkles,
-  Server,
-  Layers,
-  Hash,
-  ScrollText,
-} from "lucide-react";
 import { Link } from "react-router-dom";
+import {
+  IconMessage,
+  IconMic,
+  IconVideo,
+  IconUsers,
+  IconMonitor,
+  IconShield,
+  IconGamepad,
+  IconSparkles,
+  IconServer,
+  IconLayers,
+  IconHash,
+  IconScroll,
+} from "../icons";
 import { useT } from "../../context/localeContextInstance";
 import JsonLd, { buildBreadcrumbLd, buildSoftwareApplicationLd } from "../JsonLd";
 import SeoRelatedLinks from "../components/SeoRelatedLinks";
+import { SEO_DEFAULT_RELATED } from "../seoHubLinks";
 
 const FEATURES = [
   {
-    icon: Server,
+    icon: IconServer,
     title: "Servers & channels",
     desc: "Full server structure with categories, text, voice, and stage channels — topics, slowmode, and NSFW flags included.",
   },
   {
-    icon: Shield,
+    icon: IconShield,
     title: "Roles & permissions",
     desc: "Role hierarchy with hoist/mention, plus per-channel allow/deny overrides for staff rooms, announcements, and VIP spaces.",
   },
   {
-    icon: Layers,
-    title: "Advanced server templates",
-    desc: "Gaming, Valorant, friends, community, study, and streaming templates — roles and channels ready the moment you create.",
+    icon: IconLayers,
+    title: "Templates that ship ready",
+    desc: "Gaming, Valorant, Community, Study, Friends, and Streaming templates with roles and staff rooms preconfigured.",
   },
   {
-    icon: ScrollText,
-    title: "Moderation & invites",
-    desc: "Kick, ban, timeout, audit logs, community rules, and invite links so servers stay organized as they grow.",
+    icon: IconMessage,
+    title: "Real-time messaging",
+    desc: "DMs and server chat with typing indicators, reactions, replies, and media — without Nitro walls on core chat.",
   },
   {
-    icon: MessageCircle,
-    title: "Real-time Chat",
-    desc: "DMs and server chat with typing indicators — a Discord alternative that stays focused on people you know.",
+    icon: IconMic,
+    title: "Voice chat",
+    desc: "WebRTC voice for DMs, groups, and server lobbies with noise controls when you need them.",
   },
   {
-    icon: Mic,
-    title: "Voice & video calls",
-    desc: "Crystal-clear WebRTC voice and HD video for squads and server lobbies, without Nitro-gated quality of life.",
+    icon: IconVideo,
+    title: "HD video calls",
+    desc: "Group video for hangouts, watch parties, and squad briefings — browser or desktop.",
   },
   {
-    icon: MonitorUp,
-    title: "Screen share",
-    desc: "Share a window or tab with quality presets designed for VODs, loadouts, and watch parties.",
+    icon: IconMonitor,
+    title: "Screen share quality",
+    desc: "Share games, VODs, or docs with quality presets tuned for smooth capture while you play.",
   },
   {
-    icon: Users,
-    title: "Friends & presence",
-    desc: "Friend list, online status, and invites — jump from DMs into a server voice channel in one flow.",
-  },
-  {
-    icon: Gamepad2,
+    icon: IconGamepad,
     title: "Valorant LFG",
-    desc: "Play tab lobbies, party codes, and Riot Name#TAG linking so rank can show on your profile.",
+    desc: "Create and join ranked LFG lobbies, share party codes, and link Riot Name#TAG for rank on profile.",
   },
   {
-    icon: Hash,
-    title: "Channel controls",
-    desc: "Slowmode, topics, permission overrides, and staff-only channels — the day-to-day tools communities actually use.",
+    icon: IconUsers,
+    title: "Friends & presence",
+    desc: "Friend requests, online presence, and quick invites so your squad can jump into chat or voice.",
   },
   {
-    icon: Sparkles,
-    title: "DesCoin cosmetics",
-    desc: "Themes, frames, and effects via DesCoin. Core chat, servers, and calls stay free forever.",
+    icon: IconHash,
+    title: "Moderation tools",
+    desc: "Kick, ban, timeout, audit logs, and community rules for servers that need staff workflows.",
   },
   {
-    icon: Video,
-    title: "Desktop + web + Android",
-    desc: "Windows installer, full browser app, and Android builds — use Descall where you game.",
+    icon: IconScroll,
+    title: "Desktop & Android",
+    desc: "Windows installer plus Android builds — or use the full web app in the browser.",
+  },
+  {
+    icon: IconSparkles,
+    title: "Optional cosmetics",
+    desc: "DesCoin cosmetics stay optional. Chat, servers, voice, and screen share remain free.",
   },
 ];
 
@@ -120,15 +121,7 @@ export default function FeaturesPage() {
             {t("FAQ")}
           </Link>
         </div>
-        <SeoRelatedLinks
-          title="Explore by use case"
-          links={[
-            { to: "/discord-alternative-for-communities", label: "Communities & servers" },
-            { to: "/discord-alternative-for-voice-chat", label: "Voice chat alternative" },
-            { to: "/discord-alternative-for-lfg", label: "LFG platform" },
-            { to: "/compare/discord", label: "Descall vs Discord" },
-          ]}
-        />
+        <SeoRelatedLinks title="Explore by use case" links={SEO_DEFAULT_RELATED} />
       </section>
     </>
   );

@@ -1,5 +1,11 @@
 import { Link } from "react-router-dom";
-import { Check, Zap, Users, Gamepad2, Monitor } from "lucide-react";
+import {
+  IconCheck as Check,
+  IconZap as Zap,
+  IconUsers as Users,
+  IconGamepad as Gamepad2,
+  IconMonitor as Monitor,
+} from "../icons";
 import SeoLandingShell from "../components/SeoLandingShell";
 import SeoProductPreview from "../components/SeoProductPreview";
 import SeoRelatedLinks from "../components/SeoRelatedLinks";

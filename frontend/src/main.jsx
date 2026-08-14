@@ -12,37 +12,30 @@ const hasSession = Boolean(getToken());
 const preferMarketingShell = !hasSession && isPublicMarketingPath(path);
 
 /**
- * Schedule third-party analytics. Marketing waits for CTA/engage gate;
- * authenticated app can warm sooner after idle.
+ * Schedule third-party analytics only after cookie consent (or app idle allow).
  */
 function scheduleAnalytics({ preferMarketing }) {
   let started = false;
   const start = () => {
     if (started) return;
-    if (preferMarketing && !isAnalyticsAllowed()) return;
+    if (!isAnalyticsAllowed()) return;
     started = true;
     import("./site/analytics")
       .then((m) => m.initAnalytics())
       .catch(() => {});
   };
 
-  if (preferMarketing) {
-    window.addEventListener("descall:analytics-allowed", start, { once: true });
+  window.addEventListener("descall:analytics-allowed", start);
+  // Re-check if consent already stored from a prior visit.
+  if (isAnalyticsAllowed()) {
+    window.setTimeout(start, preferMarketing ? 1500 : 500);
+  } else if (!preferMarketing) {
+    // Authenticated app: allow product analytics after short idle (not marketing).
     window.setTimeout(() => {
       markAnalyticsAllowed();
       start();
-    }, 20000);
-    return;
+    }, 2500);
   }
-
-  const onEngage = () => {
-    markAnalyticsAllowed();
-    start();
-  };
-  for (const evt of ["pointerdown", "keydown", "touchstart"]) {
-    window.addEventListener(evt, onEngage, { once: true, passive: true });
-  }
-  window.setTimeout(onEngage, 2500);
 }
 
 scheduleAnalytics({ preferMarketing: preferMarketingShell });
@@ -102,8 +95,9 @@ const statusEl = document.getElementById("boot-status");
 if (statusEl) statusEl.textContent = translate(bootLocale, "Starting app");
 
 /**
- * Progressive marketing hydration: keep #seo-static visible and interactive
- * (native links work) until idle / engagement, then mount the React shell.
+ * Progressive marketing hydration: keep #seo-static visible (MPA links work).
+ * Hydrate React only when the visitor needs interactive UI (auth / language / menu),
+ * not on idle timers — this keeps first-load JS minimal.
  */
 function scheduleMarketingHydration(run) {
   let started = false;
@@ -113,23 +107,27 @@ function scheduleMarketingHydration(run) {
     cleanup();
     run();
   };
+  const onHydrateEvent = () => start();
   const onEngage = (e) => {
     const t = e?.target;
-    if (t && typeof t.closest === "function" && t.closest("#seo-static a[href]")) return;
-    start();
+    if (!t || typeof t.closest !== "function") return;
+    // Native SEO links stay MPA — do not hydrate.
+    if (t.closest("#seo-static a[href]")) return;
+    // Explicit hydrate hooks in prerender shell / future CTAs.
+    if (t.closest("[data-hydrate], [data-auth], button, [role='button']")) start();
   };
   const cleanup = () => {
-    for (const evt of ["pointerdown", "keydown", "touchstart"]) {
-      window.removeEventListener(evt, onEngage);
-    }
+    window.removeEventListener("descall:hydrate-marketing", onHydrateEvent);
+    window.removeEventListener("pointerdown", onEngage);
+    window.removeEventListener("keydown", onEngage);
   };
-  for (const evt of ["pointerdown", "keydown", "touchstart"]) {
-    window.addEventListener(evt, onEngage, { passive: true });
+  window.addEventListener("descall:hydrate-marketing", onHydrateEvent);
+  window.addEventListener("pointerdown", onEngage, { passive: true });
+  window.addEventListener("keydown", onEngage);
+  // Deep-link auth routes must hydrate immediately.
+  if (/^\/(login|register)\/?$/.test(path) || /[?&]auth=/.test(window.location.search || "")) {
+    start();
   }
-  if (window.requestIdleCallback) {
-    window.requestIdleCallback(() => start(), { timeout: 4000 });
-  }
-  window.setTimeout(start, 3500);
 }
 
 async function bootApp() {

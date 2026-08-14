@@ -133,6 +133,20 @@ export default function MarketingApp({
     }
   }, [location.pathname, location.search]);
 
+  useEffect(() => {
+    try {
+      const pending = sessionStorage.getItem("descall:open_auth");
+      if (!pending) return;
+      sessionStorage.removeItem("descall:open_auth");
+      const mode = pending === "register" || pending === "signup" ? "register" : "login";
+      setAuthMode(mode);
+      setAuthSource("seo_static");
+      setAuthOpen(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const openAuth = useCallback((opts = {}) => {
     const mode = opts.mode === "register" || opts.mode === "signup" ? "register" : "login";
     setAuthMode(mode);
