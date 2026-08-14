@@ -58,6 +58,16 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <!-- Fonts self-host via marketing-entry.css / app styles — avoid Google Fonts RTT on first paint. -->
+    <script>
+      /* Hide cookie banner before paint when a prior decision exists (no layout flash). */
+      (function () {
+        try {
+          if (localStorage.getItem("descall:cookie_consent_v1")) {
+            document.documentElement.setAttribute("data-has-consent", "1");
+          }
+        } catch (e) {}
+      })();
+    </script>
     <style>
       /* Critical boot splash — paints before JS bundle */
       html, body {
@@ -162,7 +172,11 @@
         font-family: Inter, system-ui, sans-serif;
         font-size: 13px;
         line-height: 1.45;
-        display: none;
+        display: block;
+      }
+      html[data-has-consent="1"] #mkt-consent-static,
+      #mkt-consent-static[hidden] {
+        display: none !important;
       }
       #mkt-consent-static p { margin: 0 0 12px; color: #c5ccd6; }
       #mkt-consent-static a { color: #8eb6ff; }
@@ -352,6 +366,7 @@
       </div>
     </div>
     <script>
+      /* Boot splash only — prerender strips this with #boot-splash. */
       (function () {
         var el = document.getElementById("boot-splash");
         if (el) el.setAttribute("data-shown-at", String(Date.now()));
@@ -375,6 +390,11 @@
         if (seo && seo.childElementCount > 0) {
           if (el && el.parentNode) el.parentNode.removeChild(el);
         }
+      })();
+    </script>
+    <script>
+      /* Marketing shell: consent + hydrate hooks — must survive prerender splash strip. */
+      (function () {
         document.addEventListener(
           "click",
           function (ev) {
@@ -395,8 +415,12 @@
                   window.dispatchEvent(new CustomEvent("descall:analytics-allowed"));
                 } catch (e1) {}
               }
+              document.documentElement.setAttribute("data-has-consent", "1");
               var box = document.getElementById("mkt-consent-static");
-              if (box) box.style.display = "none";
+              if (box) {
+                box.hidden = true;
+                box.style.display = "none";
+              }
               return;
             }
             var btn = ev.target && ev.target.closest && ev.target.closest("[data-hydrate]");
@@ -416,11 +440,6 @@
           },
           true
         );
-        try {
-          var existing = localStorage.getItem("descall:cookie_consent_v1");
-          var box2 = document.getElementById("mkt-consent-static");
-          if (box2 && !existing) box2.style.display = "block";
-        } catch (e3) {}
       })();
     </script>
     <div id="root"></div>

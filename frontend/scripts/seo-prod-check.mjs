@@ -75,4 +75,14 @@ if (!/hreflang="en"/i.test(html.text) || !/hreflang="x-default"/i.test(html.text
 if (!/fonts\.googleapis\.com/i.test(html.text)) ok("/features has no Google Fonts link");
 else fail("/features still loads Google Fonts");
 
+if (!/Marketing shell: consent/i.test(html.text) && !/data-consent/i.test(html.text)) {
+  fail("/features missing consent markup");
+} else ok("/features has consent markup");
+
+if (!/Marketing shell: consent \+ hydrate/i.test(html.text)) {
+  // Soft check — comment may minify away; require click handler source string instead.
+  if (!/descall:cookie_consent_v1/i.test(html.text)) fail("/features missing static consent script");
+  else ok("/features has static consent script");
+} else ok("/features keeps marketing shell script after prerender");
+
 if (!process.exitCode) console.log("\nseo-prod-check: all checks passed for", ORIGIN);
