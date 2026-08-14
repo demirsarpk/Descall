@@ -168,8 +168,9 @@
 }
 
 .mkt-language-toggle button {
-  min-width: 30px;
-  padding: 5px 6px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 10px;
   border: 0;
   border-radius: 5px;
   color: var(--mkt-muted);
@@ -373,7 +374,8 @@
   border-color: rgba(123, 137, 255, 0.35);
 }
 
-.mkt-feature h3 {
+.mkt-feature h3,
+.mkt-feature h2.mkt-feature-title {
   margin: 10px 0 6px;
   font-size: 16px;
 }
@@ -716,9 +718,9 @@
   }
 
   .mkt-header-actions > .mkt-btn {
-    min-height: 36px;
-    padding: 8px 10px;
-    font-size: 12px;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 13px;
   }
 
   .mkt-header-actions > .mkt-btn-primary,
@@ -729,8 +731,8 @@
 
   .mkt-menu-toggle {
     display: inline-grid;
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     place-items: center;
     padding: 0;
     border: 1px solid var(--mkt-border);

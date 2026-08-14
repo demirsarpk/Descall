@@ -104,7 +104,7 @@ export default function FeaturesPage() {
               <div className="mkt-icon">
                 <f.icon size={20} />
               </div>
-              <h3>{t(f.title)}</h3>
+              <h2 className="mkt-feature-title">{t(f.title)}</h2>
               <p>{t(f.desc)}</p>
             </article>
           ))}

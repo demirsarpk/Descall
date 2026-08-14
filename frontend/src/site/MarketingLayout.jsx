@@ -92,10 +92,10 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
       </div>
 
       <header className="mkt-header">
-        <Link to="/" className="mkt-brand" aria-label="Descall home">
+        <Link to="/" className="mkt-brand">
           <img
             src="/icon-192.png"
-            alt="Descall logo"
+            alt=""
             width={32}
             height={32}
             decoding="async"
@@ -129,7 +129,6 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
           <Link
             to="/download"
             className="mkt-btn mkt-btn-soft mkt-header-download"
-            aria-label={t("Download Descall")}
           >
             {t("Download")}
           </Link>
@@ -202,7 +201,7 @@ function LanguageToggle({ locale, setLocale }) {
         className={locale === "tr" ? "is-active" : ""}
         onClick={() => setLocale("tr")}
         aria-pressed={locale === "tr"}
-        aria-label="Türkçe"
+        aria-label="TR — Türkçe"
       >
         TR
       </button>
@@ -211,7 +210,7 @@ function LanguageToggle({ locale, setLocale }) {
         className={locale === "en" ? "is-active" : ""}
         onClick={() => setLocale("en")}
         aria-pressed={locale === "en"}
-        aria-label="English"
+        aria-label="EN — English"
       >
         EN
       </button>
