@@ -17,13 +17,10 @@ export default function MarketingBoot() {
   const [authError, setAuthError] = useState("");
 
   useEffect(() => {
-    // Reveal the React shell and retire the static SEO copy (already painted for LCP).
+    // Mark React as alive (cookie banner / consent padding) but keep #seo-static
+    // visible until the lazy route page commits — otherwise H1 disappears into a
+    // blank Suspense gap (users reported this as a "Loading" flash on / & /features).
     document.documentElement.setAttribute("data-react-ready", "1");
-    const seo = document.getElementById("seo-static");
-    if (seo) {
-      seo.setAttribute("hidden", "");
-      seo.setAttribute("aria-hidden", "true");
-    }
     try {
       window.__descallDismissBootSplash?.({ minMs: 0 });
     } catch {
