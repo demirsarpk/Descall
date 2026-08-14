@@ -187,7 +187,7 @@ if (checkDist) {
     }
 
     const humanSitemap = fs.readFileSync(path.join(dist, "sitemap.html"), "utf8");
-    if (!humanSitemap.includes('class="card"') || !humanSitemap.includes("Outfit")) {
+    if (!humanSitemap.includes('class="card"') || !humanSitemap.includes("--font-display")) {
       fail("dist/sitemap.html looks unstyled — expected branded card layout");
     }
     const pagesXmlBody = fs.readFileSync(path.join(dist, "sitemap-pages.xml"), "utf8");
