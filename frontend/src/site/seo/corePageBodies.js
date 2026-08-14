@@ -28,26 +28,22 @@ function ctaRow(extraSoftHref = "/discord-alternative", extraSoftLabel = "Discor
 function navBlock() {
   // Download lives in the CTA row — not as a purple button mid-nav.
   return `${ctaRow()}
+  <p class="seo-explore-label">Explore</p>
   <nav aria-label="Descall">
-    <a href="/">Home</a>
     <a href="/features">Features</a>
     <a href="/discord-alternative">Discord alternative</a>
+    <a href="/discord-alternative-for-lfg">Valorant LFG</a>
     <a href="/compare/discord">vs Discord</a>
     <a href="/apps-like-discord">Apps like Discord</a>
-    <a href="/discord-replacement">Discord replacement</a>
-    <a href="/discord-alternative-for-lfg">Valorant LFG</a>
     <a href="/faq">FAQ</a>
     <a href="/blog">Blog</a>
-    <a href="/blog/migrate-from-discord-to-descall">Migrate from Discord</a>
-    <a href="/about">About</a>
-    <a href="/security">Security</a>
-    <a href="/status">Status</a>
-    <a href="/contact">Contact</a>
-    <a href="/tr">Türkçe</a>
   </nav>
   <nav class="seo-legal-nav" aria-label="Legal">
     <a href="/privacy">Privacy</a>
     <a href="/terms">Terms</a>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
+    <a href="/tr">Türkçe</a>
   </nav>
   <p class="seo-hydrate-row">
     <button type="button" data-hydrate data-auth="register">Start free</button>

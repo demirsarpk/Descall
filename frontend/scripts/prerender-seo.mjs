@@ -51,21 +51,21 @@ function seoCtaRow(softHref = "/discord-alternative", softLabel = "Discord alter
 }
 
 function seoSiteNav() {
-  return `<nav aria-label="Descall">
-    <a href="/">Home</a>
-    <a href="/discord-alternative">Discord alternative</a>
-    <a href="/alternatives">Alternatives</a>
-    <a href="/compare/discord">Descall vs Discord</a>
-    <a href="/apps-like-discord">Apps like Discord</a>
+  return `<p class="seo-explore-label">Explore</p>
+  <nav aria-label="Descall">
     <a href="/features">Features</a>
+    <a href="/discord-alternative-for-lfg">Valorant LFG</a>
+    <a href="/compare/discord">vs Discord</a>
+    <a href="/apps-like-discord">Apps like Discord</a>
     <a href="/blog">Blog</a>
     <a href="/faq">FAQ</a>
-    <a href="/about">About</a>
-    <a href="/contact">Contact</a>
+    <a href="/download">Download</a>
   </nav>
   <nav class="seo-legal-nav" aria-label="Legal">
     <a href="/privacy">Privacy</a>
     <a href="/terms">Terms</a>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
   </nav>
   <p class="seo-hydrate-row">
     <button type="button" data-hydrate data-auth="register">Start free</button>
@@ -162,6 +162,13 @@ function crawlBody(route) {
   <h1>${escapeHtml(h1)}</h1>
   <p>${escapeHtml(route.description)}</p>
   ${seoCtaRow()}
+  <h2>What you get with Descall</h2>
+  <ul>
+    <li>Discord-style servers with roles, channels, and templates</li>
+    <li>Free real-time chat, group voice/video, and screen share</li>
+    <li>Built-in Valorant LFG without bot hell</li>
+    <li>Windows, Android, and full web app</li>
+  </ul>
   ${seoSiteNav()}
 </main>`;
 }
