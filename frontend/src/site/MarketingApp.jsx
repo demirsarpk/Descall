@@ -12,7 +12,7 @@ import SeoHead from "./SeoHead";
 
 const MarketingAuthModal = lazy(() => import("./MarketingAuthModal"));
 
-const DownloadPage = lazy(() => import("../components/download/DownloadPage"));
+const DownloadPage = lazy(() => import("./pages/MarketingDownloadPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const FeaturesPage = lazy(() => import("./pages/FeaturesPage"));
 const FaqPage = lazy(() => import("./pages/FaqPage"));
@@ -21,6 +21,7 @@ const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
 const TermsPage = lazy(() => import("./pages/TermsPage"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
+const StatusPage = lazy(() => import("./pages/StatusPage"));
 const CompareDiscordPage = lazy(() => import("./pages/CompareDiscordPage"));
 const DiscordAlternativePage = lazy(() => import("./pages/DiscordAlternativePage"));
 const AlternativesPage = lazy(() => import("./pages/AlternativesPage"));
@@ -186,13 +187,19 @@ export default function MarketingApp({
     <>
       <SeoHead />
       <Routes>
-        <Route path="/download" element={<DownloadPage {...authProps} onOpenRegister={() => openAuth({ mode: "register", source: "download" })} />} />
+        <Route
+          path="/download"
+          element={withLayout(DownloadPage, openAuth, {
+            onOpenRegister: () => openAuth({ mode: "register", source: "download" }),
+          })}
+        />
         <Route path="/" element={withLayout(HomePage, openAuth)} />
         <Route path="/register" element={withLayout(HomePage, openAuth)} />
         <Route path="/login" element={withLayout(HomePage, openAuth)} />
         <Route path="/features" element={withLayout(FeaturesPage, openAuth)} />
         <Route path="/faq" element={withLayout(FaqPage, openAuth)} />
         <Route path="/security" element={withLayout(SecurityPage, openAuth)} />
+        <Route path="/status" element={withLayout(StatusPage, openAuth)} />
         <Route path="/privacy" element={withLayout(PrivacyPage, openAuth)} />
         <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
         <Route path="/terms" element={withLayout(TermsPage, openAuth)} />
@@ -200,6 +207,20 @@ export default function MarketingApp({
         <Route path="/about" element={withLayout(AboutPage, openAuth)} />
         <Route path="/contact" element={withLayout(ContactPage, openAuth)} />
         <Route path="/discord-alternative" element={withLayout(DiscordAlternativePage, openAuth)} />
+        {/* TR locale mirrors — same pages, /tr prefix + forced TR locale in layout */}
+        <Route path="/tr" element={withLayout(HomePage, openAuth)} />
+        <Route path="/tr/features" element={withLayout(FeaturesPage, openAuth)} />
+        <Route
+          path="/tr/download"
+          element={withLayout(DownloadPage, openAuth, {
+            onOpenRegister: () => openAuth({ mode: "register", source: "download_tr" }),
+          })}
+        />
+        <Route path="/tr/faq" element={withLayout(FaqPage, openAuth)} />
+        <Route path="/tr/discord-alternative" element={withLayout(DiscordAlternativePage, openAuth)} />
+        <Route path="/tr/about" element={withLayout(AboutPage, openAuth)} />
+        <Route path="/tr/contact" element={withLayout(ContactPage, openAuth)} />
+        <Route path="/tr/security" element={withLayout(SecurityPage, openAuth)} />
         <Route path="/alternatives" element={withLayout(AlternativesPage, openAuth)} />
         <Route path="/compare/discord" element={withLayout(CompareDiscordPage, openAuth)} />
         <Route

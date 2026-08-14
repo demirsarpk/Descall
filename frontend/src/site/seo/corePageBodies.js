@@ -21,15 +21,19 @@ function navBlock() {
     <a href="/discord-alternative">Discord alternative</a>
     <a href="/compare/discord">vs Discord</a>
     <a href="/apps-like-discord">Apps like Discord</a>
+    <a href="/discord-replacement">Discord replacement</a>
     <a href="/discord-alternative-for-lfg">Valorant LFG</a>
     <a href="/download">Download</a>
     <a href="/faq">FAQ</a>
     <a href="/blog">Blog</a>
+    <a href="/blog/migrate-from-discord-to-descall">Migrate from Discord</a>
     <a href="/about">About</a>
     <a href="/security">Security</a>
+    <a href="/status">Status</a>
     <a href="/privacy">Privacy</a>
     <a href="/terms">Terms</a>
     <a href="/contact">Contact</a>
+    <a href="/tr">Türkçe</a>
   </nav>
   <p class="seo-hydrate-row">
     <button type="button" data-hydrate data-auth="register">Start free</button>
@@ -60,7 +64,13 @@ function legalHtml(data) {
 }
 
 export function corePageBody(path) {
-  switch (path) {
+  const bare =
+    path === "/tr" || path === "/tr/"
+      ? "/"
+      : path.startsWith("/tr/")
+        ? path.slice(3)
+        : path;
+  switch (bare) {
     case "/":
       return `
 <main>
@@ -183,6 +193,23 @@ export function corePageBody(path) {
   <p>Passwords are hashed with bcrypt. Optional email 2FA and Google sign-in are available. Session management lets you revoke devices.</p>
   <h2>Report an issue</h2>
   <p>Email <a href="mailto:${SITE_OPERATOR.supportEmail}">${SITE_OPERATOR.supportEmail}</a> or open an issue on GitHub. Include enough detail for a safe investigation.</p>
+  ${navBlock()}
+</main>`;
+
+    case "/status":
+      return `
+<main>
+  <h1>Descall service status</h1>
+  <p>${escapeHtml(SITE_OPERATOR.statusNote)}</p>
+  <ul>
+    <li>Product stage: Beta</li>
+    <li>Transport security: TLS / DTLS-SRTP</li>
+    <li>Operator: ${escapeHtml(SITE_OPERATOR.operatorName)} · ${escapeHtml(SITE_OPERATOR.country)}</li>
+    <li>Support: <a href="mailto:${SITE_OPERATOR.supportEmail}">${SITE_OPERATOR.supportEmail}</a></li>
+    <li>API health: <a href="https://des-call.onrender.com/api/status">/api/status</a></li>
+    <li>Source: <a href="${SITE_OPERATOR.githubUrl}">GitHub</a></li>
+  </ul>
+  <p>Last updated: ${escapeHtml(SITE_OPERATOR.lastUpdatedLabel)}</p>
   ${navBlock()}
 </main>`;
 

@@ -1428,3 +1428,96 @@
     display: none;
   }
 }
+
+/* Waitlist + status */
+.mkt-waitlist {
+  margin: 18px 0 8px;
+  max-width: 420px;
+}
+.mkt-waitlist label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.mkt-waitlist-hint {
+  margin: 0 0 10px;
+  color: var(--mkt-muted, #949ba4);
+  font-size: 13px;
+}
+.mkt-waitlist-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mkt-waitlist-row input {
+  flex: 1 1 180px;
+  min-width: 0;
+  border-radius: 10px;
+  border: 1px solid var(--mkt-border, rgba(255,255,255,0.12));
+  background: rgba(0,0,0,0.25);
+  color: inherit;
+  padding: 0.65rem 0.85rem;
+  font: inherit;
+}
+.mkt-waitlist-msg { margin: 8px 0 0; font-size: 13px; }
+.mkt-waitlist-msg.is-error { color: #ff8b8b; }
+.mkt-waitlist-msg.is-ok { color: #3dd68c; }
+
+.mkt-status { max-width: 720px; }
+.mkt-status-card {
+  margin: 1rem 0 1.25rem;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mkt-status-card.is-ok { border-color: rgba(61, 214, 140, 0.45); background: rgba(61, 214, 140, 0.08); }
+.mkt-status-card.is-warn { border-color: rgba(255, 176, 32, 0.45); background: rgba(255, 176, 32, 0.08); }
+.mkt-status-card.is-checking { opacity: 0.85; }
+.mkt-status-list { padding-left: 1.2rem; color: var(--mkt-muted, #c5ccd6); }
+.mkt-status-list li { margin: 0.4rem 0; }
+
+.download-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 1.25rem;
+  font-size: 13px;
+  color: #c5ccd6;
+}
+.download-trust span, .download-trust a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+.download-related { padding: 2rem 1.25rem 3rem; max-width: 960px; margin: 0 auto; }
+.platform-tabs { display: flex; gap: 8px; margin: 1rem 0; }
+.platform-tabs button {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.04);
+  color: inherit;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+.platform-tabs button.is-active {
+  border-color: rgba(88,101,242,0.6);
+  background: rgba(88,101,242,0.2);
+}
+.download-checklist { list-style: none; padding: 0; margin: 1.5rem 0 0; }
+.download-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0.45rem 0;
+  color: #c5ccd6;
+}

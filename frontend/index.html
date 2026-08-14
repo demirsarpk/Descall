@@ -421,6 +421,20 @@
                 box.hidden = true;
                 box.style.display = "none";
               }
+              try {
+                var payload = JSON.stringify({
+                  choice: choice,
+                  path: location.pathname,
+                  at: new Date().toISOString(),
+                  surface: "static_banner",
+                });
+                var api =
+                  (window.__DESCALL_API_URL__ || "https://des-call.onrender.com").replace(/\/$/, "") +
+                  "/api/marketing/consent-event";
+                if (navigator.sendBeacon) {
+                  navigator.sendBeacon(api, new Blob([payload], { type: "application/json" }));
+                }
+              } catch (eBeacon) {}
               return;
             }
             var btn = ev.target && ev.target.closest && ev.target.closest("[data-hydrate]");
@@ -437,6 +451,26 @@
                 })
               );
             } catch (e2) {}
+            // Warm the marketing hydrate chunk on intent.
+            try {
+              var link = document.createElement("link");
+              link.rel = "prefetch";
+              link.as = "script";
+              // Vite hashed name unknown here — event listener in main.jsx handles real prefetch.
+              window.dispatchEvent(new CustomEvent("descall:prefetch-hydrate"));
+            } catch (e3) {}
+          },
+          true
+        );
+        // Hover/focus prefetch for hydrate CTAs
+        document.addEventListener(
+          "pointerenter",
+          function (ev) {
+            var btn = ev.target && ev.target.closest && ev.target.closest("[data-hydrate]");
+            if (!btn) return;
+            try {
+              window.dispatchEvent(new CustomEvent("descall:prefetch-hydrate"));
+            } catch (e4) {}
           },
           true
         );

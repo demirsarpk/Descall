@@ -135,6 +135,49 @@ app.get("/health", (_req, res) => {
   });
 });
 
+// Public marketing waitlist + consent beacons (no auth)
+const marketingWaitlist = new Map(); // email -> { at, source, path }
+app.post("/api/marketing/waitlist", async (req, res) => {
+  try {
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Invalid email" });
+    }
+    const source = String(req.body?.source || "unknown").slice(0, 64);
+    const pathName = String(req.body?.path || "").slice(0, 128);
+    marketingWaitlist.set(email, { at: new Date().toISOString(), source, path: pathName });
+    // Best-effort notify operator via Resend when configured
+    try {
+      const { sendEmail } = require("./lib/mailer");
+      await sendEmail({
+        to: process.env.WAITLIST_NOTIFY_TO || "contact@descall.com",
+        subject: `Descall waitlist: ${email}`,
+        text: `New waitlist signup\nEmail: ${email}\nSource: ${source}\nPath: ${pathName}\n`,
+      }).catch(() => {});
+    } catch {
+      /* mailer optional */
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || "waitlist failed" });
+  }
+});
+
+app.post("/api/marketing/consent-event", (req, res) => {
+  try {
+    const choice = String(req.body?.choice || "").slice(0, 32);
+    const pathName = String(req.body?.path || "").slice(0, 128);
+    if (choice) {
+      console.log("[marketing] consent", choice, pathName);
+    }
+    return res.status(204).end();
+  } catch {
+    return res.status(204).end();
+  }
+});
+
 // SEO: robots + advanced sitemap (index, pages, invites, announcements, HTML)
 app.use(sitemapRouter);
 

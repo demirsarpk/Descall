@@ -101,6 +101,12 @@ if (statusEl) statusEl.textContent = translate(bootLocale, "Starting app");
  */
 function scheduleMarketingHydration(run) {
   let started = false;
+  let prefetched = false;
+  const prefetch = () => {
+    if (prefetched) return;
+    prefetched = true;
+    import("./site/hydrateMarketing.jsx").catch(() => {});
+  };
   const start = () => {
     if (started) return;
     started = true;
@@ -108,6 +114,7 @@ function scheduleMarketingHydration(run) {
     run();
   };
   const onHydrateEvent = () => start();
+  const onPrefetch = () => prefetch();
   const onEngage = (e) => {
     const t = e?.target;
     if (!t || typeof t.closest !== "function") return;
@@ -118,10 +125,12 @@ function scheduleMarketingHydration(run) {
   };
   const cleanup = () => {
     window.removeEventListener("descall:hydrate-marketing", onHydrateEvent);
+    window.removeEventListener("descall:prefetch-hydrate", onPrefetch);
     window.removeEventListener("pointerdown", onEngage);
     window.removeEventListener("keydown", onEngage);
   };
   window.addEventListener("descall:hydrate-marketing", onHydrateEvent);
+  window.addEventListener("descall:prefetch-hydrate", onPrefetch);
   window.addEventListener("pointerdown", onEngage, { passive: true });
   window.addEventListener("keydown", onEngage);
   // Deep-link auth routes must hydrate immediately.

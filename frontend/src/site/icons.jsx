@@ -123,3 +123,68 @@ export function IconZap(props) {
     </svg>
   );
 }
+export function IconDownload(props) {
+  return (
+    <svg {...base(props)}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+    </svg>
+  );
+}
+export function IconSmartphone(props) {
+  return (
+    <svg {...base(props)}>
+      <rect x="5" y="2" width="14" height="20" rx="2" />
+      <path d="M12 18h.01" />
+    </svg>
+  );
+}
+export function IconLoader(props) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+    </svg>
+  );
+}
+export function IconGlobe(props) {
+  return (
+    <svg {...base(props)}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+export function IconGithub(props) {
+  return (
+    <svg {...base({ ...props, fill: "currentColor", stroke: "none" })}>
+      <path d="M12 2C6.48 2 2 6.58 2 12.26c0 4.52 2.87 8.35 6.84 9.7.5.1.68-.22.68-.48 0-.24-.01-.87-.01-1.7-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.06 1.53 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.07 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.7 0 0 .84-.28 2.75 1.05A9.3 9.3 0 0 1 12 6.8c.85 0 1.71.12 2.51.35 1.9-1.33 2.74-1.05 2.74-1.05.55 1.4.2 2.44.1 2.7.64.72 1.03 1.63 1.03 2.75 0 3.94-2.34 4.8-4.57 5.06.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .26.18.58.69.48A10.03 10.03 0 0 0 22 12.26C22 6.58 17.52 2 12 2z" />
+    </svg>
+  );
+}
+export function IconStar(props) {
+  return (
+    <svg {...base(props)}>
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+    </svg>
+  );
+}
+export function IconLogIn(props) {
+  return (
+    <svg {...base(props)}>
+      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" />
+    </svg>
+  );
+}
+export function IconX(props) {
+  return (
+    <svg {...base(props)}>
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+export function IconChevronRight(props) {
+  return (
+    <svg {...base(props)}>
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  );
+}

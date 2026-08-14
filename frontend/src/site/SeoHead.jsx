@@ -7,6 +7,12 @@ import {
   DEFAULT_OG_IMAGE,
   DEFAULT_ORIGIN,
 } from "./seoConfig";
+import {
+  isTrPath,
+  enPathForHreflang,
+  trPathForHreflang,
+  stripLocalePrefix,
+} from "./localePaths";
 
 function upsertMeta(attr, key, content) {
   if (content == null) return;
@@ -40,14 +46,24 @@ function upsertLink(rel, href, extra = {}) {
  */
 export default function SeoHead({ forceNoindex = false, title, description, path, image }) {
   const location = useLocation();
-  const pathname = path || location.pathname || "/";
+  const rawPath = path || location.pathname || "/";
+  const tr = isTrPath(rawPath);
+  const pathname = stripLocalePrefix(rawPath);
   const meta = routeMeta(pathname);
   const pageTitle = title || meta.title;
   const pageDesc = description || meta.description;
   const noindex = forceNoindex || meta.noindex;
-  const canonicalPath = meta.path === "/" || pathname === "/" ? "/" : pathname;
-  const canonical = absoluteUrl(canonicalPath);
+  const canonicalPath = tr
+    ? rawPath === "/tr" || rawPath === "/tr/"
+      ? "/tr"
+      : rawPath.replace(/\/+$/, "")
+    : meta.path === "/" || pathname === "/"
+      ? "/"
+      : pathname;
+  const canonical = absoluteUrl(canonicalPath === "/tr" ? "/tr" : canonicalPath);
+  // Social crawlers prefer PNG; on-page can still preload webp.
   const ogImage = absoluteUrl(image || meta.image || DEFAULT_OG_IMAGE);
+  const ogImageWebp = absoluteUrl("/og-default.webp");
 
   useEffect(() => {
     document.title = pageTitle;
@@ -64,33 +80,18 @@ export default function SeoHead({ forceNoindex = false, title, description, path
     );
     upsertLink("canonical", canonical);
 
-    // hreflang — real locale URLs only (EN site + TR turkey landing).
     const origin = DEFAULT_ORIGIN.replace(/\/$/, "");
-    const pathPart = canonicalPath === "/" ? "/" : canonicalPath;
-    const isTurkey = pathPart === "/discord-alternative-turkey";
+    const enHref = `${origin}${enPathForHreflang(rawPath) === "/" ? "/" : enPathForHreflang(rawPath)}`;
+    const trHref = `${origin}${trPathForHreflang(rawPath)}`;
     document.head.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.remove());
-    if (isTurkey) {
-      upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "tr" });
-      upsertLink("alternate", `${origin}/discord-alternative`, { hreflang: "en" });
-      upsertLink("alternate", `${origin}/discord-alternative`, { hreflang: "x-default" });
-    } else {
-      upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "en" });
-      upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "x-default" });
-      if (
-        pathPart === "/discord-alternative" ||
-        pathPart === "/" ||
-        pathPart === "/features" ||
-        pathPart === "/download" ||
-        pathPart === "/faq"
-      ) {
-        upsertLink("alternate", `${origin}/discord-alternative-turkey`, { hreflang: "tr" });
-      }
-    }
+    upsertLink("alternate", enHref, { hreflang: "en" });
+    upsertLink("alternate", trHref, { hreflang: "tr" });
+    upsertLink("alternate", enHref, { hreflang: "x-default" });
 
     upsertMeta("property", "og:type", meta.ogType || "website");
     upsertMeta("property", "og:site_name", SITE_NAME);
-    upsertMeta("property", "og:locale", isTurkey ? "tr_TR" : "en_US");
-    if (!isTurkey) upsertMeta("property", "og:locale:alternate", "tr_TR");
+    upsertMeta("property", "og:locale", tr ? "tr_TR" : "en_US");
+    upsertMeta("property", "og:locale:alternate", tr ? "en_US" : "tr_TR");
     upsertMeta("property", "og:title", pageTitle);
     upsertMeta("property", "og:description", pageDesc);
     upsertMeta("property", "og:url", canonical);
@@ -99,12 +100,26 @@ export default function SeoHead({ forceNoindex = false, title, description, path
     upsertMeta("property", "og:image:width", "1200");
     upsertMeta("property", "og:image:height", "630");
     upsertMeta("property", "og:image:alt", `${SITE_NAME} — Discord alternative`);
+    // Hint for clients that understand webp (not all social crawlers).
+    upsertMeta("property", "og:image:secure_url", ogImage);
+    let preload = document.head.querySelector('link[rel="preload"][data-og-webp="1"]');
+    if (!preload) {
+      preload = document.createElement("link");
+      preload.rel = "preload";
+      preload.setAttribute("data-og-webp", "1");
+      document.head.appendChild(preload);
+    }
+    preload.setAttribute("as", "image");
+    preload.setAttribute("type", "image/webp");
+    preload.setAttribute("href", ogImageWebp);
+    preload.setAttribute("imagesrcset", `${ogImageWebp} 1200w`);
+    preload.setAttribute("imagesizes", "1200px");
 
     upsertMeta("name", "twitter:card", "summary_large_image");
     upsertMeta("name", "twitter:title", pageTitle);
     upsertMeta("name", "twitter:description", pageDesc);
     upsertMeta("name", "twitter:image", ogImage);
-  }, [pageTitle, pageDesc, noindex, canonical, ogImage, meta.ogType, canonicalPath]);
+  }, [pageTitle, pageDesc, noindex, canonical, ogImage, ogImageWebp, meta.ogType, rawPath, tr]);
 
   return null;
 }

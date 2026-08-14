@@ -10,6 +10,7 @@ const MARKETING_EXACT = new Set([
   "/privacy",
   "/terms",
   "/security",
+  "/status",
   "/contact",
   "/blog",
   "/discord-alternative",
@@ -25,6 +26,14 @@ const MARKETING_EXACT = new Set([
   "/discord-alternative-for-friends",
   "/login",
   "/register",
+  "/tr",
+  "/tr/features",
+  "/tr/download",
+  "/tr/faq",
+  "/tr/discord-alternative",
+  "/tr/about",
+  "/tr/contact",
+  "/tr/security",
 ]);
 
 export function isPublicMarketingPath(pathname = "/") {
@@ -32,5 +41,6 @@ export function isPublicMarketingPath(pathname = "/") {
   if (MARKETING_EXACT.has(path)) return true;
   if (path.startsWith("/blog/")) return true;
   if (path.startsWith("/compare/")) return true;
+  if (path.startsWith("/tr/")) return true;
   return false;
 }

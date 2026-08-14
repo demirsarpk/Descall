@@ -66,14 +66,21 @@ export const INDEXING_PRIORITY_PATHS = [
   "/blog/leave-nitro-keep-voice-chat",
   "/blog/discord-alternative-for-communities-guide",
   "/blog/voice-chat-alternative-to-discord",
+  "/blog/migrate-from-discord-to-descall",
   "/about",
   "/contact",
   "/security",
+  "/status",
+  "/tr",
+  "/tr/discord-alternative",
+  "/tr/download",
 ];
 
 function tableIdForPath(path) {
   const p = path || "/";
   if (p.startsWith("/blog")) return "blog";
+  if (p === "/tr" || p.startsWith("/tr/")) return "niches";
+  if (p === "/status") return "company";
   if (
     p.includes("discord") ||
     p.includes("alternative") ||

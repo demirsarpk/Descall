@@ -265,6 +265,62 @@ export function initAnalytics() {
       y.parentNode.insertBefore(t, y);
     })(window, document, "clarity", "script", clarityId);
   }
+
+  // Real-user monitoring (LCP/INP/CLS) — only after consent.
+  captureWebVitals();
+}
+
+/** PostHog web vitals via web-vitals (lazy). */
+export function captureWebVitals() {
+  if (typeof window === "undefined" || !isAnalyticsAllowed()) return;
+  import("web-vitals")
+    .then(({ onLCP, onINP, onCLS, onTTFB, onFCP }) => {
+      const send = (metric) => {
+        trackEvent("web_vital", {
+          name: metric.name,
+          value: Math.round(metric.name === "CLS" ? metric.value * 1000 : metric.value),
+          rating: metric.rating,
+          id: metric.id,
+          navigationType: metric.navigationType,
+          path: window.location.pathname,
+        });
+      };
+      onLCP(send);
+      onINP(send);
+      onCLS(send);
+      onTTFB(send);
+      onFCP(send);
+    })
+    .catch(() => {});
+}
+
+/**
+ * First-party consent beacon — works for Accept and Reject (no PostHog required).
+ * Uses API_BASE_URL from config; failures are silent.
+ */
+export async function beaconConsent(choice) {
+  try {
+    const { API_BASE_URL } = await import("../config/api");
+    const payload = JSON.stringify({
+      choice,
+      path: typeof window !== "undefined" ? window.location.pathname : "/",
+      at: new Date().toISOString(),
+    });
+    const url = `${API_BASE_URL}/api/marketing/consent-event`;
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: "application/json" });
+      navigator.sendBeacon(url, blob);
+      return;
+    }
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* ignore */
+  }
 }
 
 export function trackPageView(path) {
@@ -387,4 +443,17 @@ export const Funnel = {
   inviteGenerated: (props) => trackEvent("invite_generated", props),
   inviteLanding: (props) => trackEvent("invite_landing", props),
   inviteRegisterComplete: (props) => trackEvent("invite_register_complete", props),
+  /** Cookie banner decision — also beaconConsent for reject visibility. */
+  consentDecision: (props) => {
+    const choice = props?.choice || "unknown";
+    trackEvent("cookie_consent", props);
+    beaconConsent(choice);
+    if (choice === "accepted") {
+      try {
+        captureWebVitals();
+      } catch {
+        /* ignore */
+      }
+    }
+  },
 };

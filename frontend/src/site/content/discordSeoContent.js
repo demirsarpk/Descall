@@ -133,6 +133,7 @@ export const BLOG_POSTS = [
     description:
       "An honest Discord vs Descall comparison for chat, servers, roles, voice, screen share, LFG, and pricing — when a lighter Discord alternative wins.",
     date: "2026-08-11",
+    updated: "2026-08-14",
     tags: ["Discord alternative", "Comparison"],
   },
   {
@@ -142,6 +143,7 @@ export const BLOG_POSTS = [
     description:
       "Best Discord alternatives in 2026 for friends, servers, voice, and LFG — how Descall, Discord, Guilded, and others actually compare.",
     date: "2026-08-11",
+    updated: "2026-08-14",
     tags: ["Discord alternatives", "Roundup"],
   },
   {
@@ -151,6 +153,7 @@ export const BLOG_POSTS = [
     description:
       "Apps like Discord explained by job-to-be-done: friend voice, community servers, or pure voice rooms — and where Descall fits.",
     date: "2026-08-11",
+    updated: "2026-08-14",
     tags: ["Apps like Discord", "Comparison"],
   },
   {
@@ -160,6 +163,7 @@ export const BLOG_POSTS = [
     description:
       "Map of Discord competitors in 2026: lighter friend apps, gaming suites, and voice classics — plus where Descall competes honestly.",
     date: "2026-08-11",
+    updated: "2026-08-14",
     tags: ["Discord competitors", "Market"],
   },
   {
@@ -169,6 +173,7 @@ export const BLOG_POSTS = [
     description:
       "Why gamers looking for a Discord alternative for LFG choose Descall’s Play tab, party codes, and Riot account link.",
     date: "2026-08-11",
+    updated: "2026-08-14",
     tags: ["LFG", "Valorant", "Discord alternative"],
   },
   {
@@ -178,6 +183,7 @@ export const BLOG_POSTS = [
     description:
       "How to move a friend group from Discord Nitro habits to a free Discord alternative with servers, voice, video, and screen share.",
     date: "2026-08-11",
+    updated: "2026-08-14",
     tags: ["Pricing", "Migration"],
   },
   {
@@ -187,6 +193,7 @@ export const BLOG_POSTS = [
     description:
       "How small communities pick a Discord alternative: servers, roles, invites, voice hangouts, and when to stay on Discord.",
     date: "2026-08-11",
+    updated: "2026-08-14",
     tags: ["Communities", "Guide"],
   },
   {
@@ -196,8 +203,20 @@ export const BLOG_POSTS = [
     description:
       "Looking for a voice chat alternative to Discord? How Descall handles free WebRTC calls, server voice, screen share, and gaming nights.",
     date: "2026-08-11",
+    updated: "2026-08-14",
     tags: ["Voice", "Guide"],
   },
+  {
+    slug: "migrate-from-discord-to-descall",
+    path: "/blog/migrate-from-discord-to-descall",
+    title: "Migrate from Discord to Descall — practical checklist",
+    description:
+      "Step-by-step migration from Discord to Descall: invite friends, recreate servers with templates, move LFG, and keep voice nights free.",
+    date: "2026-08-14",
+    updated: "2026-08-14",
+    tags: ["Migration", "Discord alternative"],
+  },
+
 ];
 
 /** Default related links for blog posts → pillar cluster */
@@ -211,4 +230,6 @@ export const BLOG_RELATED = [
   { to: "/security", label: "Security & encryption" },
   { to: "/download", label: "Download Descall" },
   { to: "/faq", label: "FAQ" },
+  { to: "/blog/migrate-from-discord-to-descall", label: "Migrate from Discord" },
+  { to: "/status", label: "Status" },
 ];

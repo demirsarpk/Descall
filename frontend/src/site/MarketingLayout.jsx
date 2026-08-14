@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { NavLink, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import { useLocale, useT } from "../context/localeContextInstance";
 import { Funnel } from "./analytics";
 import { signalMarketingEngage } from "./analyticsGate";
 import { SITE_OPERATOR } from "./siteIdentity";
+import { isTrPath, withTrPrefix, stripLocalePrefix } from "./localePaths";
+import EmailCapture from "./components/EmailCapture";
 import "./site.css";
 
 function IconMenu() {
@@ -33,7 +35,15 @@ const NAV = [
 export default function MarketingLayout({ children, onSignIn, onSignUp }) {
   const t = useT();
   const { locale, setLocale } = useLocale();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const tr = isTrPath(location.pathname);
+  const L = (to) => (tr ? withTrPrefix(to) : to);
+
+  useEffect(() => {
+    if (tr && locale !== "tr") setLocale("tr");
+  }, [tr, locale, setLocale]);
 
   const closeMenu = () => setMenuOpen(false);
   const openRegister = () => {
@@ -47,6 +57,13 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
     onSignIn?.({ mode: "login", source: "header" });
   };
 
+  const switchLocale = (next) => {
+    setLocale(next);
+    const bare = stripLocalePrefix(location.pathname);
+    if (next === "tr") navigate(withTrPrefix(bare) + location.search);
+    else navigate(bare + location.search);
+  };
+
   const nav = (
     <nav
       id="marketing-navigation"
@@ -56,9 +73,11 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
       {NAV.map((item) => (
         <NavLink
           key={item.to}
-          to={item.to}
+          to={L(item.to)}
           onClick={closeMenu}
-          className={({ isActive }) => (isActive ? "mkt-nav-link is-active" : "mkt-nav-link")}
+          className={() =>
+            stripLocalePrefix(location.pathname) === item.to ? "mkt-nav-link is-active" : "mkt-nav-link"
+          }
         >
           {t(item.label)}
         </NavLink>
@@ -73,12 +92,12 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
       >
         {t("Start free")}
       </button>
-      <Link to="/download" onClick={closeMenu} className="mkt-mobile-download">
+      <Link to={L("/download")} onClick={closeMenu} className="mkt-mobile-download">
         {t("Download")}
       </Link>
       <div className="mkt-mobile-language">
         <span>{t("Language")}</span>
-        <LanguageToggle locale={locale} setLocale={setLocale} />
+        <LanguageToggle locale={locale} onSwitch={switchLocale} />
       </div>
     </nav>
   );
@@ -92,14 +111,8 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
       </div>
 
       <header className="mkt-header">
-        <Link to="/" className="mkt-brand">
-          <img
-            src="/icon-192.png"
-            alt=""
-            width={32}
-            height={32}
-            decoding="async"
-          />
+        <Link to={L("/")} className="mkt-brand">
+          <img src="/icon-192.png" alt="" width={32} height={32} decoding="async" />
           <span>Descall</span>
           <span className="mkt-header-beta" title={t(SITE_OPERATOR.statusNote)}>
             {t("Beta")}
@@ -108,28 +121,15 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
         {nav}
         <div className="mkt-header-actions">
           <div className="mkt-desktop-language">
-            <LanguageToggle locale={locale} setLocale={setLocale} />
+            <LanguageToggle locale={locale} onSwitch={switchLocale} />
           </div>
-          <button
-            type="button"
-            className="mkt-btn mkt-btn-ghost"
-            onClick={openLogin}
-            aria-label={t("Sign In")}
-          >
+          <button type="button" className="mkt-btn mkt-btn-ghost" onClick={openLogin} aria-label={t("Sign In")}>
             {t("Sign In")}
           </button>
-          <button
-            type="button"
-            className="mkt-btn mkt-btn-primary"
-            onClick={openRegister}
-            aria-label={t("Start free")}
-          >
+          <button type="button" className="mkt-btn mkt-btn-primary" onClick={openRegister} aria-label={t("Start free")}>
             {t("Start free")}
           </button>
-          <Link
-            to="/download"
-            className="mkt-btn mkt-btn-soft mkt-header-download"
-          >
+          <Link to={L("/download")} className="mkt-btn mkt-btn-soft mkt-header-download">
             {t("Download")}
           </Link>
           <button
@@ -151,14 +151,7 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
 
       <footer className="mkt-footer">
         <div className="mkt-footer-brand">
-          <img
-            src="/icon-192.png"
-            alt=""
-            width={24}
-            height={24}
-            decoding="async"
-            loading="lazy"
-          />
+          <img src="/icon-192.png" alt="" width={24} height={24} decoding="async" loading="lazy" />
           <div>
             <strong>Descall</strong>
             <span className="mkt-footer-beta">{t("Beta")}</span>
@@ -168,45 +161,48 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
           </div>
         </div>
         <div className="mkt-footer-links">
-          <Link to="/about">{t("About")}</Link>
-          <Link to="/features">{t("Features")}</Link>
-          <Link to="/faq">{t("FAQ")}</Link>
+          <Link to={L("/about")}>{t("About")}</Link>
+          <Link to={L("/features")}>{t("Features")}</Link>
+          <Link to={L("/faq")}>{t("FAQ")}</Link>
           <Link to="/blog">{t("Blog")}</Link>
-          <Link to="/security">{t("Security")}</Link>
+          <Link to={L("/security")}>{t("Security")}</Link>
+          <Link to="/status">{t("Status")}</Link>
           <Link to="/privacy">{t("Privacy Policy")}</Link>
           <Link to="/terms">{t("Terms")}</Link>
-          <Link to="/contact">{t("Contact")}</Link>
+          <Link to={L("/contact")}>{t("Contact")}</Link>
           <Link to="/compare/discord">vs Discord</Link>
           <Link to="/discord-alternative-turkey">{t("Turkey")}</Link>
+          <Link to="/tr">TR</Link>
           <a href={SITE_OPERATOR.githubUrl} rel="noopener noreferrer" target="_blank">
             GitHub
           </a>
           <a href="/sitemap.html">{t("Sitemap")}</a>
         </div>
+        <EmailCapture source="footer" />
         <p className="mkt-footer-trust">
           {t("Status")}: {t("Beta")} · {t("Transport security")}: TLS / DTLS-SRTP ·{" "}
-          <Link to="/security">{t("Security details")}</Link>
+          <Link to="/status">{t("Live status")}</Link> · <Link to="/security">{t("Security details")}</Link>
         </p>
         <p className="mkt-footer-contact">
           <a href={`mailto:${SITE_OPERATOR.supportEmail}`}>{SITE_OPERATOR.supportEmail}</a>
         </p>
         <p className="mkt-footer-copy">
-          © {SITE_OPERATOR.copyrightYear} Descall. {t("All rights reserved.")}{" "}
-          {t("Last updated")}: {SITE_OPERATOR.lastUpdatedLabel}.
+          © {SITE_OPERATOR.copyrightYear} Descall. {t("All rights reserved.")} {t("Last updated")}:{" "}
+          {SITE_OPERATOR.lastUpdatedLabel}.
         </p>
       </footer>
     </div>
   );
 }
 
-function LanguageToggle({ locale, setLocale }) {
+function LanguageToggle({ locale, onSwitch }) {
   const t = useT();
   return (
     <div className="mkt-language-toggle" role="group" aria-label={t("Language")}>
       <button
         type="button"
         className={locale === "tr" ? "is-active" : ""}
-        onClick={() => setLocale("tr")}
+        onClick={() => onSwitch("tr")}
         aria-pressed={locale === "tr"}
         aria-label="TR — Türkçe"
       >
@@ -215,7 +211,7 @@ function LanguageToggle({ locale, setLocale }) {
       <button
         type="button"
         className={locale === "en" ? "is-active" : ""}
-        onClick={() => setLocale("en")}
+        onClick={() => onSwitch("en")}
         aria-pressed={locale === "en"}
         aria-label="EN — English"
       >
