@@ -594,6 +594,119 @@ body:has(.mkt-consent),
   font-size: 12px;
 }
 
+/* Auth modal — must stay in site.css (marketing entry). Without these rules the
+   overlay is position:static and Sign In / Google render under the footer. */
+.login-modal-overlay {
+  position: fixed !important;
+  inset: 0;
+  /* Above cookie consent (.mkt-consent is 12000) so Sign In is not buried under the banner */
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow-y: auto;
+}
+
+.login-modal {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  margin: auto;
+  padding: 40px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  box-sizing: border-box;
+}
+
+.login-modal h2 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.login-modal > p {
+  margin: 0 0 24px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.google-signin-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  min-height: 44px;
+}
+
+.google-signin-wrap.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.google-signin-button {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+}
+
+.google-signin-hint {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+}
+
+.login-modal .auth-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 80, 80, 0.12);
+  color: #ff9b9b;
+  font-size: 13px;
+}
+
+.login-modal .auth-switch {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  border: 0;
+  background: transparent;
+  color: #9db0ff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
 .login-modal form {
   display: grid;
   gap: 12px;
