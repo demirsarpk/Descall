@@ -51,13 +51,19 @@ if (!/sitemapindex/i.test(sitemap.text)) fail("sitemap index missing");
 else ok("sitemap.xml index present");
 
 const faq = await get("/faq");
-const m = faq.text.match(/<script type="application\/ld\+json">(\{[\s\S]*?"@type"\s*:\s*"FAQPage"[\s\S]*?\})<\/script>/);
-if (!m) fail("FAQPage JSON-LD missing");
-else {
-  const data = JSON.parse(m[1]);
-  if (!Array.isArray(data.mainEntity) || data.mainEntity.length < 5) fail("FAQPage mainEntity thin");
-  else ok(`FAQPage JSON-LD with ${data.mainEntity.length} questions`);
-}
+const ldBlocks = [...faq.text.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi)].map(
+  (m) => {
+    try {
+      return JSON.parse(m[1]);
+    } catch {
+      return null;
+    }
+  }
+);
+const faqLd = ldBlocks.find((d) => d && d["@type"] === "FAQPage");
+if (!faqLd) fail("FAQPage JSON-LD missing");
+else if (!Array.isArray(faqLd.mainEntity) || faqLd.mainEntity.length < 5) fail("FAQPage mainEntity thin");
+else ok(`FAQPage JSON-LD with ${faqLd.mainEntity.length} questions`);
 
 if (!/id="mkt-consent-static"/i.test(html.text)) fail("/features missing cookie consent shell");
 else ok("/features has cookie consent shell");
