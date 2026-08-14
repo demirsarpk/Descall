@@ -103,7 +103,8 @@ export default function MarketingApp({
   }, [location.pathname, location.search]);
 
   useEffect(() => {
-    if (location.pathname === "/download") return undefined;
+    // All marketing routes need document scroll — /download previously skipped this
+    // and stayed stuck under critical html/body overflow:hidden after hydrate.
     return enableMarketingScroll();
   }, [location.pathname]);
 

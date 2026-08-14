@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { getCookieConsent, setCookieConsent } from "./analyticsGate";
 import { Funnel } from "./analytics";
@@ -7,6 +8,7 @@ import { useT } from "../context/localeContextInstance";
 /**
  * Lightweight GDPR/KVKK cookie banner for marketing pages.
  * Reject keeps analytics cold; Accept unlocks PostHog/gtag.
+ * Portaled to document.body so position:fixed is never trapped by transformed ancestors.
  */
 export default function CookieConsentBanner() {
   const t = useT();
@@ -16,7 +18,7 @@ export default function CookieConsentBanner() {
     setVisible(!getCookieConsent());
   }, []);
 
-  if (!visible) return null;
+  if (!visible || typeof document === "undefined") return null;
 
   const decide = (choice) => {
     setCookieConsent(choice);
@@ -24,7 +26,7 @@ export default function CookieConsentBanner() {
     setVisible(false);
   };
 
-  return (
+  return createPortal(
     <div className="mkt-consent" role="dialog" aria-label={t("Cookie preferences")}>
       <p>
         {t(
@@ -42,6 +44,7 @@ export default function CookieConsentBanner() {
           {t("Accept analytics")}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

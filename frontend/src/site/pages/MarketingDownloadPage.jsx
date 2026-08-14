@@ -203,7 +203,9 @@ export default function MarketingDownloadPage({ onOpenRegister, onSignIn }) {
             <IconCheck size={16} /> {t("No Nitro paywall on core chat & calls")}
           </li>
           <li>
-            <IconCheck size={16} /> {t("Servers, roles, channels, and Valorant LFG")}
+            <IconCheck size={16} />{" "}
+            {t("Servers, roles, channels, and")}{" "}
+            <Link to="/discord-alternative-for-lfg">{t("Valorant LFG")}</Link>
           </li>
           <li>
             <IconCheck size={16} />{" "}
