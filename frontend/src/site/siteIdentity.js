@@ -9,9 +9,9 @@ export const SITE_OPERATOR = {
   supportEmail: "contact@descall.com",
   githubUrl: "https://github.com/demirsarpk/Descall",
   copyrightYear: 2026,
-  lastUpdatedIso: "2026-08-13",
-  lastUpdatedLabel: "August 13, 2026",
-  lastUpdatedLabelTr: "13 Ağustos 2026",
+  lastUpdatedIso: "2026-08-14",
+  lastUpdatedLabel: "August 14, 2026",
+  lastUpdatedLabelTr: "14 Ağustos 2026",
   status: "Beta",
   statusNote:
     "Descall is an independent beta product. Core chat, servers, and voice are free while we grow with real communities.",

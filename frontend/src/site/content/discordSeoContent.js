@@ -206,6 +206,9 @@ export const BLOG_RELATED = [
   { to: "/compare/discord", label: "Descall vs Discord" },
   { to: "/alternatives", label: "All alternatives" },
   { to: "/apps-like-discord", label: "Apps like Discord" },
+  { to: "/discord-alternative-for-lfg", label: "Valorant LFG" },
   { to: "/features", label: "Features — servers & more" },
+  { to: "/security", label: "Security & encryption" },
   { to: "/download", label: "Download Descall" },
+  { to: "/faq", label: "FAQ" },
 ];

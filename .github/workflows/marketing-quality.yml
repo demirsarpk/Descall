@@ -1,0 +1,68 @@
+name: Marketing quality gates
+
+# Fails the PR/push when SEO shells, first-paint JS budget, or axe a11y smoke regress.
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/marketing-quality.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/marketing-quality.yml"
+  workflow_dispatch:
+
+jobs:
+  marketing-quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --include=dev
+
+      - name: Production build + SEO validate + perf budget
+        run: npm run build:prod
+
+      - name: Install Chrome + matching ChromeDriver
+        run: |
+          npx --yes browser-driver-manager install chrome@stable | tee /tmp/bdm-out.txt
+          # Export paths printed by browser-driver-manager for later steps
+          eval "$(grep -E '^(CHROME_TEST_PATH|CHROMEDRIVER_TEST_PATH)=' /tmp/bdm-out.txt | sed 's/TEST_PATH=/PATH=/')"
+          echo "CHROME_PATH=${CHROME_PATH:-}" >> "$GITHUB_ENV"
+          echo "CHROMEDRIVER_PATH=${CHROMEDRIVER_PATH:-}" >> "$GITHUB_ENV"
+          # Fallback parse if env names differ
+          if [ -z "${CHROME_PATH:-}" ]; then
+            CHROME_PATH=$(sed -n 's/.*CHROME_TEST_PATH="\([^"]*\)".*/\1/p' /tmp/bdm-out.txt | head -1)
+            CHROMEDRIVER_PATH=$(sed -n 's/.*CHROMEDRIVER_TEST_PATH="\([^"]*\)".*/\1/p' /tmp/bdm-out.txt | head -1)
+            echo "CHROME_PATH=$CHROME_PATH" >> "$GITHUB_ENV"
+            echo "CHROMEDRIVER_PATH=$CHROMEDRIVER_PATH" >> "$GITHUB_ENV"
+          fi
+
+      - name: Serve dist + axe smoke
+        run: |
+          npx --yes serve -l 4173 dist >/tmp/serve-quality.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/features >/dev/null && break
+            sleep 1
+          done
+          AXE_ARGS="--exit --tags wcag2a,wcag2aa"
+          if [ -n "${CHROMEDRIVER_PATH:-}" ]; then
+            AXE_ARGS="$AXE_ARGS --chromedriver-path $CHROMEDRIVER_PATH"
+          fi
+          if [ -n "${CHROME_PATH:-}" ]; then
+            AXE_ARGS="$AXE_ARGS --chrome-path $CHROME_PATH"
+          fi
+          npx --yes @axe-core/cli http://127.0.0.1:4173/features $AXE_ARGS
+          npx --yes @axe-core/cli http://127.0.0.1:4173/ $AXE_ARGS
+          npx --yes @axe-core/cli http://127.0.0.1:4173/faq $AXE_ARGS

@@ -64,12 +64,11 @@ export default function SeoHead({ forceNoindex = false, title, description, path
     );
     upsertLink("canonical", canonical);
 
-    // hreflang — only when we have real locale-targeted URLs (no fake en/tr on the same path).
-    // Client locale toggle does not create separate crawlable language URLs.
+    // hreflang — real locale URLs only (EN site + TR turkey landing).
     const origin = DEFAULT_ORIGIN.replace(/\/$/, "");
     const pathPart = canonicalPath === "/" ? "/" : canonicalPath;
     const isTurkey = pathPart === "/discord-alternative-turkey";
-    // Clear previous alternates by rewriting the ones we own
+    document.head.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.remove());
     if (isTurkey) {
       upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "tr" });
       upsertLink("alternate", `${origin}/discord-alternative`, { hreflang: "en" });
@@ -77,7 +76,13 @@ export default function SeoHead({ forceNoindex = false, title, description, path
     } else {
       upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "en" });
       upsertLink("alternate", `${origin}${pathPart}`, { hreflang: "x-default" });
-      if (pathPart === "/discord-alternative") {
+      if (
+        pathPart === "/discord-alternative" ||
+        pathPart === "/" ||
+        pathPart === "/features" ||
+        pathPart === "/download" ||
+        pathPart === "/faq"
+      ) {
         upsertLink("alternate", `${origin}/discord-alternative-turkey`, { hreflang: "tr" });
       }
     }

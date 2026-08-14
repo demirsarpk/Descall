@@ -223,7 +223,7 @@ function injectMeta(html, route) {
     : [
         `<link rel="alternate" hreflang="en" href="${url}" />`,
         `<link rel="alternate" hreflang="x-default" href="${url}" />`,
-        route.path === "/discord-alternative"
+        ["/discord-alternative", "/", "/features", "/download", "/faq"].includes(route.path)
           ? `<link rel="alternate" hreflang="tr" href="${SITE}/discord-alternative-turkey" />`
           : "",
       ];

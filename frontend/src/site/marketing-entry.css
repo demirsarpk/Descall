@@ -1,4 +1,7 @@
 /* Marketing-only CSS — keep the public shell off the 350KB+ app stylesheet. */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/outfit/700.css";
 @import "../styles/design-tokens.css";
 @import "../styles/auth-splash.css";
 @import "../styles/legal.css";
