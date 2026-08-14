@@ -42,6 +42,37 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+function seoBrand() {
+  return `<a class="seo-brand" href="/" aria-label="Descall home"><span class="seo-brand-mark" aria-hidden="true">D</span><span>Descall</span><span class="seo-brand-beta">Beta</span></a>`;
+}
+
+function seoCtaRow(softHref = "/discord-alternative", softLabel = "Discord alternative") {
+  return `<p class="seo-cta-row"><a class="seo-cta-primary" href="/download">Download</a><a class="seo-cta-soft" href="${softHref}">${softLabel}</a></p>`;
+}
+
+function seoSiteNav() {
+  return `<nav aria-label="Descall">
+    <a href="/">Home</a>
+    <a href="/discord-alternative">Discord alternative</a>
+    <a href="/alternatives">Alternatives</a>
+    <a href="/compare/discord">Descall vs Discord</a>
+    <a href="/apps-like-discord">Apps like Discord</a>
+    <a href="/features">Features</a>
+    <a href="/blog">Blog</a>
+    <a href="/faq">FAQ</a>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
+  </nav>
+  <nav class="seo-legal-nav" aria-label="Legal">
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+  </nav>
+  <p class="seo-hydrate-row">
+    <button type="button" data-hydrate data-auth="register">Start free</button>
+    <button type="button" data-hydrate data-auth="login">Sign in</button>
+  </p>`;
+}
+
 function stripBootSplash(html) {
   // Nested divs — remove the whole splash block + its dismiss script.
   return html
@@ -72,15 +103,17 @@ function crawlBody(route) {
         : "";
     return `
 <main>
+  ${seoBrand()}
   <h1>${escapeHtml(niche.h1)}</h1>
   <p>${escapeHtml(niche.lead)}</p>
-  <p><a href="/download">Download Descall</a> · <a href="/discord-alternative">Discord alternative</a></p>
+  ${seoCtaRow("/discord-alternative", "Discord alternative")}
   <h2>${escapeHtml(niche.answerTitle)}</h2>
   <p>${escapeHtml(niche.answer)}</p>
   <ul>${niche.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join("")}</ul>
   ${sections}
   ${faq}
   <nav aria-label="Related"><ul>${links}</ul></nav>
+  ${seoSiteNav()}
 </main>`;
   }
 
@@ -94,12 +127,14 @@ function crawlBody(route) {
         .join("\n");
       return `
 <main>
+  ${seoBrand()}
   <article>
     <h1>${escapeHtml(post.title)}</h1>
     <p>${escapeHtml(post.description)}</p>
     ${sections}
-    <p><a href="/blog">Blog</a> · <a href="/discord-alternative">Discord alternative</a> · <a href="/download">Download</a></p>
+    ${seoCtaRow("/blog", "All guides")}
   </article>
+  ${seoSiteNav()}
 </main>`;
     }
   }
@@ -111,38 +146,23 @@ function crawlBody(route) {
     ).join("");
     return `
 <main>
+  ${seoBrand()}
   <h1>Descall Blog</h1>
   <p>Guides on Discord alternatives, servers, voice chat, and gaming LFG.</p>
   <ul>${posts}</ul>
-  <nav aria-label="Descall">
-    <a href="/">Home</a>
-    <a href="/discord-alternative">Discord alternative</a>
-    <a href="/features">Features</a>
-    <a href="/download">Download</a>
-  </nav>
+  ${seoCtaRow("/download", "Download")}
+  ${seoSiteNav()}
 </main>`;
   }
 
   const h1 = route.h1 || route.title.replace(/\s*\|\s*Descall\s*$/i, "").replace(/\s*—\s*Descall\s*$/i, "");
   return `
 <main>
+  ${seoBrand()}
   <h1>${escapeHtml(h1)}</h1>
   <p>${escapeHtml(route.description)}</p>
-  <nav aria-label="Descall">
-    <a href="/">Home</a>
-    <a href="/discord-alternative">Discord alternative</a>
-    <a href="/alternatives">Alternatives</a>
-    <a href="/compare/discord">Descall vs Discord</a>
-    <a href="/apps-like-discord">Apps like Discord</a>
-    <a href="/features">Features</a>
-    <a href="/download">Download</a>
-    <a href="/blog">Blog</a>
-    <a href="/faq">FAQ</a>
-    <a href="/about">About</a>
-    <a href="/privacy">Privacy</a>
-    <a href="/terms">Terms</a>
-    <a href="/contact">Contact</a>
-  </nav>
+  ${seoCtaRow()}
+  ${seoSiteNav()}
 </main>`;
 }
 

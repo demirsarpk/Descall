@@ -14,10 +14,21 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+function brandBlock() {
+  return `<a class="seo-brand" href="/" aria-label="Descall home"><span class="seo-brand-mark" aria-hidden="true">D</span><span>Descall</span><span class="seo-brand-beta">Beta</span></a>`;
+}
+
+function ctaRow(extraSoftHref = "/discord-alternative", extraSoftLabel = "Discord alternative") {
+  return `<p class="seo-cta-row">
+    <a class="seo-cta-primary" href="/download">Download</a>
+    <a class="seo-cta-soft" href="${extraSoftHref}">${extraSoftLabel}</a>
+  </p>`;
+}
+
 function navBlock() {
-  // Product / niche links stay above legal so the fixed cookie banner cannot
-  // steal taps meant for “Valorant LFG” onto an adjacent Privacy link.
-  return `<nav aria-label="Descall">
+  // Download lives in the CTA row — not as a purple button mid-nav.
+  return `${ctaRow()}
+  <nav aria-label="Descall">
     <a href="/">Home</a>
     <a href="/features">Features</a>
     <a href="/discord-alternative">Discord alternative</a>
@@ -25,7 +36,6 @@ function navBlock() {
     <a href="/apps-like-discord">Apps like Discord</a>
     <a href="/discord-replacement">Discord replacement</a>
     <a href="/discord-alternative-for-lfg">Valorant LFG</a>
-    <a href="/download">Download</a>
     <a href="/faq">FAQ</a>
     <a href="/blog">Blog</a>
     <a href="/blog/migrate-from-discord-to-descall">Migrate from Discord</a>
@@ -56,6 +66,7 @@ function legalHtml(data) {
     .join("\n");
   return `
 <main>
+  ${brandBlock()}
   <article>
     <h1>${escapeHtml(data.title)}</h1>
     <p><strong>${escapeHtml(data.updated)}</strong></p>
@@ -78,6 +89,7 @@ export function corePageBody(path) {
     case "/":
       return `
 <main>
+  ${brandBlock()}
   <p><span>Beta</span> — ${escapeHtml(SITE_OPERATOR.statusNote)}</p>
   <h1>Descall — Free Discord Alternative with Servers, Chat &amp; Voice</h1>
   <p>Descall is a free Discord alternative with real servers (roles, channels, templates), chat, group voice/video, screen share, Valorant LFG, and Windows/Android apps.</p>
@@ -103,6 +115,7 @@ export function corePageBody(path) {
     case "/features":
       return `
 <main>
+  ${brandBlock()}
   <h1>Descall Features — Servers, roles, chat, calls &amp; LFG</h1>
   <p>Explore Descall features: Discord-style servers with roles &amp; channels, templates, messaging, group voice/video, screen share, Valorant LFG, and more.</p>
   <h2>Servers &amp; community tools</h2>
@@ -134,6 +147,7 @@ export function corePageBody(path) {
       ).join("\n");
       return `
 <main>
+  ${brandBlock()}
   <h1>Frequently asked questions about Descall</h1>
   <p>Answers about accounts, servers, desktop download, calls, screen share, and privacy.</p>
   ${items}
@@ -145,6 +159,7 @@ export function corePageBody(path) {
     case "/download":
       return `
 <main>
+  ${brandBlock()}
   <h1>Download Descall — Discord alternative for Windows &amp; Android</h1>
   <p>Get the Descall desktop app for Windows, use Android builds, or open the full web app in your browser.</p>
   <h2>Platforms</h2>
@@ -167,6 +182,7 @@ export function corePageBody(path) {
     case "/about":
       return `
 <main>
+  ${brandBlock()}
   <h1>About Descall</h1>
   <p><strong>Beta</strong> — ${escapeHtml(SITE_OPERATOR.statusNote)}</p>
   <p>Descall is an independent messaging and voice platform built for friends, gaming squads, and small communities who want Discord-style servers without Nitro paywalls on core chat and calls.</p>
@@ -187,6 +203,7 @@ export function corePageBody(path) {
     case "/security":
       return `
 <main>
+  ${brandBlock()}
   <h1>Security at Descall</h1>
   <p>How Descall protects chats and calls — encryption in transit, account security, and honest limits.</p>
   <h2>Transport encryption (not default E2E)</h2>
@@ -203,6 +220,7 @@ export function corePageBody(path) {
     case "/status":
       return `
 <main>
+  ${brandBlock()}
   <h1>Descall service status</h1>
   <p>${escapeHtml(SITE_OPERATOR.statusNote)}</p>
   <ul>
@@ -220,6 +238,7 @@ export function corePageBody(path) {
     case "/contact":
       return `
 <main>
+  ${brandBlock()}
   <h1>Contact Descall</h1>
   <p>Support, feedback, press, and security reports.</p>
   <h2>Support &amp; feedback</h2>
