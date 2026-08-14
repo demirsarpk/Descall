@@ -222,6 +222,7 @@ export default function MarketingApp({
         <Route path="/tr/about" element={withLayout(AboutPage, openAuth)} />
         <Route path="/tr/contact" element={withLayout(ContactPage, openAuth)} />
         <Route path="/tr/security" element={withLayout(SecurityPage, openAuth)} />
+        <Route path="/tr/compare/discord" element={withLayout(CompareDiscordPage, openAuth)} />
         <Route path="/alternatives" element={withLayout(AlternativesPage, openAuth)} />
         <Route path="/compare/discord" element={withLayout(CompareDiscordPage, openAuth)} />
         <Route

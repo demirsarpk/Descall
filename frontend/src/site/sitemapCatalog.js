@@ -73,6 +73,7 @@ export const INDEXING_PRIORITY_PATHS = [
   "/status",
   "/tr",
   "/tr/discord-alternative",
+  "/tr/compare/discord",
   "/tr/download",
 ];
 

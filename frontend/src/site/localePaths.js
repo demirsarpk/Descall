@@ -6,7 +6,17 @@
 export const TR_LOCALE_PREFIX = "/tr";
 
 /** Paths that have a dedicated /tr/* mirror (besides turkey landing). */
-export const TR_MIRROR_PATHS = ["/", "/features", "/download", "/faq", "/discord-alternative", "/about", "/contact", "/security"];
+export const TR_MIRROR_PATHS = [
+  "/",
+  "/features",
+  "/download",
+  "/faq",
+  "/discord-alternative",
+  "/compare/discord",
+  "/about",
+  "/contact",
+  "/security",
+];
 
 export function stripLocalePrefix(pathname = "/") {
   const p = String(pathname || "/").split("?")[0] || "/";

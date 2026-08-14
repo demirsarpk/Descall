@@ -31,6 +31,7 @@ const MARKETING_EXACT = new Set([
   "/tr/download",
   "/tr/faq",
   "/tr/discord-alternative",
+  "/tr/compare/discord",
   "/tr/about",
   "/tr/contact",
   "/tr/security",

@@ -349,6 +349,16 @@ export const PUBLIC_ROUTES = [
     priority: "0.9",
   },
   {
+    path: "/tr/compare/discord",
+    title: "Descall vs Discord (2026) — Özellik Karşılaştırması (TR)",
+    description:
+      "Descall ve Discord yan yana: sunucular, roller, kanallar, ses, mesajlaşma, LFG, ekran paylaşımı, mobil, masaüstü ve fiyat.",
+    h1: "Descall vs Discord — grubunuz için hangi Discord alternatifi?",
+    changefreq: "weekly",
+    priority: "0.9",
+    keywords: "descall vs discord, discord alternatifi karşılaştırma",
+  },
+  {
     path: "/tr/about",
     title: "Descall Hakkında (TR)",
     description:
