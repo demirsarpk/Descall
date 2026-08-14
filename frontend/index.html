@@ -76,8 +76,8 @@
         background: #0b0c10;
         overflow: hidden;
       }
-      html:has(#seo-static main),
-      html:has(#seo-static main) body {
+      html:has(#seo-static main):not([data-react-ready="1"]),
+      html:has(#seo-static main):not([data-react-ready="1"]) body {
         overflow: auto;
         height: auto;
         min-height: 100%;
