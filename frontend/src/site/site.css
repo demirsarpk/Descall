@@ -599,7 +599,8 @@ body:has(.mkt-consent),
 .login-modal-overlay {
   position: fixed !important;
   inset: 0;
-  z-index: 10000;
+  /* Above cookie consent (.mkt-consent is 12000) so Sign In is not buried under the banner */
+  z-index: 13000;
   display: flex;
   align-items: center;
   justify-content: center;
