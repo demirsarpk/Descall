@@ -69,18 +69,24 @@
       })();
     </script>
     <style>
-      /* Critical boot splash — paints before JS bundle */
+      /* Critical first paint — marketing must stay scrollable; only the authenticated
+         app shell locks html/body (data-app-shell). Locking overflow by default after
+         data-react-ready broke every hydrated marketing page (esp. /download). */
       html, body {
         margin: 0;
-        height: 100%;
+        min-height: 100%;
         background: #0b0c10;
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+      html[data-app-shell="1"],
+      html[data-app-shell="1"] body {
+        height: 100%;
         overflow: hidden;
       }
-      html:has(#seo-static main):not([data-react-ready="1"]),
-      html:has(#seo-static main):not([data-react-ready="1"]) body {
-        overflow: auto;
-        height: auto;
-        min-height: 100%;
+      html[data-app-shell="1"] #root {
+        height: 100%;
+        overflow: hidden;
       }
       #boot-splash {
         position: fixed;
@@ -157,11 +163,12 @@
         border: 1px solid rgba(255,255,255,0.18);
       }
       #mkt-consent-static {
-        position: fixed;
+        position: fixed !important;
         z-index: 12000;
         left: 12px;
         right: 12px;
-        bottom: 12px;
+        bottom: max(12px, env(safe-area-inset-bottom, 0px));
+        top: auto !important;
         max-width: 560px;
         margin: 0 auto;
         padding: 14px 16px;
@@ -390,6 +397,7 @@
           } catch (e0) {}
           if (!isApp && !hasToken) return;
           document.documentElement.setAttribute("data-react-ready", "1");
+          document.documentElement.setAttribute("data-app-shell", "1");
           var seo = document.getElementById("seo-static");
           if (seo) {
             seo.setAttribute("hidden", "");

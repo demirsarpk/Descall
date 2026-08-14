@@ -144,6 +144,7 @@ async function bootApp() {
   // visible above the React app — that stacks Privacy / Valorant LFG links over /play.
   try {
     document.documentElement.setAttribute("data-react-ready", "1");
+    document.documentElement.setAttribute("data-app-shell", "1");
     const seo = document.getElementById("seo-static");
     if (seo) {
       seo.setAttribute("hidden", "");

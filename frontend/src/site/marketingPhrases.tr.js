@@ -31,6 +31,10 @@ export const MARKETING_TR = {
   "Desktop": "Masaüstü",
   "Discord alternative": "Discord alternatifi",
   "Why Choose Descall?": "Neden Descall?",
+  "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and":
+    "Gerçek sunucularla (roller, kanallar, ses ve şablonlar) ücretsiz bir Discord alternatifi — artı sohbet, aramalar ve",
+  "Valorant LFG": "Valorant LFG",
+  "Servers, roles, channels, and": "Sunucular, roller, kanallar ve",
   "Servers, chat, and calls in one lighter Discord alternative — built for friends, gamers, and communities.": "Daha hafif bir Discord alternatifinde sunucular, sohbet ve aramalar — arkadaşlar, oyuncular ve topluluklar için.",
   "Create free account": "Ücretsiz hesap oluştur",
   "See all features": "Tüm özellikleri gör",

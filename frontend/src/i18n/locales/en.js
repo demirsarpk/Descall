@@ -2570,6 +2570,9 @@ export const phrases = {
   // Marketing — servers system
   "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and Valorant LFG.":
     "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and Valorant LFG.",
+  "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and":
+    "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and",
+  "Servers, roles, channels, and": "Servers, roles, channels, and",
   "Servers, chat, and calls in one lighter Discord alternative — built for friends, gamers, and communities.":
     "Servers, chat, and calls in one lighter Discord alternative — built for friends, gamers, and communities.",
   "Text, voice, and stage channels with categories — Discord-style structure, lighter feel":

@@ -2854,6 +2854,9 @@ export const phrases = {
   // Marketing — servers system
   "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and Valorant LFG.":
     "Gerçek sunucularla (roller, kanallar, ses ve şablonlar) ücretsiz bir Discord alternatifi — artı sohbet, aramalar ve Valorant LFG.",
+  "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and":
+    "Gerçek sunucularla (roller, kanallar, ses ve şablonlar) ücretsiz bir Discord alternatifi — artı sohbet, aramalar ve",
+  "Servers, roles, channels, and": "Sunucular, roller, kanallar ve",
   "Servers, chat, and calls in one lighter Discord alternative — built for friends, gamers, and communities.":
     "Daha hafif bir Discord alternatifinde sunucular, sohbet ve aramalar — arkadaşlar, oyuncular ve topluluklar için.",
   "Text, voice, and stage channels with categories — Discord-style structure, lighter feel":

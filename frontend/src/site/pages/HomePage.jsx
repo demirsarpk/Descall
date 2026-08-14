@@ -111,9 +111,14 @@ export default function HomePage({ onSignIn, onSignUp }) {
         <p>
           {heroPayload?.sub
             ? String(heroPayload.sub)
-            : t(
-                "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and Valorant LFG."
-              )}
+            : (
+              <>
+                {t(
+                  "A free Discord alternative with real servers — roles, channels, voice, and templates — plus chat, calls, and"
+                )}{" "}
+                <Link to="/discord-alternative-for-lfg">{t("Valorant LFG")}</Link>.
+              </>
+            )}
         </p>
         <div className="mkt-cta-row">
           <button
