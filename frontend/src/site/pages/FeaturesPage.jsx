@@ -58,6 +58,7 @@ const FEATURES = [
     icon: IconGamepad,
     title: "Valorant LFG",
     desc: "Create and join ranked LFG lobbies, share party codes, and link Riot Name#TAG for rank on profile.",
+    to: "/discord-alternative-for-lfg",
   },
   {
     icon: IconUsers,
@@ -100,15 +101,26 @@ export default function FeaturesPage() {
           )}
         </p>
         <div className="mkt-feature-grid">
-          {FEATURES.map((f) => (
-            <article key={f.title} className="mkt-feature">
+          {FEATURES.map((f) => {
+            const body = (
+              <>
               <div className="mkt-icon">
                 <f.icon size={20} />
               </div>
               <h2 className="mkt-feature-title">{t(f.title)}</h2>
               <p>{t(f.desc)}</p>
-            </article>
-          ))}
+              </>
+            );
+            return f.to ? (
+              <Link key={f.title} to={f.to} className="mkt-feature mkt-feature-link">
+                {body}
+              </Link>
+            ) : (
+              <article key={f.title} className="mkt-feature">
+                {body}
+              </article>
+            );
+          })}
         </div>
         <div className="mkt-cta-row" style={{ marginTop: 28 }}>
           <Link to="/download" className="mkt-btn mkt-btn-primary">

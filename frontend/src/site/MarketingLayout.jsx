@@ -163,12 +163,11 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
         <div className="mkt-footer-links">
           <Link to={L("/about")}>{t("About")}</Link>
           <Link to={L("/features")}>{t("Features")}</Link>
+          <Link to="/discord-alternative-for-lfg">{t("Valorant LFG")}</Link>
           <Link to={L("/faq")}>{t("FAQ")}</Link>
           <Link to="/blog">{t("Blog")}</Link>
           <Link to={L("/security")}>{t("Security")}</Link>
           <Link to="/status">{t("Status")}</Link>
-          <Link to="/privacy">{t("Privacy Policy")}</Link>
-          <Link to="/terms">{t("Terms")}</Link>
           <Link to={L("/contact")}>{t("Contact")}</Link>
           <Link to="/compare/discord">vs Discord</Link>
           <Link to="/discord-alternative-turkey">{t("Turkey")}</Link>
@@ -177,6 +176,10 @@ export default function MarketingLayout({ children, onSignIn, onSignUp }) {
             GitHub
           </a>
           <a href="/sitemap.html">{t("Sitemap")}</a>
+        </div>
+        <div className="mkt-footer-links mkt-footer-legal">
+          <Link to="/privacy">{t("Privacy Policy")}</Link>
+          <Link to="/terms">{t("Terms")}</Link>
         </div>
         <EmailCapture source="footer" />
         <p className="mkt-footer-trust">

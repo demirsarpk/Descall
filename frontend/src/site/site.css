@@ -369,6 +369,13 @@
   transition: transform 0.2s, border-color 0.2s;
 }
 
+a.mkt-feature-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
 .mkt-feature:hover {
   transform: translateY(-3px);
   border-color: rgba(123, 137, 255, 0.35);
@@ -504,6 +511,10 @@
   color: var(--mkt-text);
 }
 
+.mkt-footer-legal {
+  margin-top: 10px;
+}
+
 .mkt-consent {
   position: fixed;
   z-index: 12000;
@@ -520,6 +531,12 @@
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
+/* Reserve space so footer / related links are not under the fixed consent dialog. */
+body:has(.mkt-consent),
+.mkt:has(.mkt-consent) {
+  padding-bottom: 168px;
+}
+
 .mkt-consent p {
   margin: 0 0 12px;
   color: var(--mkt-muted);
@@ -529,13 +546,23 @@
 
 .mkt-consent a {
   color: #8eb6ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .mkt-consent-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
   justify-content: flex-end;
+}
+
+.mkt-consent-privacy {
+  margin-right: auto;
+  font-size: 12px;
+  padding: 0.45rem 0;
+  color: #8eb6ff;
 }
 
 .mkt-footer-trust {
