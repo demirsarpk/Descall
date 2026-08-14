@@ -16,7 +16,7 @@
 - After loading groups, always emit `groups:rejoin` so members are in group rooms for banners/fallback invites.
 - Group start looks up `group_members` in DB when client `memberIds` is empty.
 - Group screen share defaults to **720p @ ~20fps** with RTP `maxBitrate` / `maintain-framerate` (`src/lib/webrtcScreenShare.js`). Mesh encodes per peer — avoid 1080p+/60fps.
-- Prefer **browser tab** capture (`displaySurface: "browser"`, soft `ideal` constraints only). Hard `max` post-capture constraints can kill DRM tracks (Netflix black / auto-stop).
+- **Screen share (DES-10):** desktop `getDisplayMedia` **omits** `displaySurface` by default so the full OS picker (window / entire screen / tab) appears — locking `"browser"` made many users only see the Descall tab. Mobile prefers `monitor` so backgrounding keeps the share alive. Never set `preferCurrentTab`. Soft `ideal` constraints only — hard `max` post-capture can kill DRM tracks.
 - Group leave removes **only that user**; room stays open while ≥1 participant remains. Socket disconnect must not drop call membership if another tab for the same user is still connected.
 - Incoming call card is centered with `left/right + margin` — never CSS `translateX(-50%)` (Framer Motion owns `transform`).
 - Chat/banner join: `participant-joined` must still send an offer even if `startGroupCall` pre-created the PC (`useGroupCall.js`).

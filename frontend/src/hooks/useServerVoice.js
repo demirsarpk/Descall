@@ -818,7 +818,8 @@ export function useServerVoice(socket) {
         width,
         height,
         fps: frameRate,
-        preferTab: !isMobileScreenCapture(),
+        // Full OS picker on desktop (window / screen / tab) — DES-10.
+        preferTab: false,
         pickSource: showElectronScreenPicker,
       });
       const screenTrack = stream.getVideoTracks()[0];

@@ -1129,7 +1129,8 @@ export function useGroupCall(socket, currentUserId = null, callOccupancyRef = nu
         width,
         height,
         fps: frameRate,
-        preferTab: !isMobileScreenCapture(),
+        // Full OS picker on desktop (window / screen / tab) — DES-10.
+        preferTab: false,
         pickSource: showElectronScreenPicker,
       });
       

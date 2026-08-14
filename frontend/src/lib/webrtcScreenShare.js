@@ -74,13 +74,14 @@ export function isMobileScreenCapture() {
  * (or preferCurrentTab) ends the moment the user switches to YouTube/Safari
  * home — the common “arka plana alınca ekran yansıması koptu” failure.
  *
- * Desktop: optionally prefer a browser tab so Chromium shows “Share audio”.
+ * Desktop: omit `displaySurface` by default so Chromium/Edge show the full
+ * OS picker (window / entire screen / tab). DES-10: locking `browser` made
+ * many users only see the Descall tab. Pass `preferTab: true` only when you
+ * explicitly want tab-first (e.g. tab audio UX experiments).
  * Never lock preferCurrentTab — that also dies on background/tab switch.
  */
 export function buildDisplayMediaConstraints({ width, height, fps, preferTab } = {}) {
   const mobile = isMobileCapture();
-  // Mobile always wants whole-screen capture so leaving Descall keeps sharing.
-  const useTab = mobile ? false : preferTab !== false;
   const video = {
     cursor: "motion",
     frameRate: { ideal: fps, max: Math.max(fps, 30) },
@@ -91,9 +92,10 @@ export function buildDisplayMediaConstraints({ width, height, fps, preferTab } =
   }
   if (mobile) {
     video.displaySurface = "monitor";
-  } else {
-    video.displaySurface = useTab ? "browser" : "monitor";
+  } else if (preferTab === true) {
+    video.displaySurface = "browser";
   }
+  // Desktop default: no displaySurface → full source picker (window/screen/tab).
 
   return {
     video,
