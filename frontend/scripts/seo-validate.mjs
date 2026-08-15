@@ -140,6 +140,21 @@ if (/des-call\.onrender\.com/i.test(vercelJson)) {
 if (!/"statusCode"\s*:\s*301/.test(vercelJson)) {
   fail("vercel.json missing statusCode 301 redirects for www/http canonicalization");
 }
+if (!/"Strict-Transport-Security"/.test(vercelJson)) {
+  fail("vercel.json missing Strict-Transport-Security");
+}
+if (!vercelJson.includes("/tr/discord-alternative") || !vercelJson.includes("/discord-alternative-turkey")) {
+  fail("vercel.json missing TR discord-alternative → turkey 301");
+}
+
+const homeRoute = PUBLIC_ROUTES.find((r) => r.path === "/");
+if (/discord alternative/i.test(homeRoute?.title || "")) {
+  fail("Homepage title cannibalizes the /discord-alternative pillar — keep homepage brand-first");
+}
+const pillar = PUBLIC_ROUTES.find((r) => r.path === "/discord-alternative");
+if (!/discord alternative/i.test(pillar?.title || "")) {
+  fail("/discord-alternative title should include the exact-match query");
+}
 
 const seoConfigSrc = fs.readFileSync(path.join(root, "src/site/seoConfig.js"), "utf8");
 if (!seoConfigSrc.includes("canonicalOrigin") || !seoConfigSrc.includes("https://descall.com")) {
@@ -220,6 +235,14 @@ if (checkDist) {
         fail(`Thin crawl <main> in ${rel} (${mainMatch ? mainMatch[0].length : 0} chars)`);
       }
       if (route.path === "/faq" && !html.includes('"@type":"FAQPage"') && !html.includes('"@type": "FAQPage"')) {
+        fail(`FAQPage JSON-LD missing in ${rel}`);
+      }
+      if (
+        ["/discord-alternative", "/alternatives", "/compare/discord", "/discord-alternative-turkey"].includes(
+          route.path
+        ) &&
+        !html.includes("FAQPage")
+      ) {
         fail(`FAQPage JSON-LD missing in ${rel}`);
       }
       if (

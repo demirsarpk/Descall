@@ -19,7 +19,7 @@ const OG = `${SITE}/og-default.png`;
 
 const { PUBLIC_ROUTES } = await import(pathToFileURL(path.join(root, "src/site/seoConfig.js")).href);
 const { NICHE_LANDINGS } = await import(pathToFileURL(path.join(root, "src/site/seo/nicheLandings.js")).href);
-const { BLOG_POSTS } = await import(
+const { BLOG_POSTS, ALTERNATIVE_HUB_FAQ, ALTERNATIVES_FAQ, COMPARE_FAQ, TURKEY_FAQ, BLOG_FAQ_BY_SLUG } = await import(
   pathToFileURL(path.join(root, "src/site/content/discordSeoContent.js")).href
 );
 const { BLOG_BODIES } = await import(pathToFileURL(path.join(root, "src/site/seo/blogBodies.js")).href);
@@ -33,6 +33,9 @@ const {
   buildArticleLd,
   buildBreadcrumbLd,
 } = await import(pathToFileURL(path.join(root, "src/site/jsonLdBuilders.js")).href);
+const { enPathForHreflang, trPathForHreflang } = await import(
+  pathToFileURL(path.join(root, "src/site/localePaths.js")).href
+);
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -54,6 +57,8 @@ function seoSiteNav() {
   return `<p class="seo-explore-label">Explore</p>
   <nav aria-label="Descall">
     <a href="/features">Features</a>
+    <a href="/discord-alternative">Discord alternative</a>
+    <a href="/alternatives">Alternatives</a>
     <a href="/discord-alternative-for-lfg">Valorant LFG</a>
     <a href="/compare/discord">vs Discord</a>
     <a href="/apps-like-discord">Apps like Discord</a>
@@ -96,8 +101,8 @@ function crawlBody(route) {
       .map((l) => `<li><a href="${escapeHtml(l.to)}">${escapeHtml(l.label)}</a></li>`)
       .join("");
     const faq =
-      Array.isArray(niche.faqs) && niche.faqs.length
-        ? `<h2>FAQ</h2>${niche.faqs
+      Array.isArray(niche.faq) && niche.faq.length
+        ? `<h2>FAQ</h2>${niche.faq
             .map((f) => `<h3>${escapeHtml(f.q)}</h3><p>${escapeHtml(f.a)}</p>`)
             .join("\n")}`
         : "";
@@ -183,10 +188,22 @@ function jsonLdForRoute(route) {
   if (route.path === "/faq") {
     graphs.push(buildFaqLd(FAQ_ITEMS));
   }
+  if (route.path === "/discord-alternative") {
+    graphs.push(buildFaqLd(ALTERNATIVE_HUB_FAQ), buildSoftwareApplicationLd());
+  }
+  if (route.path === "/alternatives") {
+    graphs.push(buildFaqLd(ALTERNATIVES_FAQ));
+  }
+  if (route.path === "/compare/discord" || route.path === "/tr/compare/discord") {
+    graphs.push(buildFaqLd(COMPARE_FAQ));
+  }
+  if (route.path === "/discord-alternative-turkey") {
+    graphs.push(buildFaqLd(TURKEY_FAQ), buildSoftwareApplicationLd());
+  }
 
   const niche = NICHE_LANDINGS[route.path];
-  if (niche?.faqs?.length) {
-    graphs.push(buildFaqLd(niche.faqs));
+  if (niche?.faq?.length) {
+    graphs.push(buildFaqLd(niche.faq));
   }
 
   if (route.path.startsWith("/blog/") && route.path !== "/blog") {
@@ -210,6 +227,8 @@ function jsonLdForRoute(route) {
         { name: post?.title || slug, path: route.path },
       ])
     );
+    const blogFaq = BLOG_FAQ_BY_SLUG[slug];
+    if (blogFaq?.length) graphs.push(buildFaqLd(blogFaq));
   }
 
   return graphs;
@@ -232,7 +251,11 @@ function injectMeta(html, route) {
   const title = escapeHtml(route.title);
   const desc = escapeHtml(route.description);
   const keywords = route.keywords ? escapeHtml(route.keywords) : "";
-  const lang = route.lang || "en";
+  const lang =
+    route.lang ||
+    (route.path === "/discord-alternative-turkey" || route.path === "/tr" || route.path.startsWith("/tr/")
+      ? "tr"
+      : "en");
   const ogType = route.ogType || "website";
 
   let out = stripBootSplash(html);
@@ -240,20 +263,16 @@ function injectMeta(html, route) {
   out = out.replace(/<html\s+lang="[^"]*"/i, `<html lang="${lang}"`);
   out = out.replace(/<title>[^<]*<\/title>/i, `<title>${title}</title>`);
 
-  const isTurkey = route.path === "/discord-alternative-turkey" || lang === "tr";
-  const hreflang = isTurkey
-    ? [
-        `<link rel="alternate" hreflang="tr" href="${url}" />`,
-        `<link rel="alternate" hreflang="en" href="${SITE}/discord-alternative" />`,
-        `<link rel="alternate" hreflang="x-default" href="${SITE}/discord-alternative" />`,
-      ]
-    : [
-        `<link rel="alternate" hreflang="en" href="${url}" />`,
-        `<link rel="alternate" hreflang="x-default" href="${url}" />`,
-        ["/discord-alternative", "/", "/features", "/download", "/faq"].includes(route.path)
-          ? `<link rel="alternate" hreflang="tr" href="${SITE}/discord-alternative-turkey" />`
-          : "",
-      ];
+  const enPath = enPathForHreflang(route.path);
+  const trPath = trPathForHreflang(route.path);
+  const enHref = `${SITE}${enPath === "/" ? "/" : enPath}`;
+  const trHref = `${SITE}${trPath}`;
+  const isTr = route.lang === "tr" || route.path === "/discord-alternative-turkey" || route.path.startsWith("/tr");
+  const hreflang = [
+    `<link rel="alternate" hreflang="en" href="${enHref}" />`,
+    `<link rel="alternate" hreflang="tr" href="${trHref}" />`,
+    `<link rel="alternate" hreflang="x-default" href="${enHref}" />`,
+  ];
 
   const ldScripts = jsonLdForRoute(route)
     .map(
@@ -276,7 +295,7 @@ function injectMeta(html, route) {
     `<meta property="og:image" content="${OG}" />`,
     `<meta property="og:image:width" content="1200" />`,
     `<meta property="og:image:height" content="630" />`,
-    `<meta property="og:locale" content="${isTurkey ? "tr_TR" : "en_US"}" />`,
+    `<meta property="og:locale" content="${isTr ? "tr_TR" : "en_US"}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${title}" />`,
     `<meta name="twitter:description" content="${desc}" />`,

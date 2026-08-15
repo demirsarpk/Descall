@@ -62,6 +62,10 @@ export default function DiscordAlternativeTurkeyPage({ onSignIn, onSignUp }) {
           Dev bot ekosistemi veya on binlerce üyeli kamu sunucuları için Discord hâlâ güçlüdür; Descall klan, sınıf ve oyuncu toplulukları için tasarlandı.
         </p>
         <p>
+          Discord benzeri uygulamalar veya bir Discord muadili arıyorsan önce işe bak: sadece mesaj mı, yoksa ses + ekran paylaşımı + sunucu mu?
+          Descall ikinci grup içindir — klan, sınıf ve Valorant partileri için Türkçe arayüzlü, ücretsiz bir Discord alternatifi.
+        </p>
+        <p>
           Hemen denemek için{" "}
           <button type="button" className="legal-consent-link" onClick={startFree}>
             ücretsiz hesap aç
@@ -84,7 +88,10 @@ export default function DiscordAlternativeTurkeyPage({ onSignIn, onSignUp }) {
             <Link to="/best-discord-alternative-for-gamers">Gamers / LFG</Link>
           </li>
           <li>
-            <Link to="/discord-alternative-for-friends">{t("Discord alternative for friends")}</Link>
+            <Link to="/alternatives">Discord alternatives (English list)</Link>
+          </li>
+          <li>
+            <Link to="/tr">Türkçe ana sayfa</Link>
           </li>
         </ul>
       </section>

@@ -47,12 +47,12 @@ function upsertLink(rel, href, extra = {}) {
 export default function SeoHead({ forceNoindex = false, title, description, path, image }) {
   const location = useLocation();
   const rawPath = path || location.pathname || "/";
-  const tr = isTrPath(rawPath);
   const pathname = stripLocalePrefix(rawPath);
-  const meta = routeMeta(pathname);
+  const meta = routeMeta(rawPath);
   const pageTitle = title || meta.title;
   const pageDesc = description || meta.description;
   const noindex = forceNoindex || meta.noindex;
+  const tr = isTrPath(rawPath) || meta.lang === "tr";
   const canonicalPath = tr
     ? rawPath === "/tr" || rawPath === "/tr/"
       ? "/tr"
@@ -73,11 +73,11 @@ export default function SeoHead({ forceNoindex = false, title, description, path
       "robots",
       noindex ? "noindex,nofollow" : "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"
     );
-    upsertMeta(
-      "name",
-      "keywords",
-      "discord alternative, descall, free discord alternative, voice chat, screen share, valorant lfg, discord benzeri"
-    );
+    if (meta.keywords) {
+      upsertMeta("name", "keywords", meta.keywords);
+    } else {
+      document.head.querySelector('meta[name="keywords"]')?.remove();
+    }
     upsertLink("canonical", canonical);
 
     const origin = DEFAULT_ORIGIN.replace(/\/$/, "");
@@ -119,7 +119,7 @@ export default function SeoHead({ forceNoindex = false, title, description, path
     upsertMeta("name", "twitter:title", pageTitle);
     upsertMeta("name", "twitter:description", pageDesc);
     upsertMeta("name", "twitter:image", ogImage);
-  }, [pageTitle, pageDesc, noindex, canonical, ogImage, ogImageWebp, meta.ogType, rawPath, tr]);
+  }, [pageTitle, pageDesc, noindex, canonical, ogImage, ogImageWebp, meta.ogType, meta.keywords, rawPath, tr]);
 
   return null;
 }

@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import SeoLandingShell from "../components/SeoLandingShell";
+import SeoRelatedLinks from "../components/SeoRelatedLinks";
 import { buildBreadcrumbLd, buildFaqLd } from "../JsonLd";
-import { COMPARE_FAQ } from "../content/discordSeoContent";
+import { ALTERNATIVES_FAQ } from "../content/discordSeoContent";
 import { useT } from "../../context/localeContextInstance";
 
 const crumbs = [
@@ -59,12 +60,12 @@ export default function AlternativesPage() {
     <SeoLandingShell
       breadcrumbs={crumbs}
       kicker={t("Discord alternatives · 2026")}
-      title={t("Discord alternatives worth switching to")}
+      title={t("Discord alternatives compared — pick by what you actually need")}
       lead={t(
         "Searching for Discord alternatives? Most lists recycle the same voice apps. Here’s a clearer take — and why Descall wins for friends, LFG, and free core chat/calls."
       )}
-      faq={COMPARE_FAQ.slice(0, 3)}
-      jsonLd={[buildBreadcrumbLd(crumbs), buildFaqLd(COMPARE_FAQ.slice(0, 3))]}
+      faq={ALTERNATIVES_FAQ}
+      jsonLd={[buildBreadcrumbLd(crumbs), buildFaqLd(ALTERNATIVES_FAQ)]}
       primaryCta={
         <Link to="/discord-alternative" className="mkt-btn mkt-btn-primary">
           {t("Why Descall")}
@@ -124,6 +125,17 @@ export default function AlternativesPage() {
           </li>
         </ul>
       </section>
+      <SeoRelatedLinks
+        title="Related comparisons"
+        links={[
+          { to: "/discord-alternative", label: "Free Discord alternative" },
+          { to: "/compare/discord", label: "Discord vs Descall" },
+          { to: "/apps-like-discord", label: "Apps like Discord" },
+          { to: "/discord-replacement", label: "Discord replacement" },
+          { to: "/discord-alternative-turkey", label: "Discord alternatifi (TR)" },
+          { to: "/download", label: "Download" },
+        ]}
+      />
     </SeoLandingShell>
   );
 }
