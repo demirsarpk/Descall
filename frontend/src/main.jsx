@@ -95,9 +95,9 @@ const statusEl = document.getElementById("boot-status");
 if (statusEl) statusEl.textContent = translate(bootLocale, "Starting app");
 
 /**
- * Progressive marketing hydration: keep #seo-static visible (MPA links work).
- * Hydrate React only when the visitor needs interactive UI (auth / language / menu),
- * not on idle timers — this keeps first-load JS minimal.
+ * Progressive marketing hydration: paint #seo-static first (LCP / crawlers),
+ * then swap to the real MarketingLayout nav — never leave humans stuck on the
+ * crawler text shell (looks like a broken menu).
  */
 function scheduleMarketingHydration(run) {
   let started = false;
@@ -118,9 +118,9 @@ function scheduleMarketingHydration(run) {
   const onEngage = (e) => {
     const t = e?.target;
     if (!t || typeof t.closest !== "function") return;
-    // Native SEO links stay MPA — do not hydrate.
+    // Native SEO <a href> stays MPA — full navigation, no client hydrate required.
     if (t.closest("#seo-static a[href]")) return;
-    // Explicit hydrate hooks in prerender shell / future CTAs.
+    // Explicit hydrate hooks in prerender shell / CTAs (Start free, Sign in, …).
     if (t.closest("[data-hydrate], [data-auth], button, [role='button']")) start();
   };
   const cleanup = () => {
@@ -134,14 +134,16 @@ function scheduleMarketingHydration(run) {
   window.addEventListener("pointerdown", onEngage, { passive: true });
   window.addEventListener("keydown", onEngage);
   // Deep-link auth routes must hydrate immediately.
-  if (/^\/(login|register)\/?$/.test(path) || /[?&]auth=/.test(window.location.search || "")) {
+  if (/^\/(login|register|tr\/login|tr\/register)\/?$/.test(path) || /[?&]auth=/.test(window.location.search || "")) {
     start();
+    return;
   }
-  // Niche / SEO shells: hydrate shortly so visitors are not stuck on the static first paint.
-  // Keep delay short — CSS already makes the shell readable.
-  else if (isPublicMarketingPath(path) && path !== "/") {
-    window.setTimeout(start, 900);
-  }
+  if (!isPublicMarketingPath(path)) return;
+  // Home (/ and /tr) must hydrate quickly — the prerender shell is for bots/LCP,
+  // not the permanent human UI (users reported it as a "broken menu").
+  // Other marketing routes hydrate shortly after first paint.
+  const isHome = path === "/" || path === "/tr" || path === "/tr/";
+  window.setTimeout(start, isHome ? 120 : 900);
 }
 
 async function bootApp() {
