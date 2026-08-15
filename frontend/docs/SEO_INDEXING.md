@@ -12,18 +12,19 @@ npm run seo:link-audit  # orphan internal-link check
 npm run seo:prod-check  # live HTML/CWV smoke
 ```
 
-## One-time Google Search Console
+## Google Search Console
 
-1. Open [Google Search Console](https://search.google.com/search-console) → add property `https://descall.com`
-2. Verify ownership (pick one):
-   - **HTML meta tag (recommended for Vercel):** set `VITE_GSC_VERIFICATION` in Vercel env to the token Google shows (`content="…"` value). Redeploy — Vite injects `<meta name="google-site-verification">` into `index.html`.
-   - DNS TXT, or HTML file upload if you prefer those methods
-3. Optional Bing Webmaster: set `VITE_BING_SITE_VERIFICATION` (injects `msvalidate.01`)
-4. Submit sitemap: `https://descall.com/sitemap.xml`
-5. Optional Google Indexing API:
-   - Create a GCP service account with Indexing API enabled
-   - Share the GSC property with that service account email
-   - Export JSON key and set env `GOOGLE_INDEXING_CREDENTIALS_JSON` (stringified) when running `npm run seo:index`
+**Domain property + DNS TXT is enough.** `descall.com` verified as a Domain property already covers `https://`, `http://`, `www`, and other hostnames. Do **not** create a URL-prefix property (`https://descall.com`) just to get an HTML token.
+
+`VITE_GSC_VERIFICATION` is **not required**. Vite injects `<meta name="google-site-verification">` only if that env var is set. Skip it.
+
+Use the HTML meta path only if you later add a *separate* URL-prefix property and choose HTML-tag verification there. That is optional duplication, not a ranking requirement.
+
+Still do in the existing Domain property:
+
+1. Sitemap: `https://descall.com/sitemap.xml`
+2. Optional Bing Webmaster: `VITE_BING_SITE_VERIFICATION` (injects `msvalidate.01`) — Bing has no Domain-property DNS equivalent in this repo
+3. Optional Google Indexing API: add a GCP service account as a user on the **same Domain property**, set `GOOGLE_INDEXING_CREDENTIALS_JSON` when running `npm run seo:index`
 
 ## Mobile LCP notes (DES-50)
 
@@ -42,7 +43,7 @@ Do **not** click your own Google results, hire click farms, buy links, or stuff 
 
 What *does* help, using Search Console data:
 
-1. **HTTPS-only property.** Prefer the `https://descall.com` URL-prefix property (or a Domain property). `http://descall.com/` showing as a separate page is leftover indexing — `vercel.json` 301s HTTP→HTTPS and sends HSTS. In GSC, use URL Inspection on a few `http://` URLs and request indexing after the 301 is visible.
+1. **HTTP leftovers in a Domain property.** Domain properties list `http://descall.com/` and `https://descall.com/` as separate URLs. That is expected, not a missing verification. `vercel.json` 301s HTTP→HTTPS and sends HSTS. Inspect a few `http://` URLs; Google should follow the 301 to the HTTPS canonical.
 2. **Exact-match pillar.** `/discord-alternative` owns `discord alternative`. Homepage titles stay brand-first (`Descall — Voice Chat…`) so they do not steal that query.
 3. **CTR on pages that already rank.** `/alternatives` (~position 4, 0 clicks) and `/compare/discord` (~position 9, 0 clicks) are snippet problems, not crawl problems — titles/descriptions are written to earn the click.
 4. **Turkish queries** (`discord alternatifi`, `muadili`, `benzeri`) consolidate on `/discord-alternative-turkey`. `/tr/discord-alternative` 301s there so the two TR URLs do not compete.

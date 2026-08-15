@@ -36,6 +36,7 @@ function descallHtmlSeoPlugin() {
       order: "post",
       handler(_html, ctx) {
         const tags = [];
+        // Optional. Domain-property DNS verification does not need this token.
         const gsc = String(process.env.VITE_GSC_VERIFICATION || "").trim();
         const bing = String(process.env.VITE_BING_SITE_VERIFICATION || "").trim();
         if (gsc) {
