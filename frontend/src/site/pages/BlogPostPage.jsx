@@ -2,22 +2,10 @@ import { Link, useParams } from "react-router-dom";
 import SeoLandingShell from "../components/SeoLandingShell";
 import SeoRelatedLinks from "../components/SeoRelatedLinks";
 import { buildArticleLd, buildBreadcrumbLd, buildFaqLd } from "../JsonLd";
-import { BLOG_POSTS, BLOG_RELATED, COMPARE_FAQ, GAMER_FAQ } from "../content/discordSeoContent";
+import { BLOG_POSTS, BLOG_RELATED, BLOG_FAQ_BY_SLUG, GAMER_FAQ } from "../content/discordSeoContent";
 import { BLOG_BODIES } from "../seo/blogBodies";
 import { useT } from "../../context/localeContextInstance";
 import NotFoundPage from "./NotFoundPage";
-
-const FAQ_BY_SLUG = {
-  "discord-vs-descall": COMPARE_FAQ,
-  "best-discord-alternative-for-lfg": GAMER_FAQ,
-  "leave-nitro-keep-voice-chat": COMPARE_FAQ.slice(0, 3),
-  "best-discord-alternatives-2026": COMPARE_FAQ.slice(0, 4),
-  "apps-like-discord": COMPARE_FAQ.slice(0, 3),
-  "discord-competitors": COMPARE_FAQ.slice(0, 3),
-  "discord-alternative-for-communities-guide": COMPARE_FAQ.slice(0, 3),
-  "voice-chat-alternative-to-discord": GAMER_FAQ,
-  "migrate-from-discord-to-descall": COMPARE_FAQ.slice(0, 4),
-};
 
 export default function BlogPostPage({ onSignIn }) {
   const { slug } = useParams();
@@ -26,7 +14,7 @@ export default function BlogPostPage({ onSignIn }) {
   const body = BLOG_BODIES[slug];
   if (!post || !body) return <NotFoundPage />;
 
-  const faq = FAQ_BY_SLUG[slug] || COMPARE_FAQ.slice(0, 3);
+  const faq = BLOG_FAQ_BY_SLUG[slug] || GAMER_FAQ.slice(0, 2);
   const crumbs = [
     { label: "Home", to: "/" },
     { label: "Blog", to: "/blog" },

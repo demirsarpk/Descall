@@ -1,5 +1,7 @@
 /** Canonical public marketing routes + head metadata. */
 
+import { stripLocalePrefix } from "./localePaths.js";
+
 export const SITE_NAME = "Descall";
 // descall.com is the canonical public host; the Render hostname is infrastructure.
 export const DEFAULT_ORIGIN = "https://descall.com";
@@ -38,58 +40,59 @@ export function absoluteUrl(path = "/") {
 export const PUBLIC_ROUTES = [
   {
     path: "/",
-    title: "Descall — Free Discord Alternative with Servers, Chat & Voice",
+    title: "Descall — Voice Chat, Servers & Screen Share",
     description:
-      "Descall is a free Discord alternative with real servers (roles, channels, templates), chat, group voice/video, screen share, Valorant LFG, and Windows/Android apps.",
+      "HD voice, video, screen share, and Discord-style servers — plus Valorant LFG. Free chat for friends and gamers. Start in the browser or download Windows.",
     changefreq: "daily",
     priority: "1.0",
-    keywords: "discord alternative, descall, discord servers alternative, free voice chat, valorant lfg",
   },
   {
     path: "/download",
-    title: "Download Descall — Discord alternative for Windows & Android",
+    title: "Download Descall for Windows — Free Voice Chat App",
     description:
-      "Download the Descall desktop app for Windows or use Android/web. A free Discord alternative for servers, chat, voice, video, and screen share.",
+      "Get the Windows desktop app, Android build, or full web app. Free voice, video, screen share, and servers — install in a minute.",
     changefreq: "weekly",
     priority: "0.9",
+    keywords: "download descall, descall windows, descall android",
   },
   {
     path: "/features",
-    title: "Descall Features — Servers, roles, chat, calls & LFG",
+    title: "Descall Features — Free Voice, Screen Share & Servers",
     description:
-      "Explore Descall features: Discord-style servers with roles & channels, templates, messaging, group voice/video, screen share, Valorant LFG, and more.",
+      "See what’s included for free: HD voice/video, screen share, Discord-style servers, roles, templates, and Valorant LFG. No Nitro wall on talking.",
     changefreq: "weekly",
     priority: "0.85",
+    keywords: "descall features, free voice chat, screen share app",
   },
   {
     path: "/discord-alternative",
-    title: "Best Free Discord Alternative for Friends & Gamers | Descall",
+    title: "Free Discord Alternative — Voice, Screen Share & LFG",
     description:
-      "Descall is a free Discord alternative with real servers, roles, channels, HD voice/video, screen share, and Valorant LFG — no Nitro paywall on core features.",
+      "A free Discord alternative with real servers, HD voice/video, screen share, and Valorant LFG. Core chat and calls stay free — no Nitro paywall.",
     h1: "The best free Discord alternative for friends & gamers",
     changefreq: "weekly",
     priority: "0.95",
-    keywords: "discord alternative, best discord alternative, free discord alternative, discord server alternative",
+    keywords: "discord alternative, free discord alternative, best discord alternative",
   },
   {
     path: "/alternatives",
-    title: "Best Discord Alternatives in 2026 — Compare Apps Like Discord",
+    title: "Discord Alternatives Compared — Free Voice & Servers",
     description:
-      "Compare Discord alternatives and apps like Discord for servers, chat, voice, and LFG. See why friend groups pick Descall as a lighter free option.",
-    h1: "Discord alternatives worth switching to",
+      "Honest 2026 comparison of Discord alternatives: Descall, Discord, Guilded, TeamSpeak, Telegram. Free voice, screen share, and friend-group servers.",
+    h1: "Discord alternatives compared — pick by what you actually need",
     changefreq: "weekly",
     priority: "0.9",
     keywords: "discord alternatives, apps like discord, best discord alternatives 2026",
   },
   {
     path: "/compare/discord",
-    title: "Descall vs Discord (2026) — Feature Comparison & Verdict",
+    title: "Discord vs Descall (2026) — Which Should You Use?",
     description:
-      "Side-by-side Descall vs Discord: servers, roles, channels, templates, voice, messaging, LFG, screen share, mobile, desktop, and pricing.",
-    h1: "Descall vs Discord — which Discord alternative fits your group?",
+      "Side-by-side Discord vs Descall: servers, roles, voice, screen share, LFG, mobile, and price. Clear verdict for friend groups vs mega-communities.",
+    h1: "Discord vs Descall — which fits your group in 2026?",
     changefreq: "weekly",
     priority: "0.95",
-    keywords: "descall vs discord, discord vs descall, discord alternative comparison",
+    keywords: "discord vs descall, descall vs discord",
   },
   {
     path: "/best-discord-alternative-for-gamers",
@@ -156,13 +159,13 @@ export const PUBLIC_ROUTES = [
   },
   {
     path: "/discord-alternative-turkey",
-    title: "Türkiye için Discord Alternatifi — Descall",
+    title: "Türkiye için Discord Alternatifi — Ücretsiz Sesli Sohbet",
     description:
-      "Discord alternatifi mi arıyorsun? Descall: ücretsiz sohbet, sesli arama, ekran paylaşımı ve Valorant LFG. Türkçe arayüz, Windows ve Android.",
+      "Discord alternatifi, muadili veya benzeri uygulama mı arıyorsun? Descall: ücretsiz sohbet, sesli arama, ekran paylaşımı ve Valorant LFG. Türkçe arayüz.",
     changefreq: "weekly",
     priority: "0.9",
     lang: "tr",
-    keywords: "discord alternatifi, discord alternatifleri, ücretsiz sesli sohbet",
+    keywords: "discord alternatifi, discord muadili, discord benzeri uygulamalar",
   },
   {
     path: "/blog",
@@ -255,9 +258,9 @@ export const PUBLIC_ROUTES = [
   },
   {
     path: "/faq",
-    title: "Descall FAQ — Discord alternative questions answered",
+    title: "Descall FAQ — Is It Free? Voice, Screen Share & Apps",
     description:
-      "FAQ about Descall as a Discord alternative — accounts, desktop download, calls, screen share, LFG, and privacy.",
+      "Quick answers: is Descall free, how calls and screen share work, Windows/Android download, LFG, accounts, and privacy.",
     changefreq: "weekly",
     priority: "0.75",
   },
@@ -295,9 +298,9 @@ export const PUBLIC_ROUTES = [
   },
   {
     path: "/about",
-    title: "About Descall — Building a lighter Discord alternative",
+    title: "About Descall — Independent Chat App from Türkiye",
     description:
-      "Descall is an independent beta Discord alternative by Demir Sarp Kurtlar (Türkiye). Contact contact@descall.com for support.",
+      "Descall is an independent beta voice-and-chat app by Demir Sarp Kurtlar in Türkiye. Contact contact@descall.com for support.",
     changefreq: "monthly",
     priority: "0.65",
   },
@@ -311,25 +314,25 @@ export const PUBLIC_ROUTES = [
   },
   {
     path: "/tr",
-    title: "Descall — Ücretsiz Discord Alternatifi (TR)",
+    title: "Descall — Sesli Sohbet, Sunucular ve Ekran Paylaşımı",
     description:
-      "Descall, sunucu, sohbet, ses/görüntü ve Valorant LFG sunan ücretsiz bir Discord alternatifidir. Türkçe arayüz.",
+      "HD ses, görüntü, ekran paylaşımı ve sunucular. Arkadaş grupları ve oyuncular için ücretsiz sohbet. Tarayıcı veya Windows.",
     changefreq: "weekly",
     priority: "0.9",
   },
   {
     path: "/tr/features",
-    title: "Descall Özellikleri — Sunucu, sohbet, arama (TR)",
+    title: "Descall Özellikleri — Ücretsiz Ses ve Ekran Paylaşımı",
     description:
-      "Descall özellikleri: roller, kanallar, şablonlar, mesajlaşma, ses/görüntü, ekran paylaşımı ve Valorant LFG.",
+      "Ücretsiz neler var: HD ses/görüntü, ekran paylaşımı, sunucular, roller, şablonlar ve Valorant LFG. Konuşmak için abonelik yok.",
     changefreq: "weekly",
     priority: "0.8",
   },
   {
     path: "/tr/download",
-    title: "Descall İndir — Windows & Android (TR)",
+    title: "Descall İndir — Windows için Ücretsiz Sesli Sohbet",
     description:
-      "Descall masaüstü Windows kurucusu ve Android APK indirme. Ücretsiz Discord alternatifi — sohbet, ses ve sunucular.",
+      "Windows kurucusu, Android APK veya tarayıcı. Ücretsiz ses, görüntü, ekran paylaşımı ve sunucular — bir dakikada kur.",
     changefreq: "weekly",
     priority: "0.85",
   },
@@ -341,19 +344,11 @@ export const PUBLIC_ROUTES = [
     priority: "0.7",
   },
   {
-    path: "/tr/discord-alternative",
-    title: "En İyi Ücretsiz Discord Alternatifi | Descall (TR)",
-    description:
-      "Descall: sunucular, roller, ses, ekran paylaşımı ve LFG ile ücretsiz Discord alternatifi.",
-    changefreq: "weekly",
-    priority: "0.9",
-  },
-  {
     path: "/tr/compare/discord",
-    title: "Descall vs Discord (2026) — Özellik Karşılaştırması (TR)",
+    title: "Discord mu Descall mı? 2026 Karşılaştırması",
     description:
-      "Descall ve Discord yan yana: sunucular, roller, kanallar, ses, mesajlaşma, LFG, ekran paylaşımı, mobil, masaüstü ve fiyat.",
-    h1: "Descall vs Discord — grubunuz için hangi Discord alternatifi?",
+      "Discord vs Descall yan yana: sunucular, roller, ses, ekran paylaşımı, LFG ve fiyat. Arkadaş grubu için hangisi daha uygun?",
+    h1: "Discord mu Descall mı — 2026 karşılaştırması",
     changefreq: "weekly",
     priority: "0.9",
     keywords: "descall vs discord, discord alternatifi karşılaştırma",
@@ -388,6 +383,11 @@ export function routeMeta(pathname) {
   const clean = (pathname || "/").replace(/\/+$/, "") || "/";
   const hit = PUBLIC_ROUTES.find((r) => r.path === clean);
   if (hit) return { ...hit, noindex: false };
+  const stripped = stripLocalePrefix(clean);
+  if (stripped !== clean) {
+    const enHit = PUBLIC_ROUTES.find((r) => r.path === stripped);
+    if (enHit) return { ...enHit, noindex: false };
+  }
   // Auth deep-links — crawlable entry should be marketing pages, not thin auth URLs
   if (clean === "/register" || clean === "/login") {
     return {

@@ -237,7 +237,7 @@ export default function MarketingApp({
           })}
         />
         <Route path="/tr/faq" element={withLayout(FaqPage, openAuth)} />
-        <Route path="/tr/discord-alternative" element={withLayout(DiscordAlternativePage, openAuth)} />
+        <Route path="/tr/discord-alternative" element={<Navigate to="/discord-alternative-turkey" replace />} />
         <Route path="/tr/about" element={withLayout(AboutPage, openAuth)} />
         <Route path="/tr/contact" element={withLayout(ContactPage, openAuth)} />
         <Route path="/tr/security" element={withLayout(SecurityPage, openAuth)} />

@@ -19,7 +19,7 @@ export default function CompareDiscordPage({ onSignIn }) {
     <SeoLandingShell
       breadcrumbs={crumbs}
       kicker="Descall vs Discord"
-      title={t("Descall vs Discord — which Discord alternative fits your group?")}
+      title={t("Discord vs Descall — which fits your group in 2026?")}
       lead={t(
         "An honest Descall vs Discord comparison for servers, roles, channels, chat, voice, video, screen share, LFG, desktop apps, and pricing. Use this when evaluating Descall as a Discord alternative in 2026."
       )}

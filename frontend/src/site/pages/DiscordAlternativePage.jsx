@@ -14,7 +14,7 @@ import {
   buildFaqLd,
   buildDiscordAlternativeAppLd,
 } from "../JsonLd";
-import { ALTERNATIVE_PILLARS, COMPARE_FAQ, COMPARE_ROWS } from "../content/discordSeoContent";
+import { ALTERNATIVE_PILLARS, ALTERNATIVE_HUB_FAQ, COMPARE_ROWS } from "../content/discordSeoContent";
 import { useT } from "../../context/localeContextInstance";
 
 const crumbs = [
@@ -24,7 +24,7 @@ const crumbs = [
 
 export default function DiscordAlternativePage({ onSignIn, onSignUp }) {
   const t = useT();
-  const faq = COMPARE_FAQ;
+  const faq = ALTERNATIVE_HUB_FAQ;
   const startFree = () => (onSignUp || onSignIn)?.({ mode: "register", source: "discord_alternative" });
 
   return (

@@ -76,6 +76,9 @@ export const KEYWORD_STRATEGY = [
   { keyword: "best discord alternatives 2026", intent: "informational", targetPath: "/blog/best-discord-alternatives-2026", priority: "P1", funnel: "MOF", commercialIntent: "medium", cluster: "blog" },
   { keyword: "discord alternatifi", intent: "commercial", targetPath: "/discord-alternative-turkey", priority: "P0", funnel: "BOF", commercialIntent: "high", cluster: "i18n" },
   { keyword: "discord alternatifleri", intent: "commercial", targetPath: "/discord-alternative-turkey", priority: "P1", funnel: "MOF", commercialIntent: "high", cluster: "i18n" },
+  { keyword: "discord muadili", intent: "commercial", targetPath: "/discord-alternative-turkey", priority: "P1", funnel: "MOF", commercialIntent: "high", cluster: "i18n" },
+  { keyword: "discord benzeri uygulamalar", intent: "commercial", targetPath: "/discord-alternative-turkey", priority: "P1", funnel: "MOF", commercialIntent: "medium", cluster: "i18n" },
+  { keyword: "türk discord alternatifi", intent: "commercial", targetPath: "/discord-alternative-turkey", priority: "P1", funnel: "BOF", commercialIntent: "high", cluster: "i18n" },
 
   // Brand
   { keyword: "descall", intent: "navigational", targetPath: "/", priority: "P1", funnel: "BOF", commercialIntent: "high", cluster: "brand" },

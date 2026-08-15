@@ -11,7 +11,6 @@ export const TR_MIRROR_PATHS = [
   "/features",
   "/download",
   "/faq",
-  "/discord-alternative",
   "/compare/discord",
   "/about",
   "/contact",
@@ -40,14 +39,20 @@ export function isTrPath(pathname = "/") {
 }
 
 export function enPathForHreflang(pathname = "/") {
-  return stripLocalePrefix(pathname);
+  const en = stripLocalePrefix(pathname);
+  if (en === "/discord-alternative-turkey") return "/discord-alternative";
+  return en;
 }
 
 export function trPathForHreflang(pathname = "/") {
   const en = stripLocalePrefix(pathname);
-  if (en === "/discord-alternative-turkey") return "/discord-alternative-turkey";
+  if (en === "/discord-alternative" || en === "/discord-alternative-turkey") {
+    return "/discord-alternative-turkey";
+  }
   if (TR_MIRROR_PATHS.includes(en) || en === "/") return withTrPrefix(en);
   // Niche pages: fall back to turkey landing for TR alternate
-  if (en.includes("discord") || en.startsWith("/blog")) return "/discord-alternative-turkey";
+  if (en.includes("discord") || en.startsWith("/blog") || en === "/alternatives") {
+    return "/discord-alternative-turkey";
+  }
   return withTrPrefix("/");
 }

@@ -30,6 +30,11 @@
       "statusCode": 301
     },
     {
+      "source": "/tr/discord-alternative",
+      "destination": "/discord-alternative-turkey",
+      "statusCode": 301
+    },
+    {
       "source": "/:path+/",
       "destination": "/:path+",
       "statusCode": 301
@@ -95,7 +100,7 @@
       ]
     },
     {
-      "source": "/(features|faq|download|discord-alternative|about|security|status|privacy|terms|contact|blog|tr)(.*)",
+      "source": "/(features|faq|download|discord-alternative|alternatives|compare|about|security|status|privacy|terms|contact|blog|tr)(.*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -117,6 +122,10 @@
         {
           "key": "Permissions-Policy",
           "value": "camera=(self), microphone=(self), display-capture=(self), autoplay=(self)"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
         }
       ]
     }

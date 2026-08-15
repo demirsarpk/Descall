@@ -5,6 +5,12 @@
 import { FAQ_ITEMS } from "../faqData.js";
 import { PRIVACY_CONTENT, TERMS_CONTENT } from "../../legal/legalContent.js";
 import { SITE_OPERATOR } from "../siteIdentity.js";
+import {
+  ALTERNATIVE_HUB_FAQ,
+  ALTERNATIVES_FAQ,
+  COMPARE_FAQ,
+  TURKEY_FAQ,
+} from "../content/discordSeoContent.js";
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -32,6 +38,7 @@ function navBlock() {
   <nav aria-label="Descall">
     <a href="/features">Features</a>
     <a href="/discord-alternative">Discord alternative</a>
+    <a href="/alternatives">Alternatives</a>
     <a href="/discord-alternative-for-lfg">Valorant LFG</a>
     <a href="/compare/discord">vs Discord</a>
     <a href="/apps-like-discord">Apps like Discord</a>
@@ -49,6 +56,16 @@ function navBlock() {
     <button type="button" data-hydrate data-auth="register">Start free</button>
     <button type="button" data-hydrate data-auth="login">Sign in</button>
   </p>`;
+}
+
+function faqHtml(items) {
+  return `<h2>FAQ</h2>
+  ${items
+    .map(
+      (f) =>
+        `<section><h3>${escapeHtml(f.q)}</h3><p>${escapeHtml(f.a)}</p></section>`
+    )
+    .join("\n")}`;
 }
 
 function legalHtml(data) {
@@ -87,9 +104,9 @@ export function corePageBody(path) {
 <main>
   ${brandBlock()}
   <p><span>Beta</span> — ${escapeHtml(SITE_OPERATOR.statusNote)}</p>
-  <h1>Descall — Free Discord Alternative with Servers, Chat &amp; Voice</h1>
-  <p>Descall is a free Discord alternative with real servers (roles, channels, templates), chat, group voice/video, screen share, Valorant LFG, and Windows/Android apps.</p>
-  <h2>Why teams switch from Discord</h2>
+  <h1>Descall</h1>
+  <p>HD voice, video, screen share, and Discord-style servers — plus Valorant LFG. Free chat for friends and gamers.</p>
+  <h2>Why teams switch</h2>
   <ul>
     <li>Discord-style servers with roles, channel overrides, invites, and moderation</li>
     <li>HD voice/video and screen share without Nitro paywalls on core communication</li>
@@ -112,8 +129,8 @@ export function corePageBody(path) {
       return `
 <main>
   ${brandBlock()}
-  <h1>Descall Features — Servers, roles, chat, calls &amp; LFG</h1>
-  <p>Explore Descall features: Discord-style servers with roles &amp; channels, templates, messaging, group voice/video, screen share, Valorant LFG, and more.</p>
+  <h1>Descall Features — Free Voice, Screen Share &amp; Servers</h1>
+  <p>See what’s included for free: HD voice/video, screen share, Discord-style servers, roles, templates, and Valorant LFG.</p>
   <h2>Servers &amp; community tools</h2>
   <ul>
     <li>Full server structure with categories, text, voice, and stage channels</li>
@@ -156,8 +173,8 @@ export function corePageBody(path) {
       return `
 <main>
   ${brandBlock()}
-  <h1>Download Descall — Discord alternative for Windows &amp; Android</h1>
-  <p>Get the Descall desktop app for Windows, use Android builds, or open the full web app in your browser.</p>
+  <h1>Download Descall for Windows — Free Voice Chat App</h1>
+  <p>Get the Windows desktop app, Android builds, or the full web app in your browser.</p>
   <h2>Platforms</h2>
   <ul>
     <li>Windows installer for the native desktop client</li>
@@ -251,6 +268,78 @@ export function corePageBody(path) {
 
     case "/terms":
       return legalHtml(TERMS_CONTENT.en);
+
+    case "/discord-alternative":
+      return `
+<main>
+  ${brandBlock()}
+  <h1>The best free Discord alternative for friends &amp; gamers</h1>
+  <p>A free Discord alternative with real servers, HD voice/video, screen share, and Valorant LFG. Core chat and calls stay free — no Nitro paywall.</p>
+  ${ctaRow("/compare/discord", "Discord vs Descall")}
+  <h2>What you get</h2>
+  <ul>
+    <li>Discord-style servers with roles, channels, and templates</li>
+    <li>Free real-time chat, group voice/video, and screen share</li>
+    <li>Built-in Valorant LFG without bot hell</li>
+    <li>Windows, Android, and full web app</li>
+  </ul>
+  <p><a href="/alternatives">Compare Discord alternatives</a> · <a href="/discord-alternative-turkey">Türkçe</a> · <a href="/download">Download</a></p>
+  ${faqHtml(ALTERNATIVE_HUB_FAQ)}
+  ${navBlock()}
+</main>`;
+
+    case "/alternatives":
+      return `
+<main>
+  ${brandBlock()}
+  <h1>Discord alternatives compared — pick by what you actually need</h1>
+  <p>Honest 2026 comparison of Discord alternatives: Descall, Discord, Guilded, TeamSpeak, Telegram. Free voice, screen share, and friend-group servers.</p>
+  ${ctaRow("/discord-alternative", "Why Descall")}
+  <h2>How to choose</h2>
+  <ol>
+    <li>List must-have features (voice, screen share, LFG, mobile).</li>
+    <li>Check whether core chat/calls are free or paywalled.</li>
+    <li>Try a week with your actual friend group.</li>
+    <li>Keep Discord only if you still need giant community servers.</li>
+  </ol>
+  <h2>Shortlist</h2>
+  <ul>
+    <li><a href="/discord-alternative">Descall</a> — free Discord alternative for friends, servers, and LFG</li>
+    <li><a href="/compare/discord">Discord</a> — still strongest for bots and huge publics</li>
+    <li>Guilded, TeamSpeak/Mumble, Telegram — fit narrower jobs</li>
+  </ul>
+  ${faqHtml(ALTERNATIVES_FAQ)}
+  ${navBlock()}
+</main>`;
+
+    case "/compare/discord":
+      return `
+<main>
+  ${brandBlock()}
+  <h1>Discord vs Descall — which fits your group in 2026?</h1>
+  <p>Side-by-side Discord vs Descall: servers, roles, voice, screen share, LFG, mobile, and price. Clear verdict for friend groups vs mega-communities.</p>
+  ${ctaRow("/discord-alternative", "Discord alternative overview")}
+  <h2>Quick verdict</h2>
+  <p><strong>Descall</strong> wins if you want a lighter Discord alternative with real servers, friends voice, screen share, and Valorant LFG — with free core features.</p>
+  <p><strong>Discord</strong> still wins for massive bot ecosystems. Many groups run both.</p>
+  <p><a href="/alternatives">All Discord alternatives</a> · <a href="/blog/discord-vs-descall">Longer comparison article</a></p>
+  ${faqHtml(COMPARE_FAQ)}
+  ${navBlock()}
+</main>`;
+
+    case "/discord-alternative-turkey":
+      return `
+<main>
+  ${brandBlock()}
+  <h1>Türkiye için en iyi Discord alternatifi: Descall</h1>
+  <p>Discord alternatifi, muadili veya benzeri uygulama mı arıyorsun? Descall: ücretsiz sohbet, sesli arama, ekran paylaşımı ve Valorant LFG. Türkçe arayüz.</p>
+  ${ctaRow("/download", "Windows / Android indir")}
+  <h2>Neden Türkiye’de Discord alternatifi aranıyor?</h2>
+  <p>Nitro baskısı, ağır arayüz ve LFG için bot karmaşası istemeyen gruplar daha hafif bir uygulama arıyor. Descall klan, sınıf ve oyuncu toplulukları için tasarlandı.</p>
+  <p><a href="/discord-alternative">English hub</a> · <a href="/alternatives">Alternatives list</a> · <a href="/tr">Türkçe ana sayfa</a></p>
+  ${faqHtml(TURKEY_FAQ)}
+  ${navBlock()}
+</main>`;
 
     default:
       return null;

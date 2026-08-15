@@ -90,6 +90,40 @@ else ok("/features has cookie consent shell");
 if (!/hreflang="en"/i.test(html.text) || !/hreflang="x-default"/i.test(html.text)) {
   fail("/features missing hreflang");
 } else ok("/features has hreflang en + x-default");
+if (!/hreflang="tr"/i.test(html.text)) fail("/features missing hreflang tr");
+else ok("/features has hreflang tr");
+
+const homeTitle = home.text.match(/<title>([^<]*)<\/title>/i)?.[1] || "";
+if (/discord alternative/i.test(homeTitle)) fail("homepage title still cannibalizes Discord Alternative");
+else ok(`homepage title brand-first: ${homeTitle}`);
+
+for (const [p, needle] of [
+  ["/alternatives", "Discord Alternatives Compared"],
+  ["/compare/discord", "Discord vs Descall"],
+  ["/discord-alternative", "Free Discord Alternative"],
+  ["/discord-alternative-turkey", "Discord Alternatifi"],
+]) {
+  const page = await get(p);
+  if (page.status !== 200) fail(`${p} status ${page.status}`);
+  else ok(`${p} ${page.status}`);
+  if (!page.text.includes(needle)) fail(`${p} missing title needle "${needle}"`);
+  else ok(`${p} title contains "${needle}"`);
+  if (["/alternatives", "/compare/discord", "/discord-alternative", "/discord-alternative-turkey"].includes(p)) {
+    if (!/FAQPage/i.test(page.text)) fail(`${p} missing FAQPage JSON-LD`);
+    else ok(`${p} has FAQPage JSON-LD`);
+  }
+}
+
+const httpProbe = await fetch("http://descall.com/", { redirect: "manual", headers: { "user-agent": "DescallSeoProdCheck/1.0" } }).catch((err) => ({ ok: false, err }));
+if (httpProbe?.status >= 300 && httpProbe?.status < 400) {
+  const loc = httpProbe.headers.get("location") || "";
+  if (!/^https:\/\/descall\.com/i.test(loc)) fail(`HTTP redirect location not https: ${loc}`);
+  else ok(`HTTP → HTTPS 301/302 to ${loc}`);
+} else if (httpProbe?.err) {
+  console.warn("WARN: could not probe http://descall.com:", httpProbe.err.message || httpProbe.err);
+} else {
+  console.warn(`WARN: http://descall.com status ${httpProbe?.status} (expected 3xx)`);
+}
 
 if (!/fonts\.googleapis\.com/i.test(html.text)) ok("/features has no Google Fonts link");
 else fail("/features still loads Google Fonts");
