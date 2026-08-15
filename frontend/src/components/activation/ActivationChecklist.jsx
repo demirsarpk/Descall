@@ -188,7 +188,7 @@ export default function ActivationChecklist({
 
   return (
     <aside
-      className={`activation-rail${expanded ? " is-expanded" : ""}${celebrate ? " is-complete" : ""}`}
+      className={`activation-rail${expanded ? " is-expanded" : ""}${celebrate ? " is-complete" : ""}${inviteOpen && expanded ? " has-invite" : ""}`}
       aria-label={t("Get started")}
     >
       <header className="activation-rail-head">
@@ -252,6 +252,7 @@ export default function ActivationChecklist({
         <div className="activation-invite-panel">
           <InviteCard
             username={me.username}
+            compact
             onCopied={() => completeStep("invite", "invite_card_copy")}
             onShared={() => completeStep("invite", "invite_card_share")}
           />

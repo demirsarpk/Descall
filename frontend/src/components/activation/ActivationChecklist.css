@@ -183,6 +183,20 @@
 
 .activation-invite-panel .invite-card {
   margin: 0;
+  padding: 10px;
+}
+
+.activation-invite-panel .invite-card-actions {
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.activation-invite-panel .invite-card-btn {
+  min-height: 34px;
+  max-height: 36px;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-radius: 8px;
 }
 
 .activation-rail.is-complete {
@@ -204,14 +218,34 @@
     right: 12px;
     width: auto;
     bottom: max(72px, calc(12px + env(safe-area-inset-bottom)));
+    max-height: min(68vh, 520px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .activation-rail.is-expanded {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .activation-step {
-    grid-template-columns: 32px 1fr;
+    grid-template-columns: 32px 1fr auto;
+    gap: 8px;
+    padding: 8px;
   }
 
   .activation-step-cta {
-    grid-column: 2;
-    justify-self: start;
+    padding: 6px 10px;
+    font-size: 11px;
+    min-height: 30px;
+  }
+
+  .activation-rail.has-invite .activation-rail-steps {
+    padding-bottom: 4px;
+  }
+
+  .activation-invite-panel .invite-card-btn {
+    min-height: 32px;
+    max-height: 34px;
   }
 }

@@ -831,8 +831,7 @@
   font-size: 12px;
   color: var(--text-muted, #98a2b3);
 }
-.descoin-daily-claim,
-.invite-card-btn {
+.descoin-daily-claim {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -844,8 +843,6 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-}
-.descoin-daily-claim {
   background: linear-gradient(135deg, #f0b232, #e89a1a);
   color: #1a1205;
 }
@@ -889,8 +886,30 @@
 }
 .invite-card-actions {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+.invite-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 36px;
+  max-height: 40px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.invite-card-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
 }
 .invite-card-btn.primary {
   background: #5865f2;
@@ -907,6 +926,12 @@
   margin: 8px 0 0;
   font-size: 11px;
   color: var(--text-muted, #98a2b3);
+}
+.invite-card.compact {
+  padding: 10px 12px;
+}
+.invite-card.compact .invite-card-header {
+  margin-bottom: 8px;
 }
 .invite-card.compact .invite-card-footnote {
   display: none;
