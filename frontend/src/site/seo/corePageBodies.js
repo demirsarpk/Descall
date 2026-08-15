@@ -92,6 +92,7 @@ function legalHtml(data) {
 }
 
 export function corePageBody(path) {
+  const original = path;
   const bare =
     path === "/tr" || path === "/tr/"
       ? "/"
@@ -312,20 +313,34 @@ export function corePageBody(path) {
   ${navBlock()}
 </main>`;
 
-    case "/compare/discord":
+    case "/compare/discord": {
+      const tr = original.startsWith("/tr");
+      const h1 = tr
+        ? "Discord mu Descall mı — 2026 karşılaştırması"
+        : "Discord vs Descall — which fits your group in 2026?";
+      const lead = tr
+        ? "Discord vs Descall yan yana: sunucular, roller, ses, ekran paylaşımı, LFG ve fiyat. Arkadaş grubu için hangisi daha uygun?"
+        : "Side-by-side Discord vs Descall: servers, roles, voice, screen share, LFG, mobile, and price. Clear verdict for friend groups vs mega-communities.";
+      const verdictDescall = tr
+        ? "Daha hafif bir Discord alternatifi, gerçek sunucular, ses, ekran paylaşımı ve Valorant LFG istiyorsan Descall önde — temel özellikler ücretsiz."
+        : "wins if you want a lighter Discord alternative with real servers, friends voice, screen share, and Valorant LFG — with free core features.";
+      const verdictDiscord = tr
+        ? "Dev bot ekosistemi ve kocaman kamu sunucuları için Discord hâlâ güçlü. Birçok grup ikisini birden kullanır."
+        : "still wins for massive bot ecosystems. Many groups run both.";
       return `
 <main>
   ${brandBlock()}
-  <h1>Discord vs Descall — which fits your group in 2026?</h1>
-  <p>Side-by-side Discord vs Descall: servers, roles, voice, screen share, LFG, mobile, and price. Clear verdict for friend groups vs mega-communities.</p>
-  ${ctaRow("/discord-alternative", "Discord alternative overview")}
-  <h2>Quick verdict</h2>
-  <p><strong>Descall</strong> wins if you want a lighter Discord alternative with real servers, friends voice, screen share, and Valorant LFG — with free core features.</p>
-  <p><strong>Discord</strong> still wins for massive bot ecosystems. Many groups run both.</p>
-  <p><a href="/alternatives">All Discord alternatives</a> · <a href="/blog/discord-vs-descall">Longer comparison article</a></p>
+  <h1>${escapeHtml(h1)}</h1>
+  <p>${escapeHtml(lead)}</p>
+  ${ctaRow("/discord-alternative", tr ? "Discord alternatifi" : "Discord alternative overview")}
+  <h2>${tr ? "Kısa karar" : "Quick verdict"}</h2>
+  <p><strong>Descall</strong> ${escapeHtml(verdictDescall)}</p>
+  <p><strong>Discord</strong> ${escapeHtml(verdictDiscord)}</p>
+  <p><a href="/alternatives">${tr ? "Tüm alternatifler" : "All Discord alternatives"}</a> · <a href="/blog/discord-vs-descall">${tr ? "Uzun karşılaştırma yazısı" : "Longer comparison article"}</a></p>
   ${faqHtml(COMPARE_FAQ)}
   ${navBlock()}
 </main>`;
+    }
 
     case "/discord-alternative-turkey":
       return `
