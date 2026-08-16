@@ -36,6 +36,8 @@ jobs:
 
       - uses: actions/checkout@v4
         if: steps.gate.outputs.configured == 'true'
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-node@v4
         if: steps.gate.outputs.configured == 'true'
@@ -71,3 +73,13 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
+      - name: Notify IndexNow
+        if: steps.gate.outputs.configured == 'true'
+        continue-on-error: true
+        env:
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+          SITE_ORIGIN: https://descall.com
+          INDEXNOW_GIT_BEFORE: ${{ github.event.before }}
+          INDEXNOW_GIT_AFTER: ${{ github.sha }}
+        run: npm run indexnow:submit:changed

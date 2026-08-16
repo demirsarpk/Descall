@@ -13,20 +13,20 @@
  *   SITE_ORIGIN=https://descall.com node scripts/request-indexing.mjs
  */
 import { createSign } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const PUBLIC_DIR = join(ROOT, "public");
-const DIST_DIR = join(ROOT, "dist");
 const STATE_PATH = join(ROOT, ".seo-indexing-state.json");
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const SITE_ORIGIN = String(process.env.SITE_ORIGIN || "https://descall.com").replace(/\/+$/, "");
-const INDEXNOW_HOST = new URL(SITE_ORIGIN).hostname;
-const INDEXNOW_KEY = "4f463b15fd51f502c6bb73abbeb38e3c";
+const { postIndexNow } = await import(pathToFileURL(join(ROOT, "scripts/indexnow-submit.mjs")).href);
+const { writeIndexNowKeyFiles, keyLocation } = await import(
+  pathToFileURL(join(ROOT, "scripts/indexnow-config.mjs")).href
+);
 
 /** IndexNow practical daily budget (engine soft limit; stay under to avoid 429). */
 const INDEXNOW_DAILY_LIMIT = Number(process.env.INDEXNOW_DAILY_LIMIT || 10000);
@@ -38,13 +38,7 @@ const { indexingUrlQueue, SITEMAP_TABLES } = await import(
 );
 
 function ensureIndexNowKeyFile() {
-  mkdirSync(PUBLIC_DIR, { recursive: true });
-  const pubPath = join(PUBLIC_DIR, `${INDEXNOW_KEY}.txt`);
-  writeFileSync(pubPath, `${INDEXNOW_KEY}\n`, "utf8");
-  if (existsSync(DIST_DIR)) {
-    writeFileSync(join(DIST_DIR, `${INDEXNOW_KEY}.txt`), `${INDEXNOW_KEY}\n`, "utf8");
-  }
-  return INDEXNOW_KEY;
+  return writeIndexNowKeyFiles();
 }
 
 function loadState() {
@@ -77,27 +71,7 @@ async function postJson(url, body) {
 }
 
 async function submitIndexNow(key, urls) {
-  if (!urls.length) return { ok: true, status: 204, submitted: 0 };
-  const payload = {
-    host: INDEXNOW_HOST,
-    key,
-    keyLocation: `${SITE_ORIGIN}/${key}.txt`,
-    urlList: urls,
-  };
-  if (DRY_RUN) {
-    console.log(`[dry-run] IndexNow ${urls.length} urls → ${SITE_ORIGIN}`);
-    return { ok: true, status: 200, submitted: urls.length, dryRun: true };
-  }
-  const endpoints = ["https://api.indexnow.org/indexnow", "https://www.bing.com/indexnow"];
-  let last = { ok: false, status: 0, text: "" };
-  for (const endpoint of endpoints) {
-    last = await postJson(endpoint, payload);
-    console.log(`IndexNow ${endpoint} → HTTP ${last.status} (${urls.length} urls)`);
-    if (last.ok || last.status === 202 || last.status === 200) {
-      return { ...last, submitted: urls.length };
-    }
-  }
-  return { ...last, submitted: 0 };
+  return postIndexNow(urls, { key, dryRun: DRY_RUN });
 }
 
 async function pingSitemapEngines(sitemapUrl) {
@@ -257,7 +231,7 @@ async function main() {
   console.log("---");
   console.log(`Done. IndexNow submitted this run: ${indexNowOk}`);
   console.log(`Google Indexing submitted this run: ${googleResult.submitted || 0}`);
-  console.log(`Key file: ${SITE_ORIGIN}/${key}.txt`);
+  console.log(`Key file: ${keyLocation(key)}`);
   console.log(`Sitemap index: ${SITE_ORIGIN}/sitemap.xml`);
   for (const table of SITEMAP_TABLES) {
     console.log(`  - ${SITE_ORIGIN}/${table.file} (${table.id})`);

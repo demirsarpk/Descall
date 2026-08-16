@@ -20,6 +20,9 @@ const {
   allSitemapEntries,
   entriesForTable,
 } = await import(pathToFileURL(path.join(root, "src/site/sitemapCatalog.js")).href);
+const { writeIndexNowKeyFiles } = await import(
+  pathToFileURL(path.join(root, "scripts/indexnow-config.mjs")).href
+);
 
 function xmlEscape(value) {
   return String(value ?? "")
@@ -39,6 +42,9 @@ function assertHttpsDescall(url) {
 function buildRobots() {
   const childAllows = SITEMAP_TABLES.map((t) => `Allow: /${t.file}`).join("\n");
   return `# Descall robots.txt — production (static, served from descall.com)
+User-agent: Bingbot
+Allow: /
+
 User-agent: *
 Allow: /
 Allow: /download
@@ -176,11 +182,7 @@ function main() {
   fs.writeFileSync(path.join(distDir, "sitemap.html"), html, "utf8");
   fs.writeFileSync(path.join(distDir, "sitemap.xsl"), SITEMAP_XSL, "utf8");
 
-  // IndexNow ownership key (Bing / Yandex / etc.)
-  const indexNowKey = "4f463b15fd51f502c6bb73abbeb38e3c";
-  const indexNowBody = `${indexNowKey}\n`;
-  fs.writeFileSync(path.join(distDir, `${indexNowKey}.txt`), indexNowBody, "utf8");
-  fs.writeFileSync(path.join(root, "public", `${indexNowKey}.txt`), indexNowBody, "utf8");
+  const indexNowKey = writeIndexNowKeyFiles();
 
   // Also refresh public/ copies so Vite copies them on next builds too
   fs.writeFileSync(path.join(root, "public/robots.txt"), robots, "utf8");
@@ -190,7 +192,7 @@ function main() {
     (t) => `${t.id}:${entriesForTable(t.id, SITE, now).length}`
   ).join(", ");
   console.log(
-    `[generate-seo-files] wrote robots + sitemap index/tables/pages/html (${PUBLIC_ROUTES.length} routes; ${tableSummary}) → ${SITE}`
+    `[generate-seo-files] wrote robots + sitemap index/tables/pages/html (${PUBLIC_ROUTES.length} routes; ${tableSummary}) + IndexNow key ${indexNowKey}.txt → ${SITE}`
   );
 }
 

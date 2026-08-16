@@ -35,7 +35,16 @@ Still do in the existing Domain property:
 
 ## IndexNow
 
-Key file is published at `/4f463b15fd51f502c6bb73abbeb38e3c.txt` (see `scripts/request-indexing.mjs`).
+Bing / Yandex / Seznam / Naver. Google uses Search Console + sitemap, not IndexNow.
+
+- **Key file:** `https://descall.com/<INDEXNOW_KEY>.txt` (content is the key plus a single trailing newline)
+- **Env:** `INDEXNOW_KEY` (scripts fall back to `frontend/public/<32-hex>.txt` if unset)
+- **URL source:** `src/site/sitemapCatalog.js` — same list as prerender / sitemaps
+- **Manual:** `cd frontend && npm run indexnow:submit` (or `:dry` / `:changed`)
+- **Deploy:** `.github/workflows/indexnow.yml` runs after push to `main` (90s wait for Vercel). `vercel-deploy.yml` also submits after a CLI production deploy.
+- **Changed URLs:** `--changed` maps git diff → public paths. If the blast radius is the whole catalog (`seoConfig`, prerender, etc.) it sends the full sitemap. Unreliable diffs also fall back to full sitemap (~40 URLs, well under the 10k cap).
+
+Do not rotate the live key without publishing the new `.txt` first — Bing 403s on key mismatch.
 
 ## GSC playbook (legitimate only)
 

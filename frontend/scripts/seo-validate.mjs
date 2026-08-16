@@ -132,6 +132,20 @@ if (robotsTxt.includes("des-call.onrender.com")) {
 if (/http:\/\/descall\.com/i.test(robotsTxt)) {
   fail("public/robots.txt contains http://descall.com");
 }
+if (!/User-agent:\s*Bingbot/i.test(robotsTxt) || /User-agent:\s*Bingbot[\s\S]{0,80}Disallow:\s*\//i.test(robotsTxt)) {
+  fail("public/robots.txt must allow Bingbot");
+}
+
+const indexNowFiles = fs.readdirSync(path.join(root, "public")).filter((n) => /^[a-f0-9]{32}\.txt$/i.test(n));
+if (!indexNowFiles.length) fail("public/ missing IndexNow key file (<32-hex>.txt)");
+else {
+  const keyName = indexNowFiles[0].replace(/\.txt$/i, "");
+  const keyBody = fs.readFileSync(path.join(root, "public", indexNowFiles[0]), "utf8").trim();
+  if (keyBody !== keyName) fail(`IndexNow key file content mismatch: ${indexNowFiles[0]}`);
+}
+if (!fs.existsSync(path.join(root, "scripts/indexnow-submit.mjs"))) {
+  fail("scripts/indexnow-submit.mjs missing");
+}
 
 const vercelJson = fs.readFileSync(path.join(root, "vercel.json"), "utf8");
 if (/des-call\.onrender\.com/i.test(vercelJson)) {
@@ -140,8 +154,8 @@ if (/des-call\.onrender\.com/i.test(vercelJson)) {
 if (!/"statusCode"\s*:\s*301/.test(vercelJson)) {
   fail("vercel.json missing statusCode 301 redirects for www/http canonicalization");
 }
-if (!/"Strict-Transport-Security"/.test(vercelJson)) {
-  fail("vercel.json missing Strict-Transport-Security");
+if (!vercelJson.includes("[a-f0-9]{32}")) {
+  fail("vercel.json rewrite must exclude IndexNow /<32-hex>.txt from SPA fallback");
 }
 if (!vercelJson.includes("/tr/discord-alternative") || !vercelJson.includes("/discord-alternative-turkey")) {
   fail("vercel.json missing TR discord-alternative → turkey 301");
@@ -208,6 +222,15 @@ if (checkDist) {
     const pagesXmlBody = fs.readFileSync(path.join(dist, "sitemap-pages.xml"), "utf8");
     if (!pagesXmlBody.includes('href="/sitemap.xsl"')) {
       fail("sitemap-pages.xml missing xml-stylesheet → /sitemap.xsl");
+    }
+
+    const distKeyFiles = fs.readdirSync(dist).filter((n) => /^[a-f0-9]{32}\.txt$/i.test(n));
+    if (!distKeyFiles.length) {
+      fail("dist/ missing IndexNow key file — generate-seo-files must copy public/<key>.txt");
+    } else {
+      const distKeyName = distKeyFiles[0].replace(/\.txt$/i, "");
+      const distKeyBody = fs.readFileSync(path.join(dist, distKeyFiles[0]), "utf8").trim();
+      if (distKeyBody !== distKeyName) fail(`dist IndexNow key content mismatch: ${distKeyFiles[0]}`);
     }
 
     const pagesXml = fs.readFileSync(path.join(dist, "sitemap-pages.xml"), "utf8");

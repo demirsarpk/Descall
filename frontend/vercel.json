@@ -42,7 +42,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|robots\\.txt|sitemap\\.xml|sitemap-pages\\.xml|sitemap-core\\.xml|sitemap-niches\\.xml|sitemap-blog\\.xml|sitemap-company\\.xml|sitemap\\.html|sitemap\\.xsl|4f463b15fd51f502c6bb73abbeb38e3c\\.txt|og-default\\.svg|favicon\\.svg|icon\\.png|manifest\\.webmanifest|sw\\.js).*)",
+      "source": "/((?!assets/|robots\\.txt|sitemap\\.xml|sitemap-pages\\.xml|sitemap-core\\.xml|sitemap-niches\\.xml|sitemap-blog\\.xml|sitemap-company\\.xml|sitemap\\.html|sitemap\\.xsl|[a-f0-9]{32}\\.txt|og-default\\.svg|favicon\\.svg|icon\\.png|manifest\\.webmanifest|sw\\.js).*)",
       "destination": "/index.html"
     }
   ],

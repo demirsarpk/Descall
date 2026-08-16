@@ -1,4 +1,7 @@
 # Descall robots.txt — production (static, served from descall.com)
+User-agent: Bingbot
+Allow: /
+
 User-agent: *
 Allow: /
 Allow: /download

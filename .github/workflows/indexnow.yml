@@ -1,0 +1,40 @@
+name: IndexNow submit
+
+# After production HTML is on descall.com, notify Bing (and other IndexNow engines).
+# URL list is the same sitemap catalog prerender uses. Key comes from INDEXNOW_KEY
+# or frontend/public/<key>.txt (the key is public by protocol).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/indexnow.yml"
+  workflow_dispatch:
+
+jobs:
+  indexnow:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Wait for Vercel production deploy
+        run: sleep 90
+
+      - name: Submit changed public URLs (fallback: full sitemap)
+        env:
+          # Optional secret; falls back to frontend/public/<key>.txt (public by protocol).
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+          SITE_ORIGIN: https://descall.com
+          INDEXNOW_GIT_BEFORE: ${{ github.event.before }}
+          INDEXNOW_GIT_AFTER: ${{ github.sha }}
+        run: npm run indexnow:submit:changed
