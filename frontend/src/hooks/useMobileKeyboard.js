@@ -76,7 +76,14 @@ export function useMobileKeyboard(enabled = true) {
           window.clearTimeout(closeAnimTimer);
           resetScroll();
         }
-      } else if (window.scrollY || document.documentElement.scrollTop || document.body.scrollTop) {
+      } else if (
+        window.scrollY ||
+        window.scrollX ||
+        document.documentElement.scrollTop ||
+        document.documentElement.scrollLeft ||
+        document.body.scrollTop ||
+        document.body.scrollLeft
+      ) {
         // iOS pans the document to chase the focused field. Keep the shell at 0
         // and pin it to the visual viewport rectangle instead.
         resetScroll();
