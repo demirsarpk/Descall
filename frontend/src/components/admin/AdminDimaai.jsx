@@ -5,7 +5,6 @@ import {
   RefreshCw,
   Trash2,
   Star,
-  StarOff,
   Power,
   PowerOff,
   FlaskConical,
@@ -226,51 +225,50 @@ export default function AdminDimaai() {
       )}
       <div className="dima-admin-table-wrap">
         {dbKeys.map((k, index) => (
-          <article key={k.id} className={`dima-admin-key ${k.enabled ? "" : "is-off"}`}>
-            <div className="dima-admin-key-main">
+          <article key={k.id} className={`dima-admin-key ${k.enabled ? "" : "is-off"}${k.isPreferred ? " is-preferred" : ""}`}>
+            <div className="dima-admin-key-top">
               <div className="dima-admin-key-title">
-                {k.isPreferred ? <Star size={14} /> : <StarOff size={14} />}
-                <strong>{k.label}</strong>
-                <code>{k.mask}</code>
-                <span className={`dima-admin-pill ${k.available ? "ok" : "bad"}`}>
-                  {k.available ? t("admin.dimaai.available") : t("admin.dimaai.unavailable")}
+                <span className="dima-admin-key-mark" aria-hidden="true">
+                  {k.isPreferred ? <Star size={16} /> : <KeyRound size={16} />}
                 </span>
+                <div className="dima-admin-key-id">
+                  <strong>{k.label}</strong>
+                  <code>{k.mask}</code>
+                </div>
               </div>
-              <div className="dima-admin-key-meta">
-                <span>
-                  <Clock size={12} /> {t("admin.dimaai.lastOk")}: {fmt(k.lastOkAt)}
-                </span>
-                <span>
-                  {k.lastError ? <XCircle size={12} /> : <CheckCircle2 size={12} />}{" "}
-                  {t("admin.dimaai.lastError")}: {errorLabel(k.lastError, t)}
-                </span>
-                <span>{t("admin.dimaai.order")}: {index + 1}</span>
-              </div>
+              <span className={`dima-admin-pill ${k.available ? "ok" : "bad"}`}>
+                {k.available ? t("admin.dimaai.available") : t("admin.dimaai.unavailable")}
+              </span>
+            </div>
+            <div className="dima-admin-key-meta">
+              <span>
+                <Clock size={12} /> {t("admin.dimaai.lastOk")}: {fmt(k.lastOkAt)}
+              </span>
+              <span>
+                {k.lastError ? <XCircle size={12} /> : <CheckCircle2 size={12} />}
+                {t("admin.dimaai.lastError")}: {errorLabel(k.lastError, t)}
+              </span>
+              <span>{t("admin.dimaai.order")}: {index + 1}</span>
             </div>
             <div className="dima-admin-key-actions">
-              <button type="button" className="dima-icon-btn" disabled={busy || index === 0} onClick={() => move(index, -1)} aria-label="Move up">
-                <ChevronUp size={16} />
+              <button type="button" className="dima-admin-action is-test" disabled={busy || testingId === k.id} onClick={() => test(k.id)}>
+                <FlaskConical size={14} /> {testingId === k.id ? t("common.loading") : t("admin.dimaai.test")}
               </button>
-              <button type="button" className="dima-icon-btn" disabled={busy || index === dbKeys.length - 1} onClick={() => move(index, 1)} aria-label="Move down">
-                <ChevronDown size={16} />
+              <button type="button" className="dima-admin-action" disabled={busy} onClick={() => patch(k.id, { isPreferred: true }, t("admin.dimaai.preferredSet"))}>
+                <Star size={14} /> {t("admin.dimaai.setPreferred")}
               </button>
-              <button type="button" className="dima-icon-btn" disabled={busy} onClick={() => patch(k.id, { isPreferred: true }, t("admin.dimaai.preferredSet"))} aria-label={t("admin.dimaai.setPreferred")}>
-                <Star size={16} />
+              <button type="button" className="dima-admin-action" disabled={busy} onClick={() => patch(k.id, { enabled: !k.enabled })}>
+                {k.enabled ? <PowerOff size={14} /> : <Power size={14} />}
+                {k.enabled ? t("admin.dimaai.disable") : t("admin.dimaai.enable")}
               </button>
-              <button
-                type="button"
-                className="dima-icon-btn"
-                disabled={busy}
-                onClick={() => patch(k.id, { enabled: !k.enabled })}
-                aria-label={k.enabled ? t("admin.dimaai.disable") : t("admin.dimaai.enable")}
-              >
-                {k.enabled ? <Power size={16} /> : <PowerOff size={16} />}
+              <button type="button" className="dima-admin-action" disabled={busy || index === 0} onClick={() => move(index, -1)}>
+                <ChevronUp size={14} /> {t("admin.dimaai.moveUp")}
               </button>
-              <button type="button" className="dima-icon-btn" disabled={busy || testingId === k.id} onClick={() => test(k.id)} aria-label={t("admin.dimaai.test")}>
-                <FlaskConical size={16} />
+              <button type="button" className="dima-admin-action" disabled={busy || index === dbKeys.length - 1} onClick={() => move(index, 1)}>
+                <ChevronDown size={14} /> {t("admin.dimaai.moveDown")}
               </button>
-              <button type="button" className="dima-icon-btn is-danger" disabled={busy} onClick={() => remove(k.id)} aria-label={t("common.delete")}>
-                <Trash2 size={16} />
+              <button type="button" className="dima-admin-action is-danger" disabled={busy} onClick={() => remove(k.id)}>
+                <Trash2 size={14} /> {t("common.delete")}
               </button>
             </div>
           </article>
@@ -283,17 +281,21 @@ export default function AdminDimaai() {
           <p className="muted">{t("admin.dimaai.envHint")}</p>
           {envKeys.map((k) => (
             <article key={k.id} className="dima-admin-key is-env">
-              <div className="dima-admin-key-main">
+              <div className="dima-admin-key-top">
                 <div className="dima-admin-key-title">
-                  <KeyRound size={14} />
-                  <strong>{k.label}</strong>
-                  <code>{k.mask}</code>
-                  <span className="dima-admin-pill ok">{t("admin.dimaai.readOnly")}</span>
+                  <span className="dima-admin-key-mark" aria-hidden="true">
+                    <KeyRound size={16} />
+                  </span>
+                  <div className="dima-admin-key-id">
+                    <strong>{k.label}</strong>
+                    <code>{k.mask}</code>
+                  </div>
                 </div>
+                <span className="dima-admin-pill ok">{t("admin.dimaai.readOnly")}</span>
               </div>
               <div className="dima-admin-key-actions">
-                <button type="button" className="dima-icon-btn" disabled={testingId === k.id} onClick={() => test(k.id)}>
-                  <FlaskConical size={16} />
+                <button type="button" className="dima-admin-action is-test" disabled={testingId === k.id} onClick={() => test(k.id)}>
+                  <FlaskConical size={14} /> {t("admin.dimaai.test")}
                 </button>
               </div>
             </article>

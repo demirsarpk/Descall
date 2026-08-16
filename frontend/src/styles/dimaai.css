@@ -7,7 +7,7 @@
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
   background: var(--surface-1);
   color: var(--text-1);
   overflow: hidden;
@@ -18,7 +18,9 @@
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-2);
-  background: var(--surface-0);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 55%),
+    var(--surface-0);
   min-width: 0;
   min-height: 0;
   height: 100%;
@@ -26,22 +28,40 @@
 
 .dima-history-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 12px 10px;
+  padding: 14px 14px 8px;
   font-size: 13px;
 }
 
 .dima-history-title {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   min-width: 0;
 }
 
+.dima-history-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dima-kicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--primary) 80%, #9b8cff);
+}
+
 .dima-history-title strong {
-  font-size: 14px;
+  font-size: 17px;
+  font-family: Outfit, Inter, sans-serif;
+  letter-spacing: -0.02em;
+  color: var(--text-0);
 }
 
 .dima-back-btn {
@@ -68,49 +88,159 @@
   display: inline;
 }
 
+.dima-history-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 12px 10px;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #7c6cff, var(--primary) 58%, #4aa7ff);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.dima-history-new:hover {
+  filter: brightness(1.06);
+}
+
+.dima-history-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-2);
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  color: var(--text-muted);
+}
+
+.dima-history-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
 .dima-history-list {
   overflow: auto;
-  padding: 0 8px 16px;
+  padding: 0 10px 18px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
+}
+
+.dima-history-group h3 {
+  margin: 0 6px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.dima-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 8px;
+  padding: 18px 12px;
+  border-radius: 16px;
+  border: 1px dashed var(--border-3);
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 13px;
 }
 
 .dima-history-item {
   display: grid;
-  grid-template-columns: 16px 1fr 18px;
+  grid-template-columns: 34px minmax(0, 1fr) 28px;
   gap: 8px;
   align-items: center;
   width: 100%;
-  border: 0;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-2);
   text-align: left;
-  padding: 8px 10px;
-  border-radius: var(--radius-lg);
+  padding: 8px;
+  border-radius: 14px;
   cursor: pointer;
-  font-size: 13px;
 }
 
-.dima-history-item span:nth-child(2) {
+.dima-history-orb {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.dima-history-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dima-history-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.dima-history-time {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .dima-history-item:hover,
 .dima-history-item.active {
   background: var(--surface-2);
+  border-color: var(--border-2);
   color: var(--text-0);
 }
 
-.dima-history-del {
-  opacity: 0.35;
-  display: inline-flex;
+.dima-history-item.active .dima-history-orb {
+  background: linear-gradient(145deg, #7c6cff, var(--primary) 55%, #3dd6c6);
+  color: #fff;
 }
 
-.dima-history-item:hover .dima-history-del {
+.dima-history-del {
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.dima-history-item:hover .dima-history-del,
+.dima-history-item:focus-within .dima-history-del {
   opacity: 1;
+}
+
+.dima-history-del:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .dima-main {
@@ -207,22 +337,41 @@
 .dima-suggestions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
 }
 
 .dima-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
   border: 1px solid var(--border-2);
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
   color: var(--text-1);
-  border-radius: var(--radius-xl);
-  padding: 12px 10px;
+  border-radius: 16px;
+  padding: 12px 12px;
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.dima-chip-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: color-mix(in srgb, var(--primary) 80%, #fff);
+  flex-shrink: 0;
 }
 
 .dima-chip:hover {
-  border-color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border-2));
+  background: var(--surface-2);
   color: var(--text-0);
+  transform: translateY(-1px);
 }
 
 .dima-thread {
@@ -347,15 +496,37 @@
   font-size: 13px;
 }
 
+.dima-dock {
+  position: relative;
+  padding: 0 16px calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+.dima-dock::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -28px;
+  height: 28px;
+  background: linear-gradient(to top, var(--surface-1), transparent);
+}
+
 .dima-composer {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: flex-end;
-  margin: 0 16px;
-  padding: 10px;
-  border: 1px solid var(--border-2);
-  border-radius: 18px;
-  background: var(--surface-2);
+  padding: 12px 12px 10px;
+  border: 1px solid var(--border-3);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-3) 65%, transparent), var(--surface-2));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.dima-composer:focus-within {
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border-3));
+  box-shadow: 0 0 0 3px var(--primary-soft), 0 10px 30px rgba(0, 0, 0, 0.22);
 }
 
 .dima-input {
@@ -368,27 +539,55 @@
   color: var(--text-1);
   font: inherit;
   font-size: 15px;
-  max-height: 140px;
+  line-height: 1.45;
+  max-height: 148px;
   outline: none;
+  padding: 2px 6px;
+}
+
+.dima-composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dima-composer-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-left: 6px;
 }
 
 .dima-send {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border: 0;
-  border-radius: 14px;
-  background: var(--primary);
-  color: #fff;
+  border-radius: 50%;
+  background: var(--surface-hover);
+  color: var(--text-muted);
   display: grid;
   place-items: center;
   cursor: pointer;
   flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
-.dima-send:disabled { opacity: 0.4; cursor: default; }
-.dima-send.is-stop { background: var(--danger); }
+
+.dima-send.is-ready {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: var(--shadow-glow-primary);
+}
+
+.dima-send.is-ready:hover {
+  background: var(--primary-2);
+  transform: translateY(-1px);
+}
+
+.dima-send:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+.dima-send.is-stop { background: var(--danger); color: #fff; }
 
 .dima-foot {
-  margin: 6px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  margin: 8px 4px 0;
   text-align: center;
   font-size: 11px;
   color: var(--text-muted);
@@ -439,8 +638,8 @@ html.kb-open .app-root.is-mobile .dima-workspace {
   padding-bottom: 8px;
 }
 
-html.kb-open .app-root.is-mobile .dima-composer {
-  margin-bottom: 4px;
+html.kb-open .app-root.is-mobile .dima-dock {
+  padding-bottom: 4px;
 }
 
 .dima-admin-head {
@@ -490,10 +689,12 @@ html.kb-open .app-root.is-mobile .dima-composer {
 
 .dima-admin-add {
   border: 1px solid var(--border-2);
-  border-radius: var(--radius-xl);
-  padding: 14px;
+  border-radius: 18px;
+  padding: 16px;
   margin-bottom: 18px;
-  background: var(--surface-2);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 50%),
+    var(--surface-2);
 }
 .dima-admin-add h3 { margin: 0 0 6px; display: flex; gap: 6px; align-items: center; }
 .dima-admin-add-row {
@@ -513,41 +714,116 @@ html.kb-open .app-root.is-mobile .dima-composer {
 
 .dima-admin-key {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 12px;
-  padding: 12px;
+  padding: 14px;
   border: 1px solid var(--border-2);
-  border-radius: var(--radius-xl);
-  margin-bottom: 8px;
+  border-radius: 18px;
+  margin-bottom: 10px;
   background: var(--surface-2);
 }
-.dima-admin-key.is-off { opacity: 0.62; }
+.dima-admin-key.is-off { opacity: 0.7; }
+.dima-admin-key-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
 .dima-admin-key-title {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+}
+.dima-admin-key-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: #c4b5fd;
+  flex-shrink: 0;
+}
+.dima-admin-key.is-preferred .dima-admin-key-mark {
+  background: linear-gradient(145deg, #7c6cff, var(--primary));
+  color: #fff;
+}
+.dima-admin-key-id {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.dima-admin-key-id strong {
+  font-size: 15px;
 }
 .dima-admin-key-title code {
   font-size: 12px;
   background: var(--surface-0);
   padding: 2px 6px;
   border-radius: 6px;
+  width: fit-content;
 }
 .dima-admin-key-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   font-size: 12px;
   color: var(--text-muted);
 }
-.dima-admin-key-actions { display: flex; align-items: center; gap: 2px; }
+.dima-admin-key-meta span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--surface-0);
+}
+.dima-admin-key-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+  border-top: 1px solid var(--border-1);
+}
+.dima-admin-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-2);
+  background: var(--surface-0);
+  color: var(--text-1);
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dima-admin-action:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-0);
+}
+.dima-admin-action:disabled { opacity: 0.4; cursor: default; }
+.dima-admin-action.is-test {
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface-0));
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border-2));
+  color: #c7d2fe;
+}
+.dima-admin-action.is-danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--border-2));
+}
+.dima-admin-action.is-danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
 .dima-admin-pill {
   font-size: 11px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
+  flex-shrink: 0;
 }
 .dima-admin-pill.ok { background: var(--success-soft); color: var(--success); }
 .dima-admin-pill.bad { background: var(--danger-soft); color: var(--danger); }
@@ -555,6 +831,8 @@ html.kb-open .app-root.is-mobile .dima-composer {
 @media (max-width: 720px) {
   .dima-suggestions { grid-template-columns: 1fr; }
   .dima-msg.is-user, .dima-msg.is-assistant { margin-left: 0; margin-right: 0; }
-  .dima-admin-add-row, .dima-admin-stats { grid-template-columns: 1fr; }
+  .dima-admin-add-row, .dima-admin-stats, .dima-admin-key-meta { grid-template-columns: 1fr; }
   .dima-admin-key { flex-direction: column; }
+  .dima-history-del { opacity: 1; }
+  .dima-composer-hint { display: none; }
 }

@@ -11,8 +11,13 @@ import {
   Trash2,
   ArrowLeft,
   MessageSquare,
+  Search,
+  Lightbulb,
+  PenLine,
+  ScanSearch,
+  Wand2,
 } from "lucide-react";
-import { useT } from "../../context/LocaleContext";
+import { useLocale, useT } from "../../context/LocaleContext";
 import {
   createDimaConversation,
   deleteDimaConversation,
@@ -21,12 +26,13 @@ import {
   streamDimaMessage,
 } from "../../api/dimaai";
 import { renderDimaMarkdown } from "./dimaMarkdown";
+import { formatRelTime, historyBucket } from "./historyUtils";
 
 const SUGGESTIONS = [
-  { id: "explain", prompt: "Explain this concept in simple terms: " },
-  { id: "write", prompt: "Help me write a clear message about: " },
-  { id: "analyze", prompt: "Analyze this and list the key takeaways:\n\n" },
-  { id: "brainstorm", prompt: "Brainstorm ideas for: " },
+  { id: "explain", prompt: "Explain this concept in simple terms: ", icon: Lightbulb },
+  { id: "write", prompt: "Help me write a clear message about: ", icon: PenLine },
+  { id: "analyze", prompt: "Analyze this and list the key takeaways:\n\n", icon: ScanSearch },
+  { id: "brainstorm", prompt: "Brainstorm ideas for: ", icon: Wand2 },
 ];
 
 function conversationIdFromPath(pathname) {
@@ -35,7 +41,7 @@ function conversationIdFromPath(pathname) {
   return parts[1] || null;
 }
 
-function DimaBubble({ message, onCopy, onRegenerate, canRegenerate, copiedId }) {
+function DimaBubble({ message, onCopy, onRegenerate, canRegenerate, copiedId, youLabel }) {
   const html = useMemo(
     () => (message.role === "assistant" ? renderDimaMarkdown(message.content || "") : ""),
     [message.content, message.role],
@@ -43,7 +49,7 @@ function DimaBubble({ message, onCopy, onRegenerate, canRegenerate, copiedId }) 
   const isUser = message.role === "user";
   return (
     <article className={`dima-msg ${isUser ? "is-user" : "is-assistant"}`}>
-      <div className="dima-msg-label">{isUser ? "You" : "Dima 1.0"}</div>
+      <div className="dima-msg-label">{isUser ? youLabel : "Dima 1.0"}</div>
       {isUser ? (
         <div className="dima-msg-body">{message.content}</div>
       ) : (
@@ -65,11 +71,13 @@ function DimaBubble({ message, onCopy, onRegenerate, canRegenerate, copiedId }) 
 
 export default function DimaAiWorkspace({ me, isMobile, onClose }) {
   const t = useT();
+  const { locale } = useLocale();
   const navigate = useNavigate();
   const location = useLocation();
   const activeId = conversationIdFromPath(location.pathname);
 
   const [history, setHistory] = useState([]);
+  const [query, setQuery] = useState("");
   const [messages, setMessages] = useState([]);
   const [title, setTitle] = useState("");
   const [draft, setDraft] = useState("");
@@ -133,6 +141,25 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
     const el = scrollerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, busy]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 24), 148)}px`;
+  }, [draft]);
+
+  const groupedHistory = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const items = q
+      ? history.filter((c) => String(c.title || "").toLowerCase().includes(q))
+      : history;
+    const buckets = { today: [], yesterday: [], previous: [] };
+    for (const c of items) {
+      buckets[historyBucket(c.updated_at || c.created_at)].push(c);
+    }
+    return buckets;
+  }, [history, query]);
 
   const stop = () => {
     abortRef.current?.abort();
@@ -254,6 +281,48 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
 
   const empty = messages.length === 0 && !busy;
   const showChatPane = !isMobile || !mobileShowList;
+  const canSend = Boolean(draft.trim()) && !busy;
+  const historySections = [
+    ["today", groupedHistory.today],
+    ["yesterday", groupedHistory.yesterday],
+    ["previous", groupedHistory.previous],
+  ];
+  const historyEmpty = history.length === 0;
+  const searchEmpty = !historyEmpty && historySections.every(([, items]) => items.length === 0);
+
+  const renderHistoryItem = (c) => (
+    <button
+      key={c.id}
+      type="button"
+      className={`dima-history-item ${activeId === c.id ? "active" : ""}`}
+      onClick={() => {
+        navigate(`/dimaai/${c.id}`);
+        if (isMobile) setMobileShowList(false);
+      }}
+    >
+      <span className="dima-history-orb" aria-hidden="true">
+        <MessageSquare size={14} />
+      </span>
+      <span className="dima-history-copy">
+        <span className="dima-history-name">{c.title || t("dimaai.newChat")}</span>
+        <span className="dima-history-time">
+          {formatRelTime(c.updated_at || c.created_at, locale)}
+        </span>
+      </span>
+      <span
+        className="dima-history-del"
+        role="button"
+        tabIndex={0}
+        onClick={(e) => onDelete(c.id, e)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onDelete(c.id, e);
+        }}
+        aria-label={t("common.delete")}
+      >
+        <Trash2 size={14} />
+      </span>
+    </button>
+  );
 
   return (
     <section
@@ -275,39 +344,45 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
                 <span className="dima-back-label">{t("nav.chats")}</span>
               </button>
             )}
-            <strong>{t("dimaai.history")}</strong>
+            <div className="dima-history-brand">
+              <span className="dima-kicker">DimaAI</span>
+              <strong>{t("dimaai.history")}</strong>
+            </div>
           </div>
-          <button type="button" className="dima-icon-btn" onClick={openNew} aria-label={t("dimaai.newChat")}>
-            <Plus size={16} />
-          </button>
         </div>
+
+        <button type="button" className="dima-history-new" onClick={openNew}>
+          <Plus size={16} />
+          {t("dimaai.newChat")}
+        </button>
+
+        <label className="dima-history-search">
+          <Search size={15} />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("dimaai.search")}
+            aria-label={t("dimaai.search")}
+          />
+        </label>
+
         <div className="dima-history-list">
-          {history.length === 0 && <p className="dima-muted">{t("dimaai.noHistory")}</p>}
-          {history.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className={`dima-history-item ${activeId === c.id ? "active" : ""}`}
-              onClick={() => {
-                navigate(`/dimaai/${c.id}`);
-                if (isMobile) setMobileShowList(false);
-              }}
-            >
-              <MessageSquare size={14} />
-              <span>{c.title || t("dimaai.newChat")}</span>
-              <span
-                className="dima-history-del"
-                role="button"
-                tabIndex={0}
-                onClick={(e) => onDelete(c.id, e)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") onDelete(c.id, e);
-                }}
-              >
-                <Trash2 size={12} />
-              </span>
-            </button>
-          ))}
+          {historyEmpty && (
+            <div className="dima-history-empty">
+              <Sparkles size={18} />
+              <p>{t("dimaai.noHistory")}</p>
+            </div>
+          )}
+          {searchEmpty && <p className="dima-muted">{t("dimaai.noSearch")}</p>}
+          {historySections.map(([key, items]) =>
+            items.length ? (
+              <div key={key} className="dima-history-group">
+                <h3>{t(`dimaai.group.${key}`)}</h3>
+                {items.map(renderHistoryItem)}
+              </div>
+            ) : null,
+          )}
         </div>
       </aside>
 
@@ -329,7 +404,7 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
           </div>
           <div className="dima-topbar-text">
             <h1>DimaAI</h1>
-            <p>Dima 1.0{title ? ` · ${title}` : ""}</p>
+            <p>Dima 1.0{title ? ` · ${title}` : ` · ${t("dimaai.taglineShort")}`}</p>
           </div>
           <button type="button" className="dima-new-btn" onClick={openNew}>
             <Plus size={14} /> {t("dimaai.newChat")}
@@ -345,19 +420,25 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
               <h2>Dima 1.0</h2>
               <p>{t("dimaai.tagline")}</p>
               <div className="dima-suggestions">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className="dima-chip"
-                    onClick={() => {
-                      setDraft(s.prompt);
-                      inputRef.current?.focus();
-                    }}
-                  >
-                    {t(`dimaai.suggest.${s.id}`)}
-                  </button>
-                ))}
+                {SUGGESTIONS.map((s) => {
+                  const Icon = s.icon;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="dima-chip"
+                      onClick={() => {
+                        setDraft(s.prompt);
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      <span className="dima-chip-icon" aria-hidden="true">
+                        <Icon size={16} />
+                      </span>
+                      <span>{t(`dimaai.suggest.${s.id}`)}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -367,6 +448,7 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
                   key={m.id}
                   message={m}
                   copiedId={copiedId}
+                  youLabel={t("common.you")}
                   onCopy={onCopy}
                   canRegenerate={!busy && lastAssistant?.id === m.id}
                   onRegenerate={() => send(m.content, { regenerate: true })}
@@ -385,39 +467,49 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
 
         {error && <div className="dima-error" role="alert">{error}</div>}
 
-        <form
-          className="dima-composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send(draft);
-          }}
-        >
-          <textarea
-            ref={inputRef}
-            className="dima-input"
-            rows={1}
-            value={draft}
-            placeholder={t("dimaai.placeholder")}
-            disabled={busy}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send(draft);
-              }
+        <div className="dima-dock">
+          <form
+            className="dima-composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              send(draft);
             }}
-          />
-          {busy ? (
-            <button type="button" className="dima-send is-stop" onClick={stop} aria-label={t("dimaai.stop")}>
-              <Square size={16} />
-            </button>
-          ) : (
-            <button type="submit" className="dima-send" disabled={!draft.trim()} aria-label={t("common.send")}>
-              <Send size={16} />
-            </button>
-          )}
-        </form>
-        <p className="dima-foot">{t("dimaai.disclaimer")}</p>
+          >
+            <textarea
+              ref={inputRef}
+              className="dima-input"
+              rows={1}
+              value={draft}
+              placeholder={t("dimaai.placeholder")}
+              disabled={busy}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send(draft);
+                }
+              }}
+            />
+            <div className="dima-composer-bar">
+              <span className="dima-composer-hint">{t("dimaai.composerHint")}</span>
+              {busy ? (
+                <button type="button" className="dima-send is-stop" onClick={stop} aria-label={t("dimaai.stop")}>
+                  <Square size={15} />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className={`dima-send${canSend ? " is-ready" : ""}`}
+                  disabled={!canSend}
+                  aria-label={t("common.send")}
+                >
+                  <Send size={16} />
+                </button>
+              )}
+            </div>
+          </form>
+          <p className="dima-foot">{t("dimaai.disclaimer")}</p>
+        </div>
       </div>
     </section>
   );

@@ -19,7 +19,7 @@ assert(
 );
 
 assert(
-  /grid-template-columns:\s*minmax\(220px,\s*280px\)\s+minmax\(0,\s*1fr\)/.test(dima),
+  /grid-template-columns:\s*minmax\(240px,\s*300px\)\s+minmax\(0,\s*1fr\)/.test(dima),
   "DimaAI inner chat column must be minmax(0, 1fr) so it can grow",
 );
 
@@ -31,5 +31,8 @@ assert(
 assert(!/\.dima-history \{[\s\S]{0,200}translateX\(-110%\)/.test(dima), "history sidebar must not start off-canvas");
 assert(/\.dima-workspace\.is-chat \.dima-history/.test(dima), "mobile chat pane must hide history, not overlay it");
 assert(/\.dima-back-btn/.test(dima), "DimaAI needs a visible back control");
+assert(/\.dima-dock/.test(dima), "composer must sit in a docked footer");
+assert(/\.dima-history-new/.test(dima), "history menu needs a primary new-chat control");
+assert(/\.dima-admin-action/.test(dima), "admin key cards need labeled actions");
 
 console.log("dimaai.layout.selftest.mjs: ok");
