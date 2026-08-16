@@ -35,5 +35,6 @@ assert(/\.dima-dock/.test(dima), "composer must sit in a docked footer");
 assert(/\.dima-history-new/.test(dima), "history menu needs a primary new-chat control");
 assert(/--vv-offset-top/.test(dima), "keyboard-open DimaAI must follow visualViewport.offsetTop");
 assert(/:has\(\.dima-workspace\.is-chat\)/.test(dima), "open DimaAI thread must hide the mobile tab bar");
+assert(/\.dima-msg-body \{[\s\S]{0,160}color:\s*var\(--text-1\)/.test(dima), "assistant/user bubbles must use readable text color");
 
 console.log("dimaai.layout.selftest.mjs: ok");

@@ -112,5 +112,9 @@ export async function streamDimaMessage({
   if (buf.trim()) consumeBlock(buf);
 
   if (streamError) throw new Error(streamError);
-  return doneMessage || { role: "assistant", content: assembled };
+  const final = doneMessage || { role: "assistant", content: assembled };
+  if (!final.stopped && !String(final.content || assembled || "").trim()) {
+    throw new Error("Dima is temporarily unavailable. Please try again shortly.");
+  }
+  return final;
 }

@@ -174,11 +174,17 @@ router.post("/conversations/:id/messages", async (req, res) => {
       return res.end();
     }
 
+    full = String(full || "").trim();
+    if (!full) {
+      sseWrite(res, "error", { error: USER_UNAVAILABLE });
+      return res.end();
+    }
+
     const assistant = await conversations.insertMessage({
       userId: req.user.id,
       conversationId: conversation.id,
       role: "assistant",
-      content: full || " ",
+      content: full,
     });
     await conversations.touchConversation(req.user.id, conversation.id);
     sseWrite(res, "done", { message: assistant });

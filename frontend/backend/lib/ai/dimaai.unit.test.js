@@ -4,7 +4,7 @@ const assert = require("assert");
 const { encryptSecret, decryptSecret, maskSecret } = require("./cryptoKeys");
 const { sanitizeProviderText, publicErrorForStatus, adminPingError } = require("./sanitize");
 const { shouldFailover } = require("./provider-manager");
-const { classifyHttpStatus, modelCandidates } = require("./gemini");
+const { classifyHttpStatus, modelCandidates, extractText, thinkingConfigFor } = require("./gemini");
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "dimaai-test-secret-min-32-characters!!";
 
@@ -25,6 +25,21 @@ assert.equal(classifyHttpStatus(404), "request");
 assert.equal(classifyHttpStatus(401), "auth");
 assert.equal(modelCandidates()[0], "gemini-3.6-flash");
 assert.ok(!modelCandidates().includes("gemini-2.0-flash"));
+
+assert.deepEqual(thinkingConfigFor("gemini-3.6-flash"), { thinkingLevel: "minimal" });
+assert.deepEqual(thinkingConfigFor("gemini-3.5-flash"), { thinkingLevel: "minimal" });
+assert.deepEqual(thinkingConfigFor("gemini-2.5-flash"), { thinkingBudget: 0 });
+assert.equal(thinkingConfigFor("unknown-model"), null);
+assert.equal(
+  extractText({
+    candidates: [{ content: { parts: [{ thought: true, text: "hidden" }, { text: "visible reply" }] } }],
+  }),
+  "visible reply",
+);
+assert.equal(
+  extractText({ candidates: [{ content: { parts: [{ thought: true, text: "only thinking" }] } }] }),
+  "",
+);
 
 assert.equal(shouldFailover("unavailable"), true);
 assert.equal(shouldFailover("auth"), true);

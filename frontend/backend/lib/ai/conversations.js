@@ -72,7 +72,10 @@ async function listMessages(userId, conversationId) {
     .order("created_at", { ascending: true })
     .limit(200);
   if (error) throw error;
-  return { conversation: owned, messages: data || [] };
+  const messages = (data || []).filter(
+    (m) => m.role !== "assistant" || String(m.content || "").trim(),
+  );
+  return { conversation: owned, messages };
 }
 
 async function insertMessage({ userId, conversationId, role, content }) {

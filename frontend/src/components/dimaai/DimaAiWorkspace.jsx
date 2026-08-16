@@ -57,11 +57,13 @@ function DimaBubble({ message, onCopy, onRegenerate, canRegenerate, copiedId, yo
     [message.content, message.role],
   );
   const isUser = message.role === "user";
+  const raw = String(message.content || "");
+  const markdownEmpty = !String(html || "").replace(/<[^>]+>/g, "").trim();
   return (
     <article className={`dima-msg ${isUser ? "is-user" : "is-assistant"}`}>
       <div className="dima-msg-label">{isUser ? youLabel : "Dima 1.0"}</div>
-      {isUser ? (
-        <div className="dima-msg-body">{message.content}</div>
+      {isUser || (markdownEmpty && raw.trim()) ? (
+        <div className="dima-msg-body">{raw}</div>
       ) : (
         <div className="dima-msg-body dima-md" dangerouslySetInnerHTML={{ __html: html }} />
       )}
@@ -100,6 +102,8 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
   const abortRef = useRef(null);
   const scrollerRef = useRef(null);
   const inputRef = useRef(null);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
 
   const loadHistory = useCallback(async () => {
     try {
@@ -118,7 +122,7 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
     }
     try {
       const data = await getDimaConversation(id);
-      setMessages(data.messages || []);
+      setMessages((data.messages || []).filter((m) => m.role !== "assistant" || String(m.content || "").trim()));
       setTitle(data.conversation?.title || "");
       setError("");
     } catch (err) {
@@ -143,9 +147,9 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
   }, [isMobile, activeId]);
 
   useEffect(() => {
-    if (busy) return;
+    if (busyRef.current) return;
     loadConversation(activeId);
-  }, [activeId, loadConversation, busy]);
+  }, [activeId, loadConversation]);
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -256,6 +260,10 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
         },
       });
 
+      const finalContent = String(result?.content || "").trim();
+      if (!finalContent) {
+        throw new Error(t("dimaai.unavailable"));
+      }
       setMessages((prev) =>
         prev.map((m) =>
           m.id === tmpId
@@ -464,7 +472,9 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
             </div>
           ) : (
             <div className="dima-thread">
-              {messages.map((m) => (
+              {messages
+                .filter((m) => m.streaming || String(m.content || "").trim())
+                .map((m) => (
                 <DimaBubble
                   key={m.id}
                   message={m}

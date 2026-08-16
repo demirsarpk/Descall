@@ -40,7 +40,24 @@ function toGeminiContents(messages) {
 function extractText(json) {
   const parts = json?.candidates?.[0]?.content?.parts;
   if (!Array.isArray(parts)) return "";
-  return parts.map((p) => p?.text || "").join("");
+  return parts
+    .filter((p) => p && p.thought !== true)
+    .map((p) => (typeof p.text === "string" ? p.text : ""))
+    .join("");
+}
+
+function thinkingConfigFor(model) {
+  const id = String(model || "").toLowerCase();
+  if (id.includes("gemini-3")) return { thinkingLevel: "minimal" };
+  if (id.includes("gemini-2.5")) return { thinkingBudget: 0 };
+  return null;
+}
+
+function generationConfigFor(model, maxOutputTokens = 16384) {
+  const cfg = { temperature: 0.7, maxOutputTokens };
+  const thinkingConfig = thinkingConfigFor(model);
+  if (thinkingConfig) cfg.thinkingConfig = thinkingConfig;
+  return cfg;
 }
 
 function classifyHttpStatus(status) {
@@ -120,66 +137,141 @@ async function readSseStream(res, { onToken, signal }) {
   return full;
 }
 
+function requestBody(messages, generationConfig) {
+  return {
+    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    contents: toGeminiContents(messages),
+    generationConfig,
+  };
+}
+
+async function postGemini({ model, stream, apiKey, messages, signal, generationConfig }) {
+  const path = stream
+    ? `${BASE}/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`
+    : `${BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  let res;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody(messages, generationConfig)),
+      signal,
+    });
+  } catch (err) {
+    if (err?.name === "AbortError" || signal?.aborted) {
+      const aborted = new Error("aborted");
+      aborted.code = "aborted";
+      throw aborted;
+    }
+    const wrapped = new Error("provider_unavailable");
+    wrapped.code = "unavailable";
+    wrapped.causeStatus = 503;
+    logInternal("gemini-network", err);
+    throw wrapped;
+  }
+  if (!res.ok) {
+    const raw = await res.text().catch(() => "");
+    throw httpError(res.status, raw);
+  }
+  return res;
+}
+
 async function complete({ apiKey, messages, signal, onToken }) {
   return withModelFallback(async (model) => {
-    const url = `${BASE}/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
-    const body = {
-      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-      contents: toGeminiContents(messages),
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 4096,
-      },
+    const withThinking = generationConfigFor(model);
+    const withoutThinking = { temperature: 0.7, maxOutputTokens: 16384 };
+
+    const streamOnce = async (cfg) => {
+      const res = await postGemini({
+        model,
+        stream: true,
+        apiKey,
+        messages,
+        signal,
+        generationConfig: cfg,
+      });
+      return readSseStream(res, { onToken, signal });
     };
 
-    let res;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+    const unaryOnce = async (cfg) => {
+      const res = await postGemini({
+        model,
+        stream: false,
+        apiKey,
+        messages,
         signal,
+        generationConfig: cfg,
       });
+      const json = await res.json().catch(() => ({}));
+      return extractText(json);
+    };
+
+    let text = "";
+    try {
+      text = await streamOnce(withThinking);
     } catch (err) {
-      if (err?.name === "AbortError" || signal?.aborted) {
-        const aborted = new Error("aborted");
-        aborted.code = "aborted";
-        throw aborted;
+      if (err?.causeStatus === 400 && withThinking.thinkingConfig) {
+        text = await streamOnce(withoutThinking);
+      } else {
+        throw err;
       }
-      const wrapped = new Error("provider_unavailable");
-      wrapped.code = "unavailable";
-      wrapped.causeStatus = 503;
-      logInternal("gemini-network", err);
-      throw wrapped;
     }
 
-    if (!res.ok) {
-      const raw = await res.text().catch(() => "");
-      throw httpError(res.status, raw);
+    if (!String(text).trim()) {
+      try {
+        text = await unaryOnce(withThinking);
+      } catch (err) {
+        if (err?.causeStatus === 400 && withThinking.thinkingConfig) {
+          text = await unaryOnce(withoutThinking);
+        } else if (err?.code === "aborted") {
+          throw err;
+        }
+      }
+      if (String(text).trim()) onToken?.(text);
     }
 
-    const text = await readSseStream(res, { onToken, signal });
-    return { text: text || "" };
+    if (!String(text).trim()) {
+      const empty = new Error("empty_reply");
+      empty.code = "unavailable";
+      empty.causeStatus = 503;
+      throw empty;
+    }
+    return { text };
   });
 }
 
 async function pingKey(apiKey, signal) {
   return withModelFallback(async (model) => {
-    const url = `${BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: "Reply with the single word OK." }] }],
-        generationConfig: { maxOutputTokens: 8, temperature: 0 },
-      }),
-      signal,
-    });
-    if (!res.ok) {
-      const raw = await res.text().catch(() => "");
-      throw httpError(res.status, raw);
+    const withThinking = { ...generationConfigFor(model, 32), temperature: 0 };
+    const withoutThinking = { maxOutputTokens: 32, temperature: 0 };
+    const tryPing = async (generationConfig) => {
+      const url = `${BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: "Reply with the single word OK." }] }],
+          generationConfig,
+        }),
+        signal,
+      });
+      if (!res.ok) {
+        const raw = await res.text().catch(() => "");
+        throw httpError(res.status, raw);
+      }
+      return res.json();
+    };
+
+    let json;
+    try {
+      json = await tryPing(withThinking);
+    } catch (err) {
+      if (err?.causeStatus === 400 && withThinking.thinkingConfig) {
+        json = await tryPing(withoutThinking);
+      } else {
+        throw err;
+      }
     }
-    const json = await res.json();
     const text = extractText(json);
     return { ok: true, preview: Boolean(text) };
   });
@@ -191,4 +283,6 @@ module.exports = {
   pingKey,
   classifyHttpStatus,
   modelCandidates,
+  extractText,
+  thinkingConfigFor,
 };
