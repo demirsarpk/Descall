@@ -533,6 +533,7 @@
   flex: 1;
   min-width: 0;
   width: 100%;
+  min-height: 24px;
   resize: none;
   border: 0;
   background: transparent;
@@ -561,6 +562,7 @@
 .dima-send {
   width: 38px;
   height: 38px;
+  margin-left: auto;
   border: 0;
   border-radius: 50%;
   background: var(--surface-hover);
@@ -835,4 +837,12 @@ html.kb-open .app-root.is-mobile .dima-dock {
   .dima-admin-key { flex-direction: column; }
   .dima-history-del { opacity: 1; }
   .dima-composer-hint { display: none; }
+  .dima-composer { padding: 10px 10px 8px; border-radius: 18px; }
+  .dima-admin-key-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .dima-admin-action { justify-content: center; }
+  .dima-admin-action.is-test,
+  .dima-admin-action.is-danger { grid-column: 1 / -1; }
 }
