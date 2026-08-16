@@ -23,7 +23,12 @@ import {
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const CHANGED_ONLY = process.argv.includes("--changed");
-const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
+
+/** Shared hub + Bing's own endpoint (Bing Webmaster IndexNow Insights). */
+const INDEXNOW_ENDPOINTS = [
+  "https://api.indexnow.org/indexnow",
+  "https://www.bing.com/indexnow",
+];
 
 const STATUS_HINT = {
   200: "OK — URLs accepted",
@@ -34,23 +39,17 @@ const STATUS_HINT = {
   429: "Rate limited — retry later",
 };
 
-export async function postIndexNow(urls, { key, dryRun = DRY_RUN } = {}) {
-  const resolvedKey = key || resolveIndexNowKey();
-  if (!urls.length) {
-    return { ok: true, status: 204, submitted: 0, skipped: true };
-  }
-  const payload = {
+function buildPayload(urls, key) {
+  return {
     host: INDEXNOW_HOST,
-    key: resolvedKey,
-    keyLocation: keyLocation(resolvedKey),
+    key,
+    keyLocation: keyLocation(key),
     urlList: urls,
   };
-  if (dryRun) {
-    console.log(`[dry-run] POST ${INDEXNOW_ENDPOINT} (${urls.length} urls)`);
-    console.log(`[dry-run] keyLocation ${payload.keyLocation}`);
-    return { ok: true, status: 200, submitted: urls.length, dryRun: true };
-  }
-  const res = await fetch(INDEXNOW_ENDPOINT, {
+}
+
+async function postToEndpoint(endpoint, payload) {
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json; charset=utf-8" },
     body: JSON.stringify(payload),
@@ -58,9 +57,54 @@ export async function postIndexNow(urls, { key, dryRun = DRY_RUN } = {}) {
   const text = await res.text().catch(() => "");
   const hint = STATUS_HINT[res.status] || "see IndexNow docs";
   const ok = res.status === 200 || res.status === 202;
-  console.log(`IndexNow HTTP ${res.status} — ${hint} (${urls.length} urls)`);
+  console.log(`IndexNow ${endpoint} → HTTP ${res.status} — ${hint} (${payload.urlList.length} urls)`);
   if (!ok && text) console.log(text.slice(0, 500));
-  return { ok, status: res.status, text, submitted: ok ? urls.length : 0 };
+  return { ok, status: res.status, text, endpoint };
+}
+
+/**
+ * Bing wizard step 3 also documents a single-URL GET:
+ * https://www.bing.com/indexnow?url=…&key=…&keyLocation=…
+ */
+export async function getIndexNow(url, { key, dryRun = DRY_RUN } = {}) {
+  const resolvedKey = key || resolveIndexNowKey();
+  const endpoint = new URL("https://www.bing.com/indexnow");
+  endpoint.searchParams.set("url", url);
+  endpoint.searchParams.set("key", resolvedKey);
+  endpoint.searchParams.set("keyLocation", keyLocation(resolvedKey));
+  if (dryRun) {
+    console.log(`[dry-run] GET ${endpoint}`);
+    return { ok: true, status: 200, dryRun: true };
+  }
+  const res = await fetch(endpoint, { method: "GET", redirect: "follow" });
+  const text = await res.text().catch(() => "");
+  const hint = STATUS_HINT[res.status] || "see IndexNow docs";
+  const ok = res.status === 200 || res.status === 202;
+  console.log(`IndexNow GET bing.com → HTTP ${res.status} — ${hint} (${url})`);
+  if (!ok && text) console.log(text.slice(0, 500));
+  return { ok, status: res.status, text };
+}
+
+export async function postIndexNow(urls, { key, dryRun = DRY_RUN } = {}) {
+  const resolvedKey = key || resolveIndexNowKey();
+  if (!urls.length) {
+    return { ok: true, status: 204, submitted: 0, skipped: true };
+  }
+  const payload = buildPayload(urls, resolvedKey);
+  if (dryRun) {
+    for (const endpoint of INDEXNOW_ENDPOINTS) {
+      console.log(`[dry-run] POST ${endpoint} (${urls.length} urls)`);
+    }
+    console.log(`[dry-run] keyLocation ${payload.keyLocation}`);
+    return { ok: true, status: 200, submitted: urls.length, dryRun: true };
+  }
+  const results = [];
+  for (const endpoint of INDEXNOW_ENDPOINTS) {
+    results.push(await postToEndpoint(endpoint, payload));
+  }
+  const ok = results.some((r) => r.ok);
+  const status = results.find((r) => r.ok)?.status || results[0]?.status || 0;
+  return { ok, status, results, submitted: ok ? urls.length : 0 };
 }
 
 async function main() {
@@ -88,6 +132,10 @@ async function main() {
   console.log(`Key file: ${keyLocation(key)}`);
 
   const result = await postIndexNow(urls, { key });
+  const homepage = urls.find((u) => u === `${SITE_ORIGIN}/`) || urls[0];
+  if (homepage && !result.skipped) {
+    await getIndexNow(homepage, { key });
+  }
   if (!result.ok && !result.dryRun && !result.skipped) {
     process.exitCode = 1;
   }

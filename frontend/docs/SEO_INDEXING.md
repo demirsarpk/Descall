@@ -37,14 +37,15 @@ Still do in the existing Domain property:
 
 Bing / Yandex / Seznam / Naver. Google uses Search Console + sitemap, not IndexNow.
 
-- **Key file:** `https://descall.com/<INDEXNOW_KEY>.txt` (content is the key plus a single trailing newline)
+- **Key file:** `https://descall.com/4f463b15fd51f502c6bb73abbeb38e3c.txt` (content is the key plus a single trailing newline)
 - **Env:** `INDEXNOW_KEY` (scripts fall back to `frontend/public/<32-hex>.txt` if unset)
 - **URL source:** `src/site/sitemapCatalog.js` — same list as prerender / sitemaps
 - **Manual:** `cd frontend && npm run indexnow:submit` (or `:dry` / `:changed`)
 - **Deploy:** `.github/workflows/indexnow.yml` runs after push to `main` (90s wait for Vercel). `vercel-deploy.yml` also submits after a CLI production deploy.
+- **Endpoints:** POST `https://api.indexnow.org/indexnow` and `https://www.bing.com/indexnow`, plus a GET ping of the homepage as Bing's wizard documents.
 - **Changed URLs:** `--changed` maps git diff → public paths. If the blast radius is the whole catalog (`seoConfig`, prerender, etc.) it sends the full sitemap. Unreliable diffs also fall back to full sitemap (~40 URLs, well under the 10k cap).
 
-Do not rotate the live key without publishing the new `.txt` first — Bing 403s on key mismatch.
+Do **not** click **Generate** on [Bing's IndexNow getstarted page](https://www.bing.com/indexnow/getstarted) after this is live. That button mints a *new* random key in the browser. Hosting it would rotate the live file and Bing 403s until it recrawls. Verify in Bing Webmaster Tools → **IndexNow Insights** (submissions appear there; no extra key paste is required).
 
 ## GSC playbook (legitimate only)
 
