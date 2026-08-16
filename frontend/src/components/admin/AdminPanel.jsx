@@ -14,7 +14,7 @@ import {
   MousePointer, Play, Pause, Square, Maximize2, Minimize2, Copy,
   ExternalLink, FileDown, Printer, Share2, Star, ThumbsUp,
   ThumbsDown, Upload, Video, Voicemail, ZoomIn, ZoomOut, Megaphone,
-  Coins, DollarSign, Wallet, Plus, Minus, ShoppingBag
+  Coins, DollarSign, Wallet, Plus, Minus, ShoppingBag, Sparkles
 } from "lucide-react";
 import { adminFetch } from "../../api/adminHttp";
 import { API_BASE_URL } from "../../config/api";
@@ -22,6 +22,7 @@ import RippleButton from "../ui/RippleButton";
 import AdminFeedback from "./AdminFeedback";
 import AdminErrorLogs from "./AdminErrorLogs";
 import AdminShop from "./AdminShop";
+import AdminDimaai from "./AdminDimaai";
 import AdminModeration from "./AdminModeration";
 import { Avatar } from "../ui/Avatar";
 import { useT } from "../../context/LocaleContext";
@@ -40,6 +41,7 @@ const TABS = [
   { id: "errors", label: "admin.errors", icon: AlertCircle },
   { id: "feedback", label: "admin.feedback", icon: Bell },
   { id: "shop", label: "admin.shop", icon: ShoppingBag },
+  { id: "dimaai", label: "admin.dimaai.title", icon: Sparkles },
   { id: "announcements", label: "admin.announcements", icon: Megaphone },
   { id: "casino", label: "admin.casino", icon: Coins },
   { id: "moderation", label: "admin.moderation", icon: Shield },
@@ -1849,6 +1851,10 @@ function getTimeAgo(date, t) {
           <section className="admin-section admin-section-full">
             <AdminShop />
           </section>
+        )}
+
+        {tab === "dimaai" && (
+          <AdminDimaai />
         )}
 
         {tab === "announcements" && (

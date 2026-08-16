@@ -397,6 +397,14 @@ export function routeMeta(pathname) {
       noindex: true,
     };
   }
+  if (clean === "/dimaai" || clean.startsWith("/dimaai/")) {
+    return {
+      path: clean,
+      title: "DimaAI — Dima 1.0",
+      description: "Dima 1.0 — AI assistant inside Descall.",
+      noindex: true,
+    };
+  }
   if (clean.startsWith("/app")) {
     return {
       path: clean,

@@ -24,6 +24,7 @@
 - **ICE/TURN**: client preloads `GET /api/webrtc/ice-config` (`src/lib/iceConfig.js`). Set `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` on the backend (or `VITE_ICE_SERVERS` JSON on the frontend). Manual call checks: `docs/CALL_TEST_MATRIX.md`.
 - **Download page** loads the desktop version from GitHub **`releases/latest`** via `GET /api/app/latest-release` (repo: `demirsarpk/Descall`). Bump semver with `frontend/electron/release.cjs` (`patch` / `minor` / `major`). See `docs/ELECTRON_RELEASE.md`.
 - **SEO / sitemap**: public marketing routes live in `frontend/src/site/` (React Router). Express serves `/sitemap.xml` (pages-only index), `/sitemap-pages.xml`, `/sitemap.html`, `/robots.txt` — invites/announcements are **not** in the index. Authenticated UI is client `noindex` via `SeoHead`. Web Vite `base: "/"`; Electron builds set `ELECTRON_BUILD=1` for `base: "./"`. See `docs/SITEMAP.md`. Set `PUBLIC_APP_URL` for absolute URLs.
+- **DimaAI**: in-app assistant at `/dimaai` (nav rail). Conversations are per-user in Supabase (`dimaai_*` tables). Provider keys are managed in **Admin → DimaAI** (encrypted). Optional bootstrap env: `GEMINI_API_KEY`, `GEMINI_API_KEY_1`… on Render only. See `frontend/docs/DIMAAI.md`.
 - **Client errors** POST to `/api/errors` (mounted in `server.js`). `/debug/*` routes are disabled in production unless `ENABLE_DEBUG_ROUTES=true`.
 - **Bans** persist in `users.is_banned` (migration `20250730_add_users_is_banned.sql`); loaded on server boot into `bannedUserIds`.
 

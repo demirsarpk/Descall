@@ -6,9 +6,10 @@ const VIEW_PATHS = {
   calls: "/calls",
   activity: "/activity",
   play: "/play",
+  dimaai: "/dimaai",
 };
 
-const APP_PREFIXES = ["/direct", "/groups", "/servers", "/friends", "/calls", "/activity", "/play", "/settings"];
+const APP_PREFIXES = ["/direct", "/groups", "/servers", "/friends", "/calls", "/activity", "/play", "/dimaai", "/settings"];
 
 export function isAuthenticatedAppPath(pathname = "/") {
   return APP_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -34,6 +35,9 @@ export function parseAppRoute(pathname = "/") {
   if (section === "settings") return { view: "chat", settingsTab: target || "overview" };
   if (section === "friends" || section === "calls" || section === "activity" || section === "play") {
     return { view: section, settingsTab: null };
+  }
+  if (section === "dimaai") {
+    return { view: "dimaai", conversationId: target || null, settingsTab: null };
   }
   return { view: "chat", unknown: true };
 }

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, X, MessageSquare, Users, Phone, Activity, Settings, Crosshair, Server } from "lucide-react";
+import { Bell, X, MessageSquare, Users, Phone, Activity, Settings, Crosshair, Server, Sparkles } from "lucide-react";
 import NavigationRail from "./NavigationRail";
 import ServerSidebar from "./ServerSidebar";
 import ServersSidebar from "../servers/ServersSidebar";
@@ -10,6 +10,7 @@ import ActivitySidebar from "../activity/ActivitySidebar";
 import FeedbackNudgeBanner from "../feedback/FeedbackNudgeBanner";
 import FeedbackModal from "../feedback/FeedbackModal";
 import LfgWorkspace from "../lfg/LfgWorkspace";
+import DimaAiWorkspace from "../dimaai/DimaAiWorkspace";
 import { useActivity } from "../../hooks/useActivity";
 import { useMobile } from "../../hooks/useMobile";
 import { useMobileKeyboard } from "../../hooks/useMobileKeyboard";
@@ -177,6 +178,7 @@ export default function AppLayout({
       isMobile &&
       activeView !== "play" &&
       activeView !== "activity" &&
+      activeView !== "dimaai" &&
       !activeDmUser &&
       !activeGroup &&
       !(activeView === "servers" && activeChannel)
@@ -195,7 +197,7 @@ export default function AppLayout({
   // forcing the drawer open here left a rail-only shell over LFG and broke layout.
   useEffect(() => {
     if (!isMobile) return;
-    if (activeView === "play" || activeView === "activity") {
+    if (activeView === "play" || activeView === "activity" || activeView === "dimaai") {
       setMobileDrawerOpen(false);
       return;
     }
@@ -412,7 +414,7 @@ export default function AppLayout({
           onStatusChange={onStatusChange}
         />
 
-        {activeView === "play" ? null : activeView === "activity" ? (
+        {activeView === "play" || activeView === "dimaai" ? null : activeView === "activity" ? (
           <ActivitySidebar
             friends={friends}
             friendPresence={activity.friendPresence}
@@ -511,6 +513,12 @@ export default function AppLayout({
             // Defer so activeGroup is set before voice starts
             window.setTimeout(() => onGroupVoiceCall?.(), 80);
           }}
+        />
+      ) : activeView === "dimaai" ? (
+        <DimaAiWorkspace
+          me={me}
+          isMobile={isMobile}
+          onMenuClick={openMobileDrawer}
         />
       ) : (
       <ChatPanel
@@ -618,6 +626,14 @@ export default function AppLayout({
           >
             <Crosshair size={20} />
             <span>{t("Play")}</span>
+          </button>
+          <button
+            type="button"
+            className={`mobile-tab ${activeView === "dimaai" ? "active" : ""}`}
+            onClick={() => handleViewChange("dimaai")}
+          >
+            <Sparkles size={20} />
+            <span>DimaAI</span>
           </button>
           <button
             type="button"

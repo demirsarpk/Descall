@@ -31,6 +31,7 @@ const lfgRoutes = require("./routes/lfg");
 const riotRoutes = require("./routes/riot");
 const webPushRoutes = require("./routes/webPush");
 const shopRoutes = require("./routes/shop");
+const dimaaiRoutes = require("./routes/dimaai");
 const { sitemapRouter } = require("./routes/sitemap");
 const state = require("./runtime/sharedState");
 const { sendFeedbackEmail } = require("./lib/feedbackEmail");
@@ -73,6 +74,7 @@ app.use(canonicalHostMiddleware);
 app.use(express.json());
 app.use("/api/web-push", webPushRoutes);
 app.use("/api/shop", shopRoutes);
+app.use("/api/dimaai", dimaaiRoutes);
 
 // Debug - log all requests (skip noise in production)
 if (process.env.NODE_ENV !== "production") {

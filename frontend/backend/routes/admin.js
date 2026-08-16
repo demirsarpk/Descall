@@ -18,6 +18,7 @@ const router = express.Router();
 const BCRYPT_ROUNDS = 12;
 
 router.use(requireAuth, requireAdmin);
+router.use("/dimaai", require("./adminDimaai"));
 
 function getIo(req) {
   return req.app.get("io");
