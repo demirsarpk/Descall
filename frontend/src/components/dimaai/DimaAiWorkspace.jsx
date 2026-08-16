@@ -9,8 +9,7 @@ import {
   Check,
   RefreshCw,
   Trash2,
-  Menu,
-  X,
+  ArrowLeft,
   MessageSquare,
 } from "lucide-react";
 import { useT } from "../../context/LocaleContext";
@@ -64,7 +63,7 @@ function DimaBubble({ message, onCopy, onRegenerate, canRegenerate, copiedId }) 
   );
 }
 
-export default function DimaAiWorkspace({ me, onMenuClick, isMobile }) {
+export default function DimaAiWorkspace({ me, isMobile, onClose }) {
   const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
@@ -77,7 +76,9 @@ export default function DimaAiWorkspace({ me, onMenuClick, isMobile }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copiedId, setCopiedId] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [mobileShowList, setMobileShowList] = useState(
+    () => !!isMobile && !conversationIdFromPath(typeof window !== "undefined" ? window.location.pathname : ""),
+  );
   const abortRef = useRef(null);
   const scrollerRef = useRef(null);
   const inputRef = useRef(null);
@@ -120,6 +121,10 @@ export default function DimaAiWorkspace({ me, onMenuClick, isMobile }) {
   }, [loadHistory]);
 
   useEffect(() => {
+    if (isMobile && activeId) setMobileShowList(false);
+  }, [isMobile, activeId]);
+
+  useEffect(() => {
     if (busy) return;
     loadConversation(activeId);
   }, [activeId, loadConversation, busy]);
@@ -142,8 +147,17 @@ export default function DimaAiWorkspace({ me, onMenuClick, isMobile }) {
     setDraft("");
     setError("");
     navigate("/dimaai");
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile) setMobileShowList(false);
     inputRef.current?.focus();
+  };
+
+  const goHome = () => {
+    if (onClose) onClose();
+    else navigate("/direct");
+  };
+
+  const backToList = () => {
+    setMobileShowList(true);
   };
 
   const send = async (text, { regenerate = false } = {}) => {
@@ -239,20 +253,30 @@ export default function DimaAiWorkspace({ me, onMenuClick, isMobile }) {
   };
 
   const empty = messages.length === 0 && !busy;
+  const showChatPane = !isMobile || !mobileShowList;
 
   return (
-    <section className="dima-workspace" data-dimaai="1">
-      {isMobile && sidebarOpen && (
-        <button
-          type="button"
-          className="dima-history-backdrop"
-          aria-label={t("common.close")}
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-      <aside className={`dima-history ${sidebarOpen ? "open" : ""}`}>
+    <section
+      className={`dima-workspace${showChatPane && isMobile ? " is-chat" : ""}`}
+      data-dimaai="1"
+    >
+      <aside className="dima-history">
         <div className="dima-history-head">
-          <strong>{t("dimaai.history")}</strong>
+          <div className="dima-history-title">
+            {onClose && (
+              <button
+                type="button"
+                className="dima-back-btn"
+                onClick={goHome}
+                title={t("Back to Descall")}
+                aria-label={t("Back to Descall")}
+              >
+                <ArrowLeft size={18} />
+                <span className="dima-back-label">{t("nav.chats")}</span>
+              </button>
+            )}
+            <strong>{t("dimaai.history")}</strong>
+          </div>
           <button type="button" className="dima-icon-btn" onClick={openNew} aria-label={t("dimaai.newChat")}>
             <Plus size={16} />
           </button>
@@ -266,7 +290,7 @@ export default function DimaAiWorkspace({ me, onMenuClick, isMobile }) {
               className={`dima-history-item ${activeId === c.id ? "active" : ""}`}
               onClick={() => {
                 navigate(`/dimaai/${c.id}`);
-                if (isMobile) setSidebarOpen(false);
+                if (isMobile) setMobileShowList(false);
               }}
             >
               <MessageSquare size={14} />
@@ -292,11 +316,12 @@ export default function DimaAiWorkspace({ me, onMenuClick, isMobile }) {
           {isMobile && (
             <button
               type="button"
-              className="dima-icon-btn"
-              onClick={() => setSidebarOpen((v) => !v)}
-              aria-label={t("Menu")}
+              className="dima-back-btn"
+              onClick={backToList}
+              aria-label={t("common.back")}
             >
-              {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+              <ArrowLeft size={18} />
+              <span className="dima-back-label">{t("dimaai.history")}</span>
             </button>
           )}
           <div className="dima-brand-mark" aria-hidden="true">

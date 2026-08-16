@@ -264,7 +264,7 @@ export default function AppLayout({
 
   const handleViewChange = useCallback((view) => {
     setActiveView(view);
-    if (view === "calls" || view === "activity" || view === "friends" || view === "play") {
+    if (view === "calls" || view === "activity" || view === "friends" || view === "play" || view === "dimaai") {
       if (activeDmUser) onDmSelect?.(null);
       if (activeGroup) onGroupSelect?.(null);
       if (activeServer) onServerBack?.();
@@ -277,7 +277,7 @@ export default function AppLayout({
       if (activeGroup) onGroupSelect?.(null);
     }
     if (isMobile) {
-      setMobileDrawerOpen(view !== "play" && view !== "activity");
+      setMobileDrawerOpen(view !== "play" && view !== "activity" && view !== "dimaai");
     }
   }, [isMobile, activeDmUser, activeGroup, activeServer, onDmSelect, onGroupSelect, onServerBack, setActiveView]);
 
@@ -518,7 +518,7 @@ export default function AppLayout({
         <DimaAiWorkspace
           me={me}
           isMobile={isMobile}
-          onMenuClick={openMobileDrawer}
+          onClose={() => handleViewChange("chat")}
         />
       ) : (
       <ChatPanel

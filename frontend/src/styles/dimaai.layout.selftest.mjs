@@ -28,4 +28,8 @@ assert(
   "Mobile DimaAI must be full-bleed like Play",
 );
 
+assert(!/\.dima-history \{[\s\S]{0,200}translateX\(-110%\)/.test(dima), "history sidebar must not start off-canvas");
+assert(/\.dima-workspace\.is-chat \.dima-history/.test(dima), "mobile chat pane must hide history, not overlay it");
+assert(/\.dima-back-btn/.test(dima), "DimaAI needs a visible back control");
+
 console.log("dimaai.layout.selftest.mjs: ok");
