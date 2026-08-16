@@ -115,13 +115,19 @@
   grid-template-columns: var(--nav-rail-width) 72px var(--sidebar-width) 1fr;
 }
 
-/* Play / LFG: rail + full workspace (list + detail) */
-.app-root[data-view="play"] {
+/* Play / LFG + DimaAI: rail + full workspace (no list sidebar column).
+   Default app-root is 3 columns (rail | sidebar | main). Without this,
+   DimaAI is placed in --sidebar-width (~280px) and its inner 220px history
+   column leaves the chat pane ~60px — text stacks letter-by-letter. */
+.app-root[data-view="play"],
+.app-root[data-view="dimaai"] {
   grid-template-columns: var(--nav-rail-width) 1fr;
 }
-.app-root[data-view="play"] .lfg-workspace {
+.app-root[data-view="play"] .lfg-workspace,
+.app-root[data-view="dimaai"] .dima-workspace {
   min-width: 0;
   min-height: 0;
+  width: 100%;
   height: 100%;
 }
 

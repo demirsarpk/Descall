@@ -206,22 +206,27 @@
    * Play / LFG (mobile): full-bleed workspace. Keep the nav drawer fully off-screen
    * so a rail-only shell cannot cover or squeeze the LFG list after view switches.
    */
-  .app-root.is-mobile[data-view="play"] {
+  .app-root.is-mobile[data-view="play"],
+  .app-root.is-mobile[data-view="dimaai"] {
     grid-template-columns: 1fr !important;
   }
 
   .app-root.is-mobile[data-view="play"] .app-sidebar-shell,
-  .app-root.is-mobile[data-view="play"].mobile-drawer-open .app-sidebar-shell {
+  .app-root.is-mobile[data-view="play"].mobile-drawer-open .app-sidebar-shell,
+  .app-root.is-mobile[data-view="dimaai"] .app-sidebar-shell,
+  .app-root.is-mobile[data-view="dimaai"].mobile-drawer-open .app-sidebar-shell {
     transform: translateX(-100%) !important;
     pointer-events: none;
     box-shadow: none;
   }
 
-  .app-root.is-mobile[data-view="play"] .mobile-drawer-backdrop {
+  .app-root.is-mobile[data-view="play"] .mobile-drawer-backdrop,
+  .app-root.is-mobile[data-view="dimaai"] .mobile-drawer-backdrop {
     display: none !important;
   }
 
-  .app-root.is-mobile[data-view="play"] .lfg-workspace {
+  .app-root.is-mobile[data-view="play"] .lfg-workspace,
+  .app-root.is-mobile[data-view="dimaai"] .dima-workspace {
     width: 100%;
     min-width: 0;
     height: 100%;
