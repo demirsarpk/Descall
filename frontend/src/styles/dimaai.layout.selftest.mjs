@@ -33,6 +33,7 @@ assert(/\.dima-workspace\.is-chat \.dima-history/.test(dima), "mobile chat pane 
 assert(/\.dima-back-btn/.test(dima), "DimaAI needs a visible back control");
 assert(/\.dima-dock/.test(dima), "composer must sit in a docked footer");
 assert(/\.dima-history-new/.test(dima), "history menu needs a primary new-chat control");
-assert(/\.dima-admin-action/.test(dima), "admin key cards need labeled actions");
+assert(/--vv-offset-top/.test(dima), "keyboard-open DimaAI must follow visualViewport.offsetTop");
+assert(/:has\(\.dima-workspace\.is-chat\)/.test(dima), "open DimaAI thread must hide the mobile tab bar");
 
 console.log("dimaai.layout.selftest.mjs: ok");

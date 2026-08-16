@@ -631,17 +631,62 @@
   display: inline-flex;
 }
 
+.app-root.is-mobile .dima-topbar,
+.app-root.is-mobile .dima-dock {
+  flex-shrink: 0;
+}
+
+.app-root.is-mobile .dima-input {
+  scroll-margin: 0;
+  scroll-padding: 0;
+}
+
+/* Thread open: drop the tab-bar gap so the composer sits on the true bottom
+   (same model as an open DM). Keyboard then only shrinks the visual viewport. */
+.app-root.is-mobile[data-view="dimaai"]:has(.dima-workspace.is-chat) {
+  padding-bottom: 0;
+}
+
+.app-root.is-mobile[data-view="dimaai"]:has(.dima-workspace.is-chat) .mobile-tab-bar {
+  display: none !important;
+}
+
+.app-root.is-mobile[data-view="dimaai"]:has(.dima-workspace.is-chat) .dima-workspace {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  max-height: var(--vv-height, 100dvh);
+  height: 100%;
+}
+
+html.kb-open .app-root.is-mobile[data-view="dimaai"] {
+  padding-bottom: 0 !important;
+  height: var(--vv-height, 100dvh) !important;
+  max-height: var(--vv-height, 100dvh) !important;
+  overflow: hidden;
+  transform: translateY(var(--vv-offset-top, 0px));
+}
+
 html.kb-open .app-root.is-mobile[data-view="dimaai"] .mobile-tab-bar {
-  transform: translateY(110%);
-  pointer-events: none;
+  display: none !important;
 }
 
-html.kb-open .app-root.is-mobile .dima-workspace {
-  padding-bottom: 8px;
+html.kb-open .app-root.is-mobile[data-view="dimaai"] .dima-workspace {
+  padding-bottom: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden;
 }
 
-html.kb-open .app-root.is-mobile .dima-dock {
+html.kb-open .app-root.is-mobile[data-view="dimaai"] .dima-dock {
   padding-bottom: 4px;
+}
+
+html.kb-open .app-root.is-mobile[data-view="dimaai"] .dima-foot,
+html.kb-open .app-root.is-mobile[data-view="dimaai"] .dima-new-btn {
+  display: none;
+}
+
+html.kb-open .app-root.is-mobile[data-view="dimaai"] .dima-composer-hint {
+  display: none;
 }
 
 .dima-admin-head {

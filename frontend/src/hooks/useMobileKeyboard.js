@@ -63,8 +63,13 @@ export function useMobileKeyboard(enabled = true) {
         } else {
           root.classList.remove("kb-closing");
           window.clearTimeout(closeAnimTimer);
+          resetScroll();
         }
-      } else if (!open && (window.scrollY || document.documentElement.scrollTop || offsetTop > 1)) {
+      } else if (window.scrollY || document.documentElement.scrollTop || document.body.scrollTop) {
+        // iOS pans the document to chase the focused field. Keep the shell at 0
+        // and let --vv-offset-top place it inside the visual viewport instead.
+        resetScroll();
+      } else if (!open && offsetTop > 1) {
         resetScroll();
       }
     };

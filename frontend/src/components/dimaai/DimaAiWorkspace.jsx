@@ -35,6 +35,16 @@ const SUGGESTIONS = [
   { id: "brainstorm", prompt: "Brainstorm ideas for: ", icon: Wand2 },
 ];
 
+function pinMobileViewport() {
+  try {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  } catch {
+    /* ignore */
+  }
+}
+
 function conversationIdFromPath(pathname) {
   const parts = String(pathname || "").split("/").filter(Boolean);
   if (parts[0] !== "dimaai") return null;
@@ -141,6 +151,17 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
     const el = scrollerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, busy]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el || !isMobile) return undefined;
+    const onBlur = () => {
+      window.setTimeout(pinMobileViewport, 40);
+      window.setTimeout(pinMobileViewport, 280);
+    };
+    el.addEventListener("blur", onBlur);
+    return () => el.removeEventListener("blur", onBlur);
+  }, [isMobile]);
 
   useEffect(() => {
     const el = inputRef.current;
@@ -482,6 +503,16 @@ export default function DimaAiWorkspace({ me, isMobile, onClose }) {
               value={draft}
               placeholder={t("dimaai.placeholder")}
               disabled={busy}
+              enterKeyHint="send"
+              onFocus={() => {
+                if (!isMobile) return;
+                pinMobileViewport();
+                requestAnimationFrame(() => {
+                  pinMobileViewport();
+                  const scroller = scrollerRef.current;
+                  if (scroller) scroller.scrollTop = scroller.scrollHeight;
+                });
+              }}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
