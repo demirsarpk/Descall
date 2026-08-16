@@ -4,7 +4,7 @@ const express = require("express");
 const supabase = require("../db/supabase");
 const { encryptSecret, decryptSecret, secretParts } = require("../lib/ai/cryptoKeys");
 const { envKeyEntries, pingWithKey, markKeyResult } = require("../lib/ai/provider-manager");
-const { logInternal, USER_UNAVAILABLE } = require("../lib/ai/sanitize");
+const { logInternal, adminPingError } = require("../lib/ai/sanitize");
 
 const router = express.Router();
 
@@ -197,8 +197,13 @@ router.post("/keys/:id/test", async (req, res) => {
       try {
         await pingWithKey(env.apiKey);
         return res.json({ ok: true, available: true });
-      } catch {
-        return res.json({ ok: false, available: false, error: USER_UNAVAILABLE });
+      } catch (err) {
+        return res.json({
+          ok: false,
+          available: false,
+          code: err.code || "error",
+          error: adminPingError(err.code),
+        });
       }
     }
     const { data, error } = await supabase
@@ -215,7 +220,12 @@ router.post("/keys/:id/test", async (req, res) => {
       return res.json({ ok: true, available: true });
     } catch (err) {
       await markKeyResult({ id: data.id, source: "database" }, { ok: false, errorText: err.code || "error" });
-      return res.json({ ok: false, available: false, error: USER_UNAVAILABLE });
+      return res.json({
+        ok: false,
+        available: false,
+        code: err.code || "error",
+        error: adminPingError(err.code),
+      });
     }
   } catch (err) {
     logInternal("admin-test", err);

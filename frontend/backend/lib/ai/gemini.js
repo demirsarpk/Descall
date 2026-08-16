@@ -2,9 +2,23 @@
 
 const { logInternal, sanitizeProviderText } = require("./sanitize");
 
-/** Internal model id — never returned to clients. */
-const INTERNAL_MODEL = process.env.DIMA_INTERNAL_MODEL || "gemini-2.0-flash";
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+
+/** Retired June 2026 — kept only so env overrides that still point here can 404-fallback. */
+const SHUTDOWN_DEFAULT = "gemini-2.0-flash";
+
+function modelCandidates() {
+  const env = String(process.env.DIMA_INTERNAL_MODEL || "").trim();
+  const fallbacks = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+  const out = [];
+  if (env && env !== SHUTDOWN_DEFAULT) out.push(env);
+  for (const id of fallbacks) {
+    if (!out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+let stickyModel = null;
 
 const SYSTEM_INSTRUCTION = [
   "You are Dima 1.0, the AI assistant inside Descall (product name: DimaAI).",
@@ -35,6 +49,38 @@ function classifyHttpStatus(status) {
   if (status === 400 || status === 404) return "request";
   if (status >= 500 || status === 408) return "unavailable";
   return "error";
+}
+
+function httpError(status, raw) {
+  const kind = classifyHttpStatus(status);
+  const err = new Error(kind);
+  err.code = kind;
+  err.causeStatus = status;
+  logInternal("gemini-http", { message: sanitizeProviderText(raw).slice(0, 180) }, { status });
+  return err;
+}
+
+async function withModelFallback(run) {
+  const preferred = stickyModel && modelCandidates().includes(stickyModel) ? stickyModel : null;
+  const models = preferred
+    ? [preferred, ...modelCandidates().filter((id) => id !== preferred)]
+    : modelCandidates();
+  let lastErr = null;
+  for (const model of models) {
+    try {
+      const result = await run(model);
+      stickyModel = model;
+      return result;
+    } catch (err) {
+      lastErr = err;
+      if (err?.causeStatus === 404) {
+        if (stickyModel === model) stickyModel = null;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || Object.assign(new Error("unavailable"), { code: "unavailable", causeStatus: 503 });
 }
 
 async function readSseStream(res, { onToken, signal }) {
@@ -75,72 +121,68 @@ async function readSseStream(res, { onToken, signal }) {
 }
 
 async function complete({ apiKey, messages, signal, onToken }) {
-  const url = `${BASE}/${INTERNAL_MODEL}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
-  const body = {
-    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-    contents: toGeminiContents(messages),
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 4096,
-    },
-  };
+  return withModelFallback(async (model) => {
+    const url = `${BASE}/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
+    const body = {
+      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+      contents: toGeminiContents(messages),
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 4096,
+      },
+    };
 
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    });
-  } catch (err) {
-    if (err?.name === "AbortError" || signal?.aborted) {
-      const aborted = new Error("aborted");
-      aborted.code = "aborted";
-      throw aborted;
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (err) {
+      if (err?.name === "AbortError" || signal?.aborted) {
+        const aborted = new Error("aborted");
+        aborted.code = "aborted";
+        throw aborted;
+      }
+      const wrapped = new Error("provider_unavailable");
+      wrapped.code = "unavailable";
+      wrapped.causeStatus = 503;
+      logInternal("gemini-network", err);
+      throw wrapped;
     }
-    const wrapped = new Error("provider_unavailable");
-    wrapped.code = "unavailable";
-    wrapped.causeStatus = 503;
-    logInternal("gemini-network", err);
-    throw wrapped;
-  }
 
-  if (!res.ok) {
-    const raw = await res.text().catch(() => "");
-    const kind = classifyHttpStatus(res.status);
-    const err = new Error(kind);
-    err.code = kind;
-    err.causeStatus = res.status;
-    logInternal("gemini-http", { message: sanitizeProviderText(raw).slice(0, 180) }, { status: res.status });
-    throw err;
-  }
+    if (!res.ok) {
+      const raw = await res.text().catch(() => "");
+      throw httpError(res.status, raw);
+    }
 
-  const text = await readSseStream(res, { onToken, signal });
-  return { text: text || "" };
+    const text = await readSseStream(res, { onToken, signal });
+    return { text: text || "" };
+  });
 }
 
 async function pingKey(apiKey, signal) {
-  const url = `${BASE}/${INTERNAL_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: "Reply with the single word OK." }] }],
-      generationConfig: { maxOutputTokens: 8, temperature: 0 },
-    }),
-    signal,
+  return withModelFallback(async (model) => {
+    const url = `${BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: "Reply with the single word OK." }] }],
+        generationConfig: { maxOutputTokens: 8, temperature: 0 },
+      }),
+      signal,
+    });
+    if (!res.ok) {
+      const raw = await res.text().catch(() => "");
+      throw httpError(res.status, raw);
+    }
+    const json = await res.json();
+    const text = extractText(json);
+    return { ok: true, preview: Boolean(text) };
   });
-  if (!res.ok) {
-    const kind = classifyHttpStatus(res.status);
-    const err = new Error(kind);
-    err.code = kind;
-    err.causeStatus = res.status;
-    throw err;
-  }
-  const json = await res.json();
-  const text = extractText(json);
-  return { ok: true, preview: Boolean(text) };
 }
 
 module.exports = {
@@ -148,4 +190,5 @@ module.exports = {
   complete,
   pingKey,
   classifyHttpStatus,
+  modelCandidates,
 };

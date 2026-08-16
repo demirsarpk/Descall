@@ -37,6 +37,8 @@ These belong on **Render** (API), not Vercel. Vercel only hosts the static SPA.
 
 Dima sticks to the preferred / last-successful key. It tries the next configured key only on auth failure or provider unavailability. HTTP 429 (quota) does **not** rotate keys.
 
+Internal model IDs are selected on the server (`DIMA_INTERNAL_MODEL`, with fallbacks). Retired model IDs 404 and are skipped automatically.
+
 ## Deploy
 
 1. Merge this branch so Render redeploys the Express API (`/api/dimaai`).

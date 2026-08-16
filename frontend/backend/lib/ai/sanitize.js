@@ -25,6 +25,14 @@ function publicErrorForStatus(status) {
   return USER_GENERIC;
 }
 
+function adminPingError(code) {
+  if (code === "auth") return "This key was rejected.";
+  if (code === "quota") return USER_RATE;
+  if (code === "request") return "This key could not be verified.";
+  if (code === "unavailable") return USER_UNAVAILABLE;
+  return "This key is not available right now.";
+}
+
 function logInternal(scope, err, extra = {}) {
   const msg = err?.message || String(err || "unknown");
   const safe = sanitizeProviderText(msg).slice(0, 300);
@@ -38,5 +46,6 @@ module.exports = {
   USER_TOO_LONG,
   sanitizeProviderText,
   publicErrorForStatus,
+  adminPingError,
   logInternal,
 };

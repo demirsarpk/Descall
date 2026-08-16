@@ -23,6 +23,13 @@ import { adminFetch } from "../../api/adminHttp";
 import RippleButton from "../ui/RippleButton";
 import { useT } from "../../context/LocaleContext";
 
+function errorLabel(code, t) {
+  if (!code) return "—";
+  const translated = t(`admin.dimaai.errorCode.${code}`);
+  if (!translated || translated.startsWith("admin.dimaai.errorCode.")) return code;
+  return translated;
+}
+
 function fmt(ts) {
   if (!ts) return "—";
   try {
@@ -106,7 +113,7 @@ export default function AdminDimaai() {
     try {
       const data = await adminFetch(`/dimaai/keys/${encodeURIComponent(id)}/test`, { method: "POST" });
       if (data.ok) setOk(t("admin.dimaai.testOk"));
-      else setErr(data.error || t("admin.dimaai.testFail"));
+      else setErr(data.code ? t(`admin.dimaai.testCode.${data.code}`) : (data.error || t("admin.dimaai.testFail")));
       await load();
     } catch (e) {
       setErr(e.message || t("admin.dimaai.testFail"));
@@ -235,7 +242,7 @@ export default function AdminDimaai() {
                 </span>
                 <span>
                   {k.lastError ? <XCircle size={12} /> : <CheckCircle2 size={12} />}{" "}
-                  {t("admin.dimaai.lastError")}: {k.lastError || "—"}
+                  {t("admin.dimaai.lastError")}: {errorLabel(k.lastError, t)}
                 </span>
                 <span>{t("admin.dimaai.order")}: {index + 1}</span>
               </div>

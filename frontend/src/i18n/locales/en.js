@@ -197,6 +197,20 @@ export const nested = {
       "test": "Test",
       "testOk": "This key is available.",
       "testFail": "This key is not available right now.",
+      "testCode": {
+        "auth": "This key was rejected.",
+        "request": "This key could not be verified.",
+        "quota": "This key hit a usage limit. Try again later.",
+        "unavailable": "Dima is temporarily unavailable. Please try again shortly.",
+        "error": "This key is not available right now."
+      },
+      "errorCode": {
+        "auth": "Rejected",
+        "request": "Unverified",
+        "quota": "Limit",
+        "unavailable": "Unavailable",
+        "error": "Error"
+      },
       "orderSaved": "Failover order saved.",
       "saveFailed": "Could not save changes.",
       "envSection": "Host environment",

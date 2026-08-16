@@ -197,6 +197,20 @@ export const nested = {
       "test": "Dene",
       "testOk": "Bu anahtar kullanılabilir.",
       "testFail": "Bu anahtar şu anda kullanılamıyor.",
+      "testCode": {
+        "auth": "Bu anahtar reddedildi.",
+        "request": "Bu anahtar doğrulanamadı.",
+        "quota": "Bu anahtar kullanım limitine takıldı. Biraz sonra tekrar dene.",
+        "unavailable": "Dima şu anda kullanılamıyor. Lütfen biraz sonra tekrar dene.",
+        "error": "Bu anahtar şu anda kullanılamıyor."
+      },
+      "errorCode": {
+        "auth": "Reddedildi",
+        "request": "Doğrulanamadı",
+        "quota": "Limit",
+        "unavailable": "Kullanılamıyor",
+        "error": "Hata"
+      },
       "orderSaved": "Failover sırası kaydedildi.",
       "saveFailed": "Değişiklikler kaydedilemedi.",
       "envSection": "Sunucu ortamı",
