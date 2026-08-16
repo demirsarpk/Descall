@@ -640,6 +640,11 @@
 .app-root.is-mobile .dima-input {
   scroll-margin: 0;
   scroll-padding: 0;
+  /* iOS Safari zooms (and pans sideways) when a focused field is < 16px. */
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Thread open: drop the tab-bar gap so the composer sits on the true bottom
@@ -658,12 +663,23 @@
   height: 100%;
 }
 
+html.kb-open,
+html.kb-open body {
+  overflow-x: hidden !important;
+}
+
 html.kb-open .app-root.is-mobile[data-view="dimaai"] {
+  position: fixed;
+  top: var(--vv-offset-top, 0px);
+  left: var(--vv-offset-left, 0px);
+  width: var(--vv-width, 100%);
+  max-width: var(--vv-width, 100%);
   padding-bottom: 0 !important;
   height: var(--vv-height, 100dvh) !important;
   max-height: var(--vv-height, 100dvh) !important;
   overflow: hidden;
-  transform: translateY(var(--vv-offset-top, 0px));
+  transform: none;
+  box-sizing: border-box;
 }
 
 html.kb-open .app-root.is-mobile[data-view="dimaai"] .mobile-tab-bar {
@@ -674,7 +690,10 @@ html.kb-open .app-root.is-mobile[data-view="dimaai"] .dima-workspace {
   padding-bottom: 0 !important;
   height: 100% !important;
   max-height: 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
   overflow: hidden;
+  grid-template-columns: 1fr !important;
 }
 
 html.kb-open .app-root.is-mobile[data-view="dimaai"] .dima-dock {

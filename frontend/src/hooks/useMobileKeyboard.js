@@ -5,10 +5,16 @@ const KB_OPEN_THRESHOLD = 80;
 function resetScroll() {
   try {
     window.scrollTo(0, 0);
-    if (document.documentElement) document.documentElement.scrollTop = 0;
-    if (document.body) document.body.scrollTop = 0;
+    if (document.documentElement) {
+      document.documentElement.scrollTop = 0;
+      document.documentElement.scrollLeft = 0;
+    }
+    if (document.body) {
+      document.body.scrollTop = 0;
+      document.body.scrollLeft = 0;
+    }
     // iOS sometimes leaves a residual visualViewport offset after blur.
-    if (window.visualViewport && window.visualViewport.offsetTop) {
+    if (window.visualViewport && (window.visualViewport.offsetTop || window.visualViewport.offsetLeft)) {
       window.scrollTo(0, 0);
     }
   } catch {
@@ -34,8 +40,11 @@ export function useMobileKeyboard(enabled = true) {
 
     const apply = () => {
       const layoutH = window.innerHeight || root.clientHeight || 0;
+      const layoutW = window.innerWidth || root.clientWidth || 0;
       const vvH = vv?.height ?? layoutH;
+      const vvW = vv?.width ?? layoutW;
       const offsetTop = vv?.offsetTop ?? 0;
+      const offsetLeft = vv?.offsetLeft ?? 0;
       const kb = Math.max(0, Math.round(layoutH - vvH - offsetTop));
       const open = kb >= KB_OPEN_THRESHOLD;
 
@@ -50,7 +59,9 @@ export function useMobileKeyboard(enabled = true) {
       }
 
       root.style.setProperty("--vv-height", `${Math.round(vvH)}px`);
+      root.style.setProperty("--vv-width", `${Math.round(vvW)}px`);
       root.style.setProperty("--vv-offset-top", `${Math.round(offsetTop)}px`);
+      root.style.setProperty("--vv-offset-left", `${Math.round(offsetLeft)}px`);
       root.style.setProperty("--kb-inset", `${kb}px`);
       root.classList.toggle("kb-open", open);
 
@@ -67,9 +78,9 @@ export function useMobileKeyboard(enabled = true) {
         }
       } else if (window.scrollY || document.documentElement.scrollTop || document.body.scrollTop) {
         // iOS pans the document to chase the focused field. Keep the shell at 0
-        // and let --vv-offset-top place it inside the visual viewport instead.
+        // and pin it to the visual viewport rectangle instead.
         resetScroll();
-      } else if (!open && offsetTop > 1) {
+      } else if (!open && (offsetTop > 1 || offsetLeft > 1)) {
         resetScroll();
       }
     };
@@ -119,7 +130,9 @@ export function useMobileKeyboard(enabled = true) {
       root.classList.remove("kb-open");
       root.classList.remove("kb-closing");
       root.style.removeProperty("--vv-height");
+      root.style.removeProperty("--vv-width");
       root.style.removeProperty("--vv-offset-top");
+      root.style.removeProperty("--vv-offset-left");
       root.style.removeProperty("--kb-inset");
       resetScroll();
     };
